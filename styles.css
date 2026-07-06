@@ -20,86 +20,86 @@
   font-weight: 700; font-style: normal; font-display: swap;
 }
 
-/* ── DARK (default canónico · #030303) ── */
+/* ═══════════════════════════════════════════════════════════════
+   GNOSIS × GESTELL · Design tokens (contraste canónico AAA)
+   Nocturne (dark · default) ↔ Daylight (light · alterno).
+   Singularidad activa = GNOSIS (cyan). Ref: BARBELO + Brandbook Vol III/VI.
+   Reglas: color real de singularidad SOLO en SVG/fills; en texto/gráfico fino
+   usar la variante `-on` AAA por modo. Hairlines subidas a ≥3:1 (WCAG 1.4.11).
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Familias + reals de singularidad (invariantes al modo) */
 :root {
-  /* Primitivos GESTELL */
-  --gstl-black: #030303;
-  --gstl-white: #FAFAF8;
-  --gstl-border: #1A1A1A;
-  --gstl-bg-2: #050505;
-  --gstl-bg-3: #0A0A0A;
-  --gnosis: #00D4FF;
-  --gnosis-600: #00B8E0;
-  --gnosis-700: #009DBF;
-  --telos: #A4133C;
-  --umwelt: #FF0066;
-  --dasein: #7B3FA0;
-  --gnosis-text: #00D4FF;
-  --telos-text: #F26B8A;
-  --umwelt-text: #FF80AA;
-  --dasein-text: #B99BD6;
-  --text-1: #FAFAF8;
-  --text-2: #CCCCCC;
-  --text-3: #AAAAAA;
+  --font-d: 'Akzidenz-Grotesk', 'Helvetica Neue', 'Arial', sans-serif;
+  --font-b: 'Helvetica Neue LT Pro', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', 'Courier', monospace;
+
+  --gnosis: #00D4FF; --telos: #A4133C; --umwelt: #FF0066; --dasein: #7B3FA0;
+  --acc-solid: #00D4FF; /* GNOSIS real — fills/SVG */
 
   /* Paleta data-viz 12-cat (§3.3.5, deuteranopia-safe) */
   --dv-1: #00D4FF; --dv-2: #A4133C; --dv-3: #FF0066; --dv-4: #7B3FA0;
   --dv-5: #FFB833; --dv-6: #33CC99; --dv-7: #FF8855; --dv-8: #6699CC;
   --dv-9: #CC6699; --dv-10: #99CC66; --dv-11: #CC9933; --dv-12: #8888AA;
+}
 
-  /* Familias tipográficas (§3.4) */
-  --font-d: 'Akzidenz-Grotesk', 'Helvetica Neue', 'Arial', sans-serif;
-  --font-b: 'Helvetica Neue LT Pro', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Courier New', 'Courier', monospace;
+/* ── NOCTURNE (dark · default) · dashboard 60% #050505 (§3.3) ── */
+:root {
+  --bg: #050505;
+  --surface: #0A0A0A;
+  --surface-2: #030303;
+  --line: #5B5B5B;    /* 3.00:1 on bg — hairline canónica (no la fantasma #1A1A1A) */
+  --line-2: #777777;  /* 4.55:1 */
+  --line-ghost: #1A1A1A; /* separadores ultra-sutiles internos, uso puntual */
+  --t1: #FAFAF8;      /* 19.5:1 */
+  --t2: #CCCCCC;      /* 12.7:1 */
+  --t3: #AAAAAA;      /* 8.8:1  */
 
-  /* Semánticos (mapeados a primitivos GESTELL) */
-  --bg-primary: #030303;
-  --bg-secondary: #0A0A0A;
-  --bg-app: #030303;
-  --border: #1A1A1A;
-  --text-primary: #FAFAF8;
-  --text-secondary: #CCCCCC;
-  --text-muted: #AAAAAA;
-  --accent: #00D4FF;
-  --accent-hover: #00B8E0;
-  --card-bg: #0A0A0A;
-  --input-bg: #050505;
-  --nav-bg: #030303;
-  --handle-bg: #1A1A1A;
-  --chat-bg: #050505;
-  --panel-bg: #080808;
+  /* singularity-on-dark · variantes AAA (texto + gráfico fino) */
+  --gnosis-on: #00D4FF; --telos-on: #F57F9C; --umwelt-on: #FF80AA; --dasein-on: #B99BD6;
+
+  /* Singularidad activa = GNOSIS */
+  --acc: var(--gnosis-on);
+  --acc-text: var(--gnosis-on);
+  --acc-subtle: #04191F;   /* tinte cyan profundo para hover/fills sutiles */
+
+  /* Estados semánticos (§3.3.2) */
+  --ok: var(--gnosis-on); --warn: var(--umwelt-on); --danger: var(--telos-on); --info: var(--dasein-on);
+
+  --grid-opacity: 0.05;
+
+  /* ── Aliases: variables semánticas heredadas → tokens canónicos ── */
+  --bg-primary: var(--surface-2); --bg-secondary: var(--surface); --bg-app: var(--bg);
+  --border: var(--line);
+  --text-primary: var(--t1); --text-secondary: var(--t2); --text-muted: var(--t3);
+  --accent: var(--acc); --accent-hover: var(--acc);
+  --card-bg: var(--surface); --input-bg: var(--surface-2); --nav-bg: var(--bg);
+  --handle-bg: var(--line); --chat-bg: var(--surface-2); --panel-bg: var(--surface);
   --table-hover: rgba(0, 212, 255, 0.06);
+  --text-1: var(--t1); --text-2: var(--t2); --text-3: var(--t3);
+  --gnosis-text: var(--gnosis-on); --telos-text: var(--telos-on);
+  --umwelt-text: var(--umwelt-on); --dasein-text: var(--dasein-on);
 }
 
-/* ── LIGHT (alterno · #FAFAF8, §3.1/§6.10) ── */
+/* ── DAYLIGHT (light · alterno) · Daylight Foundation ── */
 [data-theme="light"] {
-  --bg-primary: #FAFAF8;
-  --bg-secondary: #F0F0EE;
-  --bg-app: #FAFAF8;
-  --border: #E4E4E0;
-  --text-primary: #030303;
-  --text-secondary: #333333;
-  --text-muted: #666666;
-  --accent: #009DBF;
-  --accent-hover: #007A99;
-  --card-bg: #FFFFFF;
-  --input-bg: #FFFFFF;
-  --nav-bg: #FAFAF8;
-  --handle-bg: #E4E4E0;
-  --chat-bg: #F5F5F3;
-  --panel-bg: #F0F0EE;
-  --table-hover: rgba(0, 157, 191, 0.08);
-  --text-1: #030303;
-  --text-2: #333333;
-  --text-3: #666666;
-  --gnosis-text: #009DBF;
-  --telos-text: #A4133C;
-  --umwelt-text: #B30047;
-  --dasein-text: #562C72;
+  --bg: #FAFAF8;
+  --surface: #F8F8F6;
+  --surface-2: #F5F5F3;
+  --line: #919191;    /* 3.02:1 on bg */
+  --line-2: #737373;  /* 4.54:1 */
+  --line-ghost: #DADADA;
+  --t1: #030303; --t2: #2F2F2F; --t3: #474747;
+
+  /* singularity-on-light · escala 800 AAA sobre #FAFAF8 (§3.3.4) */
+  --gnosis-on: #005A6E; --telos-on: #A4133C; --umwelt-on: #8C0038; --dasein-on: #633C8F;
+  --acc-subtle: #E6FAFF;
+  --grid-opacity: 0.04;
 }
 
-/* Compat: claves de tema antiguas (dark-blue/dark-green/dark) → dark canónico (heredan :root) */
+/* Compat: claves de tema antiguas heredan Nocturne (:root) */
 [data-theme="dark"], [data-theme="dark-blue"], [data-theme="dark-green"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
 
 /* === BOOTSTRAP TABLE OVERRIDES (respect CSS vars) === */
 .table {
@@ -603,22 +603,44 @@ input[type="file"]::file-selector-button {
 }
 
 /* === BUTTONS === */
+/* ── Botones HUD (bio-mecha · §3.5 cockpit) — bordeados, rectos, versalitas ── */
 button, .btn, .download-button a {
-  background-color: var(--accent);
-  color: #030303;
-  font-weight: 700;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  background: transparent;
+  color: var(--t2);
+  border: 1px solid var(--line);
+  border-radius: 0;
+  font-family: var(--font-b);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  line-height: 1;
   cursor: pointer;
-  font-size: 1em;
-  transition: background-color 0.3s ease;
   text-decoration: none;
-  display: inline-block;
+  transition: border-color 0.18s ease, color 0.18s ease, background-color 0.18s ease;
 }
 
 button:hover, .btn:hover, .download-button a:hover {
-  background-color: var(--accent-hover);
+  border-color: var(--t1);
+  color: var(--t1);
+  background: transparent;
+}
+
+/* Acción primaria / descarga = acento GNOSIS bordeado */
+.btn-primary, .btn-danger, .btn-acc {
+  border-color: var(--acc);
+  color: var(--acc-text);
+}
+.btn-primary:hover, .btn-danger:hover, .btn-acc:hover {
+  border-color: var(--acc);
+  color: var(--acc-text);
+  background: var(--acc-subtle);
 }
 
 /* === FOOTER === */
@@ -920,4 +942,137 @@ footer {
     border-right: none;
     border-bottom: 1px solid var(--border);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GNOSIS · HUD SHELL (bio-mecha cockpit) — Ref: BARBELO + Vol III §3.2/3.5/3.7
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Fondo §3.7 — exactamente un patrón por vista (dark=grid · light=rayos GNOSIS) */
+.bg-field { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+.bg-grid {
+  opacity: var(--grid-opacity);
+  color: var(--t1);
+  background-image:
+    linear-gradient(to right, currentColor 0.5px, transparent 0.5px),
+    linear-gradient(to bottom, currentColor 0.5px, transparent 0.5px);
+  background-size: 80px 80px;
+}
+.bg-rays { opacity: 0.05; color: var(--gnosis); display: none; }
+.bg-rays svg { width: 100%; height: 100%; }
+[data-theme="light"] .bg-grid { display: none; }
+[data-theme="light"] .bg-rays { display: block; }
+
+/* Header lock-up canónico (§3.2 · master GESTELL │ sub-marca GNOSIS) */
+.gstl-header {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px; min-height: 64px; width: 100%;
+  padding: 8px 32px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.gstl-lockup { display: flex; align-items: center; gap: 20px; }
+.gstl-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+.gstl-iso { height: 34px; width: 30px; color: var(--t1); display: block; }
+.gstl-iso--sub { height: 40px; width: 40px; }
+.gstl-wordmark {
+  font-family: var(--font-d); font-weight: 700; font-size: 0.75rem;
+  letter-spacing: 4px; color: var(--t1); text-transform: uppercase;
+}
+.gstl-divider { width: 1px; height: 34px; background: var(--line-2); }
+.gstl-sub { display: flex; align-items: center; gap: 12px; }
+.gstl-sub-name {
+  font-family: var(--font-d); font-weight: 700; font-size: 1.125rem;
+  letter-spacing: 4px; color: var(--acc-text); line-height: 1; text-transform: uppercase;
+}
+.gstl-descriptor {
+  margin-top: 4px; font-family: var(--font-b); font-size: 0.625rem;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--t3);
+}
+.gstl-actions { display: flex; align-items: center; gap: 12px; }
+
+/* HUD nav — versalitas, subrayado de acento en activo */
+.hud-nav { display: flex; align-items: center; gap: 4px; }
+.hud-link {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px;
+  font-family: var(--font-b); font-size: 0.625rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; color: var(--t3);
+  text-decoration: none; border-bottom: 2px solid transparent;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.hud-link:hover { color: var(--t1); }
+.hud-link.active { color: var(--t1); border-bottom-color: var(--acc); font-weight: 700; }
+
+/* Botón Gnosis·IA (estructura/función = BARBELO: isotipo + label, bordered-acc, toggle) */
+.gnosis-ia-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 0 14px; border-radius: 0;
+  background: transparent; border: 1px solid var(--acc); color: var(--acc-text);
+  font-family: var(--font-b); font-size: 0.625rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+.gnosis-ia-btn:hover { background: var(--acc-subtle); color: var(--acc-text); border-color: var(--acc); }
+.gnosis-ia-btn .gstl-mark { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* Toggle de tema (HUD) */
+.hud-toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  min-height: 40px; padding: 0 14px; border-radius: 0;
+  background: transparent; border: 1px solid var(--line); color: var(--t2);
+  font-family: var(--font-b); font-size: 0.625rem; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 2px; cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+.hud-toggle:hover { border-color: var(--t1); color: var(--t1); }
+
+/* Brackets de esquina (retícula cockpit) para paneles enmarcados */
+.hud-frame { position: relative; border: 1px solid var(--line); }
+.hud-frame::before, .hud-frame::after {
+  content: ''; position: absolute; width: 10px; height: 10px;
+  border-color: var(--acc); border-style: solid; pointer-events: none;
+}
+.hud-frame::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+.hud-frame::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+
+/* Micro-label mono */
+.mono-label {
+  font-family: var(--font-mono); font-size: 0.625rem;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--t3);
+}
+
+@media (max-width: 720px) {
+  .gstl-header { padding: 8px 16px; flex-wrap: wrap; }
+  .gstl-descriptor, .gstl-divider { display: none; }
+}
+
+/* Contenido por encima del patrón de fondo */
+.gstl-header, body > main, .gstl-footer, .ia-console { position: relative; z-index: 1; }
+.gstl-header { z-index: 50; }
+
+/* Footer HUD */
+.gstl-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 10px 32px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+
+/* Consola GNOSIS·IA (drawer derecho) */
+.ia-console {
+  position: fixed; top: 64px; right: 0; bottom: 0; width: 380px; max-width: 92vw;
+  background: var(--surface); border-left: 1px solid var(--line);
+  transform: translateX(100%); transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 60; display: flex; flex-direction: column;
+}
+.ia-console.open { transform: translateX(0); }
+.ia-console-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 16px; border-bottom: 1px solid var(--line);
+}
+.ia-console-body { padding: 20px 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ia-console { transition: none; }
 }

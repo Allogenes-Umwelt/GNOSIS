@@ -3,15 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}GESTELL{% endblock %}</title>
+  <title>{% block title %}GESTELL · GNOSIS{% endblock %}</title>
   <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script>
-    // Apply saved theme before render to avoid flash (GESTELL: dark #030303 default)
+    // Modo antes del render para evitar flash (GNOSIS: Nocturne por defecto)
     (function() {
       var t = localStorage.getItem('gestell-theme') || 'dark';
-      // Migrate legacy keys -> canonical dark
       if (t === 'dark-blue' || t === 'dark-green') { t = 'dark'; localStorage.setItem('gestell-theme', t); }
       document.documentElement.setAttribute('data-theme', t);
       document.documentElement.setAttribute('data-bs-theme', t === 'light' ? 'light' : 'dark');
@@ -20,71 +19,194 @@
   {% block extra_css %}{% endblock %}
 </head>
 <body>
-  <!-- Navbar -->
-  <nav class="navbar-app">
-    <div class="navbar-inner">
-      <a href="/" class="navbar-brand">
-        <img id="navbar-logo"
-             src="/static/Gestell_Isotipo_Wordmark_Crema_DarkMode.svg"
-             alt="Gestell"
-             class="navbar-logo">
+
+  <!-- ═══ Isotipos canónicos (SVG puros · Brandbook Vol III §3.1–3.2) ═══ -->
+  <svg aria-hidden="true" focusable="false" style="position:absolute;width:0;height:0;overflow:hidden">
+    <defs>
+      <clipPath id="gstl-matrix">
+        <polygon points="250,90 371.24,160 371.24,300 250,370 128.76,300 128.76,160"/>
+      </clipPath>
+      <!-- ai-core-energy: convergencia espectral; neutro exterior flipea por modo -->
+      <radialGradient id="ai-core-energy" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#00D4FF"/><stop offset="15%" stop-color="#7B3FA0"/>
+        <stop offset="35%" stop-color="#FF0066"/><stop offset="65%" stop-color="#FAFAF8"/>
+        <stop offset="100%" stop-color="#FAFAF8"/>
+      </radialGradient>
+      <radialGradient id="ai-core-energy-light" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#00D4FF"/><stop offset="15%" stop-color="#7B3FA0"/>
+        <stop offset="35%" stop-color="#FF0066"/><stop offset="65%" stop-color="#030303"/>
+        <stop offset="100%" stop-color="#030303"/>
+      </radialGradient>
+
+      <!-- Isotipo maestro GESTELL: hexágono + 8 arcos + singulo #00D4FF -->
+      <symbol id="iso-master-dark" viewBox="60 50 380 360">
+        <g clip-path="url(#gstl-matrix)" fill="none" stroke="url(#ai-core-energy)" stroke-width="8.5">
+          <path d="M250 230 A180 180 0 0 1 450 230"/><path d="M250 230 A180 180 0 0 1 391.4 371.4"/>
+          <path d="M250 230 A180 180 0 0 1 250 430"/><path d="M250 230 A180 180 0 0 1 108.6 371.4"/>
+          <path d="M250 230 A180 180 0 0 1 50 230"/><path d="M250 230 A180 180 0 0 1 108.6 88.6"/>
+          <path d="M250 230 A180 180 0 0 1 250 30"/><path d="M250 230 A180 180 0 0 1 391.4 88.6"/>
+        </g>
+        <polygon points="250,90 371.24,160 371.24,300 250,370 128.76,300 128.76,160" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+        <circle cx="250" cy="230" r="10.5" fill="#00D4FF"/>
+      </symbol>
+      <symbol id="iso-master-light" viewBox="60 50 380 360">
+        <g clip-path="url(#gstl-matrix)" fill="none" stroke="url(#ai-core-energy-light)" stroke-width="8.5">
+          <path d="M250 230 A180 180 0 0 1 450 230"/><path d="M250 230 A180 180 0 0 1 391.4 371.4"/>
+          <path d="M250 230 A180 180 0 0 1 250 430"/><path d="M250 230 A180 180 0 0 1 108.6 371.4"/>
+          <path d="M250 230 A180 180 0 0 1 50 230"/><path d="M250 230 A180 180 0 0 1 108.6 88.6"/>
+          <path d="M250 230 A180 180 0 0 1 250 30"/><path d="M250 230 A180 180 0 0 1 391.4 88.6"/>
+        </g>
+        <polygon points="250,90 371.24,160 371.24,300 250,370 128.76,300 128.76,160" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/>
+        <circle cx="250" cy="230" r="10.5" fill="#00D4FF"/>
+      </symbol>
+
+      <!-- Rayo GNOSIS (§3.2 pág 079): 1 línea + 3 círculos de progresión decreciente -->
+      <g id="gstl-gns-ray">
+        <line x1="158" y1="150" x2="255" y2="150" stroke="#00D4FF" stroke-width="1.25" stroke-opacity="0.3"/>
+        <circle cx="195" cy="150" r="2.5" fill="none" stroke="#00D4FF" stroke-width="1" stroke-opacity="0.8"/>
+        <circle cx="222" cy="150" r="2" fill="#00D4FF" fill-opacity="0.6"/>
+        <circle cx="242" cy="150" r="1.5" fill="#00D4FF" fill-opacity="0.4"/>
+      </g>
+      <!-- Isotipo GNOSIS: anillos + órbitas dashed + 8 rayos + singulo (anillo neutro flipea) -->
+      <symbol id="iso-gnosis" viewBox="0 0 300 300">
+        <g fill="none" stroke="#00D4FF">
+          <circle cx="150" cy="150" r="110" stroke-width="1.5" stroke-opacity="0.4"/>
+          <circle cx="150" cy="150" r="110" stroke-width="0.75" stroke-opacity="0.85"/>
+          <circle cx="150" cy="150" r="68" stroke-width="1" stroke-opacity="0.4" stroke-dasharray="3,5"/>
+          <circle cx="150" cy="150" r="42" stroke-width="1" stroke-opacity="0.5" stroke-dasharray="2,4"/>
+        </g>
+        <use href="#gstl-gns-ray"/><use href="#gstl-gns-ray" transform="rotate(45 150 150)"/>
+        <use href="#gstl-gns-ray" transform="rotate(90 150 150)"/><use href="#gstl-gns-ray" transform="rotate(135 150 150)"/>
+        <use href="#gstl-gns-ray" transform="rotate(180 150 150)"/><use href="#gstl-gns-ray" transform="rotate(225 150 150)"/>
+        <use href="#gstl-gns-ray" transform="rotate(270 150 150)"/><use href="#gstl-gns-ray" transform="rotate(315 150 150)"/>
+        <circle cx="150" cy="150" r="12" fill="none" stroke="currentColor" stroke-width="2"/>
+        <circle cx="150" cy="150" r="5" fill="#00D4FF"/>
+      </symbol>
+
+      <!-- Marca compacta (afordancia IA · Vol V): hexágono + singulo -->
+      <symbol id="gstl-mark" viewBox="0 0 24 24">
+        <polygon points="12,2 20.66,7 20.66,17 12,22 3.34,17 3.34,7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="2" fill="#00D4FF"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- ═══ Fondo §3.7 — un patrón por vista (dark=grid · light=rayos GNOSIS) ═══ -->
+  <div class="bg-field bg-grid" aria-hidden="true"></div>
+  <div class="bg-field bg-rays" aria-hidden="true">
+    <svg viewBox="0 0 1200 1200" preserveAspectRatio="xMidYMid slice">
+      <g stroke="currentColor" fill="none" stroke-width="1.5">
+        <circle cx="600" cy="600" r="308" stroke-dasharray="6 10"/>
+        <circle cx="600" cy="600" r="515" stroke-dasharray="6 10"/>
+        <line x1="600" y1="600" x2="1160" y2="600"/><line x1="600" y1="600" x2="996" y2="996"/>
+        <line x1="600" y1="600" x2="600" y2="1160"/><line x1="600" y1="600" x2="204" y2="996"/>
+        <line x1="600" y1="600" x2="40" y2="600"/><line x1="600" y1="600" x2="204" y2="204"/>
+        <line x1="600" y1="600" x2="600" y2="40"/><line x1="600" y1="600" x2="996" y2="204"/>
+      </g>
+      <g fill="currentColor">
+        <circle cx="1065" cy="600" r="6"/><circle cx="929" cy="929" r="6"/><circle cx="600" cy="1065" r="6"/>
+        <circle cx="271" cy="929" r="6"/><circle cx="135" cy="600" r="6"/><circle cx="271" cy="271" r="6"/>
+        <circle cx="600" cy="135" r="6"/><circle cx="929" cy="271" r="6"/><circle cx="600" cy="600" r="9"/>
+      </g>
+    </svg>
+  </div>
+
+  <!-- ═══ Header lock-up canónico ═══ -->
+  <header class="gstl-header">
+    <div class="gstl-lockup">
+      <a href="/" class="gstl-brand" aria-label="GESTELL">
+        <svg class="gstl-iso" viewBox="60 50 380 360" role="img" aria-label="GESTELL">
+          <use id="iso-master-use" href="#iso-master-dark"/>
+        </svg>
+        <span class="gstl-wordmark">GESTELL</span>
       </a>
-      <div class="navbar-links">
-        <a href="/" class="navbar-link {% block nav_dashboard %}{% endblock %}">Dashboard</a>
-        <a href="/procesar" class="navbar-link {% block nav_procesar %}{% endblock %}">Areas</a>
-        <a href="/gnosisia" class="navbar-link {% block nav_gnosisia %}{% endblock %}">Gnosis AI</a>
+      <div class="gstl-divider" aria-hidden="true"></div>
+      <div class="gstl-sub">
+        <svg class="gstl-iso gstl-iso--sub" viewBox="0 0 300 300" style="color:var(--t1)" aria-hidden="true">
+          <use href="#iso-gnosis"/>
+        </svg>
+        <div>
+          <div class="gstl-sub-name">GNOSIS</div>
+          <div class="gstl-descriptor">Aduanas · Preferencia Arancelaria</div>
+        </div>
       </div>
     </div>
-  </nav>
+
+    <div class="gstl-actions">
+      <nav class="hud-nav" aria-label="Navegación">
+        <a href="/" class="hud-link {% block nav_dashboard %}{% endblock %}">Dashboard</a>
+        <a href="/procesar" class="hud-link {% block nav_procesar %}{% endblock %}">Áreas</a>
+      </nav>
+      <button type="button" id="gnosis-ia-btn" class="gnosis-ia-btn" aria-pressed="false"
+              aria-label="GNOSIS·IA — consola de Inteligencia Sintética">
+        <svg class="gstl-mark" viewBox="0 0 24 24" aria-hidden="true"><use href="#gstl-mark"/></svg>
+        <span>GNOSIS·IA</span>
+      </button>
+      <button type="button" id="theme-toggle" class="hud-toggle" aria-label="Cambiar modo de visualización">
+        <span id="theme-toggle-label">Daylight</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ Consola GNOSIS·IA (drawer · estructura/función BARBELO; contenido en fase chat) ═══ -->
+  <aside id="ia-console" class="ia-console" aria-hidden="true">
+    <div class="ia-console-head">
+      <svg class="gstl-mark" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;color:var(--acc-text)"><use href="#gstl-mark"/></svg>
+      <span class="mono-label" style="color:var(--acc-text)">GNOSIS·IA · Inteligencia Sintética</span>
+      <button type="button" id="ia-close" class="hud-toggle" style="margin-left:auto;min-height:32px">Cerrar</button>
+    </div>
+    <div class="ia-console-body mono-label">Consola en integración — fase de chat.</div>
+  </aside>
 
   <main>
     {% block content %}{% endblock %}
   </main>
 
-  <footer style="display:flex;align-items:center;padding:0 1rem;">
-    <div class="theme-selector">
-      <button class="theme-dot" data-theme="dark"  style="background:#030303;" title="Oscuro"></button>
-      <button class="theme-dot" data-theme="light" style="background:#FAFAF8;" title="Claro"></button>
-    </div>
-    <span style="flex:1;text-align:center;">Gestell 2025 &reg;</span>
+  <footer class="gstl-footer">
+    <span class="mono-label">GESTELL · GNOSIS</span>
+    <span class="mono-label">© 2026 · CONFIDENCIAL</span>
   </footer>
 
   {% block scripts %}{% endblock %}
   <script>
-    // Logos canónicos (Brandbook §3.1) — SVG por modo, singulo #00D4FF en ambos, sin filtros
-    const LOGO_LIGHT = '/static/Gestell_Isotipo_Wordmark_Color.svg';
-    const LOGO_DARK  = '/static/Gestell_Isotipo_Wordmark_Crema_DarkMode.svg';
-
     function applyTheme(t) {
       document.documentElement.setAttribute('data-theme', t);
       document.documentElement.setAttribute('data-bs-theme', t === 'light' ? 'light' : 'dark');
-
-      var logo = document.getElementById('navbar-logo');
-      if (logo) {
-        logo.src = (t === 'light') ? LOGO_LIGHT : LOGO_DARK;
-        logo.style.filter = '';
-      }
-
-      document.querySelectorAll('.theme-dot').forEach(function(dot) {
-        dot.classList.toggle('active', dot.getAttribute('data-theme') === t);
-      });
+      // Isotipo maestro: gradiente por modo (neutro exterior flipea) — sin filtros
+      var m = document.getElementById('iso-master-use');
+      if (m) m.setAttribute('href', t === 'light' ? '#iso-master-light' : '#iso-master-dark');
+      var lbl = document.getElementById('theme-toggle-label');
+      if (lbl) lbl.textContent = (t === 'light') ? 'Nocturne' : 'Daylight';
     }
 
-    // Init (default dark canónico)
     (function() {
       var saved = localStorage.getItem('gestell-theme') || 'dark';
       if (saved === 'dark-blue' || saved === 'dark-green') saved = 'dark';
       applyTheme(saved);
     })();
 
-    // Click handler
-    document.querySelectorAll('.theme-dot').forEach(function(dot) {
-      dot.addEventListener('click', function() {
-        var t = this.getAttribute('data-theme');
-        localStorage.setItem('gestell-theme', t);
-        applyTheme(t);
-      });
+    var tgl = document.getElementById('theme-toggle');
+    if (tgl) tgl.addEventListener('click', function() {
+      var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+      var next = cur === 'light' ? 'dark' : 'light';
+      localStorage.setItem('gestell-theme', next);
+      applyTheme(next);
     });
+
+    // GNOSIS·IA — toggle de consola (aria-pressed), como el copilot de BARBELO
+    var iaBtn = document.getElementById('gnosis-ia-btn');
+    var iaConsole = document.getElementById('ia-console');
+    var iaClose = document.getElementById('ia-close');
+    function setIA(open) {
+      if (!iaConsole || !iaBtn) return;
+      iaConsole.classList.toggle('open', open);
+      iaConsole.setAttribute('aria-hidden', open ? 'false' : 'true');
+      iaBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+    }
+    if (iaBtn) iaBtn.addEventListener('click', function() {
+      setIA(!iaConsole.classList.contains('open'));
+    });
+    if (iaClose) iaClose.addEventListener('click', function() { setIA(false); });
   </script>
 </body>
 </html>
