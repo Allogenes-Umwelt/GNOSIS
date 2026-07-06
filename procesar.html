@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% block title %}Procesar - VW Aduanas{% endblock %}
+{% block nav_procesar %}active{% endblock %}
+
+{% block content %}
+<h1 class="page-title">Procesamiento de Datos</h1>
+
+<div class="phases-container">
+
+  <!-- FASE 1: Facturas PDF -->
+  <div class="phase-card">
+    <div class="phase-header">
+      <h3>Fase 1 - Extraccion de Facturas PDF</h3>
+      <span class="phase-badge {% if fase1_stats.total > 0 %}badge-ok{% else %}badge-pending{% endif %}">
+        {% if fase1_stats.total > 0 %}{{ fase1_stats.total }} facturas procesadas{% else %}Pendiente{% endif %}
+      </span>
+    </div>
+    <p class="phase-desc">Sube archivos ZIP con facturas PDF. Se extraen inmediatamente y se acumulan. Puedes subir multiples ZIPs a lo largo del mes.</p>
+
+    <form id="fase1Form" enctype="multipart/form-data">
+      <div class="upload-row">
+        <div class="upload-field">
+          <label>Facturas (.zip)</label>
+          <input type="file" name="facturas" accept=".zip" class="file-input" required>
+        </div>
+        <div class="upload-field">
+          <label>Extraccion Historica (.xlsx) - Opcional</label>
+          <input type="file" name="FilePrevio" accept=".xlsx" class="file-input">
+        </div>
+      </div>
+      <button type="submit" class="btn" id="fase1Btn">Subir y Extraer</button>
+    </form>
+
+    <!-- Progress -->
+    <div id="fase1Progress" class="phase-progress" {% if fase1_stats.total == 0 %}style="display:none"{% endif %}>
+      <table class="table table-sm">
+        <tr><td>PDFs extraídos exitosamente</td><td id="fase1Ok">{{ fase1_stats.exitosos }}</td></tr>
+        <tr><td>Vehículos / registros extraídos</td><td id="fase1Registros">{{ fase1_stats.registros }}</td></tr>
+        <tr>
+          <td>PDFs con error</td>
+          <td>
+            <span id="fase1Errors">{{ fase1_stats.errores }}</span>
+            {% if fase1_stats.errores > 0 %}
+              &nbsp;<a href="/errores" style="font-size:0.8rem; color:#DC2626;">Ver errores →</a>
+            {% endif %}
+          </td>
+        </tr>
+        <tr class="table-highlight"><td><strong>Total PDFs acumulados</strong></td><td id="fase1Total"><strong>{{ fase1_stats.total }}</strong></td></tr>
+        <tr id="fase1DownloadRow" {% if fase1_stats.total == 0 %}style="display:none"{% endif %}>
+          <td colspan="2" style="padding-top:0.6rem;">
+            <a id="fase1DownloadLink"
+               href="/download/facturasProcesadas.xlsx"
+               class="btn btn-sm"
+               style="background:#1D4ED8; color:#fff; text-decoration:none;">
+              ↓ Descargar extracción (.xlsx)
+            </a>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Loading -->
+    <div id="fase1Loading" class="phase-loading" style="display:none">
+      <img src="/static/loading.gif" alt="Procesando..." style="width:80px">
+      <span>Extrayendo facturas...</span>
+    </div>
+
+    <!-- Result message -->
+    <div id="fase1Result" class="phase-result" style="display:none"></div>
+  </div>
+
+  <!-- FASE 2-4: Pipeline completo -->
+  <div class="phase-card">
+    <div class="phase-header">
+      <h3>Fases 2-4 - Procesamiento Completo</h3>
+      <span class="phase-badge badge-pending" id="pipelineBadge">
+        {% if fase1_stats.total > 0 %}Listo para procesar{% else %}Requiere Fase 1{% endif %}
+      </span>
+    </div>
+    <p class="phase-desc">Sube el DWH (pedimento), divisiones, cupos de inversion y produccion. Se ejecuta el pipeline completo: Concentrado1, Concentrado2 y Estadistico.</p>
+
+    <form action="/procesar/pipeline" method="POST" enctype="multipart/form-data" id="pipelineForm">
+      <div class="upload-row">
+        <div class="upload-field">
+          <label>DWH / Pedimento (.txt) *</label>
+          <input type="file" name="dwh" accept=".txt" class="file-input" required multiple>
+        </div>
+        <div class="upload-field">
+          <label>Divisiones / Incrementables (.xlsx) *</label>
+          <input type="file" name="incrementales" accept=".xlsx" class="file-input" required>
+        </div>
+      </div>
+      <div class="upload-row">
+        <div class="upload-field">
+          <label>Cupo Inversion (.pdf) *</label>
+          <input type="file" name="pdfInversion" accept=".pdf" class="file-input" required>
+        </div>
+        <div class="upload-field">
+          <label>Cupo Produccion (.pdf) *</label>
+          <input type="file" name="pdfProduccion" accept=".pdf" class="file-input" required>
+        </div>
+      </div>
+      <button type="submit" class="btn" id="pipelineBtn" {% if fase1_stats.total == 0 %}disabled{% endif %}>Procesar</button>
+    </form>
+
+    <!-- Loading -->
+    <div id="pipelineLoading" style="display:none">
+      <img src="/static/loading.gif" alt="Procesando..." style="width:80px">
+      <span>Ejecutando pipeline completo... Esto puede tardar varios minutos.</span>
+    </div>
+  </div>
+
+
+  <!-- PROCESO HISTORICO -->
+  <div class="phase-card">
+    <div class="phase-header">
+      <h3>Proceso Historico</h3>
+      <span class="phase-badge {% if historico_sessions > 0 %}badge-ok{% else %}badge-pending{% endif %}">
+        {% if historico_sessions > 0 %}{{ historico_sessions }} mes{% if historico_sessions != 1 %}es{% endif %} disponibles{% else %}Sin datos almacenados{% endif %}
+      </span>
+    </div>
+    <p class="phase-desc">Genera Concentrado1, Concentrado2 y Estadistico usando todos los meses almacenados en el sistema. No requiere subir archivos.</p>
+
+    <form action="/procesar/historico" method="POST" id="historicoForm">
+      <button type="submit" class="btn" id="historicoBtn" {% if historico_sessions == 0 %}disabled{% endif %}>
+        Generar Historico
+      </button>
+    </form>
+
+    <!-- Loading -->
+    <div id="historicoLoading" style="display:none">
+      <img src="/static/loading.gif" alt="Procesando..." style="width:80px">
+      <span>Ejecutando pipeline historico... Esto puede tardar varios minutos.</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Proceso Historico: Show loading on submit
+document.getElementById('historicoForm').addEventListener('submit', function() {
+  document.getElementById('historicoBtn').disabled = true;
+  document.getElementById('historicoLoading').style.display = 'flex';
+});
+
+// Fase 1: Submit via AJAX
+document.getElementById('fase1Form').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const form = this;
+  const btn = document.getElementById('fase1Btn');
+  const loading = document.getElementById('fase1Loading');
+  const result = document.getElementById('fase1Result');
+  const progress = document.getElementById('fase1Progress');
+
+  btn.disabled = true;
+  btn.textContent = 'Procesando...';
+  loading.style.display = 'flex';
+  result.style.display = 'none';
+
+  const formData = new FormData(form);
+
+  try {
+    const resp = await fetch('/procesar/fase1', { method: 'POST', body: formData });
+    const data = await resp.json();
+
+    if (data.error) {
+      result.className = 'phase-result result-error';
+      result.textContent = 'Error: ' + data.error;
+    } else {
+      result.className = 'phase-result result-ok';
+      result.textContent = 'Extracción completada: ' + data.nuevos_exitosos + ' PDFs nuevos → ' + data.nuevos_vehiculos + ' vehículos extraídos.';
+
+      // Update stats
+      document.getElementById('fase1Ok').textContent = data.total_exitosos;
+      document.getElementById('fase1Registros').textContent = data.total_registros;
+      const errCell = document.getElementById('fase1Errors');
+      errCell.textContent = data.total_errores;
+      errCell.parentNode.querySelectorAll('a').forEach(a => a.remove());
+      if (data.total_errores > 0) {
+        const link = document.createElement('a');
+        link.href = '/errores';
+        link.textContent = ' Ver errores →';
+        link.style.cssText = 'font-size:0.8rem; color:#DC2626;';
+        errCell.parentNode.appendChild(link);
+      }
+      document.getElementById('fase1Total').innerHTML = '<strong>' + data.total_acumulado + '</strong>';
+      document.getElementById('fase1DownloadRow').style.display = '';
+      progress.style.display = 'block';
+
+      // Enable pipeline
+      document.getElementById('pipelineBtn').disabled = false;
+      document.getElementById('pipelineBadge').textContent = 'Listo para procesar';
+    }
+  } catch (err) {
+    result.className = 'phase-result result-error';
+    result.textContent = 'Error de conexion: ' + err.message;
+  }
+
+  loading.style.display = 'none';
+  result.style.display = 'block';
+  btn.disabled = false;
+  btn.textContent = 'Subir y Extraer';
+  form.reset();
+});
+
+// Pipeline: Show loading on submit
+document.getElementById('pipelineForm').addEventListener('submit', function() {
+  document.getElementById('pipelineBtn').disabled = true;
+  document.getElementById('pipelineLoading').style.display = 'flex';
+});
+</script>
+{% endblock %}

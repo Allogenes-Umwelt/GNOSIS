@@ -1,0 +1,201 @@
+ESTUDIO DE FACTIBILIDAD
+JARVIS — Asistente de Análisis por Chat (Chatbot LLM)
+Aplicación: Aduanas 1
+
+1. ESTADO ACTUAL DE LA APLICACIÓN
+La aplicación Aduanas 1 se encuentra lista para ser deployeada en su forma original. Su arquitectura actual presenta las siguientes características:
+	•	Proceso único sin persistencia: Cada ejecución procesa y genera datos desde cero. No existe referencia histórica entre sesiones.
+	•	Arquitectura monolítica: La aplicación ejecuta el proceso completo o no lo ejecuta. No es posible correr fases de forma independiente (extracción de facturas, concentrado, estadístico).
+	•	Deployment via Docker: La aplicación se levanta en contenedores Docker sobre laptops, con acceso a internet disponible aunque no siempre activo.
+	•	Frecuencia de uso: La aplicación es utilizada aproximadamente una vez al mes por un único usuario a la vez.
+
+2. DESCRIPCIÓN DE LA PROPUESTA — JARVIS
+JARVIS es un asistente conversacional integrado a la aplicación, basado en llamadas a la API de un modelo de lenguaje (LLM). Su función es permitir al usuario realizar análisis del proceso de importaciones mediante lenguaje natural, eliminando la necesidad de navegar manualmente por dashboards o filtros.
+El asistente no reemplaza la interfaz existente — la complementa como una capa de análisis e interpretación sobre los datos procesados.
+
+3. ANÁLISIS DE FACTIBILIDAD
+3.1 Factibilidad Técnica
+Condiciones favorables
+	•	La naturaleza de los datos (importaciones, proveedores, tiempos, volúmenes) es estructurada y bien definida, lo que facilita la integración con un LLM.
+	•	El uso de Docker permite incorporar nuevos servicios y volúmenes de persistencia sin reemplazar la arquitectura existente.
+	•	El bajo volumen de usuarios simultáneos (1 usuario a la vez, uso mensual) elimina preocupaciones de concurrencia y reduce el costo de llamadas a la API a niveles negligibles.
+	•	El acceso a internet está disponible en todos los deployments si es necesario, lo que permite usar APIs de modelos frontier sin depender de hardware local.
+Condiciones desfavorables / Prerrequisitos no cumplidos
+	•	La aplicación actualmente no persiste datos. JARVIS requiere de un historial para generar análisis de tendencias y comparativos — su principal valor agregado. Sin persistencia, el chatbot solo puede analizar la sesión actual, lo que limita significativamente su utilidad.
+	•	La arquitectura monolítica no expone puntos de entrada independientes, sin embargo las funciones de cada fase (extracción de facturas, concentrado, estadístico) ya existen internamente. El proceso completo las encadena secuencialmente pero no permite invocarlas de forma aislada.
+Veredicto técnico
+Factible, con prerrequisitos de bajo a mediano esfuerzo. La persistencia de datos es el cambio más significativo. La modularización de fases es considerablemente más sencilla de lo que aparenta — las funciones ya están escritas, únicamente requieren ser expuestas como endpoints independientes en Flask.
+
+3.2 Factibilidad Operativa
+La frecuencia de uso mensual y el perfil investigativo del usuario (no monitoreo continuo sino análisis puntual) son altamente compatibles con un asistente conversacional. El usuario llega a la aplicación sin contexto fresco y necesita entender qué pasó, por qué pasó y qué requiere atención — preguntas que un chatbot responde mejor que un dashboard estático.
+Un dashboard está optimizado para usuarios habituales que saben qué buscar. JARVIS está optimizado para sesiones de análisis ocasionales y abiertas, que es exactamente el patrón de uso de Aduanas 1.
+Veredicto operativo
+Alta factibilidad operativa. El perfil de uso es ideal para este tipo de herramienta.
+
+3.3 Factibilidad Económica
+Concepto
+Estimación
+Costo de API (uso mensual, 1 usuario)
+Bajo — pocas sesiones, contexto acotado
+Infraestructura adicional
+Mínima — SQLite sobre volumen Docker existente
+Costo de desarrollo
+Medio — requiere refactorización + capa de persistencia + integración LLM
+Costo de mantenimiento
+Bajo una vez estabilizado
+El mayor costo es el de desarrollo inicial, concentrado en la incorporación de persistencia y la modularización de la aplicación. El costo operativo recurrente (API) es negligible dado el volumen de uso.
+Veredicto económico
+Factible. La inversión de desarrollo es justificable dado el valor agregado y el bajo costo operativo posterior.
+
+3.4 Análisis de Costos Operativos
+A continuación se presentan dos escenarios de implementación con sus respectivos costos de operación mensual estimados. Los cálculos están basados en el volumen real de datos del sistema:
+Datos reales del sistema (histórico 2026):
+	•	12,987 importaciones en enero 2026
+	•	~155,800 importaciones proyectadas anualmente
+	•	5 marcas (Audi, Volkswagen, Porsche, Seat, Bentley), 111 modelos, 11 países de origen
+	•	18 campos por registro (factura, precio, país, fecha, fletes, seguros, etc.)
+Supuestos de uso:
+	•	1 usuario
+	•	1 sesión mensual de análisis
+	•	Duración promedio de sesión: 20-30 minutos
+	•	15-20 consultas por sesión
+	•	Proveedor de API: Anthropic Claude Sonnet 4 (pricing: ~$3 USD/millón de tokens entrada, ~$15 USD/millón tokens salida)
+Escenario 1: Arquitectura Conservadora (Tool Calling)
+Descripción: El LLM nunca ve la base de datos completa. Solo recibe las definiciones de funciones y los resultados específicos de las consultas ejecutadas.
+Ejemplo de flujo:
+
+
+Usuario: "¿Cuál fue el precio promedio de Audi RS 3 en diciembre?"
+→ LLM llama a get_average_price(model="Audi RS 3", date_range="dic-2025")
+→ Backend ejecuta SELECT AVG(precio) WHERE tipo LIKE '%RS 3%'
+→ Backend retorna: 127 registros, precio promedio: $987,450 MXN
+→ LLM recibe solo este resultado agregado (ofuscado si incluye datos sensibles)
+Estimación de tokens por sesión:
+	•	System prompt + definiciones de funciones: ~2,500 tokens (constante)
+	•	Consultas del usuario: ~250 tokens/mensaje × 18 mensajes = 4,500 tokens
+	•	Resultados de funciones: ~1,500 tokens/llamada × 22 llamadas = 33,000 tokens
+	◦	Cada resultado contiene típicamente 50-150 registros resumidos o agregados
+	•	Respuestas del LLM: ~450 tokens/mensaje × 18 mensajes = 8,100 tokens
+	•	Historial de conversación acumulado: ~4,000 tokens
+Total por sesión:
+	•	Entrada: ~44,000 tokens
+	•	Salida: ~8,100 tokens
+Costo mensual estimado:
+	•	Entrada: 44k tokens × $3/1M = $0.132
+	•	Salida: 8.1k tokens × $15/1M = $0.122
+	•	Total: ~$0.25 USD/mes
+	•	Total anual: ~$3.00 USD/año
+Escalabilidad: Los costos permanecen estables incluso con 5+ años de historial, ya que cada consulta retorna solo registros relevantes (50-200 típicamente), no el dataset completo. Con 5 años de datos (~779,000 importaciones), el costo aumentaría marginalmente a ~$0.35-0.40 USD/mes.
+Escenario 2: Contexto Completo (Base de Datos en Contexto)
+Descripción: La base de datos completa se carga en el contexto del LLM en cada sesión.
+VEREDICTO: TÉCNICAMENTE IMPOSIBLE
+Análisis de viabilidad técnica:
+	•	Dataset actual (solo enero 2026): 12,987 registros × ~200 tokens/registro = ~2,597,400 tokens
+	•	Límite de contexto de Claude Sonnet 4: 200,000 tokens
+	•	El dataset de UN SOLO MES es 13x más grande que el contexto máximo disponible
+Ni siquiera los datos de un mes caben en el contexto del modelo. Este escenario es técnicamente imposible desde el primer día de operación.
+Proyección a futuro:
+	•	Dataset anual completo (~155,800 importaciones): ~31.2 millones de tokens
+	•	Factor de exceso: 156x el límite del contexto
+Incluso con técnicas de compresión agresivas (resumir registros, eliminar campos redundantes, etc.), sería imposible reducir el dataset lo suficiente para que quepa en contexto sin perder la granularidad necesaria para análisis detallados.
+Conclusión técnica: El escenario de contexto completo no solo es inviable — es físicamente imposible con la tecnología actual de LLMs. No hay ninguna configuración, modelo o técnica que permita cargar este volumen de datos en contexto.
+Comparación de Escenarios
+Aspecto
+Tool Calling (Conservador)
+Contexto Completo
+Viabilidad técnica
+✅ Viable
+❌ Imposible (13x límite para 1 mes, 156x para año completo)
+Costo mensual
+~$0.25 USD
+N/A
+Costo anual
+~$3.00 USD
+N/A
+Latencia por respuesta
+2-3 segundos
+N/A
+Riesgo de alucinación
+Muy bajo
+N/A
+Seguridad de datos
+Alta (ofuscación posible)
+Baja (toda la BDD en API externa)
+Escalabilidad
+Excelente (estable con crecimiento)
+Imposible desde día 1
+Complejidad de desarrollo
+Media
+Baja
+Nota crítica sobre volumen: Con ~13,000 importaciones mensuales, este sistema maneja un volumen significativo de datos. El único enfoque viable es tool calling con consultas SQL eficientes. Cualquier intento de cargar datos completos en contexto fallaría inmediatamente.
+Conclusión de Costos
+El escenario de Tool Calling no es solo la opción recomendada — es la única opción que existe para este volumen de datos. El costo operativo de ~$3.00 USD/año es completamente negligible comparado con:
+	•	El valor del análisis que proporciona
+	•	El tiempo ahorrado en análisis manual (estimado: 2-3 horas/mes × $20-30 USD/hora = $480-1,080 USD/año)
+	•	La capacidad de hacer preguntas complejas que serían prohibitivamente lentas de responder manualmente
+La inversión real está en el desarrollo inicial de las funciones de consulta (estimado: 4-6 días de desarrollo), que se amortiza completamente en el primer mes de uso.
+
+4. ARQUITECTURA PROPUESTA
+4.1 Persistencia de Datos
+	•	Motor: SQLite
+	•	Implementación: Volumen Docker montado sobre el directorio de datos de la aplicación
+	•	Backup: Copia automática del archivo .db a almacenamiento en la nube de forma periódica
+	•	Justificación: Usuario único, uso mensual. SQLite es suficiente y elimina la complejidad de un motor de base de datos externo.
+4.2 Integración LLM
+	•	Modalidad: Llamadas a API externa (OpenAI / Anthropic) con interfaz abstracta para permitir sustitución por modelo local (Ollama) en caso de requerirse operación offline.
+	•	Patrón: Tool Calling — el LLM no accede directamente a los datos, sino que invoca funciones definidas que ejecutan consultas reales sobre SQLite.
+	•	Seguridad de datos: Ofuscación/enmascaramiento de información sensible antes del envío a la API. Los datos que transitan hacia el LLM tienen identificadores reemplazados por tokens anónimos reversibles. Esto incluye:
+	◦	Nombres de proveedores → PROVEEDOR_001, PROVEEDOR_002
+	◦	Números de factura → FACTURA_A1B2C3
+	◦	Cualquier otro dato que se considere confidencial
+	•	El mapeo entre tokens y valores reales se mantiene únicamente en el backend y nunca sale del entorno local. El LLM opera exclusivamente sobre datos ofuscados y genera respuestas con los tokens, que el backend traduce de vuelta a valores reales antes de mostrárselos al usuario.
+4.3 Flujo de una Consulta
+
+
+Usuario pregunta → API recibe pregunta + definiciones de funciones
+→ LLM decide qué función llamar y con qué parámetros
+→ Backend ejecuta la consulta real sobre SQLite
+→ Backend ofusca los datos sensibles (proveedor → PROVEEDOR_001)
+→ Resultado ofuscado regresa al LLM
+→ LLM genera respuesta en lenguaje natural con tokens
+→ Backend revierte ofuscación antes de mostrar al usuario
+→ Usuario recibe el análisis con datos reales
+
+5. PLAN DE IMPLEMENTACIÓN
+Fase
+Descripción
+Prioridad
+Fase 1
+Incorporar capa de persistencia (SQLite + Docker volume + backup)
+Inmediata — antes del deployment
+Fase 2
+Exponer fases existentes como endpoints independientes en Flask (las funciones ya existen, solo se agregan rutas individuales por fase)
+Bajo esfuerzo — necesaria para habilitar las tools
+Fase 3
+Definir y desarrollar las funciones de consulta (tools)
+Posterior a Fase 1 y 2
+Fase 4
+Integrar LLM via API y construir interfaz de chat
+Una vez acumulado historial suficiente
+Fase 5
+Evaluación con usuario real y ajuste de funciones
+Post-deployment
+
+6. RIESGOS Y MITIGACIONES
+Riesgo
+Mitigación
+Alucinaciones en cifras numéricas
+Tool calling — el LLM nunca calcula, solo interpreta resultados reales
+Pérdida de datos por falla de hardware
+Backup periódico automatizado a nube
+Exposición de datos sensibles al LLM
+Ofuscación/enmascaramiento de datos sensibles antes de enviarlos a la API — nombres de proveedores, números de factura, y otros identificadores son reemplazados por tokens anónimos
+Baja adopción por parte del usuario
+Diseño guiado — el chatbot sugiere preguntas de arranque para sesiones mensuales
+Dependencia de internet para el LLM
+Interfaz abstracta permite cambiar a modelo local (Ollama) sin rediseño
+
+7. CONCLUSIÓN
+La implementación de JARVIS es técnicamente factible, operativamente adecuada y económicamente justificable, con la condición de que se resuelva primero el prerrequisito de persistencia de datos.
+El perfil de uso de Aduanas 1 — sesiones mensuales, usuario único, análisis investigativo — es particularmente bien servido por un asistente conversacional, más que por dashboards tradicionales. JARVIS no es un complemento cosmético; es una evolución natural del tipo de análisis que el usuario necesita realizar.
+El esfuerzo de implementación es menor al estimado inicialmente. Las funciones de cada fase del proceso ya existen dentro de la aplicación — la modularización se reduce a exponer endpoints independientes en Flask, no a reescribir lógica. El único cambio arquitectónico significativo es la incorporación de la capa de persistencia.

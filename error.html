@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="autor" content="Ing. Jorge Vilchis Gonzalez">
+    <meta name="description" content="error Page">
+    <title>Error - Gestell VW Aduanas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <img src="../static/icono.png" alt="Gestell logo" class="header-image">
+        </div>
+    </header>
+    <main>
+
+        
+        {% if log_file %}
+        <div class="upload-box">
+            <h3>Registro de Error</h3>
+            <p>Se ha generado un archivo con información detallada del error.</p>
+            <p><strong>La descarga comenzará automáticamente...</strong></p>
+            <div id="downloadStatus" style="margin-top: 10px; padding: 10px; border-radius: 5px; display: none;"></div>
+        </div>
+        {% endif %}
+        
+        <br>
+        <a href="{{ url_for('welcome') }}" class="btn">Regresar</a>
+        
+        {% if log_file %}
+        <a href="{{ url_for('download_file', filename=log_file) }}" 
+           class="btn" 
+           id="manualDownload"
+           style="margin-left: 10px; background-color: #28a745;">
+            Descargar Log
+        </a>
+        {% endif %}
+    </main>
+    <footer>
+        <center>Gestell 2025 ®</center>
+    </footer>
+    
+    {% if log_file %}
+    <script>
+        // Automatic download on page load
+        window.addEventListener('load', function() {
+            const downloadUrl = "{{ url_for('download_file', filename=log_file) }}";
+            const statusDiv = document.getElementById('downloadStatus');
+            
+            // Wait 1.5 seconds before starting download
+            setTimeout(function() {
+                try {
+                    // Method 1: Create a temporary anchor element and click it
+                    const link = document.createElement('a');
+                    link.href = downloadUrl;
+                    link.download = "{{ log_file }}";
+                    link.style.display = 'none';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // Show success message
+                    statusDiv.style.display = 'block';
+                    statusDiv.style.backgroundColor = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.style.border = '1px solid #c3e6cb';
+                    statusDiv.textContent = 'Descarga del log iniciada automáticamente';
+                    
+                } catch (error) {
+                    // Fallback: Try with iframe method
+                    try {
+                        const iframe = document.createElement('iframe');
+                        iframe.style.display = 'none';
+                        iframe.src = downloadUrl;
+                        document.body.appendChild(iframe);
+                        
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.backgroundColor = '#d4edda';
+                        statusDiv.style.color = '#155724';
+                        statusDiv.style.border = '1px solid #c3e6cb';
+                        statusDiv.textContent = 'Descarga del log iniciada automáticamente';
+                        
+                        // Remove iframe after 5 seconds
+                        setTimeout(function() {
+                            document.body.removeChild(iframe);
+                        }, 5000);
+                        
+                    } catch (error2) {
+                        statusDiv.style.display = 'block';
+                        statusDiv.style.backgroundColor = '#f8d7da';
+                        statusDiv.style.color = '#721c24';
+                        statusDiv.style.border = '1px solid #f5c6cb';
+                        statusDiv.textContent = 'Error al iniciar descarga automática. Use el botón "Descargar Log".';
+                        console.error('Download error:', error2);
+                    }
+                }
+            }, 1500);
+        });
+
+        // Manual download button click tracking
+        const manualBtn = document.getElementById('manualDownload');
+        if (manualBtn) {
+            manualBtn.addEventListener('click', function() {
+                const statusDiv = document.getElementById('downloadStatus');
+                statusDiv.style.display = 'block';
+                statusDiv.style.backgroundColor = '#d4edda';
+                statusDiv.style.color = '#155724';
+                statusDiv.style.border = '1px solid #c3e6cb';
+                statusDiv.textContent = 'Descargando archivo de log...';
+            });
+        }
+    </script>
+    {% endif %}
+</body>
+</html>

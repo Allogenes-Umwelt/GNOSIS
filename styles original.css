@@ -1,0 +1,446 @@
+* {
+  margin: 0;
+  padding: 0;
+}
+
+.upload-box {
+  background-color: #e9e9e9;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 500px;          /* Ensure a max width for the box */
+  text-align: center;
+  color: #14213D;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  background-image: url('coolbackgrounds-particles-ether.png'); /* path to your PNG file */
+  background-repeat: repeat;               /* repeats it in both directions */
+  background-size: 100px 100px;            /* adjust size of pattern tiles */
+  background-position: top left;
+  background-color: #f8f8f8;               /* fallback background color */  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  flex-direction: column;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  padding-top: 0;
+}
+
+/* Loading */
+#loading {
+  display: none;
+  width: 100px;
+  height: 100px;
+  margin: 20px auto;
+  display: block;
+}
+
+header {
+  margin-top: 0;
+
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  /* Set the height of the header to 100% of the viewport height */
+  color: #e9e9e9;
+  background-color: #e9e9e9;
+}
+
+/* Container for both images */
+.header-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+
+/* Styling for header images */
+.header-image {
+  width: 200px;
+  max-width: 200px;
+  height: 150px;
+  object-fit: contain;
+}
+
+/* Center main content */
+main {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  text-align: center;
+  width: 100%;
+  max-width: 1200px; /* Adjusted max width for better layout */
+  vertical-align: top;
+}
+
+/* Page title styling */
+.page-title {
+  font-size: 2em;
+  color: #14213D;
+  margin-bottom: 20px;
+}
+
+.container {
+  /* REMOVE these lines 👇 */
+  display: flex;
+  justify-content: space-between;
+  gap: 2.286rem;
+  width: 100%;
+
+  /* Keep only max-width if needed */
+  max-width: 1200px;
+}
+
+/* File input labels */
+.file-label {
+  display: block;
+  margin-bottom: 15px;
+  font-size: 1.1em;
+  color: #14213D;
+}
+
+/* File input fields */
+.file-input {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  margin-top: 5px;
+  font-size: 1em;
+  transition: border-color 0.3s ease;
+}
+
+input[type="file"]::file-selector-button {
+  border: 2px solid #14213D;
+  padding: 0.2em 0.4em;
+  border-radius: 0.2em;
+  background-color: #e9e9e9;
+  transition: 1s;
+}
+
+.file-input:hover,
+.file-input:focus {
+  border-color: #B76D68;
+}
+
+.file-input.uploaded {
+  color: #14213D; /* Optional: Change text color for better contrast */
+  border-color: #218838; /* Optional: Match the border to the background */
+}
+
+/* Submit button styling */
+.submit-btn {
+  background-color: #B76D68;
+  color: #fff;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  font-size: 1em;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: background-color 0.3s ease;
+}
+
+.submit-btn:hover {
+  background-color: #218838;
+}
+
+/* Center footer */
+footer {
+  margin-top: 30px;
+  font-size: 12px;
+  text-align: center;
+  color: #14213D;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .header-image {
+    width: 100%;
+  }
+
+  .page-title {
+    font-size: 1.8em;
+  }
+
+  .container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .upload-box {
+    width: 90%;
+    max-width: 90%; /* Ensure forms take up more width on smaller screens */
+  }
+}
+
+.download-button a {
+  background-color: #B76D68;
+  color: #14213D;
+  text-decoration: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+  display: inline-block;
+  width: 100%;
+  max-width: 400px; /* Ensure buttons have a max width */
+  text-align: center;
+  margin: 5px;
+}
+
+.download-button a:hover {
+  background-color: #218838;
+}
+
+/* General Layout */
+
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #e9e9e9;
+  color: #14213D;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-areas: 
+    "table1 graph"
+    "table2 text-box";
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto;
+  gap: 20px;
+  padding: 20px;
+}
+
+/* Styling for Table 1 */
+.table1 {
+  grid-area: table1;
+  border: 1px solid #14213D;
+  padding: 10px;
+  
+}
+.table-container {
+  display: flex;
+  justify-content: center; /* Center the table horizontally */
+  align-items: center; /* Center the table vertically */
+  height: 300px; /* Adjust the height as needed */
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+table, th, td {
+  border: 1px solid #14213D;
+}
+
+th, td {
+  padding: 10px;
+  text-align: left;
+}
+
+/* Styling for Graph */
+.graph {
+  grid-area: graph;
+  border: 1px solid #14213D;
+  padding: 10px;
+  width: 100%;
+  max-width: 700px; /* Increase width */
+  height: auto;
+}
+
+.graph-placeholder {
+  width: 100%;
+  height: 200px;
+  background-color: lightgray;
+  text-align: center;
+  line-height: 200px;
+}
+
+/* Styling for Table 2 */
+.table2 {
+  grid-area: table2;
+  border: 1px solid #14213D;
+  padding: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+/* Text Box and Button */
+.text-box {
+  grid-area: text-box;
+  border: 1px solid #14213D;
+  padding: 10px;
+}
+
+textarea {
+  width: 100%;
+  height: 150px;
+  padding: 10px;
+}
+
+button {
+  padding: 10px 20px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+.graph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 500px; /* Adjust to your layout */
+  height: auto;
+  padding: 10px;
+}
+
+.carousel-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 400px;
+  max-width: 400px;
+  height: 350px;
+}
+
+.carousel-image {
+  max-width: 100%;
+  max-height: 300px; /* Adjust as needed */
+  object-fit: contain; /* Ensures full image visibility */
+  display: block;
+  margin: 0 auto;
+}
+
+.carousel-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.carousel-buttons button {
+  background-color: #B76D68;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.carousel-buttons button:hover {
+  background-color: #218838;
+}
+
+.carousel-slide {
+  width: 100%;
+  height: 350px;  /* Make sure static images also have consistent height */
+  object-fit: contain;  /* Prevent images from being stretched or cut off */
+}
+
+
+.carousel-container img {
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+}
+
+/* Additional styling for text box and button */
+.text-box {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%; /* Ensure it stretches within the grid */
+  text-align: center;
+}
+
+.text-box button {
+  padding: 10px 20px;
+  background-color: #B76D68;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.text-box button:hover {
+  background-color: #218838;
+}
+
+
+.card, .table, .btn, .input-group, .bokeh-root {
+  border-radius: 1rem !important; /* rounded corners */
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1); /* subtle shadow */
+}
+.custom-table-card {
+  border-radius: 1rem;
+  overflow: hidden;
+  background-color: #ffffff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+
+.custom-table-card .card-header {
+  padding: 1rem 1.25rem;
+  background-color: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.custom-table-card .card-header h5 {
+  font-weight: 600;
+  color: #343a40;
+}
+
+.rounded-table td {
+  padding: 1rem 1.25rem;
+  font-size: 0.95rem;
+  color: #495057;
+  background-color: #ffffff;
+  border-top: 1px solid #f1f3f5;
+}
+
+.table-striped tbody tr:nth-of-type(odd) td {
+  background-color: #f8f9fa;
+}
+
+.table-hover tbody tr:hover td {
+  background-color: #e9ecef;
+  transition: background-color 0.3s ease;
+}
+
+.rounded-table td:nth-child(2) {
+  font-weight: 500;
+  color: #212529;
+}
+
+.table-highlight td {
+  background-color: #fff3cd !important;
+  color: #856404;
+}

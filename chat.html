@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Gnosis AI - Asistente de Analisis{% endblock %}
+{% block nav_gnosisia %}active{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+{% endblock %}
+
+{% block content %}
+  <div class="chat-wrapper">
+    <!-- Chat header -->
+    <div class="chat-header">
+      <h2><span class="status-dot"></span>Gnosis AI - Asistente de Analisis</h2>
+      <button class="btn-reset" onclick="resetChat()">Nueva conversacion</button>
+    </div>
+
+    <!-- Messages -->
+    <div class="chat-messages" id="chatMessages"></div>
+
+    <!-- Typing indicator -->
+    <div class="typing-indicator" id="typingIndicator">
+      <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis AI esta analizando...
+    </div>
+
+    <!-- Suggestions -->
+    <div class="suggestions" id="suggestions"></div>
+
+    <!-- Input -->
+    <div class="chat-input-area">
+      <textarea id="chatInput" placeholder="Escribe tu pregunta..." rows="1"></textarea>
+      <button id="sendBtn" class="btn-send">Enviar</button>
+    </div>
+
+    <!-- Token counter -->
+    <div class="token-counter" id="tokenCounter"></div>
+  </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='chat.js') }}"></script>
+{% endblock %}

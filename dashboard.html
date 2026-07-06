@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - VW Aduanas{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+{% if empty %}
+  <!-- No hay sesiones -->
+  <div class="empty-state">
+    <h2>No hay datos procesados</h2>
+    <p>Aun no se ha realizado ningun procesamiento. Sube facturas para comenzar.</p>
+    <a href="/procesar" class="btn">Ir a Procesar</a>
+  </div>
+
+{% else %}
+  <!-- Session selector -->
+  <div class="session-bar">
+    <div class="session-info">
+      <span class="session-label">Sesion:</span>
+      <select id="sessionSelector" class="session-select" onchange="window.location='/?session_id='+this.value">
+        {% for s in sessions %}
+          <option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>
+            #{{ s.id }} - {{ s.session_date[:10] }} ({{ s.month_processed }}/{{ s.year_processed }})
+          </option>
+        {% endfor %}
+      </select>
+      <span class="session-status {{ 'status-ok' if current_session.status == 'completed' else 'status-progress' }}">
+        {{ current_session.status }}
+      </span>
+    </div>
+  </div>
+
+  <!-- Stats cards -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ "{:,}".format(stats.total_importaciones) }}</div>
+      <div class="stat-label">Vehiculos vendidos (DWH)</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ "{:,}".format(stats.total_extraccion) }}</div>
+      <div class="stat-label">Registros en facturas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ "{:,}".format(stats.total_faltantes) }}</div>
+      <div class="stat-label">Facturas faltantes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ "{:,}".format(stats.total_errores) }}</div>
+      <div class="stat-label">Facturas con error</div>
+    </div>
+  </div>
+
+  <!-- Main dashboard content -->
+  <section class="dashboard-container">
+    <div class="row g-4 justify-content-center align-items-start">
+
+      <!-- LEFT COLUMN -->
+      <div class="col-md-4 mb-3">
+        <!-- Card: Por Marca -->
+        <article class="card custom-table-card mb-3">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Vehiculos por Marca</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover rounded-table mb-0">
+                <thead>
+                  <tr><th>Marca</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                  {% for item in por_marca %}
+                  <tr>
+                    <td>{{ item.nombre }}</td>
+                    <td>{{ "{:,}".format(item.total) }}</td>
+                  </tr>
+                  {% endfor %}
+                  <tr class="table-highlight">
+                    <td><strong>Total</strong></td>
+                    <td><strong>{{ "{:,}".format(stats.total_importaciones) }}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card: Por Pais -->
+        <article class="card custom-table-card mb-3">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Vehiculos por Pais</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover rounded-table mb-0">
+                <thead>
+                  <tr><th>Pais</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                  {% for item in por_pais %}
+                  <tr>
+                    <td>{{ item.pais_nombre or item.pais_code }}</td>
+                    <td>{{ "{:,}".format(item.total) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card: Preferencia Arancelaria -->
+        <article class="card custom-table-card mb-3">
+          <div class="card-header bg-white">
+            <h5 class="mb-0">Preferencia Arancelaria</h5>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-hover rounded-table mb-0">
+                <thead>
+                  <tr><th>Tipo</th><th>Total</th></tr>
+                </thead>
+                <tbody>
+                  {% for item in por_jyn %}
+                  <tr>
+                    <td>{{ 'Con preferencia (J)' if item.j_y_n == 'J' else 'Sin preferencia (N)' if item.j_y_n == 'N' else item.j_y_n or 'Sin dato' }}</td>
+                    <td>{{ "{:,}".format(item.total) }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </div>
+
+      <!-- RIGHT COLUMN -->
+      <div class="col-md-8 d-flex flex-column gap-4 mb-3">
+        <!-- Graph Carousel -->
+        {% if has_graphs %}
+        <section class="card mb-3">
+          <div class="card-body mb-3">
+            <div id="carouselExample" class="carousel slide" data-bs-ride="carousel">
+              <div class="carousel-inner">
+                {% for i in range(1, 14) %}
+                  <div class="carousel-item {% if i == 1 %}active{% endif %}">
+                    <iframe src="{{ url_for('static', filename='plotly_graphs/' + '{:02d}.html'.format(i)) }}"></iframe>
+                  </div>
+                {% endfor %}
+              </div>
+              <button class="carousel-control-prev" type="button" data-bs-target="#carouselExample" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon"></span>
+              </button>
+              <button class="carousel-control-next" type="button" data-bs-target="#carouselExample" data-bs-slide="next">
+                <span class="carousel-control-next-icon"></span>
+              </button>
+            </div>
+          </div>
+        </section>
+        {% endif %}
+
+        <!-- Download button -->
+        {% if has_zip %}
+        <section class="card">
+          <div class="card-body">
+            <a href="{{ url_for('download_file', filename='ZipGeneral.zip') }}" class="btn btn-danger w-100">
+              Descargar Resultados
+            </a>
+          </div>
+        </section>
+        {% endif %}
+
+        {% if has_historico_zip %}
+        <section class="card">
+          <div class="card-body">
+            <a href="{{ url_for('download_file', filename='Historico_ZipGeneral.zip') }}" class="btn btn-danger w-100">
+              Descargar Resultados Histórico
+            </a>
+          </div>
+        </section>
+        {% endif %}
+      </div>
+
+    </div>
+  </section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

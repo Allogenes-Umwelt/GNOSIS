@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="autor" content="Jorge Vilchis Gonzalez">
+  <meta name="description" content="Pagina principal">
+  <title>Gestell VW Aduanas</title>
+      <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+
+<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <!-- Header section -->
+  <header>
+    <div class="header-container" style="position:relative;width:100%;">
+      <img src="../static/icono.png" alt="Gestell logo" class="header-image">
+      <a href="/gnosisia" style="position:absolute;right:2rem;top:50%;transform:translateY(-50%);background:#6d838a;color:#fff;padding:0.5rem 1.2rem;border-radius:8px;text-decoration:none;font-size:0.9rem;">Gnosis AI</a>
+    </div>
+  </header>
+
+  <!-- Main content section -->
+  <main>
+    <h1 class="page-title">Calificación de preferencia arancelaria de vehículos</h1>
+    <div class="upload-box" id="upload-container">
+      <form id="uploadForm" method="POST" action="/processing" enctype="multipart/form-data">
+        <label class="file-label" for="facturas">Cargar Facturas (.zip)</label>
+        <input type="file" id="facturas" name="facturas" class="file-input" onchange="markUploaded(this)" accept=".zip" required><br><br>
+
+        <label class="file-label" for="FilePrevio">Cargar Extraccion Historica (.xlsx)</label>
+        <input type="file" id="FilePrevio" name="FilePrevio" class="file-input" onchange="markUploaded(this)" accept=".xlsx" ><br><br>
+        
+
+        <label class="file-label" for="dwh">Cargar DWH / Pedimento (.txt)</label>
+        <input type="file" id="dwh" name="dwh" class="file-input" onchange="markUploaded(this)" accept=".txt" multiple required><br><br>
+
+        <label class="file-label" for="incrementales">Cargar Incrementables (.xlsx)</label>
+        <input type="file" id="incrementales" name="incrementales" onchange="markUploaded(this)" class="file-input"  accept=".xlsx"   required><br><br>
+
+        <label class="file-label" for="pdfInversion">Cargar Cupo Inversion (.pdf)</label>
+        <input type="file" id="pdfInversion" name="pdfInversion" class="file-input" onchange="markUploaded(this)" accept=".pdf" required><br><br>
+
+        <label class="file-label" for="pdfProduccion">Cargar Cupo Produccion (.pdf)</label>
+        <input type="file" id="pdfProduccion" name="pdfProduccion" class="file-input" onchange="markUploaded(this)" accept=".pdf" required><br><br>
+
+        <button type="submit" id="subbutton" class="submit-btn">Cargar Archivos</button>
+      </form>
+
+    </div>
+         <!-- LOADING GIF -->
+
+        <div id="loading-container">
+        <img id="loading" src="{{ url_for('static', filename='loading.gif') }}" alt="Loading">
+    </div>
+  </main>
+
+  <!-- Footer section -->
+
+
+  <script>
+    // Hide GIF initially
+    document.getElementById("loading-container").style.display = "none";
+
+    // Only hide boxes, show GIF — NO opacity changes
+    function activateLoading() {
+        document.getElementById("upload-container").style.display = "none";
+        document.getElementById("loading-container").style.display = "flex";
+    }
+
+    document.getElementById("uploadForm").onsubmit = activateLoading;
+
+    // Mark files as uploaded
+    function markUploaded(input) {
+        if (input.files.length > 0) {
+            input.classList.add("uploaded");
+        }
+    }
+  </script>
+
+
+</body>
+<footer>
+  <center>Gestell 2025 ®</center>
+</footer>
+</html>

@@ -1,0 +1,15 @@
+
+services:
+  aduanas:
+    build: .
+    ports:
+      - "5001:5001"
+    volumes:
+      - aduanas_data:/ara/API_Aduanas/data
+    environment:
+      - JARVIS_DB_PATH=/ara/API_Aduanas/data/aduanas.db
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+
+volumes:
+  aduanas_data:
