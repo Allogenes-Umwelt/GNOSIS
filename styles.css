@@ -1,41 +1,105 @@
-/* === THEME VARIABLES === */
-:root {
-  --bg-primary: #FFFFFF;
-  --bg-secondary: #F2F3F4;
-  --bg-app: #F3F4F6;
-  --border: #E5E7EB;
-  --text-primary: #1F2937;
-  --text-secondary: #6B7280;
-  --text-muted: #9CA3AF;
-  --accent: #6d838a;
-  --accent-hover: #b6c1c5;
-  --card-bg: #FFFFFF;
-  --input-bg: #FFFFFF;
-  --nav-bg: #FFFFFF;
-  --handle-bg: #E5E7EB;
-  --chat-bg: #F9FAFB;
-  --panel-bg: #F3F4F6;
-  --table-hover: #E5E7EB;
+/* ═══════════════════════════════════════════════════════════════
+   GESTELL · BRAND OPERATING SYSTEM · Fase 0 — Tokens canónicos
+   Fuente: Brandbook Vol. III (Identidad) + Vol. VI (Infraestructura)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Tipografía canónica (self-host) ── */
+@font-face {
+  font-family: 'Akzidenz-Grotesk';
+  src: url('fonts/AkzidenzGroteskPro-Bold.otf') format('opentype');
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('fonts/JetBrainsMono-Bold.woff2') format('woff2');
+  font-weight: 700; font-style: normal; font-display: swap;
 }
 
-[data-theme="dark-blue"] {
-  --bg-primary: #0F1E30;
-  --bg-secondary: #071020;
-  --bg-app: #0A1628;
-  --border: #1E3A52;
-  --text-primary: #F2F3F4;
-  --text-secondary: #DCDEE0;
-  --text-muted: #909398;
-  --accent: #64748B;
-  --accent-hover: #4E5D6E;
-  --card-bg: #0F1E30;
-  --input-bg: #071020;
-  --nav-bg: #0F1E30;
-  --handle-bg: #64748B;
-  --chat-bg: #050D18;
-  --panel-bg: #0A1628;
-  --table-hover: #1A3048;
+/* ── DARK (default canónico · #030303) ── */
+:root {
+  /* Primitivos GESTELL */
+  --gstl-black: #030303;
+  --gstl-white: #FAFAF8;
+  --gstl-border: #1A1A1A;
+  --gstl-bg-2: #050505;
+  --gstl-bg-3: #0A0A0A;
+  --gnosis: #00D4FF;
+  --gnosis-600: #00B8E0;
+  --gnosis-700: #009DBF;
+  --telos: #A4133C;
+  --umwelt: #FF0066;
+  --dasein: #7B3FA0;
+  --gnosis-text: #00D4FF;
+  --telos-text: #F26B8A;
+  --umwelt-text: #FF80AA;
+  --dasein-text: #B99BD6;
+  --text-1: #FAFAF8;
+  --text-2: #CCCCCC;
+  --text-3: #AAAAAA;
+
+  /* Paleta data-viz 12-cat (§3.3.5, deuteranopia-safe) */
+  --dv-1: #00D4FF; --dv-2: #A4133C; --dv-3: #FF0066; --dv-4: #7B3FA0;
+  --dv-5: #FFB833; --dv-6: #33CC99; --dv-7: #FF8855; --dv-8: #6699CC;
+  --dv-9: #CC6699; --dv-10: #99CC66; --dv-11: #CC9933; --dv-12: #8888AA;
+
+  /* Familias tipográficas (§3.4) */
+  --font-d: 'Akzidenz-Grotesk', 'Helvetica Neue', 'Arial', sans-serif;
+  --font-b: 'Helvetica Neue LT Pro', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Courier New', 'Courier', monospace;
+
+  /* Semánticos (mapeados a primitivos GESTELL) */
+  --bg-primary: #030303;
+  --bg-secondary: #0A0A0A;
+  --bg-app: #030303;
+  --border: #1A1A1A;
+  --text-primary: #FAFAF8;
+  --text-secondary: #CCCCCC;
+  --text-muted: #AAAAAA;
+  --accent: #00D4FF;
+  --accent-hover: #00B8E0;
+  --card-bg: #0A0A0A;
+  --input-bg: #050505;
+  --nav-bg: #030303;
+  --handle-bg: #1A1A1A;
+  --chat-bg: #050505;
+  --panel-bg: #080808;
+  --table-hover: rgba(0, 212, 255, 0.06);
 }
+
+/* ── LIGHT (alterno · #FAFAF8, §3.1/§6.10) ── */
+[data-theme="light"] {
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #F0F0EE;
+  --bg-app: #FAFAF8;
+  --border: #E4E4E0;
+  --text-primary: #030303;
+  --text-secondary: #333333;
+  --text-muted: #666666;
+  --accent: #009DBF;
+  --accent-hover: #007A99;
+  --card-bg: #FFFFFF;
+  --input-bg: #FFFFFF;
+  --nav-bg: #FAFAF8;
+  --handle-bg: #E4E4E0;
+  --chat-bg: #F5F5F3;
+  --panel-bg: #F0F0EE;
+  --table-hover: rgba(0, 157, 191, 0.08);
+  --text-1: #030303;
+  --text-2: #333333;
+  --text-3: #666666;
+  --gnosis-text: #009DBF;
+  --telos-text: #A4133C;
+  --umwelt-text: #B30047;
+  --dasein-text: #562C72;
+}
+
+/* Compat: claves de tema antiguas (dark-blue/dark-green/dark) → dark canónico (heredan :root) */
+[data-theme="dark"], [data-theme="dark-blue"], [data-theme="dark-green"] { color-scheme: dark; }
 
 /* === BOOTSTRAP TABLE OVERRIDES (respect CSS vars) === */
 .table {
@@ -74,7 +138,7 @@
 }
 
 body {
-  font-family: Arial, sans-serif;
+  font-family: var(--font-b);
   background-color: var(--bg-app);
   color: var(--text-primary);
   min-height: 100vh;
@@ -82,8 +146,17 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s, color 0.2s;
 }
+
+/* Jerarquía tipográfica GESTELL: display (Akzidenz) para títulos, mono para labels */
+h1, h2, h3, h4, h5, h6,
+.page-title, .panel-title, .stat-value, .card-header h5, .empty-state h2 {
+  font-family: var(--font-d);
+}
+.col-nav-title, .session-label, .stat-label, .mc__version { font-family: var(--font-mono); }
 
 /* === NAVBAR === */
 .navbar-app {
@@ -138,7 +211,8 @@ body {
 
 .navbar-link.active {
   background-color: var(--accent);
-  color: #FFFFFF;
+  color: #030303;
+  font-weight: 700;
 }
 
 /* Theme toggle — fixed bottom-left */
@@ -231,13 +305,13 @@ header {
 }
 
 .status-ok {
-  background-color: #D1FAE5;
-  color: #065F46;
+  background-color: rgba(51, 204, 153, 0.15);
+  color: #33CC99;
 }
 
 .status-progress {
-  background-color: #FEF3C7;
-  color: #92400E;
+  background-color: rgba(255, 184, 51, 0.15);
+  color: #FFB833;
 }
 
 /* === STATS GRID === */
@@ -327,8 +401,8 @@ header {
 }
 
 .badge-ok {
-  background-color: #D1FAE5;
-  color: #065F46;
+  background-color: rgba(51, 204, 153, 0.15);
+  color: #33CC99;
 }
 
 .badge-pending {
@@ -383,13 +457,13 @@ header {
 }
 
 .result-ok {
-  background-color: #D1FAE5;
-  color: #065F46;
+  background-color: rgba(51, 204, 153, 0.15);
+  color: #33CC99;
 }
 
 .result-error {
-  background-color: #FEE2E2;
-  color: #991B1B;
+  background-color: rgba(255, 0, 102, 0.15);
+  color: #FF80AA;
 }
 
 button:disabled {
@@ -407,7 +481,8 @@ main {
 .page-title {
   font-size: 2rem;
   margin: 1.5rem 0;
-  color: #1F2937;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
 }
 
 /* === DASHBOARD === */
@@ -471,8 +546,9 @@ th, td {
 }
 
 .table-highlight td {
-  background-color: #FEF9C3 !important;
-  color: #854D0E;
+  background-color: rgba(0, 212, 255, 0.08) !important;
+  color: var(--text-1);
+  font-weight: 700;
 }
 
 /* === GRAPH === */
@@ -518,20 +594,22 @@ th, td {
 }
 
 input[type="file"]::file-selector-button {
-  border: 2px solid #6d838a;
+  border: 1px solid var(--accent);
   padding: 0.3em 0.5em;
   border-radius: 0.25em;
-  background-color: #EFF6FF;
+  background-color: transparent;
+  color: var(--text-1);
   transition: 0.3s;
 }
 
 /* === BUTTONS === */
 button, .btn, .download-button a {
   background-color: var(--accent);
-  color: white;
+  color: #030303;
+  font-weight: 700;
   padding: 10px 20px;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   font-size: 1em;
   transition: background-color 0.3s ease;
@@ -683,7 +761,8 @@ footer {
 
 .nav-item.active {
   background-color: var(--accent);
-  color: #FFFFFF;
+  color: #030303;
+  font-weight: 700;
 }
 
 .nav-icon {
@@ -834,11 +913,11 @@ footer {
     flex-direction: row;
     flex-wrap: wrap;
     border-right: none;
-    border-bottom: 1px solid #E5E7EB;
+    border-bottom: 1px solid var(--border);
   }
   .col-chat {
     height: 60vh;
     border-right: none;
-    border-bottom: 1px solid #E5E7EB;
+    border-bottom: 1px solid var(--border);
   }
 }

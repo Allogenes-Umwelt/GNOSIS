@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}VW Aduanas{% endblock %}</title>
+  <title>{% block title %}GESTELL{% endblock %}</title>
   <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script>
-    // Apply saved theme before render to avoid flash
+    // Apply saved theme before render to avoid flash (GESTELL: dark #030303 default)
     (function() {
-      var t = localStorage.getItem('gestell-theme') || 'light';
-      // Migrate old keys to current themes
-      if (t === 'dark' || t === 'dark-green') { t = 'dark-blue'; localStorage.setItem('gestell-theme', t); }
+      var t = localStorage.getItem('gestell-theme') || 'dark';
+      // Migrate legacy keys -> canonical dark
+      if (t === 'dark-blue' || t === 'dark-green') { t = 'dark'; localStorage.setItem('gestell-theme', t); }
       document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-bs-theme', t === 'light' ? 'light' : 'dark');
     })();
   </script>
   {% block extra_css %}{% endblock %}
@@ -24,7 +25,7 @@
     <div class="navbar-inner">
       <a href="/" class="navbar-brand">
         <img id="navbar-logo"
-             src="/static/Gestell_Isotipo_Wordmark_Color.svg"
+             src="/static/Gestell_Isotipo_Wordmark_Crema_DarkMode.svg"
              alt="Gestell"
              class="navbar-logo">
       </a>
@@ -42,36 +43,37 @@
 
   <footer style="display:flex;align-items:center;padding:0 1rem;">
     <div class="theme-selector">
-      <button class="theme-dot" data-theme="light"     style="background:#FFFFFF;" title="Claro"></button>
-      <button class="theme-dot" data-theme="dark-blue" style="background:#0A1628;" title="Oscuro"></button>
+      <button class="theme-dot" data-theme="dark"  style="background:#030303;" title="Oscuro"></button>
+      <button class="theme-dot" data-theme="light" style="background:#FAFAF8;" title="Claro"></button>
     </div>
     <span style="flex:1;text-align:center;">Gestell 2025 &reg;</span>
   </footer>
 
   {% block scripts %}{% endblock %}
   <script>
-    const LOGO_COLOR = '/static/Gestell_Isotipo_Wordmark_Color.svg';
+    // Logos canónicos (Brandbook §3.1) — SVG por modo, singulo #00D4FF en ambos, sin filtros
+    const LOGO_LIGHT = '/static/Gestell_Isotipo_Wordmark_Color.svg';
+    const LOGO_DARK  = '/static/Gestell_Isotipo_Wordmark_Crema_DarkMode.svg';
 
     function applyTheme(t) {
       document.documentElement.setAttribute('data-theme', t);
+      document.documentElement.setAttribute('data-bs-theme', t === 'light' ? 'light' : 'dark');
 
-      // Logo: color SVG for light, white (via filter) for dark themes
       var logo = document.getElementById('navbar-logo');
       if (logo) {
-        logo.src = LOGO_COLOR;
-        logo.style.filter = (t === 'light') ? '' : 'brightness(0) invert(1)';
+        logo.src = (t === 'light') ? LOGO_LIGHT : LOGO_DARK;
+        logo.style.filter = '';
       }
 
-      // Update dot active state
       document.querySelectorAll('.theme-dot').forEach(function(dot) {
         dot.classList.toggle('active', dot.getAttribute('data-theme') === t);
       });
     }
 
-    // Init
+    // Init (default dark canónico)
     (function() {
-      var saved = localStorage.getItem('gestell-theme') || 'light';
-      if (saved === 'dark') saved = 'dark-blue';
+      var saved = localStorage.getItem('gestell-theme') || 'dark';
+      if (saved === 'dark-blue' || saved === 'dark-green') saved = 'dark';
       applyTheme(saved);
     })();
 
