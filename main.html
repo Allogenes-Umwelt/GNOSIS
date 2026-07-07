@@ -1845,23 +1845,36 @@ function sigDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=
   x.textAlign='left'; x.textBaseline='alphabetic';
   x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(String(clusters), 20, 48);
   x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CLÚSTERES NATURALES · '+N+' MARCAS', 20, 65);
-  // geometría del árbol
-  const pad={l:26,r:118,t:84,b:26}, treeTop=pad.t, treeBot=H-pad.b, lx=W-pad.r, maxd=root.dist||1;
-  const leaves=[]; (function col(nd){nd.leaf?leaves.push(nd):nd.children.forEach(col);})(root);
-  const gapY=(treeBot-treeTop)/Math.max(1,leaves.length-1); leaves.forEach((lf,i)=>lf.y=treeTop+i*gapY);
-  const xFor=nd=>nd.leaf?lx:lx-((nd.dist||0)/maxd)*(lx-pad.l);
-  (function draw(nd){ if(nd.leaf) return nd.y; const ys=nd.children.map(draw), nx=xFor(nd), inC=nd.dist<cutDist;
-    nd.children.forEach((c,k)=>{ x.strokeStyle=inC?MCOL[nd.cid%6]:'rgba('+GTXT+',.16)'; x.lineWidth=inC?1.6:1; x.beginPath();x.moveTo(nx,ys[k]);x.lineTo(xFor(c),ys[k]);x.stroke(); });
-    x.strokeStyle=inC?MCOL[nd.cid%6]:'rgba('+GTXT+',.16)'; x.lineWidth=inC?1.6:1; x.beginPath();x.moveTo(nx,Math.min(...ys));x.lineTo(nx,Math.max(...ys));x.stroke();
-    nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
-  // corte natural — costura brillante
-  const xCut=lx-(cutDist/maxd)*(lx-pad.l);
-  x.strokeStyle='rgba('+GCY+',.9)'; x.lineWidth=1.4; x.setLineDash([4,4]); x.shadowColor='rgba('+GCY+',.7)'; x.shadowBlur=9; x.beginPath();x.moveTo(xCut,treeTop-4);x.lineTo(xCut,treeBot+4);x.stroke(); x.shadowBlur=0; x.setLineDash([]);
-  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CORTE NATURAL', xCut, treeBot+16);
-  // hojas coloreadas por grupo + rótulo de marca
-  const _rh=Math.max(13,Math.min(22,gapY)); x.textBaseline='middle'; leaves.forEach(lf=>{ const col=MCOL[(cc[lf.name]||0)%6]; x.fillStyle=col; x.beginPath();x.arc(lx,lf.y,2.8,0,6.28);x.fill();
-    x.textAlign='left'; x.font='11px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.92)'; x.fillText(lf.name.slice(0,14),lx+9,lf.y);
-    el._hits.push({shape:'rect',x:lx-8,y:lf.y-_rh/2,w:W-(lx-8),h:_rh,key:lf.name,color:col,hl:col,tip:[lf.name.toUpperCase(),'Clúster: '+((cc[lf.name]||0)+1)+' de '+clusters]}); });
+  // ── Mapa de Similitud (constelación 2D · cercanía = comportamiento parecido) ──
+  // Proyección MDS (stress majorization / SMACOF) de los vectores de perfil a 2D.
+  const MK=marcas.map(m=>({name:m, vec:vec(m), cid:(cc[m]||0), total:(pm.find(r=>r.nombre===m)||{}).total||0}));
+  const nK=MK.length, Dm=MK.map(a=>MK.map(b=>D(a.vec,b.vec))); let dmax=0; Dm.forEach(r=>r.forEach(d=>dmax=Math.max(dmax,d))); dmax=dmax||1;
+  MK.forEach((nn,i)=>{ const a=-Math.PI/2 + i/nK*2*Math.PI; nn.px=Math.cos(a); nn.py=Math.sin(a); });
+  const tgt=(i,j)=>Dm[i][j]/dmax*1.9 + 0.02;
+  for(let it=0; it<240; it++){ for(let i=0;i<nK;i++){ let sx=0,sy=0,ws=0; const nn=MK[i];
+      for(let j=0;j<nK;j++){ if(i===j)continue; const o=MK[j], dx=nn.px-o.px, dy=nn.py-o.py, d=Math.sqrt(dx*dx+dy*dy)||1e-4, tt=tgt(i,j), w=1/(tt*tt);
+        sx+=w*(o.px+dx/d*tt); sy+=w*(o.py+dy/d*tt); ws+=w; }
+      nn.nx=sx/ws; nn.ny=sy/ws; }
+    for(let i=0;i<nK;i++){ MK[i].px=MK[i].nx; MK[i].py=MK[i].ny; } }
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; MK.forEach(nn=>{ mnx=Math.min(mnx,nn.px);mxx=Math.max(mxx,nn.px);mny=Math.min(mny,nn.py);mxy=Math.max(mxy,nn.py); });
+  const cpad={l:26,r:26,t:82,b:30}, aw=W-cpad.l-cpad.r, ah=H-cpad.t-cpad.b, sc=Math.min(aw/((mxx-mnx)||1), ah/((mxy-mny)||1))*0.8;
+  const ox=cpad.l+aw/2-(mnx+mxx)/2*sc, oy=cpad.t+ah/2-(mny+mxy)/2*sc; MK.forEach(nn=>{ nn.X=ox+nn.px*sc; nn.Y=oy+nn.py*sc; });
+  let outI=0,outD=-1; for(let i=0;i<nK;i++){ let sd=0; for(let j=0;j<nK;j++) sd+=Dm[i][j]; if(sd>outD){outD=sd;outI=i;} }
+  let bi=0,bj=1,bd=1e9; for(let i=0;i<nK;i++)for(let j=i+1;j<nK;j++){ if(Dm[i][j]<bd){bd=Dm[i][j];bi=i;bj=j;} }
+  // enlaces (telaraña) por similitud
+  for(let i=0;i<nK;i++)for(let j=i+1;j<nK;j++){ const sim=1-Dm[i][j]/dmax; if(sim<0.35)continue; x.strokeStyle='rgba('+GCY+','+(0.04+sim*0.16).toFixed(3)+')'; x.lineWidth=0.8; x.beginPath(); x.moveTo(MK[i].X,MK[i].Y); x.lineTo(MK[j].X,MK[j].Y); x.stroke(); }
+  // par más similar — enlace brillante
+  x.strokeStyle='rgba('+GCY+',.85)'; x.lineWidth=2; x.shadowColor='rgba('+GCY+',.7)'; x.shadowBlur=9; x.beginPath(); x.moveTo(MK[bi].X,MK[bi].Y); x.lineTo(MK[bj].X,MK[bj].Y); x.stroke(); x.shadowBlur=0;
+  // atípica — anillo telos
+  { const nn=MK[outI]; x.strokeStyle='rgba('+GPINK+',.7)'; x.setLineDash([3,3]); x.lineWidth=1.2; x.beginPath(); x.arc(nn.X,nn.Y,16,0,6.28); x.stroke(); x.setLineDash([]);
+    x.fillStyle='rgba('+GPINK+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('ATÍPICA', nn.X, nn.Y-24); }
+  // nodos (glow · color por clúster · tamaño ∝ total) + etiquetas
+  x.textBaseline='middle'; MK.forEach(nn=>{ const col=MCOL[nn.cid%6], r=4+Math.min(7,Math.log10((nn.total||0)+1)*1.9);
+    x.shadowColor=col; x.shadowBlur=11; x.fillStyle=col; x.beginPath(); x.arc(nn.X,nn.Y,r,0,6.28); x.fill(); x.shadowBlur=0;
+    x.fillStyle=light?'rgba(255,255,255,.9)':'rgba(6,9,13,.92)'; x.beginPath(); x.arc(nn.X,nn.Y,r*0.38,0,6.28); x.fill();
+    el._hits.push({shape:'circle',x:nn.X,y:nn.Y,r:r,hr:r+5,key:nn.name,color:col,hl:col,tip:[nn.name.toUpperCase(),'Clúster: '+((nn.cid)+1)+' de '+clusters,'Total: '+(nn.total||0).toLocaleString()]});
+    x.fillStyle='rgba('+GLEAF+',.92)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='top'; x.fillText(nn.name.slice(0,11), nn.X, nn.Y+r+3); });
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CERCANÍA = COMPORTAMIENTO SIMILAR', W/2, H-8);
   x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
 }
 // #8 Trayectoria: quema del cupo — cifra = % consumido; curva acumulada + proyección de agotamiento
