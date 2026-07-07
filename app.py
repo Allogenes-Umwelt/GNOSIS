@@ -199,7 +199,7 @@ def dashboard():
         empty=True, sessions=[], current_session=None,
         stats={'total_importaciones': 0, 'total_extraccion': 0,
                'total_faltantes': 0, 'total_errores': 0},
-        por_marca=[], por_pais=[], por_jyn=[],
+        por_marca=[], por_pais=[], por_jyn=[], por_aduana=[], por_fraccion=[], por_moneda=[],
         has_graphs=False, has_zip=False, has_historico_zip=False,
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
@@ -283,6 +283,26 @@ def dashboard():
             "SELECT j_y_n, COUNT(*) as total FROM importaciones WHERE session_id = ? GROUP BY j_y_n",
             (session_id,)).fetchall()]
 
+        # ── Desgloses adicionales (read-only · no fatales): aduana, fracción arancelaria, moneda ──
+        try:
+            por_aduana = [dict(r) for r in conn.execute(
+                "SELECT aduana, COUNT(*) as total FROM pedimentos WHERE session_id = ? AND aduana IS NOT NULL AND aduana != '' GROUP BY aduana ORDER BY total DESC",
+                (session_id,)).fetchall()]
+        except Exception: por_aduana = []
+        try:
+            por_fraccion = [dict(r) for r in conn.execute(
+                """SELECT c.fraccion, COUNT(*) as total FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   WHERE i.session_id = ? AND c.fraccion IS NOT NULL AND c.fraccion != ''
+                   GROUP BY c.fraccion ORDER BY total DESC LIMIT 12""",
+                (session_id,)).fetchall()]
+        except Exception: por_fraccion = []
+        try:
+            por_moneda = [dict(r) for r in conn.execute(
+                "SELECT COALESCE(NULLIF(moneda,''),'—') as moneda, COUNT(*) as total FROM extraccion_facturas WHERE session_id = ? GROUP BY moneda ORDER BY total DESC",
+                (session_id,)).fetchall()]
+        except Exception: por_moneda = []
+
         # ── GNOSIS deep-tech viz data contract (read-only aggregations · Decisión 1A) ──
         # Solo lectura; si algo falla, el dashboard sigue renderizando sin viz_data.
         viz_data = {}
@@ -364,6 +384,9 @@ def dashboard():
             por_marca=por_marca,
             por_pais=por_pais,
             por_jyn=por_jyn,
+            por_aduana=por_aduana,
+            por_fraccion=por_fraccion,
+            por_moneda=por_moneda,
             has_graphs=has_graphs,
             has_zip=has_zip,
             has_historico_zip=has_historico_zip,
