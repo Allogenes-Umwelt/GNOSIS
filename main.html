@@ -235,6 +235,7 @@
   .solo-read { flex: 0 0 38%; border-right: 1px solid var(--line); }
   .solo-viz { flex: 1 1 0; }
   .solo-read.solo-col { flex-basis: 54px; } .solo-viz.solo-col { flex: 0 0 54px; }
+  .solo-dual.viz-col .solo-read { flex: 1 1 auto; }   /* espejo: al colapsar Análisis, Síntesis se vuelve monumental */
   .solo-pane-head { display: flex; align-items: baseline; gap: 12px; padding: 0 18px; min-height: 48px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
   .solo-pane-head .sph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); }
   .solo-pane-head .sph-s { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
@@ -1430,21 +1431,37 @@ function vizIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const row
     x.fillStyle='rgba('+GLEAF+',.9)'; x.textAlign='left'; x.fillText(m.tot.toLocaleString(),pl+bw+8,pt+ri*rh+rh/2); });
 }
 // ── 4 · Flow-to-Reservoir (presión sobre el cupo) ──
-function vizFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const V=gnosisVizData(); const flujo=V.flujo||[];
+// Burndown de cupo: escalera descendente ini→saldo, cada marca consume su parte (coloreada); saldo brilla, umbral en telos
+function vizFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const flujo=V.flujo||[];
   const marcaN={}; flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ marcaN[r.marca]=(marcaN[r.marca]||0)+(r.n||0);} });
-  let marcas=Object.keys(marcaN).map(m=>({m,n:marcaN[m]})).sort((a,b)=>b.n-a.n).slice(0,6); const totN=marcas.reduce((u,o)=>u+o.n,0);
+  let marcas=Object.keys(marcaN).map(m=>({m,n:marcaN[m]})).sort((a,b)=>b.n-a.n).slice(0,6); const totN=marcas.reduce((u,o)=>u+o.n,0)||1;
   const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
-  if(!totN && !cupo.ini){ gnd(s); return; }
-  const tx=W*0.60, tw=Math.min(W-tx-40,180), ty=34, th=H-70, bh=(H-90)/Math.max(1,marcas.length);
-  x.textBaseline='middle'; x.font='10px "JetBrains Mono",monospace';
-  marcas.forEach((o,i)=>{ const cy0=46+i*bh; const lw=Math.max(2,(o.n/(totN||1))*46);
-    x.strokeStyle=MCOL[i%6]; x.globalAlpha=.5; x.lineWidth=lw; x.beginPath(); x.moveTo(122,cy0); x.quadraticCurveTo(W*0.44,H/2,tx-6,ty+th*0.55); x.stroke(); x.globalAlpha=1;
-    x.fillStyle='rgba('+GTXT+',.95)'; x.textAlign='right'; x.fillText((o.m||'').slice(0,12).toUpperCase(),114,cy0); x.fillStyle=MCOL[i%6]; x.textAlign='left'; x.fillText(o.n.toLocaleString(),128,cy0); });
-  x.strokeStyle='rgba('+GCY+',.7)'; x.lineWidth=1.2; x.strokeRect(tx,ty,tw,th);
-  const fill=cupo.ini?Math.max(0,Math.min(1,cupo.sal/cupo.ini)):0.4; x.fillStyle='rgba('+GCY+',.28)'; x.fillRect(tx+1,ty+th*(1-fill)+1,tw-2,th*fill-2);
-  x.strokeStyle='rgba('+GPINK+',.8)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(tx,ty+th*0.15); x.lineTo(tx+tw,ty+th*0.15); x.stroke(); x.setLineDash([]);
-  x.fillStyle='rgba('+GTXT+',.9)'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CUPO · SALDO '+(cupo.sal||0).toLocaleString(),tx+tw/2,ty-10);
-  x.fillStyle='rgba('+GCY+',1)'; x.font='11px "JetBrains Mono",monospace'; x.fillText(Math.round(fill*100)+'% DISPONIBLE',tx+tw/2,ty+th+18);
+  if(!cupo.ini){ gnd(s); return; }
+  const consumed=Math.max(0,cupo.ini-cupo.sal); marcas.forEach(o=>o.c=(o.n/totN)*consumed);
+  const pad={l:64,r:138,t:48,b:52}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=marcas.length, Yv=v=>y0-(v/cupo.ini)*(y0-y1);
+  const ySaldo=Yv(cupo.sal);
+  x.fillStyle='rgba('+GCY+',.13)'; x.fillRect(x0, ySaldo, x1-x0, y0-ySaldo);  // remanente
+  x.font='9px "JetBrains Mono",monospace'; x.textBaseline='middle';
+  for(let t=0;t<=100;t+=25){ const yy=y0-(t/100)*(y0-y1), crit=(t===25);
+    x.strokeStyle=crit?'rgba('+GPINK+',.5)':'rgba('+GTXT+',.12)'; x.lineWidth=1; if(crit)x.setLineDash([4,4]);
+    x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.setLineDash([]);
+    x.fillStyle=crit?'rgba('+GPINK+',.9)':'rgba('+GTXT+',.45)'; x.textAlign='right'; x.fillText(t+'%', x0-8, yy); }
+  x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.font='8px "JetBrains Mono",monospace'; x.fillText('UMBRAL', x1+6, y0-0.25*(y0-y1));
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='alphabetic'; x.font='9px "JetBrains Mono",monospace'; x.fillText('CUPO '+cupo.ini.toLocaleString(), x0, Yv(cupo.ini)-8);
+  const stepW=(x1-x0)/(n+1); let cx=x0, cur=cupo.ini; x.textBaseline='middle';
+  marcas.forEach((o,i)=>{ const nx=cx+stepW, yTop=Yv(cur), yBot=Yv(cur-o.c), col=MCOL[i%6];
+    x.strokeStyle='rgba('+GCY+',.85)'; x.lineWidth=2; x.beginPath(); x.moveTo(cx,yTop); x.lineTo(nx,yTop); x.stroke();
+    x.strokeStyle=col; x.lineWidth=3.5; x.beginPath(); x.moveTo(nx,yTop); x.lineTo(nx,yBot); x.stroke();
+    x.fillStyle=col; x.beginPath(); x.arc(nx,yBot,2.4,0,6.28); x.fill();
+    x.fillStyle='rgba('+GTXT+',.65)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText('−'+Math.round(o.c).toLocaleString(), nx+6, (yTop+yBot)/2);
+    x.save(); x.translate(nx, y0+10); x.rotate(-Math.PI/4); x.textAlign='right'; x.fillStyle=col; x.font='9px "JetBrains Mono",monospace'; x.fillText((o.m||'').slice(0,10), 0, 0); x.restore();
+    cx=nx; cur-=o.c; });
+  x.strokeStyle='rgba('+GCY+',1)'; x.lineWidth=2; x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.beginPath(); x.moveTo(cx,ySaldo); x.lineTo(x1,ySaldo); x.stroke(); x.shadowBlur=0;
+  x.fillStyle='#00D4FF'; x.beginPath(); x.arc(x1,ySaldo,3.6,0,6.28); x.fill();
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='middle'; x.font='700 13px "AkzidenzGroteskPro-Bold",sans-serif'; x.fillText('SALDO '+cupo.sal.toLocaleString(), x1+8, ySaldo-2);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText(Math.round(cupo.sal/cupo.ini*100)+'% DISPONIBLE', x1+8, ySaldo+13);
+  x.textAlign='left'; x.textBaseline='alphabetic';
 }
 // ── 5 · Árbol circular VIN (anatomía de la flota) ──
 function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
@@ -1496,6 +1513,7 @@ function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getE
   const tag=document.getElementById('solo-viz-tag'); if(tag) tag.textContent=(SW_TAG[k]||'');
   const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){ rb.innerHTML='<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>'; } }
   const rp=document.getElementById('solo-read'), vp=document.getElementById('solo-viz'); if(rp)rp.classList.remove('solo-col'); if(vp)vp.classList.remove('solo-col');
+  const dl=document.getElementById('solo-dual'); if(dl) dl.classList.remove('viz-col','read-col');
   solo.dataset.viz=k; solo.hidden=false; gTheme();
   requestAnimationFrame(gnosisSoloRenderAll); }
 function gnosisSoloRenderAll(){ const solo=document.getElementById('gd-solo'); if(!solo||solo.hidden)return; const k=solo.dataset.viz;
@@ -1506,6 +1524,7 @@ function gnosisSoloToggle(which){ const read=document.getElementById('solo-read'
   const target=which==='read'?read:viz, other=which==='read'?viz:read;
   if(!target.classList.contains('solo-col') && other.classList.contains('solo-col')) return; // no colapsar la última abierta
   target.classList.toggle('solo-col');
+  const dual=document.getElementById('solo-dual'); if(dual){ dual.classList.toggle('viz-col', viz.classList.contains('solo-col')); dual.classList.toggle('read-col', read.classList.contains('solo-col')); }
   setTimeout(gnosisSoloRenderAll, 340); }
 
 // ── Firmas gráficas deep-tech (biomecha) de la Ventana A · una por dashboard ──
