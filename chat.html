@@ -1,16 +1,56 @@
 {% extends "base.html" %}
-{% block title %}Gnosis AI - Asistente de Analisis{% endblock %}
+{% block title %}GNOSIS·IA — Inteligencia Sintética{% endblock %}
 {% block nav_gnosisia %}active{% endblock %}
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+<style>
+  main { max-width: 100% !important; padding: 0 !important; }
+  .gia-page { width: 100%; max-width: 940px; margin: 0 auto; height: calc(100vh - 66px); display: flex; flex-direction: column; text-align: left; }
+
+  .gia-head { display: flex; align-items: center; gap: 14px; padding: 0 8px; min-height: 56px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .gia-head .ttl { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .gia-head .ttl b { color: var(--acc-text); }
+  .gia-online { display: inline-flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); }
+  .gia-online .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
+  .gia-head .btn-reset { margin-left: auto; }
+
+  .gia-page .chat-messages { flex: 1; min-height: 0; overflow-y: auto; background: transparent; padding: 26px 8px; display: flex; flex-direction: column; gap: 16px; }
+  .gia-page .suggestions { background: transparent; padding: 0 8px 6px; }
+  .gia-page .suggestion-btn { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px; padding: 8px 12px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: .5px; }
+  .gia-page .suggestion-btn::before { content: '›'; color: var(--acc-text); font-family: var(--font-b); }
+  .gia-page .suggestion-btn:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
+  .gia-page .typing-indicator { margin: 0 8px; }
+
+  /* Terminal input (idéntico a la consola de Áreas) */
+  .gia-page .chat-input-area { display: block; padding: 0 8px 22px; background: transparent; border-top: none; }
+  .axt { border: 1px solid var(--line); background: var(--surface-2); position: relative; }
+  .axt::before, .axt::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; opacity: .7; }
+  .axt::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
+  .axt::after { bottom: 5px; right: 5px; border-width: 0 1px 1px 0; }
+  .axt:focus-within { border-color: var(--acc); }
+  .axt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .axt-head .l { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .axt-head .l b { color: var(--acc-text); }
+  .axt-head .r { font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
+  .axt-line { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+  .axt-prompt { font-family: var(--font-mono); font-size: .85rem; color: var(--acc-text); white-space: nowrap; padding-top: 2px; text-shadow: 0 0 10px rgba(0,212,255,.35); }
+  .axt-caret { width: 8px; height: 17px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); animation: axblink 1.1s step-end infinite; flex: 0 0 auto; margin-top: 2px; }
+  .axt.axt-typing .axt-caret { display: none; }
+  @keyframes axblink { 0%,55%{opacity:1} 56%,100%{opacity:0} }
+  .gia-page .chat-input-area textarea#chatInput { flex: 1; background: transparent; border: none; border-radius: 0; outline: none; resize: none; color: var(--t1); font-family: var(--font-mono); font-size: .85rem; line-height: 1.5; caret-color: var(--acc-solid); padding: 0; min-height: 19px; max-height: 140px; }
+  .gia-page .chat-input-area .btn-send { align-self: stretch; background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; padding: 0 16px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; gap: 7px; }
+  .gia-page .chat-input-area .btn-send:hover { background: var(--acc-subtle); }
+  .gia-page .token-counter { padding: 8px 8px 0; }
+</style>
 {% endblock %}
 
 {% block content %}
-  <div class="chat-wrapper">
+  <div class="gia-page">
     <!-- Chat header -->
-    <div class="chat-header">
-      <h2><span class="status-dot"></span>Gnosis AI - Asistente de Analisis</h2>
-      <button class="btn-reset" onclick="resetChat()">Nueva conversacion</button>
+    <div class="gia-head">
+      <span class="ttl"><b>GNOSIS·IA</b> // INTELIGENCIA SINTÉTICA</span>
+      <span class="gia-online"><span class="dot"></span> Online</span>
+      <button class="btn-reset" onclick="resetChat()">Nueva consulta</button>
     </div>
 
     <!-- Messages -->
@@ -18,23 +58,38 @@
 
     <!-- Typing indicator -->
     <div class="typing-indicator" id="typingIndicator">
-      <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis AI esta analizando...
+      <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis·IA está analizando...
     </div>
 
     <!-- Suggestions -->
     <div class="suggestions" id="suggestions"></div>
 
-    <!-- Input -->
+    <!-- Input · terminal -->
     <div class="chat-input-area">
-      <textarea id="chatInput" placeholder="Escribe tu pregunta..." rows="1"></textarea>
-      <button id="sendBtn" class="btn-send">Enviar</button>
+      <div class="axt" id="axTerminal">
+        <div class="axt-head">
+          <span class="l"><b>▸ TERMINAL</b> // GNOSIS·IA · INTELIGENCIA SINTÉTICA</span>
+          <span class="r">↵ ejecutar · ⇧↵ nueva línea</span>
+        </div>
+        <div class="axt-line">
+          <span class="axt-prompt">gnosis ▸</span>
+          <span class="axt-caret" id="axCaret"></span>
+          <textarea id="chatInput" placeholder="consultar el corpus de importaciones…" rows="1"></textarea>
+          <button id="sendBtn" class="btn-send">Ejecutar <span>↵</span></button>
+        </div>
+      </div>
+      <!-- Token counter -->
+      <div class="token-counter" id="tokenCounter"></div>
     </div>
-
-    <!-- Token counter -->
-    <div class="token-counter" id="tokenCounter"></div>
   </div>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='chat.js') }}"></script>
+<script>
+  (function(){
+    var inp = document.getElementById('chatInput'), term = document.getElementById('axTerminal');
+    if (inp && term) inp.addEventListener('input', function(){ term.classList.toggle('axt-typing', inp.value.length > 0); });
+  })();
+</script>
 {% endblock %}
