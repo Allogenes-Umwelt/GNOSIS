@@ -477,6 +477,11 @@ main {
   max-width: 1200px;
   padding: 1rem;
 }
+/* Páginas de contenido: llenar el alto disponible y centrar (sin banda muerta abajo) */
+main:has(.status-page), main:has(.ing), main:has(.cp) {
+  flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; max-width: none;
+}
+main:has(.status-page) > .status-page, main:has(.ing) > .ing, main:has(.cp) > .cp { width: 100%; }
 
 .page-title {
   font-size: 2rem;
@@ -976,6 +981,16 @@ footer {
 .gstl-lockup { display: flex; align-items: center; gap: 20px; }
 .gstl-brand { display: flex; align-items: center; gap: 10px; text-decoration: none; }
 .gstl-iso { height: 34px; width: 30px; color: var(--t1); display: block; }
+/* Isotipo por tema (robusto sin JS): dark = maestro cian/blanco · daylight = dasein púrpura */
+.gstl-iso .iso-lt { display: none; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .gstl-iso .iso-dk { display: none; }
+  :root:not([data-theme="dark"]) .gstl-iso .iso-lt { display: block; }
+}
+:root[data-theme="light"] .gstl-iso .iso-dk { display: none; }
+:root[data-theme="light"] .gstl-iso .iso-lt { display: block; }
+:root[data-theme="dark"] .gstl-iso .iso-dk { display: block; }
+:root[data-theme="dark"] .gstl-iso .iso-lt { display: none; }
 .gstl-iso--sub { height: 40px; width: 40px; }
 .gstl-wordmark {
   font-family: var(--font-d); font-weight: 700; font-size: 0.75rem;

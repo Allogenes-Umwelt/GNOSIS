@@ -4,48 +4,103 @@
 {% block extra_css %}
 <style>
   body { align-items: stretch; text-align: left; }
-  .cp { width: 100%; max-width: 1100px; margin: 0 auto; padding: 56px 40px 72px; position: relative; z-index: 1; }
-  .cp-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); margin-bottom: 20px; }
-  .cp-title { font-family: var(--font-d); font-weight: 700; font-size: 2.4rem; line-height: 1.05; color: var(--t1); margin-bottom: 36px; }
-  .cp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
-  .cp-card { background: var(--surface); }
-  .cp-card .h { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 14px 18px; border-bottom: 1px solid var(--line); }
-  .cp-card table { width: 100%; border-collapse: collapse; }
-  .cp-card td { padding: 10px 18px; border-top: 1px solid var(--line-ghost); font-family: var(--font-b); font-size: .8rem; color: var(--t2); }
-  .cp-card td:last-child { text-align: right; font-family: var(--font-mono); color: var(--t1); }
-  .cp-card tr.hl td { background: rgba(0,212,255,.06); color: var(--t1); font-weight: 700; }
-  .cp-actions { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
-  @media (max-width: 820px) { .cp-grid { grid-template-columns: 1fr; } }
+  .cp { width: 100%; max-width: 1100px; margin: 0 auto; padding: 52px 40px 64px; position: relative; z-index: 1; }
+  .cp-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); margin-bottom: 16px; }
+  .cp-title { font-family: var(--font-d); font-weight: 700; font-size: 2.6rem; line-height: 1.04; letter-spacing: -.01em; color: var(--t1); margin-bottom: 34px; }
+
+  .cp-hero { display: grid; grid-template-columns: .82fr 1.18fr; gap: 14px; margin-bottom: 14px; }
+  @media (max-width: 860px){ .cp-hero { grid-template-columns: 1fr; } }
+  .card { position: relative; background: var(--surface); border: 1px solid var(--line); padding: 22px 24px; }
+  .card::before, .card::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; opacity: .5; pointer-events: none; }
+  .card::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .card::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+  .card .h { font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); margin-bottom: 14px; }
+
+  .cp-total .big { font-family: var(--font-d); font-weight: 700; font-size: 3.6rem; line-height: .95; color: var(--t1); font-variant-numeric: tabular-nums; }
+  .cp-total .u { font-family: var(--font-mono); font-size: .62rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-top: 10px; }
+
+  /* Composición del cupo (barra apilada) */
+  .cmp-bar { display: flex; height: 30px; border: 1px solid var(--line); background: var(--surface-2); overflow: hidden; }
+  .cmp-bar .seg { position: relative; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+  .cmp-bar .seg.prod { background: rgba(0,212,255,.55); box-shadow: inset 0 0 0 1px var(--acc); }
+  .cmp-bar .seg.inv { background: rgba(123,63,160,.55); box-shadow: inset 0 0 0 1px var(--dasein, #B99BD6); }
+  .cmp-legend { display: flex; gap: 24px; margin-top: 16px; flex-wrap: wrap; }
+  .cmp-legend .lg { display: flex; align-items: baseline; gap: 9px; }
+  .cmp-legend .sw { width: 10px; height: 10px; flex: 0 0 auto; align-self: center; }
+  .cmp-legend .sw.prod { background: var(--acc-solid); } .cmp-legend .sw.inv { background: #7B3FA0; }
+  .cmp-legend .lk { font-family: var(--font-mono); font-size: .58rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  .cmp-legend .lv { font-family: var(--font-d); font-weight: 700; font-size: 1.15rem; color: var(--t1); font-variant-numeric: tabular-nums; }
+  .cmp-legend .lp { font-family: var(--font-mono); font-size: .62rem; color: var(--acc-text); }
+
+  /* Marcas sin origen (distribución deep-tech) */
+  .cp-marcas { margin-top: 14px; }
+  .mrow { display: grid; grid-template-columns: 150px 1fr auto; align-items: center; gap: 14px; padding: 8px 4px; border-top: 1px solid var(--line); }
+  .mrow:first-of-type { border-top: none; }
+  .mrow .mk { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .5px; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mrow .mb { height: 6px; background: var(--surface-2); position: relative; }
+  .mrow .mb span { position: absolute; inset: 0 auto 0 0; background: rgba(0,212,255,.30); }
+  .mrow .mb span::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: var(--acc-solid); opacity: .55; }
+  .mrow.lead .mb span { background: var(--acc-solid); box-shadow: 0 0 9px var(--acc-solid); }
+  .mrow.lead .mb span::after { opacity: 1; }
+  .mrow .mv { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; color: var(--t1); text-align: right; min-width: 60px; font-variant-numeric: tabular-nums; }
+  .mrow.lead .mv { font-size: 1.34rem; color: var(--acc-text); text-shadow: 0 0 14px rgba(0,212,255,.35); }
+  .mrow.tot { border-top: 1px solid var(--acc); margin-top: 4px; }
+  .mrow.tot .mk { color: var(--acc-text); }
+  .mrow.tot .mv { color: var(--acc-text); }
+  .cp-actions { display: flex; gap: 12px; margin-top: 30px; flex-wrap: wrap; }
 </style>
 {% endblock %}
 
 {% block content %}
+{% set d = session.get('data', {}) %}
+{% set prod = d.get('SALDO CUPO PRODUCCIÓN', 0)|int %}
+{% set inv = d.get('SALDO CUPO INVERSIÓN', 0)|int %}
+{% set tot = d.get('SALDO TOTAL CUPO UNILATERAL', 0)|int %}
+{% set base = (prod + inv) if (prod + inv) > 0 else 1 %}
+{% set A = d.get('Audi', 0)|int %}{% set P = d.get('Porsche', 0)|int %}{% set S = d.get('Seat', 0)|int %}
+{% set B = d.get('Bentley', 0)|int %}{% set V = d.get('Volkswagen (Vehiculos Comerciales)', 0)|int %}{% set I = d.get('India', 0)|int %}
+{% set suma = d.get('SUMA TODAS LAS MARCAS SIN ORIGEN', 0)|int %}
+{% set marcas = [('Audi', A), ('Porsche', P), ('Seat', S), ('Bentley', B), ('VW Comerciales', V), ('India', I)] %}
+{% set mx = ([A, P, S, B, V, I] | max) or 1 %}
 <div class="cp">
   <div class="cp-eyebrow">GNOSIS · Cupos · Preferencia Arancelaria</div>
   <h1 class="cp-title">Saldo de cupo unilateral.</h1>
-  <div class="cp-grid">
-    <div class="cp-card">
-      <div class="h">Resumen Cupos</div>
-      <table><tbody>
-        <tr><td>Saldo cupo producción 2024</td><td>{{ session.get('data', {}).get('SALDO CUPO PRODUCCIÓN', 'N/A') }}</td></tr>
-        <tr><td>Cupo inversión 2023</td><td>{{ session.get('data', {}).get('SALDO CUPO INVERSIÓN', 'N/A') }}</td></tr>
-        <tr class="hl"><td>Saldo total cupo unilateral</td><td>{{ session.get('data', {}).get('SALDO TOTAL CUPO UNILATERAL', 'N/A') }}</td></tr>
-      </tbody></table>
+
+  <div class="cp-hero">
+    <div class="card cp-total">
+      <div class="h">Saldo total unilateral</div>
+      <div class="big">{{ "{:,}".format(tot) }}</div>
+      <div class="u">Vehículos · cupo disponible</div>
     </div>
-    <div class="cp-card">
-      <div class="h">Marcas sin Origen</div>
-      <table><tbody>
-        <tr><td>Cupo unilateral 2024</td><td>{{ session.get('data', {}).get('SALDO TOTAL CUPO UNILATERAL', 'N/A') }}</td></tr>
-        <tr><td>Audi</td><td>{{ session.get('data', {}).get('Audi', 'N/A') }}</td></tr>
-        <tr><td>Porsche</td><td>{{ session.get('data', {}).get('Porsche', 'N/A') }}</td></tr>
-        <tr><td>Seat</td><td>{{ session.get('data', {}).get('Seat', 'N/A') }}</td></tr>
-        <tr><td>Bentley</td><td>{{ session.get('data', {}).get('Bentley', 'N/A') }}</td></tr>
-        <tr><td>Vehículos comerciales</td><td>{{ session.get('data', {}).get('Volkswagen (Vehiculos Comerciales)', 'N/A') }}</td></tr>
-        <tr><td>India</td><td>{{ session.get('data', {}).get('India', 'N/A') }}</td></tr>
-        <tr class="hl"><td>Suma vehículos sin origen</td><td>{{ session.get('data', {}).get('SUMA TODAS LAS MARCAS SIN ORIGEN', 'N/A') }}</td></tr>
-      </tbody></table>
+    <div class="card">
+      <div class="h">Composición del cupo · Producción / Inversión</div>
+      <div class="cmp-bar">
+        <div class="seg prod" style="width: {{ (prod / base * 100)|round(2) }}%"></div>
+        <div class="seg inv" style="width: {{ (inv / base * 100)|round(2) }}%"></div>
+      </div>
+      <div class="cmp-legend">
+        <div class="lg"><span class="sw prod"></span><div><div class="lk">Producción 2024</div><span class="lv">{{ "{:,}".format(prod) }}</span> <span class="lp">{{ (prod / base * 100)|round|int }}%</span></div></div>
+        <div class="lg"><span class="sw inv"></span><div><div class="lk">Inversión 2023</div><span class="lv">{{ "{:,}".format(inv) }}</span> <span class="lp">{{ (inv / base * 100)|round|int }}%</span></div></div>
+      </div>
     </div>
   </div>
+
+  <div class="card cp-marcas">
+    <div class="h">Marcas sin origen · {{ "{:,}".format(suma) }} vehículos</div>
+    {% for name, val in marcas %}
+    <div class="mrow{% if val == mx %} lead{% endif %}">
+      <span class="mk">{{ name }}</span>
+      <span class="mb"><span style="width: {{ (val / mx * 100)|round(1) }}%"></span></span>
+      <span class="mv">{{ "{:,}".format(val) }}</span>
+    </div>
+    {% endfor %}
+    <div class="mrow tot">
+      <span class="mk">Suma sin origen</span>
+      <span class="mb"></span>
+      <span class="mv">{{ "{:,}".format(suma) }}</span>
+    </div>
+  </div>
+
   <div class="cp-actions">
     <a href="{{ url_for('download_file', filename='ZipGeneral.zip') }}" class="btn btn-danger">Descargar resultados</a>
     <a href="/" class="btn">Ir al dashboard</a>
