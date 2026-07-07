@@ -532,7 +532,7 @@
             <td>
               <span id="fase1Errors">{{ fase1_stats.errores }}</span>
               {% if fase1_stats.errores > 0 %}
-                &nbsp;<a href="#" onclick="switchPanel('errores');return false;" style="font-size:0.8rem;color:#DC2626;">Ver →</a>
+                &nbsp;<a href="#" onclick="switchPanel('errores');return false;" style="font-size:0.8rem;color:var(--telos-on);">Ver →</a>
               {% endif %}
             </td>
           </tr>
@@ -616,8 +616,8 @@
       <div id="pipelineResult" class="phase-result" style="display:none;"></div>
 
       <!-- Proceso Histórico -->
-      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid #E5E7EB;">
-        <h3 style="font-size:1rem;font-weight:600;color:#374151;margin-bottom:0.4rem;">Proceso Histórico</h3>
+      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--line);">
+        <h3 style="font-size:1rem;font-weight:600;color:var(--t1);margin-bottom:0.4rem;">Proceso Histórico</h3>
         <p class="panel-desc" style="margin-bottom:0.75rem;">Usa todos los meses almacenados. No requiere archivos.</p>
         <form action="/procesar/historico" method="POST" id="historicoForm">
           <button type="submit" class="btn" id="historicoBtn" style="width:100%;"
@@ -636,7 +636,7 @@
       <h2 class="panel-title">Dashboard</h2>
 
       {% if empty %}
-        <div style="text-align:center;padding:2rem 0;color:#6B7280;">
+        <div style="text-align:center;padding:2rem 0;color:var(--text-muted);">
           <p style="font-size:1.1rem;margin-bottom:0.5rem;">Sin datos procesados</p>
           <p>Carga facturas para comenzar.</p>
         </div>
@@ -795,7 +795,7 @@
       </div>
       <p class="panel-desc" id="errores-desc" {% if errores_count == 0 %}style="display:none"{% endif %}>Descarga el PDF, corrígelo y súbelo de nuevo con el botón ↑.</p>
 
-      <div id="errores-success-banner" style="display:none;background:#D1FAE5;color:#065F46;padding:0.6rem 0.8rem;border-radius:8px;font-size:0.85rem;">
+      <div id="errores-success-banner" style="display:none;background:var(--acc-subtle);color:var(--acc-text);border:1px solid var(--acc);padding:0.6rem 0.8rem;border-radius:2px;font-size:0.85rem;">
         ✓ Todos los errores resueltos
       </div>
 
@@ -1145,13 +1145,13 @@ async function reprocessFile(input, filename, sid, rowId) {
     const ok = data.exitosos && data.exitosos.includes(filename);
     if (ok) {
       if (window.gnosisSupervise) gnosisSupervise('Archivo corregido procesado: ' + filename);
-      row.style.background = '#D1FAE5';
+      row.style.background = 'var(--acc-subtle)';
       row.style.transition = 'opacity 1s';
       setTimeout(() => { row.style.opacity = '0'; setTimeout(() => { row.remove(); checkAllResolved(); }, 1000); }, 1500);
     } else {
       const fallido = data.fallidos && data.fallidos.find(f => f.file === filename);
       if (window.gnosisSupervise) gnosisSupervise('Error al reprocesar ' + filename + (fallido ? ': ' + fallido.detalle : '.'));
-      row.style.background = '#FEE2E2';
+      row.style.background = 'rgba(164,19,60,.15)';
       setTimeout(() => row.style.background = '', 2000);
     }
   } catch(e) {
@@ -1255,7 +1255,7 @@ function checkAllResolved() {
     if (remaining > 0) {
       const lnk = document.createElement('a');
       lnk.href = '#'; lnk.textContent = ' Ver →';
-      lnk.style.cssText = 'font-size:0.8rem;color:#DC2626;';
+      lnk.style.cssText = 'font-size:0.8rem;color:var(--telos-on);';
       lnk.onclick = function(e) { e.preventDefault(); switchPanel('errores'); };
       errCell.parentNode.appendChild(lnk);
     }
