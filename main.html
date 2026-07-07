@@ -145,7 +145,7 @@
   .gd-dh .l b { color: var(--acc-text); }
   .gd-dh .st { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); display: flex; align-items: center; gap: 8px; }
   .gd-dh .st .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
-  .gd-kpis { display: grid; grid-template-columns: repeat(4,1fr); border-bottom: 1px solid var(--line); }
+  .gd-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); border-bottom: 1px solid var(--line); }
   .gd-kpi { padding: 16px 20px; border-left: 2px solid var(--acc); box-shadow: -1px 0 0 var(--line); }
   .gd-kpi.warn { border-left-color: var(--umwelt-on); } .gd-kpi.danger { border-left-color: var(--telos-on); }
   .gd-kpi .k { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
@@ -354,6 +354,7 @@
         <div class="gd-kpi"><div class="k">Registros de facturas</div><div class="v">{{ "{:,}".format(stats.total_extraccion) }}</div><div class="d">cargados · procesados</div></div>
         <div class="gd-kpi warn"><div class="k">Facturas faltantes</div><div class="v">{{ "{:,}".format(stats.total_faltantes) }}</div><div class="d">sin conciliar</div></div>
         <div class="gd-kpi danger"><div class="k">Registros con error</div><div class="v">{{ "{:,}".format(stats.total_errores) }}</div><div class="d">auto-detectado · flag</div></div>
+        <div class="gd-kpi"><div class="k">Valor importado</div><div class="v" id="kpi-valor">—</div><div class="d">Σ precio · sesión</div></div>
       </div>
     </div>
 
@@ -1701,7 +1702,10 @@ function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard')
 
 // ── Init + resize + tema + Esc ──
 function gnosisRenderAll(){ gnosisRenderTablero(); gnosisSoloRenderAll(); }
+function gnosisFillValorKpi(){ const el=document.getElementById('kpi-valor'); if(!el)return;
+  const f=gnosisVizData().flujo||[]; const tot=f.reduce((a,r)=>a+(+r.valor||0),0); el.textContent=tot>0?fMoney(tot):'—'; }
 if(document.getElementById('gd-tablero')) requestAnimationFrame(gnosisRenderAll);
+gnosisFillValorKpi();
 window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('gd-tablero')) gnosisRenderAll(); });
 (function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(gnosisRenderAll,70); }); })();
 document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var sw=document.getElementById('sw-modal'); if(sw && !sw.hidden){ gnosisCloseSwitcher(); } else { gnosisCloseSolo(); } } });
