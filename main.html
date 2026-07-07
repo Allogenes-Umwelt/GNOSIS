@@ -1595,7 +1595,28 @@ function sigFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light
   x.fillStyle='rgba('+GTXT+',.6)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('DEL CUPO DISPONIBLE', W*0.44, H*0.50+18);
   x.fillStyle='rgba('+GTXT+',.5)'; x.fillText('SALDO · '+Math.round(cupo.sal).toLocaleString(), W*0.44, H*0.50+34);
 }
-const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow };  // se irá ampliando dashboard por dashboard
+// #4 Anatomía de la Flota: carriles de composición (una lane por marca · modelos como nodos ∝ volumen · la más diversa brilla)
+function sigVintree(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const m=r.marca||'—', t=r.tipo||r.auto||'—'; (M[m]=M[m]||{}); M[m][t]=(M[m][t]||0)+(r.n||0); });
+  let marcas=Object.keys(M).map(m=>({m, mods:Object.keys(M[m]).map(t=>({t,n:M[m][t]})).sort((a,b)=>b.n-a.n)}));
+  marcas.sort((a,b)=>b.mods.length-a.mods.length); const top=marcas.slice(0,6);
+  const maxMods=Math.max.apply(null,top.map(o=>o.mods.length))||1;
+  const totMod=Object.keys(M).reduce((sm,m)=>sm+Object.keys(M[m]).length,0);
+  const pad={l:104,t:26,b:22}, laneH=(H-pad.t-pad.b)/top.length, laneMax=W*0.40;
+  x.textBaseline='middle';
+  top.forEach((o,i)=>{ const y=pad.t+laneH*(i+0.5), glow=(i===0), laneW=(o.mods.length/maxMods)*laneMax;
+    x.strokeStyle=glow?'rgba('+GCY+',.9)':'rgba('+GCY+',.28)'; x.lineWidth=glow?1.5:1; x.beginPath(); x.moveTo(pad.l,y); x.lineTo(pad.l+Math.max(6,laneW),y); x.stroke();
+    o.mods.forEach((md,j)=>{ const nx=pad.l+(o.mods.length<=1?0:(j/(o.mods.length-1))*laneW), r=1.7+Math.min(3.6,Math.log10((md.n||0)+1));
+      if(glow){x.shadowColor='rgba('+GCY+',.85)';x.shadowBlur=8;} x.fillStyle=glow?'#00D4FF':'rgba('+GCY+',.55)'; x.beginPath(); x.arc(nx,y,r,0,6.28); x.fill(); x.shadowBlur=0; });
+    x.fillStyle=glow?'#00D4FF':'rgba('+GTXT+',.85)'; x.font=(glow?'700 ':'')+'9px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(o.m.slice(0,13), pad.l-10, y);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText(o.mods.length+' mod', pad.l+Math.max(6,laneW)+8, y); });
+  const nx0=W*0.80;
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.textAlign='center'; x.textBaseline='alphabetic'; x.font='700 '+Math.round(H*0.24)+'px "AkzidenzGroteskPro-Bold","Helvetica Neue",sans-serif'; x.fillText(totMod+'', nx0, H*0.46);
+  x.fillStyle='rgba('+GTXT+',.55)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('MODELOS DISTINTOS', nx0, H*0.46+18);
+  x.textAlign='left'; x.textBaseline='alphabetic';
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree };  // se irá ampliando dashboard por dashboard
 
 // ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
