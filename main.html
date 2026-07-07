@@ -16,7 +16,11 @@
   /* ── Dashboard deck-style (portada + KPIs + exhibits) ── */
   .gd { width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 40px 64px; }
   .gd-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); }
-  .gd-hero { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; padding: 40px 0 44px; }
+  .gd-hero { padding: 40px 0 30px; overflow: hidden; transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .35s ease, padding .5s ease; max-height: 640px; opacity: 1; }
+  .gd-hero.collapsed { max-height: 0; opacity: 0; padding: 0; pointer-events: none; }
+  .gd-hero-row { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; margin-top: 22px; }
+  .gd-scrollhint { margin-top: 34px; color: var(--t3); animation: gd-bob 2.4s ease-in-out infinite; }
+  @keyframes gd-bob { 0%,100%{transform:translateY(0);opacity:.55} 50%{transform:translateY(4px);opacity:1} }
   .gd-title { font-family: var(--font-d); font-weight: 700; font-size: 3rem; line-height: 1.05; letter-spacing: -.01em; color: var(--t1); margin-top: 22px; }
   .gd-sub { margin-top: 22px; max-width: 460px; font-family: var(--font-b); font-size: .95rem; line-height: 1.7; color: var(--t2); }
   .gd-meta { margin-top: 30px; display: flex; gap: 26px; flex-wrap: wrap; align-items: center; }
@@ -51,7 +55,76 @@
   .gd-empty .t { font-family: var(--font-d); font-weight: 700; font-size: 2rem; color: var(--t1); }
   .gd-empty .s { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-top: 14px; }
   .gd-toolbtn { margin-top: 30px; }
-  @media (max-width: 860px) { .gd-hero { grid-template-columns: 1fr; } .gd-kpis, .gd-tables, .gd-ex2 { grid-template-columns: 1fr; } .gd-graphic { display: none; } }
+
+  /* ── KPI panel (sticky bajo el header) + trigger de Tableros ── */
+  #gd-kpipanel { position: sticky; top: 64px; z-index: 30; background: var(--bg); }
+  .gd-dh-r { display: flex; align-items: center; gap: 18px; }
+  .gd-tablerosbtn { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 0; padding: 7px 14px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: background .16s, color .16s; }
+  .gd-tablerosbtn:hover { background: var(--acc-subtle); }
+  .gd-tablerosbtn .ico { font-size: .95rem; line-height: 1; }
+
+  /* ── TABLERO · ventanas colapsables (W-C) ── */
+  .gd-tablero { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 24px; min-height: calc(100vh - 200px); }
+  .win { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; background: var(--bg); transition: flex-grow .32s cubic-bezier(.4,0,.2,1); }
+  .win.collapsed { flex: 0 0 auto; }
+  .win-head { display: flex; align-items: baseline; gap: 14px; padding: 13px 20px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .win.collapsed .win-head { border-bottom: none; }
+  .win-head .wt { font-family: var(--font-d); font-weight: 700; font-size: .95rem; letter-spacing: .3px; color: var(--t1); }
+  .win-head .ws { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  .win-x { margin-left: auto; flex: 0 0 auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; cursor: pointer; font-size: .8rem; transition: color .16s, border-color .16s, transform .28s; }
+  .win-x:hover { color: var(--acc-text); border-color: var(--acc); }
+  .win.collapsed .win-x { transform: rotate(-90deg); }
+  .win-body { flex: 1 1 auto; min-height: 0; position: relative; }
+  .win.collapsed .win-body { display: none; }
+  .win-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ── MODAL · Selector de Análisis (7 tableros) ── */
+  .sw-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(3,3,3,.86); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .sw-backdrop[hidden] { display: none; }
+  .switcher { width: 100%; max-width: 1180px; max-height: 90vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); }
+  .sw-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  .sw-head .t { font-family: var(--font-d); font-weight: 700; font-size: 1rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t1); }
+  .sw-head .s { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); margin-left: auto; }
+  .sw-close { width: 34px; height: 34px; border: 1px solid var(--line); background: transparent; color: var(--t2); font-size: 1rem; cursor: pointer; border-radius: 0; }
+  .sw-close:hover { color: var(--t1); border-color: var(--t1); }
+  .sw-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--line); }
+  .sw-card { background: var(--surface); cursor: pointer; position: relative; transition: background .16s; }
+  .sw-card:hover, .sw-card:focus-visible { background: var(--surface-2); outline: none; }
+  .sw-card:focus-visible::before, .sw-card:focus-visible::after,
+  .sw-card:hover::before, .sw-card:hover::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; }
+  .sw-card:focus-visible::before, .sw-card:hover::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
+  .sw-card:focus-visible::after, .sw-card:hover::after { bottom: 5px; right: 5px; border-width: 0 1px 1px 0; }
+  .sw-card .num { position: absolute; top: 10px; left: 12px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; color: var(--t3); z-index: 2; }
+  .sw-card .tag { position: absolute; top: 10px; right: 12px; font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1px; color: var(--t3); text-transform: uppercase; }
+  .sw-cv { display: block; width: 100%; height: 130px; margin-top: 26px; }
+  .sw-card .meta { padding: 12px 16px 16px; }
+  .sw-card .name { font-family: var(--font-d); font-weight: 700; font-size: .875rem; letter-spacing: .5px; color: var(--t1); line-height: 1.15; }
+  .sw-card:hover .name, .sw-card:focus-visible .name { color: var(--acc-text); }
+  .sw-card .desc { margin-top: 6px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); line-height: 1.5; }
+  .sw-empty { cursor: default; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 240px; }
+  .sw-empty:hover { background: var(--bg); } .sw-empty:hover::before, .sw-empty:hover::after { display: none; }
+  .sw-empty .ph-mk { font-size: 1.4rem; color: var(--t3); opacity: .5; }
+  .sw-empty .ph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); opacity: .6; }
+
+  /* ── VISTA DEDICADA (super gráfica standalone) ── */
+  .gd-solo { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column; }
+  .gd-solo[hidden] { display: none; }
+  .solo-head { display: flex; align-items: center; gap: 20px; padding: 16px 32px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .solo-back { background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; padding: 8px 14px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: color .16s, border-color .16s; }
+  .solo-back:hover { color: var(--t1); border-color: var(--t1); }
+  .solo-title { display: flex; flex-direction: column; gap: 3px; }
+  .solo-title .st-name { font-family: var(--font-d); font-weight: 700; font-size: 1.1rem; letter-spacing: .5px; color: var(--t1); }
+  .solo-title .st-desc { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  .solo-head .gd-tablerosbtn { margin-left: auto; }
+  .solo-body { flex: 1 1 auto; min-height: 0; position: relative; padding: 22px 34px 30px; }
+  .solo-body .win-cv { position: absolute; top: 22px; right: 34px; bottom: 30px; left: 34px; width: calc(100% - 68px); height: calc(100% - 52px); }
+
+  @media (max-width: 860px) {
+    .gd-hero-row { grid-template-columns: 1fr; }
+    .gd-kpis, .gd-tables { grid-template-columns: 1fr; }
+    .gd-graphic { display: none; }
+    .sw-grid { grid-template-columns: repeat(2,1fr); }
+  }
 </style>
 {% endblock %}
 
@@ -68,49 +141,65 @@
   </div></div>
 {% else %}
   <div class="gd">
-    <div class="gd-eyebrow">GNOSIS · Importaciones · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
-    <div class="gd-hero">
-      <div>
-        <h1 class="gd-title">Una sola fuente<br>de la verdad.</h1>
-        <p class="gd-sub">{{ "{:,}".format(stats.total_importaciones) }} vehículos conciliados contra facturas y cupos — validados, sin fragmentación, en un solo sistema.</p>
-        <div class="gd-meta">
-          <div class="m"><span class="mk">Sesión</span>
-            <select class="gd-sel" onchange="window.location='/?session_id='+this.value">
-              {% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}
-            </select>
+    <!-- HERO (colapsa al hacer scroll) -->
+    <div class="gd-hero" id="gd-hero">
+      <div class="gd-eyebrow">GNOSIS · Importaciones · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
+      <div class="gd-hero-row">
+        <div>
+          <h1 class="gd-title">Una sola fuente<br>de la verdad.</h1>
+          <p class="gd-sub">{{ "{:,}".format(stats.total_importaciones) }} vehículos conciliados contra facturas y cupos — validados, sin fragmentación, en un solo sistema.</p>
+          <div class="gd-meta">
+            <div class="m"><span class="mk">Sesión</span>
+              <select class="gd-sel" onchange="window.location='/?session_id='+this.value">{% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}</select>
+            </div>
+            <div class="m"><span class="mk">Estado</span><span class="mv" style="color:var(--acc-text)">{{ current_session.status }}</span></div>
           </div>
-          <div class="m"><span class="mk">Estado</span><span class="mv" style="color:var(--acc-text)">{{ current_session.status }}</span></div>
+        </div>
+        <div class="gd-graphic">
+          <svg width="340" height="280" viewBox="0 0 360 300" aria-hidden="true">
+            <defs>
+              <radialGradient id="gd-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".2"/><stop offset="55%" stop-color="#00D4FF" stop-opacity=".05"/><stop offset="100%" stop-color="#00D4FF" stop-opacity="0"/></radialGradient>
+              <linearGradient id="gd-fade" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".28"/><stop offset="100%" stop-color="#00D4FF" stop-opacity=".04"/></linearGradient>
+            </defs>
+            <rect x="30" y="20" width="300" height="260" fill="url(#gd-glow)"/>
+            <g stroke="url(#gd-fade)" stroke-width=".6"><line x1="90" y1="20" x2="90" y2="280"/><line x1="150" y1="20" x2="150" y2="280"/><line x1="210" y1="20" x2="210" y2="280"/><line x1="270" y1="20" x2="270" y2="280"/><line x1="30" y1="80" x2="330" y2="80"/><line x1="30" y1="150" x2="330" y2="150"/><line x1="30" y1="220" x2="330" y2="220"/></g>
+            <circle cx="180" cy="150" r="22" fill="none" stroke="#00D4FF" stroke-width="1" stroke-opacity=".5"/><circle cx="180" cy="150" r="10" fill="none" stroke="#FAFAF8" stroke-width="1.5"/><circle cx="180" cy="150" r="4.5" fill="#00D4FF"/>
+          </svg>
         </div>
       </div>
-      <div class="gd-graphic">
-        <svg width="340" height="280" viewBox="0 0 360 300" aria-hidden="true">
-          <defs>
-            <radialGradient id="gd-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".2"/><stop offset="55%" stop-color="#00D4FF" stop-opacity=".05"/><stop offset="100%" stop-color="#00D4FF" stop-opacity="0"/></radialGradient>
-            <linearGradient id="gd-fade" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".28"/><stop offset="100%" stop-color="#00D4FF" stop-opacity=".04"/></linearGradient>
-          </defs>
-          <rect x="30" y="20" width="300" height="260" fill="url(#gd-glow)"/>
-          <g stroke="url(#gd-fade)" stroke-width=".6"><line x1="90" y1="20" x2="90" y2="280"/><line x1="150" y1="20" x2="150" y2="280"/><line x1="210" y1="20" x2="210" y2="280"/><line x1="270" y1="20" x2="270" y2="280"/><line x1="30" y1="80" x2="330" y2="80"/><line x1="30" y1="150" x2="330" y2="150"/><line x1="30" y1="220" x2="330" y2="220"/></g>
-          <circle cx="180" cy="150" r="22" fill="none" stroke="#00D4FF" stroke-width="1" stroke-opacity=".5"/><circle cx="180" cy="150" r="10" fill="none" stroke="#FAFAF8" stroke-width="1.5"/><circle cx="180" cy="150" r="4.5" fill="#00D4FF"/>
-        </svg>
-      </div>
+      <div class="gd-scrollhint mono-label">▾ &nbsp;Scroll para el tablero</div>
     </div>
 
-    <div class="hud-frame gd-panel">
-      <div class="gd-dh"><div class="l">GNOSIS <b>//</b> IMPORTACIONES · SESIÓN #{{ current_session.id }}</div><div class="st"><span class="dot"></span> {{ current_session.status|upper }}</div></div>
+    <!-- KPI panel + trigger de Tableros (sticky) -->
+    <div class="hud-frame gd-panel" id="gd-kpipanel">
+      <div class="gd-dh">
+        <div class="l">GNOSIS <b>//</b> IMPORTACIONES · SESIÓN #{{ current_session.id }}</div>
+        <div class="gd-dh-r">
+          <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
+          <div class="st"><span class="dot"></span> {{ current_session.status|upper }}</div>
+        </div>
+      </div>
       <div class="gd-kpis">
         <div class="gd-kpi"><div class="k">Vehículos · DWH</div><div class="v">{{ "{:,}".format(stats.total_importaciones) }}</div><div class="d">conciliados en sesión</div></div>
         <div class="gd-kpi"><div class="k">Registros de facturas</div><div class="v">{{ "{:,}".format(stats.total_extraccion) }}</div><div class="d">cargados · procesados</div></div>
         <div class="gd-kpi warn"><div class="k">Facturas faltantes</div><div class="v">{{ "{:,}".format(stats.total_faltantes) }}</div><div class="d">sin conciliar</div></div>
         <div class="gd-kpi danger"><div class="k">Registros con error</div><div class="v">{{ "{:,}".format(stats.total_errores) }}</div><div class="d">auto-detectado · flag</div></div>
       </div>
-      <div class="gd-ex">
-        <div class="gd-ex-t">Mapa de Anomalías // Validación de Registros</div>
-        <div class="gd-ex-s">Densidad por país · Eje Y: Z-score de volumen diario · Umbral 3σ</div>
-        <canvas id="ex-manhattan" data-h="280" height="280"></canvas>
+    </div>
+
+    <!-- TABLERO: ventanas colapsables (W-C) -->
+    <div class="gd-tablero" id="gd-tablero">
+      <div class="win" data-viz="manh">
+        <div class="win-head"><span class="wt">Anomalías de Validación</span><span class="ws">Registros fuera de patrón · Z-score · 3σ</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
       </div>
-      <div class="gd-ex2">
-        <div class="gd-ex"><div class="gd-ex-t">Flujos de Importación // País → Marca</div><div class="gd-ex-s">Cruce origen × marca · ancho = volumen</div><canvas id="ex-chord" data-h="340" height="340"></canvas></div>
-        <div class="gd-ex"><div class="gd-ex-t">Taxonomía de Marcas // Sector Automotriz</div><div class="gd-ex-s">Agrupamiento por volumen · distancia = disimilitud</div><canvas id="ex-dendro" data-h="340" height="340"></canvas></div>
+      <div class="win" data-viz="chord">
+        <div class="win-head"><span class="wt">Rutas de Importación</span><span class="ws">Cómo fluye origen → marca</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
+      </div>
+      <div class="win" data-viz="dendro">
+        <div class="win-head"><span class="wt">Segmentación de Marcas</span><span class="ws">Qué marcas se comportan igual</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
       </div>
     </div>
 
@@ -128,6 +217,30 @@
   </div>
 {% endif %}
 </div>
+
+{% if not empty %}
+<!-- ═══════════ MODAL · Selector de Análisis (7 tableros) ═══════════ -->
+<div class="sw-backdrop" id="sw-modal" hidden onclick="if(event.target===this)gnosisCloseSwitcher()">
+  <div class="switcher hud-frame">
+    <div class="sw-head">
+      <div class="t">Selector de Análisis</div>
+      <div class="s">GNOSIS · 7 TABLEROS · SESIÓN #{{ current_session.id }}</div>
+      <button class="sw-close" onclick="gnosisCloseSwitcher()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="sw-grid" id="sw-grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════ VISTA DEDICADA (super gráfica standalone) ═══════════ -->
+<div class="gd-solo" id="gd-solo" hidden>
+  <div class="solo-head">
+    <button class="solo-back" onclick="gnosisCloseSolo()">← Dashboard</button>
+    <div class="solo-title"><span class="st-name" id="solo-name"></span><span class="st-desc" id="solo-desc"></span></div>
+    <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
+  </div>
+  <div class="solo-body"><canvas class="win-cv" id="solo-cv"></canvas></div>
+</div>
+{% endif %}
 
 <!-- ═══════════ TOOL existente (app-shell) — bajo toggle "Áreas" ═══════════ -->
 <div id="gnosis-tool" hidden>
@@ -1026,7 +1139,7 @@ function gnosisShowDash(){
   const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool');
   if(tl) tl.hidden=true; if(d) d.hidden=false;
   document.documentElement.style.overflow=''; document.body.classList.remove('tool-active');
-  gnosisSetNav('dash'); gnosisRenderExhibits();
+  gnosisSetNav('dash'); requestAnimationFrame(gnosisRenderAll);
 }
 document.querySelectorAll('.hud-link').forEach(a=>{
   const t=a.textContent.trim().toLowerCase();
@@ -1034,100 +1147,165 @@ document.querySelectorAll('.hud-link').forEach(a=>{
   if(t==='dashboard') a.addEventListener('click',e=>{e.preventDefault();gnosisShowDash();});
 });
 
-// ═══════════ GNOSIS · exhibits deep-tech (canvas · #viz-data) ═══════════
+// ═══════════ GNOSIS · 7 exhibits + tablero W-C + modal + vistas dedicadas ═══════════
 let GCY='0,212,255', GPINK='245,127,156', GTXT='170,170,170', GLEAF='230,230,230';
+const MCOL=['#00D4FF','#A4133C','#7B3FA0','#FFB833','#33CC99','#6699CC'];
 function gnosisVizData(){ try{ return JSON.parse(document.getElementById('viz-data').textContent||'{}'); }catch(e){ return {}; } }
-function gnosisRenderExhibits(){
-  const light=document.documentElement.getAttribute('data-theme')==='light';
-  GCY   = light ? '0,90,110'   : '0,212,255';
-  GPINK = light ? '164,19,60'  : '245,127,156';
-  GTXT  = light ? '71,71,71'   : '170,170,170';
-  GLEAF = light ? '47,47,47'   : '230,230,230';
-  const V=gnosisVizData(); gnosisManhattan(V.serie_diaria||[]); gnosisChord(V.flujo||[]); gnosisDendro(V.por_marca||[]);
-}
-function gSetup(id){ const c=document.getElementById(id); if(!c) return null; const r=c.getBoundingClientRect(); if(!r.width) return null; const h=+c.getAttribute('data-h')||300, dpr=2; c.style.height=h+'px'; c.width=r.width*dpr; c.height=h*dpr; const x=c.getContext('2d'); x.scale(dpr,dpr); return {x,W:r.width,H:h}; }
-function gNoData(s){ if(!s) return; const {x,W,H}=s; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.5)'; x.textAlign='center'; x.fillText('SIN DATOS SUFICIENTES',W/2,H/2); x.textAlign='left'; }
+function gTheme(){ const light=document.documentElement.getAttribute('data-theme')==='light';
+  GCY=light?'0,90,110':'0,212,255'; GPINK=light?'164,19,60':'245,127,156'; GTXT=light?'71,71,71':'170,170,170'; GLEAF=light?'47,47,47':'230,230,230'; return light; }
+function gc(el){ if(!el) return null; const r=el.getBoundingClientRect(); if(!r.width||r.height<2) return null; const dpr=2; el.width=r.width*dpr; el.height=r.height*dpr; const x=el.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,r.width,r.height); return {x,W:r.width,H:r.height}; }
+function gnd(s){ if(!s) return; const {x,W,H}=s; x.font='11px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.5)'; x.textAlign='center'; x.fillText('SIN DATOS SUFICIENTES',W/2,H/2); x.textAlign='left'; }
 
-function gnosisManhattan(rows){
-  const s=gSetup('ex-manhattan'); if(!s) return; const {x,W,H}=s;
-  if(!rows.length){ gNoData(s); return; }
+// ── 1 · Manhattan (anomalías) ──
+function vizManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
   const byPais={}; rows.forEach(r=>{ const p=r.pais||'—'; (byPais[p]=byPais[p]||[]).push(r.n||0); });
-  let paises=Object.keys(byPais).sort((a,b)=>byPais[b].reduce((x,y)=>x+y,0)-byPais[a].reduce((x,y)=>x+y,0));
-  if(paises.length>8) paises=paises.slice(0,8);
-  const pad={l:16,r:16,t:24,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22;
+  let paises=Object.keys(byPais).sort((a,b)=>byPais[b].reduce((u,v)=>u+v,0)-byPais[a].reduce((u,v)=>u+v,0)).slice(0,8);
+  const pad={l:16,r:16,t:26,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22;
   x.strokeStyle='rgba('+GPINK+',0.7)'; x.setLineDash([5,5]); x.beginPath(); x.moveTo(pad.l,thY); x.lineTo(W-pad.r,thY); x.stroke(); x.setLineDash([]);
-  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GPINK+',0.95)'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
-  paises.forEach((p,i)=>{
-    const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length;
-    const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1;
-    const cx0=pad.l+i*bw, op=(i%2)?0.5:0.85;
-    arr.forEach(v=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+Math.random()*(bw-16), anom=z>3;
-      x.fillStyle=anom?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')';
-      x.beginPath(); x.arc(px,yy,anom?3.2:1.5,0,6.28); x.fill();
-      if(anom){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,7,0,6.28); x.stroke(); } });
-    x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.95)'; x.textAlign='center'; x.fillText((p||'').slice(0,10).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left';
-  });
+  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GPINK+',0.95)'; x.textAlign='left'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
+  paises.forEach((p,i)=>{ const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length, sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1, cx0=pad.l+i*bw, op=(i%2)?0.5:0.85;
+    arr.forEach(v=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+Math.random()*(bw-16), an=z>3;
+      x.fillStyle=an?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')'; x.beginPath(); x.arc(px,yy,an?3.2:1.5,0,6.28); x.fill();
+      if(an){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,7,0,6.28); x.stroke(); } });
+    x.fillStyle='rgba('+GTXT+',0.95)'; x.textAlign='center'; x.fillText((p||'').slice(0,10).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left'; });
 }
-
-function gnosisChord(rows){
-  const s=gSetup('ex-chord'); if(!s) return; const {x,W,H}=s;
-  if(!rows.length){ gNoData(s); return; }
-  const M={},ps=new Set(),ms=new Set();
-  rows.forEach(r=>{ const p=r.pais||'—',m=r.marca||'—'; ps.add(p); ms.add(m); (M[p]=M[p]||{}); M[p][m]=(M[p][m]||0)+(r.n||0); });
-  let paises=[...ps],marcas=[...ms];
-  const pt2=p=>marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0), mt=m=>paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0);
+// ── 6 · Chord (rutas) ──
+function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().flujo||[]; if(!rows.length){gnd(s);return;}
+  const M={},ps=new Set(),ms=new Set(); rows.forEach(r=>{ const p=r.pais||'—',m=r.marca||'—'; ps.add(p); ms.add(m); (M[p]=M[p]||{}); M[p][m]=(M[p][m]||0)+(r.n||0); });
+  let paises=[...ps],marcas=[...ms]; const pt2=p=>marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0), mt=m=>paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0);
   paises=paises.sort((a,b)=>pt2(b)-pt2(a)).slice(0,5); marcas=marcas.sort((a,b)=>mt(b)-mt(a)).slice(0,5);
-  const mc=['#00D4FF','#A4133C','#7B3FA0','#FFB833','#33CC99'], mCol={}; marcas.forEach((m,i)=>mCol[m]=mc[i%5]);
-  const cx=W/2, cy=H/2+6, R=Math.min(W,H)/2-42, rin=R-10, seg=[]; let tot=0;
+  const mCol={}; marcas.forEach((m,i)=>mCol[m]=MCOL[i%5]);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-46, rin=R-10, seg=[]; let tot=0;
   paises.forEach(p=>{const val=marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:p,type:'p',val}); tot+=val;});
   marcas.forEach(m=>{const val=paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:m,type:'m',val}); tot+=val;});
-  if(tot<=0){ gNoData(s); return; }
-  const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={};
-  x.textBaseline='middle';
+  if(tot<=0){ gnd(s); return; } const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={}; x.textBaseline='middle';
   seg.forEach(g=>{ const span=g.val*scale; g.a0=a; g.a1=a+span; pos[g.name]={cur:a}; const col=g.type==='m'?mCol[g.name]:'#6699CC';
     x.strokeStyle=col; x.lineWidth=6; x.beginPath(); x.arc(cx,cy,R,g.a0,g.a1); x.stroke();
     const mid=(g.a0+g.a1)/2, lr=R+14+(g.val<tot*0.045?13:0), lx=cx+Math.cos(mid)*lr, ly=cy+Math.sin(mid)*lr;
-    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba('+GTXT+',0.95)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly);
-    a=g.a1+gap; });
+    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba('+GTXT+',0.95)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly); a=g.a1+gap; });
   const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
   paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
     const [x1,y1]=P(pa,rin),[x2,y2]=P(pa+span,rin),[x3,y3]=P(ma,rin),[x4,y4]=P(ma+span,rin);
-    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x4,y4); x.lineTo(x3,y3); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath();
-    x.globalAlpha=.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
+    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x4,y4); x.lineTo(x3,y3); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
-
-function gnosisDendro(rows){
-  const s=gSetup('ex-dendro'); if(!s) return; const {x,W,H}=s;
-  let data=(rows||[]).filter(r=>r.nombre).map(r=>({name:r.nombre,total:r.total||0}));
-  if(!data.length){ gNoData(s); return; }
+// ── 7 · Dendrograma (segmentación) ──
+function vizDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; let data=(gnosisVizData().por_marca||[]).filter(r=>r.nombre).map(r=>({name:r.nombre,total:r.total||0})); if(!data.length){gnd(s);return;}
   data.sort((a,b)=>b.total-a.total); data=data.slice(0,6);
   let nodes=data.map(d=>({name:d.name,total:d.total,v:Math.log10((d.total||0)+1),leaf:true}));
-  if(nodes.length===1){ nodes[0].y=H/2; }
-  while(nodes.length>1){ let bi=0,bj=1,bd=1e9;
-    for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=Math.abs(nodes[i].v-nodes[j].v); if(d<bd){bd=d;bi=i;bj=j;}}
-    const A=nodes[bi],B=nodes[bj]; const n={leaf:false,children:[A,B],v:(A.v+B.v)/2,dist:bd+0.05};
-    nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(n); }
-  const root=nodes[0]; const pad={t:28,b:24,r:150,l:64}, leaves=[];
-  (function col(nd){ nd.leaf?leaves.push(nd):nd.children.forEach(col); })(root);
+  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=Math.abs(nodes[i].v-nodes[j].v); if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=nodes[bi],B=nodes[bj]; const n={leaf:false,children:[A,B],v:(A.v+B.v)/2,dist:bd+0.05}; nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(n); }
+  const root=nodes[0]; const pad={t:28,b:24,r:150,l:64}, leaves=[]; (function col(nd){ nd.leaf?leaves.push(nd):nd.children.forEach(col); })(root);
   const gapY=(H-pad.t-pad.b)/Math.max(1,leaves.length-1); leaves.forEach((lf,i)=>lf.y=pad.t+i*gapY);
-  const lx=W-pad.r, maxd=(root.dist||1);
-  const xFor=nd=>nd.leaf?lx:lx-(nd.dist/maxd)*(lx-pad.l);
+  const lx=W-pad.r, maxd=(root.dist||1), xFor=nd=>nd.leaf?lx:lx-(nd.dist/maxd)*(lx-pad.l);
   x.strokeStyle='rgba('+GCY+',0.85)'; x.lineWidth=1.1;
   (function draw(nd){ if(nd.leaf) return nd.y; const ys=nd.children.map(draw), nx=xFor(nd);
     nd.children.forEach((c,k)=>{ x.beginPath(); x.moveTo(nx,ys[k]); x.lineTo(xFor(c),ys[k]); x.stroke(); });
     x.beginPath(); x.moveTo(nx,Math.min(...ys)); x.lineTo(nx,Math.max(...ys)); x.stroke(); nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
-  x.textBaseline='middle';
-  leaves.forEach(lf=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(lx,lf.y,2.6,0,6.28); x.fill();
-    const nm=lf.name.slice(0,12); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
+  x.textBaseline='middle'; leaves.forEach(lf=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(lx,lf.y,2.6,0,6.28); x.fill();
+    const nm=lf.name.slice(0,14); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
     x.fillStyle='rgba('+GTXT+',.85)'; x.fillText('· '+(lf.total||0).toLocaleString(),lx+10+nm.length*7.4,lf.y); });
-  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.75)'; x.textBaseline='alphabetic';
-  x.fillText('VOLUMEN',pad.l,pad.t-14); x.fillText('PREMIUM',pad.l,H-8);
+  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.75)'; x.textBaseline='alphabetic'; x.fillText('VOLUMEN',pad.l,pad.t-14); x.fillText('PREMIUM',pad.l,H-8);
+}
+// ── 2 · Heatmap marca×mes (estacionalidad) ──
+const MNAME=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+function vizHeatmap(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
+  const M={}, mo=new Set(); rows.forEach(r=>{ const m=(r.fecha||'').substr(4,2); if(!m)return; mo.add(m); const k=r.marca||'—'; (M[k]=M[k]||{}); M[k][m]=(M[k][m]||0)+(r.n||0); });
+  let marcas=Object.keys(M).sort((a,b)=>Object.values(M[b]).reduce((u,v)=>u+v,0)-Object.values(M[a]).reduce((u,v)=>u+v,0)).slice(0,7);
+  let months=[...mo].sort(); let max=0; marcas.forEach(k=>months.forEach(m=>max=Math.max(max,M[k][m]||0))); if(max<=0){gnd(s);return;}
+  const pl=96,pt=18,pb=22, cw=(W-pl-16)/months.length, ch=(H-pt-pb)/marcas.length;
+  x.textBaseline='middle';
+  marcas.forEach((k,ri)=>{ months.forEach((m,ci)=>{ const raw=M[k][m]||0, v=raw/max; x.fillStyle='rgba('+GCY+','+(0.06+v*0.9)+')'; x.fillRect(pl+ci*cw+1,pt+ri*ch+1,cw-2,ch-2);
+      if(v>0.16 && ch>16){ x.fillStyle=v>0.6?'#030303':'rgba('+GLEAF+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText(String(raw),pl+ci*cw+cw/2,pt+ri*ch+ch/2);} });
+    x.fillStyle='rgba('+GTXT+',.95)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(k.slice(0,13).toUpperCase(),pl-10,pt+ri*ch+ch/2); });
+  x.fillStyle='rgba('+GTXT+',.7)'; x.textAlign='center'; x.textBaseline='alphabetic'; months.forEach((m,ci)=>x.fillText(MNAME[+m]||m,pl+ci*cw+cw/2,H-7));
+}
+// ── 3 · Icicle marca→modelo (concentración) ──
+function vizIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().jerarquia_modelo||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const k=r.marca||'—'; (M[k]=M[k]||[]).push({t:r.tipo||'—',n:r.n||0}); });
+  let marcas=Object.keys(M).map(k=>({k,tot:M[k].reduce((u,o)=>u+o.n,0),ms:M[k].sort((a,b)=>b.n-a.n)})).sort((a,b)=>b.tot-a.tot).slice(0,6);
+  const max=Math.max(...marcas.map(m=>m.tot)); if(max<=0){gnd(s);return;}
+  const pl=120,pt=14,pb=14, rh=(H-pt-pb)/marcas.length; x.textBaseline='middle';
+  marcas.forEach((m,ri)=>{ const bw=(m.tot/max)*(W-pl-70); let sx=pl; let mods=m.ms.slice(0,5); const rest=m.ms.slice(5).reduce((u,o)=>u+o.n,0); if(rest>0)mods.push({t:'Otros',n:rest});
+    mods.forEach((o,si)=>{ const w=(o.n/m.tot)*bw; x.fillStyle='rgba('+GCY+','+(0.9-si*0.13)+')'; x.fillRect(sx,pt+ri*rh+3,Math.max(1,w-1),rh-6); sx+=w; });
+    x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.95)'; x.textAlign='right'; x.fillText(m.k.slice(0,14).toUpperCase(),pl-10,pt+ri*rh+rh/2);
+    x.fillStyle='rgba('+GLEAF+',.9)'; x.textAlign='left'; x.fillText(m.tot.toLocaleString(),pl+bw+8,pt+ri*rh+rh/2); });
+}
+// ── 4 · Flow-to-Reservoir (presión sobre el cupo) ──
+function vizFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const V=gnosisVizData(); const flujo=V.flujo||[];
+  const marcaN={}; flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ marcaN[r.marca]=(marcaN[r.marca]||0)+(r.n||0);} });
+  let marcas=Object.keys(marcaN).map(m=>({m,n:marcaN[m]})).sort((a,b)=>b.n-a.n).slice(0,6); const totN=marcas.reduce((u,o)=>u+o.n,0);
+  const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
+  if(!totN && !cupo.ini){ gnd(s); return; }
+  const tx=W*0.60, tw=Math.min(W-tx-40,180), ty=34, th=H-70, bh=(H-90)/Math.max(1,marcas.length);
+  x.textBaseline='middle'; x.font='10px "JetBrains Mono",monospace';
+  marcas.forEach((o,i)=>{ const cy0=46+i*bh; const lw=Math.max(2,(o.n/(totN||1))*46);
+    x.strokeStyle=MCOL[i%6]; x.globalAlpha=.5; x.lineWidth=lw; x.beginPath(); x.moveTo(122,cy0); x.quadraticCurveTo(W*0.44,H/2,tx-6,ty+th*0.55); x.stroke(); x.globalAlpha=1;
+    x.fillStyle='rgba('+GTXT+',.95)'; x.textAlign='right'; x.fillText((o.m||'').slice(0,12).toUpperCase(),114,cy0); x.fillStyle=MCOL[i%6]; x.textAlign='left'; x.fillText(o.n.toLocaleString(),128,cy0); });
+  x.strokeStyle='rgba('+GCY+',.7)'; x.lineWidth=1.2; x.strokeRect(tx,ty,tw,th);
+  const fill=cupo.ini?Math.max(0,Math.min(1,cupo.sal/cupo.ini)):0.4; x.fillStyle='rgba('+GCY+',.28)'; x.fillRect(tx+1,ty+th*(1-fill)+1,tw-2,th*fill-2);
+  x.strokeStyle='rgba('+GPINK+',.8)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(tx,ty+th*0.15); x.lineTo(tx+tw,ty+th*0.15); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GTXT+',.9)'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CUPO · SALDO '+(cupo.sal||0).toLocaleString(),tx+tw/2,ty-10);
+  x.fillStyle='rgba('+GCY+',1)'; x.font='11px "JetBrains Mono",monospace'; x.fillText(Math.round(fill*100)+'% DISPONIBLE',tx+tw/2,ty+th+18);
+}
+// ── 5 · Árbol circular VIN (anatomía de la flota) ──
+function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const k=r.marca||'—'; (M[k]=M[k]||[]).push({t:(r.tipo||r.auto||'—'),n:r.n||0}); });
+  let marcas=Object.keys(M).map(k=>({k,leaves:M[k].sort((a,b)=>b.n-a.n).slice(0,6),tot:M[k].reduce((u,o)=>u+o.n,0)})).sort((a,b)=>b.tot-a.tot).slice(0,6);
+  const totL=marcas.reduce((u,m)=>u+m.leaves.length,0)||1, cx=W/2, cy=H/2, R=Math.min(W,H)/2-42;
+  x.strokeStyle='rgba('+GCY+',.35)'; x.lineWidth=.8; [R*0.55,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
+  let ai=-Math.PI/2; x.textBaseline='middle'; x.font='9px "JetBrains Mono",monospace';
+  marcas.forEach((m,mi)=>{ const span=(m.leaves.length/totL)*6.28, a0=ai, amid=ai+span/2; ai+=span;
+    const mx=cx+Math.cos(amid)*R*0.55, my=cy+Math.sin(amid)*R*0.55;
+    x.strokeStyle=MCOL[mi%6]; x.lineWidth=1; x.beginPath(); x.moveTo(cx,cy); x.lineTo(mx,my); x.stroke();
+    m.leaves.forEach((lf,li)=>{ const a=a0+span*(li+0.5)/m.leaves.length, lx=cx+Math.cos(a)*R, ly=cy+Math.sin(a)*R;
+      x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.55; x.beginPath(); x.moveTo(mx,my); x.lineTo(lx,ly); x.stroke(); x.globalAlpha=1;
+      x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(lx,ly,1.8+Math.min(3.5,Math.log10(lf.n+1)),0,6.28); x.fill(); });
+    const llx=cx+Math.cos(amid)*(R+16), lly=cy+Math.sin(amid)*(R+16); x.fillStyle=MCOL[mi%6]; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,10),llx,lly); });
+  x.fillStyle='#00D4FF'; x.beginPath(); x.arc(cx,cy,4,0,6.28); x.fill(); x.textAlign='left'; x.textBaseline='alphabetic';
 }
 
-if(document.getElementById('ex-manhattan')) gnosisRenderExhibits();
-window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('ex-manhattan')) gnosisRenderExhibits(); });
-// Re-render exhibits (theme-aware colors) when the mode toggle flips
-(function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(function(){ if(document.getElementById('ex-manhattan') && !document.body.classList.contains('tool-active')) gnosisRenderExhibits(); }, 60); }); })();
+// ── Registro de tableros ──
+const VIZ={
+  manh:{name:'Anomalías de Validación',desc:'Registros fuera de patrón · Z-score · 3σ',render:vizManh},
+  chord:{name:'Rutas de Importación',desc:'Cómo fluye origen → marca',render:vizChord},
+  dendro:{name:'Segmentación de Marcas',desc:'Qué marcas se comportan igual',render:vizDendro},
+  heatmap:{name:'Estacionalidad de Importación',desc:'Cuándo se concentra el volumen',render:vizHeatmap},
+  icicle:{name:'Concentración de Volumen',desc:'Qué modelos cargan el volumen',render:vizIcicle},
+  flow:{name:'Presión sobre el Cupo',desc:'Quién consume el cupo · cuánto queda',render:vizFlow},
+  vintree:{name:'Anatomía de la Flota',desc:'De qué se compone la flota',render:vizVin},
+};
+const SW_ORDER=['heatmap','icicle','flow','vintree','manh','chord','dendro'];
+const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
+
+// ── Tablero (ventanas W-C) ──
+function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
+function gnosisToggleWin(btn){ const win=btn.closest('.win'); const open=document.querySelectorAll('#gd-tablero .win:not(.collapsed)');
+  if(!win.classList.contains('collapsed') && open.length<=1) return; // la última no se colapsa
+  win.classList.toggle('collapsed'); setTimeout(gnosisRenderTablero,240); }
+
+// ── Modal switcher ──
+function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!m)return; const grid=document.getElementById('sw-grid');
+  if(grid && !grid.dataset.built){ grid.dataset.built='1'; SW_ORDER.forEach((k,i)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>gnosisOpenDashboard(k);
+    c.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span><span class="tag">'+SW_TAG[k]+'</span><canvas class="sw-cv"></canvas><div class="meta"><div class="name">'+VIZ[k].name+'</div><div class="desc">'+VIZ[k].desc+'</div></div>'; grid.appendChild(c); });
+    for(var e=SW_ORDER.length; e%4!==0; e++){ var ph=document.createElement('div'); ph.className='sw-card sw-empty'; ph.innerHTML='<span class="ph-mk">◇</span><span class="ph-t">Ranura reservada</span>'; grid.appendChild(ph); } }
+  m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; try{ VIZ[k].render(cv); }catch(e){} }); }); }
+function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
+
+// ── Vista dedicada (super gráfica) ──
+function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getElementById('gd-solo'); if(!solo||!VIZ[k])return;
+  document.getElementById('solo-name').textContent=VIZ[k].name; document.getElementById('solo-desc').textContent=VIZ[k].desc; solo.dataset.viz=k; solo.hidden=false; gTheme();
+  requestAnimationFrame(()=>{ try{ VIZ[k].render(document.getElementById('solo-cv')); }catch(e){} }); }
+function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
+
+// ── Scroll-colapso del héroe ──
+window.addEventListener('scroll', function(){ const h=document.getElementById('gd-hero'); if(h && !document.body.classList.contains('tool-active')) h.classList.toggle('collapsed', window.scrollY>50); });
+
+// ── Init + resize + tema + Esc ──
+function gnosisRenderAll(){ gnosisRenderTablero(); const solo=document.getElementById('gd-solo'); if(solo && !solo.hidden && VIZ[solo.dataset.viz]) VIZ[solo.dataset.viz].render(document.getElementById('solo-cv')); }
+if(document.getElementById('gd-tablero')) requestAnimationFrame(gnosisRenderAll);
+window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('gd-tablero')) gnosisRenderAll(); });
+(function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(gnosisRenderAll,70); }); })();
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var sw=document.getElementById('sw-modal'); if(sw && !sw.hidden){ gnosisCloseSwitcher(); } else { gnosisCloseSolo(); } } });
 </script>
 {% endblock %}

@@ -325,6 +325,16 @@ def dashboard():
                    FROM cupos WHERE session_id = ?""",
                 (session_id,)).fetchall()]
 
+            # Flota por código/VIN — árbol circular VIN (T1)
+            viz_data['flota'] = [dict(r) for r in conn.execute(
+                """SELECT i.auto_code AS auto, c.tipo AS tipo, m.nombre AS marca, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   WHERE i.session_id = ? AND i.auto_code IS NOT NULL
+                   GROUP BY i.auto_code, c.tipo, m.nombre""",
+                (session_id,)).fetchall()]
+
             # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
             viz_data['por_marca'] = por_marca
         except Exception as _e:
