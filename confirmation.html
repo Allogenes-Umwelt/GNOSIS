@@ -1,39 +1,18 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="autor" content="Ing. Jorge Vilchis Gonzalez">
-  <meta name="description" content="Confirmation Page">
-  <title>Confirmation - Gestell VW Aduanas</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-</head>
-<body>
-  <!-- Header section -->
-  <header>
-    <div class="header-container">
-      <img src="../static/icono.png" alt="Gestell logo" class="header-image">
-    </div>
-  </header>
+{% extends "base.html" %}
+{% block title %}GNOSIS · Proceso Completado{% endblock %}
 
-  <!-- Main content section -->
-  <main>
-    <h1 class="page-title">Calificación de preferencia arancelaria de vehículos</h1>
-    <div class="upload-box">
-      <div class="content">
-        <p>¡Procesamiento exitoso!</p>
-        <p>Los siguientes archivos están listos para descargar:</p>
-        <div class="download-buttons">
-          <div class="download-button" ><a href="{{ url_for('download_file', filename='facturasProcesadas.xlsx') }}" download>Descargar ExtraccionFacturas.xlsx</a></div>
-          <div class="download-button"><a href="{{ url_for('download_file', filename='Concentrado2.xlsx') }}" download>Descargar Concentrado2.xlsx</a></div>
-          <div class="download-button"><a href="{{ url_for('download_file', filename='Estadistico.xlsx') }}" download>Descargar Estadistico.xlsx</a></div>
-
-        </div>
-    </div>
-  </main>
-
-  <!-- Footer section -->
-  <footer>
-    <center>Gestell 2025 ®</center>
-  </footer>
-</body>
-</html>
+{% block content %}
+<div class="status-page">
+  <div class="sp-eyebrow">GNOSIS · Proceso Completado</div>
+  <h1 class="sp-title">Análisis conciliado.</h1>
+  <p class="sp-sub">Los resultados de la sesión están validados y listos para descargar.</p>
+  <div class="sp-downloads">
+    <a class="btn btn-danger" href="{{ url_for('download_file', filename='facturasProcesadas.xlsx') }}" download>Extracción de facturas</a>
+    <a class="btn" href="{{ url_for('download_file', filename='Concentrado2.xlsx') }}" download>Concentrado 2</a>
+    <a class="btn" href="{{ url_for('download_file', filename='Estadistico.xlsx') }}" download>Estadístico</a>
+  </div>
+  <div class="sp-actions">
+    <a href="/" class="btn">Ir al dashboard</a>
+  </div>
+</div>
+{% endblock %}

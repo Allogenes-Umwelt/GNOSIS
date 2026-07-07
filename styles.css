@@ -1076,3 +1076,17 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   .ia-console { transition: none; }
 }
+
+/* ── Páginas de estado (error / confirmation / processing) ── */
+.status-page { width: 100%; max-width: 1200px; margin: 0 auto; padding: 96px 40px; position: relative; z-index: 1; }
+.sp-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); margin-bottom: 22px; }
+.sp-eyebrow.err { color: var(--telos-on); }
+.sp-title { font-family: var(--font-d); font-weight: 700; font-size: 3rem; line-height: 1.05; color: var(--t1); }
+.sp-sub { margin-top: 22px; max-width: 480px; font-family: var(--font-b); font-size: .95rem; line-height: 1.7; color: var(--t2); }
+.sp-actions, .sp-downloads { display: flex; gap: 12px; margin-top: 34px; flex-wrap: wrap; }
+.sp-status { margin-top: 22px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); border: 1px solid var(--line); padding: 10px 14px; display: inline-block; }
+.sp-processing { min-height: 74vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; text-align: center; }
+.sp-scan { width: 220px; height: 2px; background: var(--line); position: relative; overflow: hidden; }
+.sp-scan::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--acc-solid); animation: spscan 1.1s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes spscan { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
+@media (prefers-reduced-motion: reduce) { .sp-scan::after { animation: none; } }

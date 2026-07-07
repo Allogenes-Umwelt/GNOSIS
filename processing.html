@@ -1,20 +1,13 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="autor" content="Jorge Vilchis Gonzalez">
-  <meta name="description" content="Procesando...">
-  <title>Procesando...</title>
-</head>
-<body style="background-color:rgb(2, 17, 39, 1);">
-  <center>
-    <h1 style="color:white;">Procesando archivos...</h1>
-    <p style="color:white;">Por favor, espere mientras procesamos sus archivos.</p>
-  </center>
-</body>
-<footer>
-  <center>
-      Gestell 2025 ®
-  </center>
-</footer>
-</html>
+{% extends "base.html" %}
+{% block title %}GNOSIS · Procesando{% endblock %}
+
+{% block content %}
+<div class="status-page">
+  <div class="sp-processing">
+    <div class="sp-eyebrow" style="margin:0">GNOSIS · Inteligencia en Curso</div>
+    <h1 class="sp-title">Procesando fuentes…</h1>
+    <p class="sp-sub" style="max-width:420px">Consolidando, validando y conciliando. Esto puede tardar varios minutos — no cierres la ventana.</p>
+    <div class="sp-scan" aria-hidden="true"></div>
+  </div>
+</div>
+{% endblock %}
