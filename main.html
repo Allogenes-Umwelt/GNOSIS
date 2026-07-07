@@ -11,6 +11,7 @@
   /* ═══ Vista TOOL · Consola ÁREAS (HUD + paneles colapsables W-C) ═══ */
   body.tool-active, body.tool-active html { height: 100%; overflow: hidden; }
   body.tool-active main { flex: 1; overflow: hidden; display: flex; min-height: 0; }
+  body.tool-active #gnosis-tool { flex: 1 1 auto; min-width: 0; display: flex; }  /* llenar el main (antes se encogía a su contenido → banda blanca a la derecha) */
   .app-shell { display: flex; width: 100%; height: calc(100vh - 65px); overflow: hidden; grid-template-columns: none; }
   .app-shell .col-nav { flex: 0 0 240px; }
   .app-shell .col-chat { flex: 1 1 auto; min-width: 0; }
@@ -397,12 +398,12 @@
 
     <!-- TABLERO: ventanas colapsables (W-C) -->
     <div class="gd-tablero" id="gd-tablero">
-      <div class="win" data-viz="dendro">
-        <div class="win-head"><span class="wt">Segmentación de Marcas</span><span class="ws">Qué marcas se comportan igual</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
+      <div class="win" data-viz="chord">
+        <div class="win-head"><span class="wt">Rutas de Importación</span><span class="ws">Cómo fluye origen → marca</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
         <div class="win-body"><canvas class="win-cv"></canvas></div>
       </div>
-      <div class="win collapsed" data-viz="chord">
-        <div class="win-head"><span class="wt">Rutas de Importación</span><span class="ws">Cómo fluye origen → marca</span><button class="win-x" title="Expandir" onclick="gnosisToggleWin(this)">▾</button></div>
+      <div class="win collapsed" data-viz="dendro">
+        <div class="win-head"><span class="wt">Segmentación de Marcas</span><span class="ws">Qué marcas se comportan igual</span><button class="win-x" title="Expandir" onclick="gnosisToggleWin(this)">▾</button></div>
         <div class="win-body"><canvas class="win-cv"></canvas></div>
       </div>
       <div class="win collapsed" data-viz="manh">
