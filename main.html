@@ -115,8 +115,22 @@
   .gd-hero { padding: 40px 0 30px; overflow: hidden; transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .35s ease, padding .5s ease; max-height: 640px; opacity: 1; }
   .gd-hero.collapsed { max-height: 0; opacity: 0; padding: 0; pointer-events: none; }
   .gd-hero-row { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; margin-top: 22px; }
-  .gd-scrollhint { margin-top: 34px; color: var(--t3); animation: gd-bob 2.4s ease-in-out infinite; }
-  @keyframes gd-bob { 0%,100%{transform:translateY(0);opacity:.55} 50%{transform:translateY(4px);opacity:1} }
+  @keyframes gd-bob { 0%,100%{transform:translateY(0);opacity:.55} 50%{transform:translateY(-4px);opacity:1} }
+  /* Portada: en estado inicial sólo hero + KPIs; el tablero se revela con la pestaña */
+  #gnosis-dashboard:not(.revealed) #gd-tablero,
+  #gnosis-dashboard:not(.revealed) .gd-tables,
+  #gnosis-dashboard:not(.revealed) .gd-downloads { display: none; }
+  /* Pestaña de revelado — a todo el ancho, fija abajo */
+  #gd-reveal { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: 56px; display: flex; align-items: center; justify-content: center; gap: 14px; background: var(--bg); border-top: 1px solid var(--acc); cursor: pointer; font-family: var(--font-b); font-weight: 700; font-size: .7rem; letter-spacing: 3px; text-transform: uppercase; color: var(--acc-text); transition: background .16s, letter-spacing .18s; }
+  #gd-reveal::before, #gd-reveal::after { content: ''; position: absolute; top: 8px; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; opacity: .8; }
+  #gd-reveal::before { left: 12px; border-width: 1px 0 0 1px; } #gd-reveal::after { right: 12px; border-width: 1px 1px 0 0; }
+  #gd-reveal:hover { background: var(--acc-subtle); letter-spacing: 4.5px; }
+  #gd-reveal .ico { font-size: 1.05rem; line-height: 1; }
+  #gd-reveal .chev { font-size: .8rem; animation: gd-bob 2s ease-in-out infinite; }
+  #gnosis-dashboard.revealed #gd-reveal { display: none; }
+  .gd-portadabtn { display: none; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; padding: 7px 13px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: color .16s, border-color .16s; }
+  .gd-portadabtn:hover { border-color: var(--acc); color: var(--acc-text); }
+  #gnosis-dashboard.revealed .gd-portadabtn { display: inline-flex; }
   .gd-title { font-family: var(--font-d); font-weight: 700; font-size: 3rem; line-height: 1.05; letter-spacing: -.01em; color: var(--t1); margin-top: 22px; }
   .gd-sub { margin-top: 22px; max-width: 460px; font-family: var(--font-b); font-size: .95rem; line-height: 1.7; color: var(--t2); }
   .gd-meta { margin-top: 30px; display: flex; gap: 26px; flex-wrap: wrap; align-items: center; }
@@ -266,7 +280,12 @@
           </svg>
         </div>
       </div>
-      <div class="gd-scrollhint mono-label">▾ &nbsp;Scroll para el tablero</div>
+    </div>
+
+    <!-- Pestaña de revelado: click → colapsa el hero y muestra el tablero -->
+    <div id="gd-reveal" onclick="gnosisReveal(true)" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gnosisReveal(true);}">
+      <span class="ico">◫</span> Dashboards <span class="chev">▴</span>
     </div>
 
     <!-- KPI panel + trigger de Tableros (sticky) -->
@@ -274,6 +293,7 @@
       <div class="gd-dh">
         <div class="l">GNOSIS <b>//</b> IMPORTACIONES · SESIÓN #{{ current_session.id }}</div>
         <div class="gd-dh-r">
+          <button class="gd-portadabtn" onclick="gnosisReveal(false)"><span>▴</span> Portada</button>
           <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
           <div class="st"><span class="dot"></span> {{ current_session.status|upper }}</div>
         </div>
@@ -1421,8 +1441,12 @@ function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getE
   requestAnimationFrame(()=>{ try{ VIZ[k].render(document.getElementById('solo-cv')); }catch(e){} }); }
 function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
 
-// ── Scroll-colapso del héroe ──
-window.addEventListener('scroll', function(){ const h=document.getElementById('gd-hero'); if(h && !document.body.classList.contains('tool-active')) h.classList.toggle('collapsed', window.scrollY>50); });
+// ── Revelado del tablero por pestaña (reemplaza el scroll-colapso) ──
+function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard'), h=document.getElementById('gd-hero'); if(!d)return;
+  d.classList.toggle('revealed', show); if(h) h.classList.toggle('collapsed', show);
+  if(show){ requestAnimationFrame(gnosisRenderAll);
+    setTimeout(function(){ const t=document.getElementById('gd-kpipanel'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }, 80); }
+  else { window.scrollTo({top:0,behavior:'smooth'}); } }
 
 // ── Init + resize + tema + Esc ──
 function gnosisRenderAll(){ gnosisRenderTablero(); const solo=document.getElementById('gd-solo'); if(solo && !solo.hidden && VIZ[solo.dataset.viz]) VIZ[solo.dataset.viz].render(document.getElementById('solo-cv')); }
