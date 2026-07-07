@@ -1639,7 +1639,26 @@ function sigManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light
   x.fillStyle='rgba('+GTXT+',.5)'; for(let t=0;t<=4;t++){ const xx=x0+(t/maxZ)*(x1-x0); x.fillText(t+'σ', xx, y0+16); }
   x.textAlign='left';
 }
-const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh };  // se irá ampliando dashboard por dashboard
+// #6 Rutas: ranking de rutas dominantes (origen ●━━● marca · grosor ∝ volumen · la #1 brilla)
+function sigChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const flujo=gnosisVizData().flujo||[]; if(!flujo.length){gnd(s);return;}
+  const M={}; flujo.forEach(r=>{ const key=(r.pais||'—')+'|'+(r.marca||'—'); M[key]=(M[key]||0)+(r.n||0); });
+  let routes=Object.keys(M).map(k=>{ const i=k.indexOf('|'); return {p:k.slice(0,i), m:k.slice(i+1), n:M[k]}; }).sort((a,b)=>b.n-a.n);
+  if(!routes.length){gnd(s);return;} const top=routes.slice(0,6), maxN=top[0].n||1;
+  const pad={l:22,r:22,t:74,b:22}, rowH=(H-pad.t-pad.b)/top.length, px=pad.l+86, mx=W-pad.r-96;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "AkzidenzGroteskPro-Bold","Helvetica Neue",sans-serif'; x.fillText(top[0].n.toLocaleString(), pad.l, pad.t-26);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('RUTA PRINCIPAL · '+top[0].p.slice(0,10)+' → '+top[0].m.slice(0,10), pad.l, pad.t-9);
+  x.textBaseline='middle';
+  top.forEach((rt,i)=>{ const y=pad.t+rowH*(i+0.5), glow=(i===0), col=MCOL[i%6], bandW=Math.max(1.6,(rt.n/maxN)*9);
+    x.fillStyle='rgba('+GTXT+',.85)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(rt.p.slice(0,10), px-8, y);
+    x.strokeStyle=glow?'rgba('+GCY+',.95)':col; x.globalAlpha=glow?1:.6; x.lineWidth=bandW; if(glow){x.shadowColor='rgba('+GCY+',.7)';x.shadowBlur=8;} x.beginPath(); x.moveTo(px,y); x.lineTo(mx,y); x.stroke(); x.shadowBlur=0; x.globalAlpha=1;
+    x.fillStyle=glow?'#00D4FF':col; x.beginPath();x.arc(px,y,3,0,6.28);x.fill(); x.beginPath();x.arc(mx,y,3,0,6.28);x.fill();
+    x.textAlign='left'; x.fillStyle=glow?'#00D4FF':'rgba('+GTXT+',.88)'; x.font=(glow?'700 ':'')+'9px "JetBrains Mono",monospace'; x.fillText(rt.m.slice(0,9), mx+8, y);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText(rt.n.toLocaleString(), mx+8+(Math.min(9,rt.m.length))*7.2, y); });
+  x.textAlign='left'; x.textBaseline='alphabetic';
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord };  // se irá ampliando dashboard por dashboard
 
 // ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
