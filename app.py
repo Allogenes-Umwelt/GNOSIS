@@ -203,6 +203,7 @@ def dashboard():
         has_graphs=False, has_zip=False, has_historico_zip=False,
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
+        viz_data={},
     )
 
     try:
@@ -282,6 +283,54 @@ def dashboard():
             "SELECT j_y_n, COUNT(*) as total FROM importaciones WHERE session_id = ? GROUP BY j_y_n",
             (session_id,)).fetchall()]
 
+        # ── GNOSIS deep-tech viz data contract (read-only aggregations · Decisión 1A) ──
+        # Solo lectura; si algo falla, el dashboard sigue renderizando sin viz_data.
+        viz_data = {}
+        try:
+            # Flujo país × marca × preferencia (+ valor) — chord / flow-to-reservoir
+            viz_data['flujo'] = [dict(r) for r in conn.execute(
+                """SELECT COALESCE(p.nombre, i.pais_code) AS pais, m.nombre AS marca,
+                          i.j_y_n AS jn, COUNT(*) AS n, COALESCE(SUM(i.precio), 0) AS valor
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   LEFT JOIN paises p ON i.pais_code = p.codigo
+                   WHERE i.session_id = ? GROUP BY pais, marca, jn""",
+                (session_id,)).fetchall()]
+
+            # Serie diaria por marca y país — Manhattan (z-score) + heatmap marca×mes
+            viz_data['serie_diaria'] = [dict(r) for r in conn.execute(
+                """SELECT substr(i.fecha_factura, 1, 8) AS fecha, m.nombre AS marca,
+                          COALESCE(p.nombre, i.pais_code) AS pais, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   LEFT JOIN paises p ON i.pais_code = p.codigo
+                   WHERE i.session_id = ? AND i.fecha_factura IS NOT NULL
+                   GROUP BY fecha, marca, pais""",
+                (session_id,)).fetchall()]
+
+            # Jerarquía marca → modelo (tipo) — icicle / dendrograma
+            viz_data['jerarquia_modelo'] = [dict(r) for r in conn.execute(
+                """SELECT m.nombre AS marca, c.tipo AS tipo, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   WHERE i.session_id = ? GROUP BY marca, tipo""",
+                (session_id,)).fetchall()]
+
+            # Cupos — reservorio (flow-to-reservoir / waterfall)
+            viz_data['cupo'] = [dict(r) for r in conn.execute(
+                """SELECT tipo, cantidad_inicial, cantidad_consumida, cantidad_saldo
+                   FROM cupos WHERE session_id = ?""",
+                (session_id,)).fetchall()]
+
+            # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
+            viz_data['por_marca'] = por_marca
+        except Exception as _e:
+            print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
+            viz_data = {}
+
         conn.close()
 
         graphs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'plotly_graphs')
@@ -307,6 +356,7 @@ def dashboard():
             errores_count=errores_count,
             errores=errores,
             session_id=sid,
+            viz_data=viz_data,
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")
