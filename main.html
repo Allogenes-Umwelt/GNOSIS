@@ -1658,7 +1658,51 @@ function sigChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const ligh
     x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText(rt.n.toLocaleString(), mx+8+(Math.min(9,rt.m.length))*7.2, y); });
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
-const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord };  // se irá ampliando dashboard por dashboard
+// #7 Segmentación: dendrograma con corte natural — el mayor salto de fusión define nº de clústeres; cada grupo se colorea y la costura brilla
+function sigDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const pm=(V.por_marca||[]).filter(r=>r.nombre); if(pm.length<2){gnd(s);return;}
+  const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+  let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre); if(marcas.length<2){gnd(s);return;}
+  const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+  serie.forEach(r=>{const f=F[r.marca];if(!f)return;const mo=+((r.fecha||'').substr(4,2));if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;}});
+  flujo.forEach(r=>{const f=F[r.marca];if(!f)return;const n=r.n||0;f.jn+=n;if((r.jn||'').toUpperCase()==='J')f.j+=n;});
+  jer.forEach(r=>{const f=F[r.marca];if(!f)return;const t=r.tipo||'—';f.mods[t]=(f.mods[t]||0)+(r.n||0);f.modTot+=r.n||0;});
+  const vec=m=>{const f=F[m];const mo=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);const jr=f.jn>0?f.j/f.jn:.5;let h=0;if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;h+=p*p;});else h=1;return mo.map(v=>v*2).concat([jr,h]);};
+  const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+  let nodes=marcas.map(m=>({name:m,v:vec(m),leaf:true})); const dists=[];
+  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=D(nodes[i].v,nodes[j].v);if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=nodes[bi],B=nodes[bj],nv=A.v.map((_,k)=>(A.v[k]+B.v[k])/2); const nd={leaf:false,children:[A,B],v:nv,dist:bd}; dists.push(bd); nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(nd); }
+  const root=nodes[0], N=marcas.length;
+  // corte natural: el mayor salto entre distancias de fusión consecutivas (elbow)
+  const sorted=dists.slice().sort((a,b)=>a-b); let gi=0,gg=-1; for(let i=0;i<sorted.length-1;i++){const g=sorted[i+1]-sorted[i]; if(g>gg){gg=g;gi=i;}}
+  const cutDist=sorted.length>1?(sorted[gi]+sorted[gi+1])/2:(sorted[0]||1)*1.5;
+  // asignar clúster a cada hoja bajo el corte + anotar cada nodo con su id de grupo (null si cruza el corte)
+  let cid=-1; const cc={}; (function split(nd){ if(nd.leaf||nd.dist<cutDist){ cid++; (function lv(n){ n.leaf?cc[n.name]=cid:n.children.forEach(lv); })(nd); } else nd.children.forEach(split); })(root);
+  const clusters=Math.max(1,cid+1);
+  (function ann(nd){ if(nd.leaf){nd.cid=cc[nd.name];return;} nd.children.forEach(ann); nd.cid=(nd.dist<cutDist)?nd.children[0].cid:null; })(root);
+  // cifra monumental + rótulo
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "AkzidenzGroteskPro-Bold","Helvetica Neue",sans-serif'; x.fillText(String(clusters), 20, 48);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('CLÚSTERES NATURALES · '+N+' MARCAS', 20, 65);
+  // geometría del árbol
+  const pad={l:26,r:118,t:84,b:26}, treeTop=pad.t, treeBot=H-pad.b, lx=W-pad.r, maxd=root.dist||1;
+  const leaves=[]; (function col(nd){nd.leaf?leaves.push(nd):nd.children.forEach(col);})(root);
+  const gapY=(treeBot-treeTop)/Math.max(1,leaves.length-1); leaves.forEach((lf,i)=>lf.y=treeTop+i*gapY);
+  const xFor=nd=>nd.leaf?lx:lx-((nd.dist||0)/maxd)*(lx-pad.l);
+  (function draw(nd){ if(nd.leaf) return nd.y; const ys=nd.children.map(draw), nx=xFor(nd), inC=nd.dist<cutDist;
+    nd.children.forEach((c,k)=>{ x.strokeStyle=inC?MCOL[nd.cid%6]:'rgba('+GTXT+',.16)'; x.lineWidth=inC?1.6:1; x.beginPath();x.moveTo(nx,ys[k]);x.lineTo(xFor(c),ys[k]);x.stroke(); });
+    x.strokeStyle=inC?MCOL[nd.cid%6]:'rgba('+GTXT+',.16)'; x.lineWidth=inC?1.6:1; x.beginPath();x.moveTo(nx,Math.min(...ys));x.lineTo(nx,Math.max(...ys));x.stroke();
+    nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
+  // corte natural — costura brillante
+  const xCut=lx-(cutDist/maxd)*(lx-pad.l);
+  x.strokeStyle='rgba('+GCY+',.9)'; x.lineWidth=1.4; x.setLineDash([4,4]); x.shadowColor='rgba('+GCY+',.7)'; x.shadowBlur=9; x.beginPath();x.moveTo(xCut,treeTop-4);x.lineTo(xCut,treeBot+4);x.stroke(); x.shadowBlur=0; x.setLineDash([]);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CORTE NATURAL', xCut, treeBot+16);
+  // hojas coloreadas por grupo + rótulo de marca
+  x.textBaseline='middle'; leaves.forEach(lf=>{ const col=MCOL[(cc[lf.name]||0)%6]; x.fillStyle=col; x.beginPath();x.arc(lx,lf.y,2.8,0,6.28);x.fill();
+    x.textAlign='left'; x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.92)'; x.fillText(lf.name.slice(0,14),lx+9,lf.y); });
+  x.textAlign='left'; x.textBaseline='alphabetic';
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord, dendro: sigDendro };
 
 // ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
