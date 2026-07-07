@@ -148,14 +148,24 @@
     </div>
   </header>
 
-  <!-- ═══ Consola GNOSIS·IA (drawer · estructura/función BARBELO; contenido en fase chat) ═══ -->
-  <aside id="ia-console" class="ia-console" aria-hidden="true">
+  <!-- ═══ Command Center GNOSIS·IA (drawer · estructura/función BARBELO) ═══ -->
+  <aside id="ia-console" class="ia-console" aria-hidden="true" aria-label="GNOSIS·IA — Command Center">
     <div class="ia-console-head">
       <svg class="gstl-mark" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;color:var(--acc-text)"><use href="#gstl-mark"/></svg>
-      <span class="mono-label" style="color:var(--acc-text)">GNOSIS·IA · Inteligencia Sintética</span>
+      <span class="mono-label" style="color:var(--acc-text)">GNOSIS·IA</span>
+      <span class="iac-online"><span class="dot"></span> Online</span>
       <button type="button" id="ia-close" class="hud-toggle" style="margin-left:auto;min-height:32px">Cerrar</button>
     </div>
-    <div class="ia-console-body mono-label">Consola en integración — fase de chat.</div>
+    <div class="iac-messages" id="iac-messages"></div>
+    <div class="iac-typing" id="iac-typing"><span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Analizando…</div>
+    <div class="iac-sugs" id="iac-sugs"></div>
+    <div class="iac-inputbar">
+      <div class="iac-term">
+        <span class="iac-prompt">gnosis&nbsp;▸</span>
+        <textarea id="iac-input" rows="1" placeholder="consultar el corpus de la sesión…" aria-label="Consulta a GNOSIS·IA"></textarea>
+        <button type="button" id="iac-send" class="iac-send" aria-label="Ejecutar">↵</button>
+      </div>
+    </div>
   </aside>
 
   <main>
@@ -202,11 +212,56 @@
       iaConsole.classList.toggle('open', open);
       iaConsole.setAttribute('aria-hidden', open ? 'false' : 'true');
       iaBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
+      if (open) { iacInit(); setTimeout(function(){ var i=document.getElementById('iac-input'); if(i) i.focus(); }, 260); }
     }
     if (iaBtn) iaBtn.addEventListener('click', function() {
       setIA(!iaConsole.classList.contains('open'));
     });
     if (iaClose) iaClose.addEventListener('click', function() { setIA(false); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && iaConsole && iaConsole.classList.contains('open')) setIA(false); });
+
+    // ═══ GNOSIS·IA Command Center — cliente de chat del drawer (independiente de chat.js) ═══
+    (function(){
+      var KEY = 'gnosisia_drawer_messages';
+      var SUGS = ['Resumen de la sesión','Vehículos por marca','Estado de los cupos','¿Datos faltantes o errores?'];
+      var msgsEl, inputEl, sendEl, typingEl, sugsEl, started = false, busy = false;
+
+      function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+      function md(t){ var h = esc(t);
+        h = h.replace(/^### (.+)$/gm,'<h4>$1</h4>').replace(/^## (.+)$/gm,'<h3>$1</h3>');
+        h = h.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/`([^`]+?)`/g,'<code>$1</code>');
+        h = h.replace(/\n/g,'<br>'); return h; }
+      function persist(role, text){ try{ var a=JSON.parse(localStorage.getItem(KEY)||'[]'); a.push({role:role,text:text}); localStorage.setItem(KEY, JSON.stringify(a)); }catch(e){} }
+      function bubble(role, text, save){ var d=document.createElement('div'); d.className='iac-msg iac-'+role;
+        if(role==='bot') d.innerHTML=md(text); else d.textContent=text; msgsEl.appendChild(d);
+        msgsEl.scrollTop = msgsEl.scrollHeight; if(save!==false) persist(role, text); }
+
+      function send(text){ if(busy) return; var m=(text||inputEl.value||'').trim(); if(!m) return;
+        if(sugsEl) sugsEl.style.display='none';
+        bubble('user', m); inputEl.value=''; inputEl.style.height='auto';
+        busy=true; sendEl.disabled=true; if(typingEl) typingEl.classList.add('active');
+        fetch('/api/v1/chat', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({message:m}) })
+          .then(function(r){ return r.json(); })
+          .then(function(data){ bubble('bot', data && data.error ? ('Error: '+data.error) : (data && data.response ? data.response : 'Sin respuesta.')); })
+          .catch(function(err){ bubble('bot', 'Error de conexión: '+err.message); })
+          .then(function(){ busy=false; sendEl.disabled=false; if(typingEl) typingEl.classList.remove('active'); });
+      }
+
+      window.iacInit = function(){ if(started) return; started=true;
+        msgsEl=document.getElementById('iac-messages'); inputEl=document.getElementById('iac-input');
+        sendEl=document.getElementById('iac-send'); typingEl=document.getElementById('iac-typing'); sugsEl=document.getElementById('iac-sugs');
+        if(!msgsEl||!inputEl||!sendEl) return;
+        // sugerencias
+        SUGS.forEach(function(s){ var b=document.createElement('button'); b.type='button'; b.className='iac-sug'; b.textContent=s; b.onclick=function(){ send(s); }; sugsEl.appendChild(b); });
+        // restaurar o dar bienvenida
+        var saved=[]; try{ saved=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(e){}
+        if(saved.length){ saved.forEach(function(m){ bubble(m.role, m.text, false); }); if(saved.some(function(m){return m.role==='user';})) sugsEl.style.display='none'; }
+        else { bubble('bot', 'Hola, soy **Gnosis·IA**. Consúltame los datos de importaciones de esta sesión desde cualquier vista.', false); }
+        sendEl.addEventListener('click', function(){ send(); });
+        inputEl.addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send(); } });
+        inputEl.addEventListener('input', function(){ inputEl.style.height='auto'; inputEl.style.height=Math.min(inputEl.scrollHeight,110)+'px'; });
+      };
+    })();
   </script>
 </body>
 </html>
