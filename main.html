@@ -1739,13 +1739,21 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
   if(k==='flow'){ const flujo=V.flujo||[]; const mN={}; let totN=0;
     flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ mN[r.marca]=(mN[r.marca]||0)+(r.n||0); totN+=r.n||0; } });
     const top=Object.keys(mN).map(m=>({m,n:mN[m]})).sort((a,b)=>b.n-a.n)[0]||{m:'—',n:0};
-    const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
-    const pct=cupo.ini?Math.round(cupo.sal/cupo.ini*100):0;
-    return W('¿Quién consume el cupo y cuánto queda?',
-      [{k:'Disponible',v:pct+'%',d:N(cupo.sal)+' saldo',t:pct<25?'tel':'acc'},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
-       {k:'Consumo N',v:N(totN),d:'sin preferencia'},{k:'Cupo inicial',v:N(cupo.ini),d:'asignado'}],
-      '<b>'+top.m+'</b> es la mayor presión sobre el cupo con '+N(top.n)+' unidades sin preferencia. Queda el <b>'+pct+'%</b> del cupo disponible.',
-      'Fuente · flujo N × cupos de la sesión'); }
+    const g={all:{ini:0,sal:0},prod:{ini:0,sal:0},inv:{ini:0,sal:0}};
+    (V.cupo||[]).forEach(c=>{ const t=(c.tipo||'').toLowerCase(), ini=+c.cantidad_inicial||0, sal=+c.cantidad_saldo||0;
+      g.all.ini+=ini; g.all.sal+=sal; if(t.indexOf('prod')>=0){g.prod.ini+=ini;g.prod.sal+=sal;} else if(t.indexOf('inv')>=0){g.inv.ini+=ini;g.inv.sal+=sal;} });
+    const P=x=>x.ini?Math.round(x.sal/x.ini*100):0, pct=P(g.all), split=(g.prod.ini>0&&g.inv.ini>0);
+    const reads = split
+      ? [{k:'Disponible total',v:pct+'%',d:N(g.all.sal)+' saldo',t:pct<25?'tel':'acc'},
+         {k:'Cupo Producción',v:P(g.prod)+'%',d:N(g.prod.sal)+' de '+N(g.prod.ini),t:P(g.prod)<25?'tel':'acc sm'},
+         {k:'Cupo Inversión',v:P(g.inv)+'%',d:N(g.inv.sal)+' de '+N(g.inv.ini),t:P(g.inv)<25?'tel':'acc sm'},
+         {k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'}]
+      : [{k:'Disponible',v:pct+'%',d:N(g.all.sal)+' saldo',t:pct<25?'tel':'acc'},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
+         {k:'Consumo N',v:N(totN),d:'sin preferencia'},{k:'Cupo inicial',v:N(g.all.ini),d:'asignado'}];
+    const interp = split
+      ? 'Del cupo unilateral queda el <b>'+pct+'%</b>: producción al <b>'+P(g.prod)+'%</b>, inversión al <b>'+P(g.inv)+'%</b>. <b>'+top.m+'</b> es la mayor presión con '+N(top.n)+' unidades sin preferencia.'
+      : '<b>'+top.m+'</b> es la mayor presión sobre el cupo con '+N(top.n)+' unidades sin preferencia. Queda el <b>'+pct+'%</b> del cupo disponible.';
+    return W('¿Quién consume el cupo y cuánto queda?', reads, interp, 'Fuente · flujo N × cupos de la sesión'); }
   if(k==='vintree'){ const rows=V.flota||[]; const bym={};
     rows.forEach(r=>{ const m=r.marca||'—'; (bym[m]=bym[m]||new Set()).add(r.tipo||r.auto||'—'); });
     const marcas=Object.keys(bym), div=marcas.map(m=>({m,c:bym[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
