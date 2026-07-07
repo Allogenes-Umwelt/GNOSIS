@@ -1290,23 +1290,41 @@ function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows
     x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x4,y4); x.lineTo(x3,y3); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
-// ── 7 · Dendrograma (segmentación) ──
-function vizDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; let data=(gnosisVizData().por_marca||[]).filter(r=>r.nombre).map(r=>({name:r.nombre,total:r.total||0})); if(!data.length){gnd(s);return;}
-  data.sort((a,b)=>b.total-a.total); data=data.slice(0,6);
-  let nodes=data.map(d=>({name:d.name,total:d.total,v:Math.log10((d.total||0)+1),leaf:true}));
-  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=Math.abs(nodes[i].v-nodes[j].v); if(d<bd){bd=d;bi=i;bj=j;}}
-    const A=nodes[bi],B=nodes[bj]; const n={leaf:false,children:[A,B],v:(A.v+B.v)/2,dist:bd+0.05}; nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(n); }
-  const root=nodes[0]; const pad={t:28,b:24,r:150,l:64}, leaves=[]; (function col(nd){ nd.leaf?leaves.push(nd):nd.children.forEach(col); })(root);
+// ── 7 · Dendrograma conductual (segmentación por comportamiento · T2) ──
+// Agrupa marcas por PERFIL, no por volumen: estacionalidad (12m) + preferencia J/N + concentración de modelos (HHI).
+function vizDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const V=gnosisVizData();
+  const pm=(V.por_marca||[]).filter(r=>r.nombre); if(pm.length<2){gnd(s);return;}
+  const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+  let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre);
+  if(marcas.length<2){gnd(s);return;}
+  const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+  serie.forEach(r=>{ const f=F[r.marca]; if(!f)return; const mo=+((r.fecha||'').substr(4,2)); if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;} });
+  flujo.forEach(r=>{ const f=F[r.marca]; if(!f)return; const n=r.n||0; f.jn+=n; if((r.jn||'').toUpperCase()==='J')f.j+=n; });
+  jer.forEach(r=>{ const f=F[r.marca]; if(!f)return; const t=r.tipo||'—'; f.mods[t]=(f.mods[t]||0)+(r.n||0); f.modTot+=r.n||0; });
+  function vec(m){ const f=F[m]; const mon=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);
+    const jr=f.jn>0?f.j/f.jn:0.5; let hhi=0; if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;hhi+=p*p;}); else hhi=1;
+    return {v:mon.map(v=>v*2).concat([jr,hhi]),jr:jr}; }
+  const VE={}; marcas.forEach(m=>VE[m]=vec(m));
+  const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+  const totOf=m=>(pm.find(r=>r.nombre===m)||{}).total||0;
+  let nodes=marcas.map(m=>({name:m,v:VE[m].v,jr:VE[m].jr,total:totOf(m),leaf:true}));
+  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=D(nodes[i].v,nodes[j].v);if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=nodes[bi],B=nodes[bj],nv=A.v.map((_,k)=>(A.v[k]+B.v[k])/2); const n={leaf:false,children:[A,B],v:nv,dist:bd}; nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(n); }
+  const root=nodes[0], big=W>520; const pad={t:32,b:big?36:20,r:big?230:150,l:big?150:56}, leaves=[];
+  (function col(nd){nd.leaf?leaves.push(nd):nd.children.forEach(col);})(root);
   const gapY=(H-pad.t-pad.b)/Math.max(1,leaves.length-1); leaves.forEach((lf,i)=>lf.y=pad.t+i*gapY);
   const lx=W-pad.r, maxd=(root.dist||1), xFor=nd=>nd.leaf?lx:lx-(nd.dist/maxd)*(lx-pad.l);
   x.strokeStyle='rgba('+GCY+',0.85)'; x.lineWidth=1.1;
-  (function draw(nd){ if(nd.leaf) return nd.y; const ys=nd.children.map(draw), nx=xFor(nd);
-    nd.children.forEach((c,k)=>{ x.beginPath(); x.moveTo(nx,ys[k]); x.lineTo(xFor(c),ys[k]); x.stroke(); });
-    x.beginPath(); x.moveTo(nx,Math.min(...ys)); x.lineTo(nx,Math.max(...ys)); x.stroke(); nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
+  (function draw(nd){ if(nd.leaf)return nd.y; const ys=nd.children.map(draw), nx=xFor(nd);
+    nd.children.forEach((c,k)=>{x.beginPath();x.moveTo(nx,ys[k]);x.lineTo(xFor(c),ys[k]);x.stroke();});
+    x.beginPath();x.moveTo(nx,Math.min(...ys));x.lineTo(nx,Math.max(...ys));x.stroke(); nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
   x.textBaseline='middle'; leaves.forEach(lf=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(lx,lf.y,2.6,0,6.28); x.fill();
-    const nm=lf.name.slice(0,14); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
-    x.fillStyle='rgba('+GTXT+',.85)'; x.fillText('· '+(lf.total||0).toLocaleString(),lx+10+nm.length*7.4,lf.y); });
-  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.75)'; x.textBaseline='alphabetic'; x.fillText('VOLUMEN',pad.l,pad.t-14); x.fillText('PREMIUM',pad.l,H-8);
+    const nm=lf.name.slice(0,16); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
+    x.fillStyle='rgba('+GTXT+',.85)'; x.fillText('· '+(lf.total||0).toLocaleString()+(big?'  · J '+Math.round(lf.jr*100)+'%':''),lx+10+nm.length*7.4,lf.y); });
+  x.textBaseline='alphabetic'; x.textAlign='left'; x.font='9px "JetBrains Mono",monospace';
+  if(big){ x.fillStyle='rgba('+GTXT+',.75)'; x.fillText('AGRUPADO POR PERFIL CONDUCTUAL',pad.l,pad.t-14);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.fillText('ESTACIONALIDAD · PREFERENCIA J/N · CONCENTRACIÓN DE MODELOS',pad.l,H-14); }
+  else { x.fillStyle='rgba('+GTXT+',.6)'; x.fillText('CONDUCTUAL',pad.l,pad.t-11); }
 }
 // ── 2 · Heatmap marca×mes (estacionalidad) ──
 const MNAME=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
