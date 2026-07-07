@@ -1500,21 +1500,35 @@ function vizFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]
   gnHover(el,s);
 }
 // ── 5 · Árbol circular VIN (anatomía de la flota) ──
-function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
+function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const light=document.documentElement.getAttribute('data-theme')==='light'; const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
   const M={}; rows.forEach(r=>{ const k=r.marca||'—'; (M[k]=M[k]||[]).push({t:(r.tipo||r.auto||'—'),n:r.n||0}); });
   let marcas=Object.keys(M).map(k=>({k,leaves:M[k].sort((a,b)=>b.n-a.n).slice(0,6),tot:M[k].reduce((u,o)=>u+o.n,0)})).sort((a,b)=>b.tot-a.tot).slice(0,6);
-  const totL=marcas.reduce((u,m)=>u+m.leaves.length,0)||1, cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-42, 330);   // radio capado (ver chord)
-  x.strokeStyle='rgba('+GCY+',.35)'; x.lineWidth=.8; [R*0.55,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
-  let ai=-Math.PI/2; x.textBaseline='middle'; x.font='11px "JetBrains Mono",monospace';
+  const totL=marcas.reduce((u,m)=>u+m.leaves.length,0)||1, cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-42, 330), midR=R*0.52;   // radio capado (ver chord)
+  const maxTot=Math.max.apply(null,marcas.map(m=>m.tot))||1;
+  x.strokeStyle='rgba('+GCY+',.16)'; x.lineWidth=.8; [midR,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
+  let ai=-Math.PI/2; x.textBaseline='middle';
   marcas.forEach((m,mi)=>{ const span=(m.leaves.length/totL)*6.28, a0=ai, amid=ai+span/2; ai+=span;
-    const mx=cx+Math.cos(amid)*R*0.55, my=cy+Math.sin(amid)*R*0.55;
-    x.strokeStyle=MCOL[mi%6]; x.lineWidth=1; x.beginPath(); x.moveTo(cx,cy); x.lineTo(mx,my); x.stroke();
+    const mx=cx+Math.cos(amid)*midR, my=cy+Math.sin(amid)*midR;
+    // tronco centro→hub (grosor ∝ total de la marca)
+    x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.7; x.lineWidth=1+2.6*(m.tot/maxTot); x.beginPath(); x.moveTo(cx,cy); x.lineTo(mx,my); x.stroke(); x.globalAlpha=1;
+    // ramas hub→hoja + nodos hoja (anillo exterior)
     m.leaves.forEach((lf,li)=>{ const a=a0+span*(li+0.5)/m.leaves.length, lx=cx+Math.cos(a)*R, ly=cy+Math.sin(a)*R;
-      x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.55; x.beginPath(); x.moveTo(mx,my); x.lineTo(lx,ly); x.stroke(); x.globalAlpha=1;
-      x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(lx,ly,1.8+Math.min(3.5,Math.log10(lf.n+1)),0,6.28); x.fill();
-      el._hits.push({shape:'circle',x:lx,y:ly,r:1.8+Math.min(3.5,Math.log10(lf.n+1)),hr:11,key:m.k+'|'+lf.t+'|'+li,color:MCOL[mi%6],hl:MCOL[mi%6],tip:[m.k.toUpperCase()+' · '+(lf.t||'').toString().toUpperCase(),'Unidades: '+(lf.n||0).toLocaleString()]}); });
-    const llx=cx+Math.cos(amid)*(R+18), lly=cy+Math.sin(amid)*(R+18); x.fillStyle=MCOL[mi%6]; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,16),llx,lly); });
-  x.fillStyle='#00D4FF'; x.beginPath(); x.arc(cx,cy,4,0,6.28); x.fill(); x.textAlign='left'; x.textBaseline='alphabetic';
+      x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.5; x.lineWidth=1; x.beginPath(); x.moveTo(mx,my); x.lineTo(lx,ly); x.stroke(); x.globalAlpha=1;
+      const lr=1.8+Math.min(3.5,Math.log10(lf.n+1)); x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(lx,ly,lr,0,6.28); x.fill();
+      el._hits.push({shape:'circle',x:lx,y:ly,r:lr,hr:11,key:m.k+'|'+lf.t+'|'+li,color:MCOL[mi%6],hl:MCOL[mi%6],tip:[m.k.toUpperCase()+' · '+(lf.t||'').toString().toUpperCase(),'Unidades: '+(lf.n||0).toLocaleString()]}); });
+    // NODO HUB de marca — llena el anillo medio (tamaño ∝ total)
+    const hr=3.4+Math.min(7.5,Math.log10(m.tot+1)*2.1);
+    x.shadowColor=MCOL[mi%6]; x.shadowBlur=8; x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(mx,my,hr,0,6.28); x.fill(); x.shadowBlur=0;
+    x.fillStyle=light?'rgba(255,255,255,.85)':'rgba(6,9,13,.9)'; x.beginPath(); x.arc(mx,my,hr*0.4,0,6.28); x.fill();   // ojo (dona) para lectura
+    el._hits.push({shape:'circle',x:mx,y:my,r:hr,hr:hr+4,key:'hub|'+m.k,color:MCOL[mi%6],hl:MCOL[mi%6],tip:[m.k.toUpperCase(),'Total: '+m.tot.toLocaleString()+' unid',m.leaves.length+' modelo'+(m.leaves.length!=1?'s':'')]});
+    // total de la marca hacia el centro (llena la zona media)
+    if(!small){ const tx=cx+Math.cos(amid)*R*0.30, ty=cy+Math.sin(amid)*R*0.30; x.fillStyle=MCOL[mi%6]; x.font='11px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText(m.tot.toLocaleString(), tx, ty); }
+    // etiqueta marca (exterior)
+    const llx=cx+Math.cos(amid)*(R+18), lly=cy+Math.sin(amid)*(R+18); x.fillStyle=MCOL[mi%6]; x.font=(small?'10px':'11px')+' "JetBrains Mono",monospace'; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,16),llx,lly); });
+  // núcleo central (flota)
+  x.strokeStyle='rgba('+GCY+',.4)'; x.lineWidth=1; x.beginPath(); x.arc(cx,cy,7,0,6.28); x.stroke();
+  x.shadowColor='rgba('+GCY+',.85)'; x.shadowBlur=11; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(cx,cy,4.5,0,6.28); x.fill(); x.shadowBlur=0;
+  x.textAlign='left'; x.textBaseline='alphabetic';
   gnHover(el,s);
 }
 // ── 8 · Trayectoria del Cupo (seguimiento mensual · consumo acumulado prod+inv hacia el techo) ──
