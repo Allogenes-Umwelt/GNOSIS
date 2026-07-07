@@ -292,6 +292,26 @@
 
 .btn-supervisor.active {
   background: var(--accent);
-  color: #fff;
+  color: #030303;
   border-color: var(--accent);
 }
+
+/* ═══ GNOSIS · alineación HUD de los controles del chat ═══ */
+.btn-reset, .btn-supervisor {
+  background: transparent; border: 1px solid var(--line); color: var(--t2);
+  border-radius: 2px; font-family: var(--font-b); text-transform: uppercase;
+  letter-spacing: 1.5px; font-size: .625rem; font-weight: 600;
+}
+.btn-reset:hover, .btn-supervisor:hover { background: transparent; border-color: var(--t1); color: var(--t1); }
+.btn-send {
+  background: transparent; border: 1px solid var(--acc); color: var(--acc-text);
+  border-radius: 2px; font-family: var(--font-b); text-transform: uppercase;
+  letter-spacing: 1.5px; font-weight: 700;
+}
+.btn-send:hover { background: var(--acc-subtle); }
+.btn-send:disabled { background: transparent; border-color: var(--line); color: var(--t3); opacity: .6; }
+.suggestion-btn { border-radius: 2px; }
+.suggestion-btn:hover { background: var(--acc-subtle); color: var(--acc-text); border-color: var(--acc); }
+.message { border-radius: 2px; }
+.message-user { color: #030303; }
+.chat-header .status-dot { background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
