@@ -1,0 +1,8 @@
+# Python bytecode caches (generados)
+__pycache__/
+
+# Artefactos de runtime / datos
+*.log
+*.db
+downloads/
+uploads/
