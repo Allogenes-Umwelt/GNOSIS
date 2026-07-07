@@ -203,6 +203,9 @@
   .sw-empty .ph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); opacity: .6; }
 
   /* ── VISTA DEDICADA (super gráfica standalone) ── */
+  /* main crea contexto de apilamiento (z-index:1) que atrapaba los overlays fixed;
+     lo neutralizamos para que modal/solo cubran el header (z-50) sin romper bg-field */
+  body > main { z-index: auto; }
   .gd-solo { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column; }
   .gd-solo[hidden] { display: none; }
   .solo-head { display: flex; align-items: center; gap: 20px; padding: 16px 32px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
@@ -1254,14 +1257,18 @@ function gnd(s){ if(!s) return; const {x,W,H}=s; x.font='11px "JetBrains Mono",m
 function vizManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
   const byPais={}; rows.forEach(r=>{ const p=r.pais||'—'; (byPais[p]=byPais[p]||[]).push(r.n||0); });
   let paises=Object.keys(byPais).sort((a,b)=>byPais[b].reduce((u,v)=>u+v,0)-byPais[a].reduce((u,v)=>u+v,0)).slice(0,8);
-  const pad={l:16,r:16,t:26,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22;
+  const pad={l:16,r:16,t:26,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22, R=Math.max(1.5,Math.min(3,W/520));
+  x.strokeStyle='rgba('+GTXT+',0.12)'; x.lineWidth=1; for(let i=1;i<paises.length;i++){ const gx=pad.l+i*bw; x.beginPath(); x.moveTo(gx,pad.t); x.lineTo(gx,y0); x.stroke(); }
   x.strokeStyle='rgba('+GPINK+',0.7)'; x.setLineDash([5,5]); x.beginPath(); x.moveTo(pad.l,thY); x.lineTo(W-pad.r,thY); x.stroke(); x.setLineDash([]);
   x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GPINK+',0.95)'; x.textAlign='left'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
-  paises.forEach((p,i)=>{ const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length, sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1, cx0=pad.l+i*bw, op=(i%2)?0.5:0.85;
-    arr.forEach(v=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+Math.random()*(bw-16), an=z>3;
-      x.fillStyle=an?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')'; x.beginPath(); x.arc(px,yy,an?3.2:1.5,0,6.28); x.fill();
-      if(an){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,7,0,6.28); x.stroke(); } });
-    x.fillStyle='rgba('+GTXT+',0.95)'; x.textAlign='center'; x.fillText((p||'').slice(0,10).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left'; });
+  let anoms=0;
+  paises.forEach((p,i)=>{ const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length, sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1, cx0=pad.l+i*bw, op=(i%2)?0.55:0.9;
+    arr.forEach(v=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+Math.random()*(bw-16), an=z>3; if(an)anoms++;
+      x.fillStyle=an?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')'; x.beginPath(); x.arc(px,yy,an?R+1.8:R,0,6.28); x.fill();
+      if(an){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,R+5.5,0,6.28); x.stroke(); } });
+    x.fillStyle='rgba('+GTXT+',0.95)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText((p||'').slice(0,12).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left'; });
+  if(W>520){ x.font='10px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillStyle = anoms>0 ? 'rgba('+GPINK+',0.95)' : 'rgba('+GTXT+',0.7)';
+    x.fillText(anoms>0 ? anoms+' ANOMALÍA'+(anoms!=1?'S':'')+' · >3σ' : 'SIN ANOMALÍAS · 0 REGISTROS > 3σ', W-pad.r-2, thY-5); x.textAlign='left'; }
 }
 // ── 6 · Chord (rutas) ──
 function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().flujo||[]; if(!rows.length){gnd(s);return;}
@@ -1321,7 +1328,11 @@ function vizIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const row
   const max=Math.max(...marcas.map(m=>m.tot)); if(max<=0){gnd(s);return;}
   const pl=120,pt=14,pb=14, rh=(H-pt-pb)/marcas.length; x.textBaseline='middle';
   marcas.forEach((m,ri)=>{ const bw=(m.tot/max)*(W-pl-70); let sx=pl; let mods=m.ms.slice(0,5); const rest=m.ms.slice(5).reduce((u,o)=>u+o.n,0); if(rest>0)mods.push({t:'Otros',n:rest});
-    mods.forEach((o,si)=>{ const w=(o.n/m.tot)*bw; x.fillStyle='rgba('+GCY+','+(0.9-si*0.13)+')'; x.fillRect(sx,pt+ri*rh+3,Math.max(1,w-1),rh-6); sx+=w; });
+    mods.forEach((o,si)=>{ const w=(o.n/m.tot)*bw; x.fillStyle='rgba('+GCY+','+(0.9-si*0.13)+')'; x.fillRect(sx,pt+ri*rh+3,Math.max(1,w-1),rh-6);
+      if(w>54 && rh>24){ const nm=(o.t||'').toString().slice(0,14).toUpperCase(), cy=pt+ri*rh+rh/2; x.textAlign='left'; x.textBaseline='middle';
+        x.font='10px "JetBrains Mono",monospace'; x.fillStyle = si<3 ? 'rgba(3,3,3,.82)' : 'rgba('+GLEAF+',.92)'; x.fillText(nm, sx+8, cy-(rh>42?7:0));
+        if(rh>42){ x.font='9px "JetBrains Mono",monospace'; x.fillStyle = si<3 ? 'rgba(3,3,3,.6)' : 'rgba('+GTXT+',.8)'; x.fillText(o.n.toLocaleString(), sx+8, cy+9); } }
+      sx+=w; });
     x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.95)'; x.textAlign='right'; x.fillText(m.k.slice(0,14).toUpperCase(),pl-10,pt+ri*rh+rh/2);
     x.fillStyle='rgba('+GLEAF+',.9)'; x.textAlign='left'; x.fillText(m.tot.toLocaleString(),pl+bw+8,pt+ri*rh+rh/2); });
 }
@@ -1355,7 +1366,7 @@ function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=g
     m.leaves.forEach((lf,li)=>{ const a=a0+span*(li+0.5)/m.leaves.length, lx=cx+Math.cos(a)*R, ly=cy+Math.sin(a)*R;
       x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.55; x.beginPath(); x.moveTo(mx,my); x.lineTo(lx,ly); x.stroke(); x.globalAlpha=1;
       x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(lx,ly,1.8+Math.min(3.5,Math.log10(lf.n+1)),0,6.28); x.fill(); });
-    const llx=cx+Math.cos(amid)*(R+16), lly=cy+Math.sin(amid)*(R+16); x.fillStyle=MCOL[mi%6]; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,10),llx,lly); });
+    const llx=cx+Math.cos(amid)*(R+18), lly=cy+Math.sin(amid)*(R+18); x.fillStyle=MCOL[mi%6]; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,16),llx,lly); });
   x.fillStyle='#00D4FF'; x.beginPath(); x.arc(cx,cy,4,0,6.28); x.fill(); x.textAlign='left'; x.textBaseline='alphabetic';
 }
 
