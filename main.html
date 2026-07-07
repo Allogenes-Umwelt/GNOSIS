@@ -157,10 +157,23 @@
   .gd-ex canvas { display: block; width: 100%; margin-top: 12px; }
   .gd-ex2 { display: grid; grid-template-columns: 1fr 1fr; }
   .gd-ex2 .gd-ex:first-child { border-right: 1px solid var(--line); }
-  .gd-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 24px; }
-  .gd-tcard { background: var(--surface); border: 1px solid var(--line); }
-  .gd-tcard .th { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .gd-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(288px, 1fr)); gap: 10px; margin-top: 24px; }
+  .gd-tcard { background: var(--surface); border: 1px solid var(--line); position: relative; }
+  .gd-tcard .th { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+  .gd-tcard .th .thn { font-family: var(--font-d); font-weight: 700; font-size: .8rem; letter-spacing: 0; color: var(--t3); }
   .gd-tcard tr.gd-trtot td { border-top: 1px solid var(--acc); color: var(--acc-text); font-weight: 700; }
+  /* Distribución deep-tech (reemplaza las tablas planas) */
+  .dx-dist { padding: 6px 0 8px; }
+  .dx-row { display: grid; grid-template-columns: minmax(64px, 34%) 1fr auto; align-items: center; gap: 12px; padding: 5px 16px; }
+  .dx-k { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dx-bar { height: 5px; background: var(--surface-2); position: relative; }
+  .dx-bar span { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(0,212,255,.32); transition: width .5s cubic-bezier(.2,.7,.2,1); }
+  .dx-row.lead .dx-bar span { background: var(--acc-solid); box-shadow: 0 0 9px var(--acc-solid); }
+  .dx-v { font-family: var(--font-d); font-weight: 700; font-size: 1rem; line-height: 1; color: var(--t1); text-align: right; min-width: 42px; }
+  .dx-row.lead .dx-v { font-size: 1.28rem; color: var(--acc-text); }
+  .dx-tot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 16px; border-top: 1px solid var(--acc); }
+  .dx-tot .l { font-family: var(--font-mono); font-size: .55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .dx-tot .v { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; color: var(--acc-text); }
   /* Desglose de tipos de error (consola Áreas) */
   .err-types { margin: 0 0 1rem; border: 1px solid var(--line); }
   .err-types .et-h { font-family: var(--font-mono); font-size: .55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); padding: 8px 12px; border-bottom: 1px solid var(--line); }
@@ -1794,7 +1807,7 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
 // ── Revelado del tablero por pestaña (reemplaza el scroll-colapso) ──
 function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard'), h=document.getElementById('gd-hero'); if(!d)return;
   d.classList.toggle('revealed', show); if(h) h.classList.toggle('collapsed', show);
-  if(show){ requestAnimationFrame(gnosisRenderAll);
+  if(show){ requestAnimationFrame(gnosisRenderAll); gnosisDeepTables();
     setTimeout(function(){ const t=document.getElementById('gd-kpipanel'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }, 80); }
   else { window.scrollTo({top:0,behavior:'smooth'}); } }
 
@@ -1802,6 +1815,25 @@ function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard')
 function gnosisRenderAll(){ gnosisRenderTablero(); gnosisSoloRenderAll(); }
 function gnosisFillValorKpi(){ const el=document.getElementById('kpi-valor'); if(!el)return;
   const f=gnosisVizData().flujo||[]; const tot=f.reduce((a,r)=>a+(+r.valor||0),0); el.textContent=tot>0?fMoney(tot):'—'; }
+// Convierte las tablas de desglose en distribuciones deep-tech (barras ranqueadas · líder brilla · números Akzidenz)
+function gnosisDeepTables(){
+  document.querySelectorAll('.gd-tcard').forEach(function(card){
+    if(card.dataset.dx) return; const tbl=card.querySelector('table'); if(!tbl) return;
+    var data=[], totalTxt=null;
+    [].slice.call(tbl.querySelectorAll('tbody tr')).forEach(function(tr){ var td=tr.querySelectorAll('td'); if(td.length<2) return;
+      var raw=td[1].textContent.trim(), val=parseFloat(raw.replace(/[^0-9.\-]/g,''))||0;
+      if(tr.classList.contains('gd-trtot')) totalTxt=raw; else data.push({label:td[0].textContent.trim(),raw:raw,val:val}); });
+    if(!data.length) return;
+    var mx=Math.max.apply(null,data.map(function(d){return d.val;}))||1, sum=data.reduce(function(a,d){return a+d.val;},0);
+    var maxIdx=data.reduce(function(bi,d,i,a){return d.val>a[bi].val?i:bi;},0);
+    var h='<div class="dx-dist">';
+    data.forEach(function(d,i){ h+='<div class="dx-row'+(i===maxIdx?' lead':'')+'"><span class="dx-k" title="'+d.label.replace(/"/g,'&quot;')+'">'+d.label+'</span><span class="dx-bar"><span data-w="'+(d.val/mx*100)+'"></span></span><span class="dx-v">'+d.raw+'</span></div>'; });
+    tbl.outerHTML=h+'</div>';
+    var th=card.querySelector('.th'); if(th){ var nm=th.textContent.trim(); th.innerHTML='<span>'+nm+'</span><span class="thn">'+(totalTxt||sum.toLocaleString())+'</span>'; }
+    card.dataset.dx='1';
+  });
+  requestAnimationFrame(function(){ document.querySelectorAll('.dx-bar span[data-w]').forEach(function(s){ s.style.width=s.getAttribute('data-w')+'%'; }); });
+}
 if(document.getElementById('gd-tablero')) requestAnimationFrame(gnosisRenderAll);
 gnosisFillValorKpi();
 window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('gd-tablero')) gnosisRenderAll(); });
