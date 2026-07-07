@@ -229,8 +229,40 @@
   .solo-title .st-name { font-family: var(--font-d); font-weight: 700; font-size: 1.1rem; letter-spacing: .5px; color: var(--t1); }
   .solo-title .st-desc { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
   .solo-head .gd-tablerosbtn { margin-left: auto; }
-  .solo-body { flex: 1 1 auto; min-height: 0; position: relative; padding: 22px 34px 30px; }
-  .solo-body .win-cv { position: absolute; top: 22px; right: 34px; bottom: 30px; left: 34px; width: calc(100% - 68px); height: calc(100% - 52px); }
+  /* Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica · W-C) */
+  .solo-dual { flex: 1 1 auto; min-height: 0; display: flex; }
+  .solo-pane { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; transition: flex-basis .32s cubic-bezier(.4,0,.2,1); }
+  .solo-read { flex: 0 0 38%; border-right: 1px solid var(--line); }
+  .solo-viz { flex: 1 1 0; }
+  .solo-read.solo-col { flex-basis: 54px; } .solo-viz.solo-col { flex: 0 0 54px; }
+  .solo-pane-head { display: flex; align-items: baseline; gap: 12px; padding: 0 18px; min-height: 48px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .solo-pane-head .sph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); }
+  .solo-pane-head .sph-s { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .solo-pane-head .win-x { margin-left: auto; align-self: center; }
+  .solo-pane.solo-col .solo-pane-head { justify-content: center; padding: 0; }
+  .solo-pane.solo-col .sph-t, .solo-pane.solo-col .sph-s { display: none; }
+  .solo-rail { display: none; flex: 1; align-items: center; justify-content: center; cursor: pointer; }
+  .solo-rail span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t3); }
+  .solo-rail:hover span { color: var(--acc-text); }
+  .solo-pane.solo-col .solo-pane-body { display: none; } .solo-pane.solo-col .solo-rail { display: flex; }
+  .solo-pane-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  /* Ventana A · síntesis */
+  .solo-read-body { padding: 32px 30px 26px; display: flex; flex-direction: column; gap: 26px; }
+  .solo-q { font-family: var(--font-d); font-weight: 700; font-size: 1.55rem; line-height: 1.18; color: var(--t1); letter-spacing: -.01em; }
+  .solo-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .solo-kpi { background: var(--bg); padding: 18px; }
+  .solo-kpi .k { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .solo-kpi .v { font-family: var(--font-d); font-weight: 700; font-size: 2.1rem; line-height: 1; color: var(--t1); margin: 10px 0 5px; word-break: break-word; }
+  .solo-kpi.sm .v { font-size: 1.15rem; line-height: 1.12; }
+  .solo-kpi .d { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .solo-kpi.acc .v { color: var(--acc-text); } .solo-kpi.warn .v { color: var(--umwelt-on); } .solo-kpi.tel .v { color: var(--telos-on); }
+  .solo-interp { border-left: 2px solid var(--acc); padding: 3px 0 3px 16px; font-family: var(--font-b); font-size: .92rem; line-height: 1.6; color: var(--t2); }
+  .solo-interp b { color: var(--t1); font-weight: 700; }
+  .solo-foot { margin-top: auto; padding-top: 16px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  /* Ventana B · gráfica */
+  .solo-viz-body { position: relative; padding: 20px 26px 26px; }
+  .solo-viz-body .win-cv { position: absolute; top: 20px; right: 26px; bottom: 26px; left: 26px; width: calc(100% - 52px); height: calc(100% - 46px); }
+  @media (max-width: 900px){ .solo-dual { flex-direction: column; } .solo-read { flex: 0 0 auto; border-right: none; border-bottom: 1px solid var(--line); } }
 
   @media (max-width: 860px) {
     .gd-hero-row { grid-template-columns: 1fr; }
@@ -357,7 +389,26 @@
     <div class="solo-title"><span class="st-name" id="solo-name"></span><span class="st-desc" id="solo-desc"></span></div>
     <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
   </div>
-  <div class="solo-body"><canvas class="win-cv" id="solo-cv"></canvas></div>
+  <div class="solo-dual" id="solo-dual">
+    <!-- Ventana A · Síntesis (interpretabilidad + KPIs) -->
+    <section class="solo-pane solo-read" id="solo-read">
+      <div class="solo-pane-head">
+        <span class="sph-t">Síntesis</span><span class="sph-s">Interpretabilidad</span>
+        <button class="win-x" title="Colapsar síntesis" onclick="gnosisSoloToggle('read')">◂</button>
+      </div>
+      <div class="solo-rail" onclick="gnosisSoloToggle('read')"><span>Síntesis ·</span></div>
+      <div class="solo-pane-body solo-read-body" id="solo-read-body"></div>
+    </section>
+    <!-- Ventana B · Análisis (gráfica) -->
+    <section class="solo-pane solo-viz" id="solo-viz">
+      <div class="solo-pane-head">
+        <span class="sph-t">Análisis</span><span class="sph-s" id="solo-viz-tag"></span>
+        <button class="win-x" title="Colapsar análisis" onclick="gnosisSoloToggle('viz')">▸</button>
+      </div>
+      <div class="solo-rail" onclick="gnosisSoloToggle('viz')"><span>· Análisis</span></div>
+      <div class="solo-pane-body solo-viz-body"><canvas class="win-cv" id="solo-cv"></canvas></div>
+    </section>
+  </div>
 </div>
 {% endif %}
 
@@ -1435,11 +1486,99 @@ function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!
   m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; try{ VIZ[k].render(cv); }catch(e){} }); }); }
 function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
 
-// ── Vista dedicada (super gráfica) ──
+// ── Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica) ──
 function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getElementById('gd-solo'); if(!solo||!VIZ[k])return;
-  document.getElementById('solo-name').textContent=VIZ[k].name; document.getElementById('solo-desc').textContent=VIZ[k].desc; solo.dataset.viz=k; solo.hidden=false; gTheme();
+  document.getElementById('solo-name').textContent=VIZ[k].name; document.getElementById('solo-desc').textContent=VIZ[k].desc;
+  const tag=document.getElementById('solo-viz-tag'); if(tag) tag.textContent=(SW_TAG[k]||'');
+  const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){ rb.innerHTML='<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>'; } }
+  const rp=document.getElementById('solo-read'), vp=document.getElementById('solo-viz'); if(rp)rp.classList.remove('solo-col'); if(vp)vp.classList.remove('solo-col');
+  solo.dataset.viz=k; solo.hidden=false; gTheme();
   requestAnimationFrame(()=>{ try{ VIZ[k].render(document.getElementById('solo-cv')); }catch(e){} }); }
 function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
+function gnosisSoloToggle(which){ const read=document.getElementById('solo-read'), viz=document.getElementById('solo-viz'); if(!read||!viz)return;
+  const target=which==='read'?read:viz, other=which==='read'?viz:read;
+  if(!target.classList.contains('solo-col') && other.classList.contains('solo-col')) return; // no colapsar la última abierta
+  target.classList.toggle('solo-col');
+  setTimeout(function(){ const solo=document.getElementById('gd-solo'); if(solo&&VIZ[solo.dataset.viz]){ try{ VIZ[solo.dataset.viz].render(document.getElementById('solo-cv')); }catch(e){} } }, 340); }
+
+// ── Síntesis por dashboard (interpretabilidad + KPIs clave, read-only) ──
+function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
+  const MN=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  function K(a){ return '<div class="solo-kpis">'+a.map(o=>'<div class="solo-kpi '+(o.t||'')+'"><div class="k">'+o.k+'</div><div class="v">'+o.v+'</div><div class="d">'+(o.d||'')+'</div></div>').join('')+'</div>'; }
+  function W(q,a,i,f){ return '<div class="solo-q">'+q+'</div>'+K(a)+'<div class="solo-interp">'+i+'</div><div class="solo-foot">'+(f||'')+'</div>'; }
+  if(k==='heatmap'){ const rows=V.serie_diaria||[]; const mon=new Array(13).fill(0); let tot=0;
+    rows.forEach(r=>{ const m=+((r.fecha||'').substr(4,2)); if(m>=1&&m<=12){ mon[m]+=r.n||0; tot+=r.n||0; } });
+    const order=[1,2,3,4,5,6,7,8,9,10,11,12].sort((a,b)=>mon[b]-mon[a]); const peak=order[0];
+    const top4=order.slice(0,4).reduce((s,m)=>s+mon[m],0), pct=tot?Math.round(top4/tot*100):0, act=order.filter(m=>mon[m]>0).length;
+    return W('¿Cuándo se concentra el volumen?',
+      [{k:'Mes pico',v:MN[peak],d:N(mon[peak])+' unid',t:'acc'},{k:'Concentración',v:pct+'%',d:'en 4 meses'},
+       {k:'Meses activos',v:act,d:'de 12'},{k:'Volumen total',v:N(tot),d:'registros'}],
+      'El volumen se concentra en <b>'+order.slice(0,2).map(m=>MN[m]).join(' · ')+'</b>; <b>'+MN[peak]+'</b> es el pico. El '+pct+'% del año cae en 4 meses — el resto es temporada baja.',
+      'Fuente · serie diaria por marca'); }
+  if(k==='icicle'){ const rows=V.jerarquia_modelo||[]; const mt={}; let tot=0;
+    rows.forEach(r=>{ const t=r.tipo||'—'; mt[t]=(mt[t]||0)+(r.n||0); tot+=r.n||0; });
+    const mods=Object.keys(mt).map(t=>({t,n:mt[t]})).sort((a,b)=>b.n-a.n), top=mods[0]||{t:'—',n:0}, tp=tot?Math.round(top.n/tot*100):0;
+    let acc=0,k80=0; for(const m of mods){ acc+=m.n; k80++; if(tot&&acc/tot>=0.8) break; }
+    return W('¿Qué modelos cargan el volumen?',
+      [{k:'Modelo líder',v:top.t,d:N(top.n)+' · '+tp+'%',t:'acc'},{k:'Pareto 80%',v:k80,d:'modelos = 80%'},
+       {k:'Modelos distintos',v:mods.length,d:'en la flota'},{k:'Volumen total',v:N(tot),d:'unidades'}],
+      '<b>'+top.t+'</b> encabeza con '+tp+'% del volumen. Sólo <b>'+k80+' modelos</b> concentran el 80% — la cola larga aporta poco.',
+      'Fuente · jerarquía marca → modelo'); }
+  if(k==='flow'){ const flujo=V.flujo||[]; const mN={}; let totN=0;
+    flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ mN[r.marca]=(mN[r.marca]||0)+(r.n||0); totN+=r.n||0; } });
+    const top=Object.keys(mN).map(m=>({m,n:mN[m]})).sort((a,b)=>b.n-a.n)[0]||{m:'—',n:0};
+    const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
+    const pct=cupo.ini?Math.round(cupo.sal/cupo.ini*100):0;
+    return W('¿Quién consume el cupo y cuánto queda?',
+      [{k:'Disponible',v:pct+'%',d:N(cupo.sal)+' saldo',t:pct<25?'tel':(pct<50?'warn':'acc')},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
+       {k:'Consumo N',v:N(totN),d:'sin preferencia'},{k:'Cupo inicial',v:N(cupo.ini),d:'asignado'}],
+      '<b>'+top.m+'</b> es la mayor presión sobre el cupo con '+N(top.n)+' unidades sin preferencia. Queda el <b>'+pct+'%</b> del cupo disponible.',
+      'Fuente · flujo N × cupos de la sesión'); }
+  if(k==='vintree'){ const rows=V.flota||[]; const bym={};
+    rows.forEach(r=>{ const m=r.marca||'—'; (bym[m]=bym[m]||new Set()).add(r.tipo||r.auto||'—'); });
+    const marcas=Object.keys(bym), div=marcas.map(m=>({m,c:bym[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
+    const totMod=marcas.reduce((s,m)=>s+bym[m].size,0);
+    return W('¿De qué se compone la flota?',
+      [{k:'Marcas',v:marcas.length,d:'en la sesión',t:'acc'},{k:'Modelos distintos',v:totMod,d:'configuraciones'},
+       {k:'Más diversa',v:div.m,d:div.c+' modelos',t:'sm'},{k:'Prom. modelos',v:marcas.length?Math.round(totMod/marcas.length):0,d:'por marca'}],
+      'La flota abarca <b>'+marcas.length+' marcas</b> y '+totMod+' modelos distintos. <b>'+div.m+'</b> es la más diversa con '+div.c+' configuraciones.',
+      'Fuente · flota por código/VIN'); }
+  if(k==='manh'){ const rows=V.serie_diaria||[]; const byP={}; rows.forEach(r=>{ (byP[r.pais||'—']=byP[r.pais||'—']||[]).push(r.n||0); });
+    let anom=0,total=0,maxCv=0,maxP='—';
+    Object.keys(byP).forEach(p=>{ const a=byP[p], mean=a.reduce((x,y)=>x+y,0)/a.length, sd=Math.sqrt(a.reduce((x,y)=>x+(y-mean)*(y-mean),0)/a.length)||1;
+      a.forEach(v=>{ total++; if(Math.abs((v-mean)/sd)>3) anom++; }); const cv=sd/(mean||1); if(cv>maxCv){maxCv=cv;maxP=p;} });
+    return W('¿Hay registros fuera de patrón?',
+      [{k:'Anomalías >3σ',v:anom,d:anom?'a revisar':'patrón limpio',t:anom?'tel':'acc'},{k:'Registros',v:N(total),d:'día × país'},
+       {k:'Mayor dispersión',v:maxP,d:'CV '+maxCv.toFixed(2),t:'sm'},{k:'Umbral',v:'3σ',d:'z-score'}],
+      anom? '<b>'+anom+' registros</b> superan el umbral de 3σ — conviene inspeccionarlos como posible error de captura.' : 'Ningún registro supera 3σ: el volumen diario es <b>estable</b>, sin picos anómalos.',
+      'Fuente · serie diaria · z-score por país'); }
+  if(k==='chord'){ const flujo=V.flujo||[]; const M={}, pais={}; let best={p:'—',m:'—',n:0}; const orig={};
+    flujo.forEach(r=>{ const p=r.pais||'—',mk=r.marca||'—',n=r.n||0; const key=p+'|'+mk; M[key]=(M[key]||0)+n; pais[p]=(pais[p]||0)+n; (orig[mk]=orig[mk]||new Set()).add(p); if(M[key]>best.n) best={p,m:mk,n:M[key]}; });
+    const tp=Object.keys(pais).sort((a,b)=>pais[b]-pais[a])[0]||'—';
+    const multi=Object.keys(orig).map(m=>({m,c:orig[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
+    return W('¿Cómo fluye origen → marca?',
+      [{k:'Ruta principal',v:best.p+' → '+best.m,d:N(best.n)+' unid',t:'acc sm'},{k:'Origen dominante',v:tp,d:N(pais[tp])+' unid',t:'sm'},
+       {k:'Multi-origen',v:multi.m,d:multi.c+' países',t:'sm'},{k:'Rutas activas',v:Object.keys(M).length,d:'país × marca'}],
+      'La ruta <b>'+best.p+' → '+best.m+'</b> es la más cargada ('+N(best.n)+'). <b>'+multi.m+'</b> se importa desde '+multi.c+' orígenes distintos.',
+      'Fuente · flujo país × marca'); }
+  if(k==='dendro'){ const pm=(V.por_marca||[]).filter(r=>r.nombre); const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+    let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre);
+    const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+    serie.forEach(r=>{const f=F[r.marca];if(!f)return;const mo=+((r.fecha||'').substr(4,2));if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;}});
+    flujo.forEach(r=>{const f=F[r.marca];if(!f)return;const n=r.n||0;f.jn+=n;if((r.jn||'').toUpperCase()==='J')f.j+=n;});
+    jer.forEach(r=>{const f=F[r.marca];if(!f)return;const t=r.tipo||'—';f.mods[t]=(f.mods[t]||0)+(r.n||0);f.modTot+=r.n||0;});
+    const vec=m=>{const f=F[m];const mo=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);const jr=f.jn>0?f.j/f.jn:.5;let h=0;if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;h+=p*p;});else h=1;return mo.map(v=>v*2).concat([jr,h]);};
+    const VE={}; marcas.forEach(m=>VE[m]=vec(m)); const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+    let near={a:'—',b:'—',d:1e9}; const minD={};
+    for(let i=0;i<marcas.length;i++){ minD[marcas[i]]=1e9; for(let j=0;j<marcas.length;j++){ if(i===j)continue; const dd=D(VE[marcas[i]],VE[marcas[j]]); if(dd<minD[marcas[i]])minD[marcas[i]]=dd; if(i<j&&dd<near.d)near={a:marcas[i],b:marcas[j],d:dd}; } }
+    const out=marcas.map(m=>({m,d:minD[m]})).sort((a,b)=>b.d-a.d)[0]||{m:'—'};
+    return W('¿Qué marcas se comportan igual?',
+      [{k:'Par más similar',v:near.a+' · '+near.b,d:'perfil casi idéntico',t:'acc sm'},{k:'Más atípica',v:out.m,d:'perfil único',t:'sm'},
+       {k:'Marcas segmentadas',v:marcas.length,d:'en el árbol'},{k:'Ejes de perfil',v:'3',d:'estac·J/N·HHI'}],
+      '<b>'+near.a+'</b> y <b>'+near.b+'</b> se comportan casi igual: misma estacionalidad, preferencia y mezcla de modelos. <b>'+out.m+'</b> es la más atípica.',
+      'Fuente · perfil conductual · distancia euclidiana'); }
+  return '<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>';
+}
 
 // ── Revelado del tablero por pestaña (reemplaza el scroll-colapso) ──
 function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard'), h=document.getElementById('gd-hero'); if(!d)return;
