@@ -448,8 +448,8 @@
       <button class="nav-item" data-panel="pipeline" onclick="switchPanel('pipeline')">
         <span class="axi-idx">02</span><span class="nav-label">Proceso Completo</span>
       </button>
-      <button class="nav-item" data-panel="dashboard" onclick="switchPanel('dashboard')">
-        <span class="axi-idx">03</span><span class="nav-label">Dashboard</span>
+      <button class="nav-item" onclick="gnosisShowDash();gnosisReveal(true)">
+        <span class="axi-idx">03</span><span class="nav-label">Dashboard →</span>
       </button>
       <button class="nav-item" data-panel="errores" onclick="switchPanel('errores')">
         <span class="axi-idx">04</span><span class="nav-label">Errores</span><span class="nav-badge" id="errores-nav-badge"{% if errores_count == 0 %} style="display:none"{% endif %}>{{ errores_count }}</span>
@@ -643,153 +643,6 @@
       </div>
     </div>
 
-    <!-- PANEL: Dashboard -->
-    <div id="panel-dashboard" class="panel">
-      <h2 class="panel-title">Dashboard</h2>
-
-      {% if empty %}
-        <div style="text-align:center;padding:2rem 0;color:var(--text-muted);">
-          <p style="font-size:1.1rem;margin-bottom:0.5rem;">Sin datos procesados</p>
-          <p>Carga facturas para comenzar.</p>
-        </div>
-      {% else %}
-        <!-- Session selector -->
-        <div class="session-bar" style="max-width:100%;margin:0 0 1rem;">
-          <div class="session-info">
-            <span class="session-label">Sesion:</span>
-            <select class="session-select"
-                    onchange="window.location='/?session_id='+this.value+'&panel=dashboard'">
-              {% for s in sessions %}
-                <option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>
-                  #{{ s.id }} — {{ s.session_date[:10] }}
-                </option>
-              {% endfor %}
-            </select>
-            <span class="session-status {{ 'status-ok' if current_session.status|lower in ['completed','completado'] else 'status-progress' }}">
-              {{ current_session.status }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Stats 2x2 -->
-        <div class="stats-grid" style="max-width:100%;grid-template-columns:repeat(2,1fr);margin-bottom:1rem;">
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_importaciones) }}</div>
-            <div class="stat-label">Vehículos (DWH)</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_extraccion) }}</div>
-            <div class="stat-label">Registros facturas</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_faltantes) }}</div>
-            <div class="stat-label">Facturas faltantes</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_errores) }}</div>
-            <div class="stat-label">Con error</div>
-          </div>
-        </div>
-
-        <!-- Por Marca -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Por Marca</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>Marca</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_marca %}
-                <tr>
-                  <td>{{ item.nombre }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-                <tr class="table-highlight">
-                  <td><strong>Total</strong></td>
-                  <td><strong>{{ "{:,}".format(stats.total_importaciones) }}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Por País -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Por País</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>País</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_pais %}
-                <tr>
-                  <td>{{ item.pais_nombre or item.pais_code }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Preferencia Arancelaria -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Preferencia Arancelaria</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>Tipo</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_jyn %}
-                <tr>
-                  <td>{{ 'Con preferencia (J)' if item.j_y_n == 'J' else 'Sin preferencia (N)' if item.j_y_n == 'N' else item.j_y_n or 'Sin dato' }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Gráficas -->
-        {% if has_graphs %}
-        <article class="card" style="margin-bottom:1rem;overflow:hidden;">
-          <div class="card-body" style="padding:0;">
-            <div id="dashCarousel" class="carousel slide" data-bs-ride="carousel">
-              <div class="carousel-inner">
-                {% for i in range(1, 14) %}
-                <div class="carousel-item {% if i == 1 %}active{% endif %}">
-                  <iframe src="{{ url_for('static', filename='plotly_graphs/' + '{:02d}.html'.format(i)) }}"
-                          style="width:100%;aspect-ratio:4/3;border:none;display:block;"></iframe>
-                </div>
-                {% endfor %}
-              </div>
-              <button class="carousel-control-prev" type="button" data-bs-target="#dashCarousel" data-bs-slide="prev">
-                <span class="carousel-control-prev-icon"></span>
-              </button>
-              <button class="carousel-control-next" type="button" data-bs-target="#dashCarousel" data-bs-slide="next">
-                <span class="carousel-control-next-icon"></span>
-              </button>
-            </div>
-          </div>
-        </article>
-        {% endif %}
-
-        {% if has_zip %}
-        <a href="{{ url_for('download_file', filename='ZipGeneral.zip') }}"
-           class="btn" style="width:100%;display:block;text-align:center;margin-bottom:0.5rem;"
-           onclick="if(window.gnosisSupervise) gnosisSupervise('Descarga iniciada: ZipGeneral.zip')">
-          Descargar Resultados
-        </a>
-        {% endif %}
-        {% if has_historico_zip %}
-        <a href="{{ url_for('download_file', filename='Historico_ZipGeneral.zip') }}"
-           class="btn" style="width:100%;display:block;text-align:center;"
-           onclick="if(window.gnosisSupervise) gnosisSupervise('Descarga iniciada: Historico_ZipGeneral.zip')">
-          Descargar Resultados Histórico
-        </a>
-        {% endif %}
-      {% endif %}
-    </div>
-
     <!-- PANEL: Errores -->
     <div id="panel-errores" class="panel">
       <h2 class="panel-title">
@@ -886,11 +739,14 @@ function switchPanel(id) {
   if (btn) btn.classList.add('active');
 }
 
-// Switch panel from URL param on load
-(function() {
+// Switch view/panel from URL param on load (deferred so view helpers are defined)
+window.addEventListener('DOMContentLoaded', function() {
   const p = new URLSearchParams(window.location.search).get('panel');
-  if (p) switchPanel(p);
-})();
+  if (!p) return;
+  if (p === 'dashboard') { if (window.gnosisReveal) gnosisReveal(true); return; }  // el tablero vive en la vista Dashboard
+  if (window.gnosisShowTool) gnosisShowTool();
+  switchPanel(p);
+});
 
 // ===== File type styles (real previews) =====
 const TYPE_STYLES = {
