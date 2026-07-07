@@ -1079,8 +1079,8 @@ function gnosisChord(rows){
   x.textBaseline='middle';
   seg.forEach(g=>{ const span=g.val*scale; g.a0=a; g.a1=a+span; pos[g.name]={cur:a}; const col=g.type==='m'?mCol[g.name]:'#6699CC';
     x.strokeStyle=col; x.lineWidth=6; x.beginPath(); x.arc(cx,cy,R,g.a0,g.a1); x.stroke();
-    const mid=(g.a0+g.a1)/2, lx=cx+Math.cos(mid)*(R+14), ly=cy+Math.sin(mid)*(R+14);
-    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba(200,200,200,.9)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,9),lx,ly);
+    const mid=(g.a0+g.a1)/2, lr=R+14+(g.val<tot*0.045?13:0), lx=cx+Math.cos(mid)*lr, ly=cy+Math.sin(mid)*lr;
+    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba(200,200,200,.9)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly);
     a=g.a1+gap; });
   const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
   paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
