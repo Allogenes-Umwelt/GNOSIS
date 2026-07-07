@@ -1532,40 +1532,65 @@ function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[];
   gnHover(el,s);
 }
 // ── 8 · Trayectoria del Cupo (seguimiento mensual · consumo acumulado prod+inv hacia el techo) ──
+// Órbita de Agotamiento: espiral polar · ángulo = mes (ENE arriba, horario) · radio = % del cupo consumido
+// hacia el anillo exterior (techo 100%). Producción (cian) e Inversión (púrpura) apiladas radialmente;
+// cifra monumental al centro; proyección de agotamiento punteada hasta el anillo.
 function vizSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const light=document.documentElement.getAttribute('data-theme')==='light';
   const V=gnosisVizData(); const sg=(V.seguimiento||[]); if(!sg.length){gnd(s);return;}
   const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0) || (+sg[sg.length-1].cupo_produccion_activo||0)+(+sg[sg.length-1].cupo_inversion_activo||0);
   if(cupo<=0){gnd(s);return;}
-  const pad={l:52,r:140,t:40,b:44}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=sg.length;
-  const Yv=v=>y0-(Math.min(v,cupo)/cupo)*(y0-y1), Xat=i=> n>1 ? x0+(i/(n-1))*(x1-x0) : (x0+x1)/2;
-  let cp=0,ci=0; const pts=sg.map((m,i)=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0); return {x:Xat(i),cp,ci,tot:cp+ci,name:(m.month_name||m.month||''),month:(m.month||'')}; });
-  x.font='11px "JetBrains Mono",monospace'; x.textBaseline='middle';
-  for(let t=0;t<=100;t+=25){ const yy=y0-(t/100)*(y0-y1); x.strokeStyle='rgba('+GTXT+',.1)'; x.lineWidth=1; x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.fillStyle='rgba('+GTXT+',.45)'; x.textAlign='right'; x.fillText(t+'%',x0-8,yy); }
-  const yTop=Yv(cupo); x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.2; x.beginPath(); x.moveTo(x0,yTop); x.lineTo(x1,yTop); x.stroke(); x.setLineDash([]);
-  x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CUPO TOTAL '+cupo.toLocaleString(), x1+6, yTop);
-  if(GNT.sgBands){
-  // banda producción (0..cp) cian
-  x.beginPath(); x.moveTo(x0,y0); pts.forEach(p=>x.lineTo(p.x,Yv(p.cp))); x.lineTo(pts[pts.length-1].x,y0); x.closePath(); x.globalAlpha=.85; x.fillStyle='rgba('+GCY+',.26)'; x.fill(); x.globalAlpha=1;
-  // banda inversión (cp..tot) púrpura
-  x.beginPath(); pts.forEach((p,i)=>{ const yy=Yv(p.cp); i===0?x.moveTo(p.x,yy):x.lineTo(p.x,yy); }); for(let i=pts.length-1;i>=0;i--){ x.lineTo(pts[i].x,Yv(pts[i].tot)); } x.closePath(); x.globalAlpha=.42; x.fillStyle=MCOL[2]; x.fill(); x.globalAlpha=1;
+  const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-38, 300), r0=Math.max(30,R*0.26);
+  const Rr=v=>r0+(Math.min(Math.max(v,0),cupo)/cupo)*(R-r0);
+  const P=(a,r)=>[cx+Math.cos(a)*r, cy+Math.sin(a)*r];
+  let cp=0,ci=0; const pts=sg.map(m=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0);
+    const mn=+((''+(m.month||'')).slice(0,2))||0, ang=-Math.PI/2 + ((mn?mn-1:0)/12)*2*Math.PI;
+    return {ang,cp,ci,tot:cp+ci,name:(m.month_name||m.month||''),month:(''+(m.month||''))}; });
+  const last=pts[pts.length-1];
+  // guías radiales 25/50/75 + techo (anillo exterior telos)
+  x.strokeStyle='rgba('+GTXT+',.10)'; x.lineWidth=1; [0.25,0.5,0.75].forEach(fp=>{ x.beginPath(); x.arc(cx,cy,r0+fp*(R-r0),0,6.28); x.stroke(); });
+  x.strokeStyle='rgba('+GPINK+',.55)'; x.lineWidth=1.5; x.beginPath(); x.arc(cx,cy,R,0,6.28); x.stroke();
+  if(!small){ x.fillStyle='rgba('+GTXT+',.4)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='middle';
+    [[0.25,'25'],[0.5,'50'],[0.75,'75']].forEach(g=>x.fillText(g[1]+'%', cx, cy-(r0+g[0]*(R-r0)))); }
+  // bandas espirales apiladas
+  if(GNT.sgBands && pts.length>1){
+    x.beginPath(); pts.forEach((p,i)=>{ const q=P(p.ang,Rr(p.cp)); i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); });
+    for(let i=pts.length-1;i>=0;i--){ const q=P(pts[i].ang,Rr(pts[i].tot)); x.lineTo(q[0],q[1]); }
+    x.closePath(); x.globalAlpha=.4; x.fillStyle=MCOL[2]; x.fill(); x.globalAlpha=1;                          // Inversión (exterior)
+    x.beginPath(); { const q=P(pts[0].ang,r0); x.moveTo(q[0],q[1]); } pts.forEach(p=>{ const q=P(p.ang,Rr(p.cp)); x.lineTo(q[0],q[1]); });
+    for(let i=pts.length-1;i>=0;i--){ const q=P(pts[i].ang,r0); x.lineTo(q[0],q[1]); }
+    x.closePath(); x.globalAlpha=.8; x.fillStyle='rgba('+GCY+',.22)'; x.fill(); x.globalAlpha=1;               // Producción (interior)
   }
-  // línea acumulado
-  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ i===0?x.moveTo(p.x,Yv(p.tot)):x.lineTo(p.x,Yv(p.tot)); }); x.stroke();
-  const _shr=Math.min(16,Math.max(8,(x1-x0)/Math.max(1,n-1)/2));
-  pts.forEach(p=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(p.x,Yv(p.tot),1.9,0,6.28); x.fill();
-    el._hits.push({shape:'circle',x:p.x,y:Yv(p.tot),r:1.9,hr:_shr,key:p.month||p.name,color:'#00D4FF',hl:'#fff',tip:[(p.name||'').toUpperCase()+' · MES',(light?'':'')+'Producción: '+Math.round(p.cp).toLocaleString(),'Inversión: '+Math.round(p.ci).toLocaleString(),'Acumulado: '+Math.round(p.tot).toLocaleString(),Math.round(p.tot/cupo*100)+'% del cupo']}); });
-  const last=pts[pts.length-1]; x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(last.x,Yv(last.tot),3.6,0,6.28); x.fill(); x.shadowBlur=0;
-  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='middle'; x.font='700 13px "Akzidenz-Grotesk",sans-serif'; x.fillText(Math.round(last.tot/cupo*100)+'%', x1+6, Yv(last.tot));
-  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CONSUMIDO', x1+6, Yv(last.tot)+13);
-  // marcadores de agotamiento de cupo (transiciones)
-  if(GNT.sgAgota) (V.agotamientos||[]).forEach(a=>{ const pi=pts.findIndex(p=>(a.month&&p.month==a.month)||(a.month_name&&p.name===a.month_name)); if(pi<0)return; const p=pts[pi];
-    x.strokeStyle='rgba('+GPINK+',.5)'; x.setLineDash([3,3]); x.lineWidth=1; x.beginPath(); x.moveTo(p.x,y1); x.lineTo(p.x,y0); x.stroke(); x.setLineDash([]);
-    x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(p.x,Yv(p.tot),3,0,6.28); x.fill();
-    x.fillStyle='rgba('+GPINK+',.9)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; if(!small) x.fillText('▲ AGOTADO', p.x, y0+28); });
-  x.fillStyle='rgba('+GTXT+',.6)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic';
-  if(!small) pts.forEach((p,i)=>{ if(n<=12||i%2===0) x.fillText((p.name||'').slice(0,3), p.x, y0+16); });
-  x.textAlign='left'; x.fillStyle='rgba('+GCY+',.9)'; x.fillRect(x0,y1-15,8,8); x.fillText('PRODUCCIÓN', x0+12, y1-8); x.fillStyle=MCOL[2]; x.fillRect(x0+104,y1-15,8,8); x.fillText('INVERSIÓN', x0+116, y1-8);
-  x.textBaseline='alphabetic';
+  // línea de trayectoria (acumulado) + nodos por mes
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ const q=P(p.ang,Rr(p.tot)); i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); }); x.stroke();
+  pts.forEach(p=>{ const q=P(p.ang,Rr(p.tot)); x.fillStyle='#00D4FF'; x.beginPath(); x.arc(q[0],q[1],2,0,6.28); x.fill();
+    el._hits.push({shape:'circle',x:q[0],y:q[1],r:2,hr:12,key:p.month||p.name,color:'#00D4FF',hl:'#fff',tip:[(p.name||'').toUpperCase()+' · MES','Producción: '+Math.round(p.cp).toLocaleString(),'Inversión: '+Math.round(p.ci).toLocaleString(),'Acumulado: '+Math.round(p.tot).toLocaleString(),Math.round(p.tot/cupo*100)+'% del cupo']}); });
+  { const q=P(last.ang,Rr(last.tot)); x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=12; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(q[0],q[1],4,0,6.28); x.fill(); x.shadowBlur=0; }
+  // proyección de agotamiento (extiende la espiral hasta el anillo, al ritmo medio)
+  const rate=last.tot/pts.length, remain=Math.max(0,cupo-last.tot), monthsLeft=rate>0?remain/rate:Infinity;
+  if(isFinite(monthsLeft)&&monthsLeft>0){ const stp=Math.max(6,Math.ceil(monthsLeft)*2);
+    x.strokeStyle='rgba('+GCY+',.5)'; x.setLineDash([3,5]); x.lineWidth=1.4; x.beginPath();
+    for(let k=0;k<=stp;k++){ const t=k/stp*monthsLeft, a=last.ang+(t/12)*2*Math.PI, q=P(a,Rr(last.tot+rate*t)); k?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); }
+    x.stroke(); x.setLineDash([]);
+    const aE=last.ang+(monthsLeft/12)*2*Math.PI, e=P(aE,R); x.shadowColor='rgba('+GPINK+',.8)'; x.shadowBlur=10; x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(e[0],e[1],4,0,6.28); x.fill(); x.shadowBlur=0;
+    if(!small){ const l=P(aE,R+15); x.fillStyle='rgba('+GPINK+',.9)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign=Math.cos(aE)<-0.2?'end':(Math.cos(aE)>0.2?'start':'center'); x.textBaseline='middle'; x.fillText('AGOTA ~'+Math.ceil(monthsLeft)+' MES'+(Math.ceil(monthsLeft)!=1?'ES':''), l[0], l[1]); } }
+  // marcadores de agotamiento (transiciones): radio telos hasta el anillo
+  if(GNT.sgAgota) (V.agotamientos||[]).forEach(a=>{ const p=pts.find(q=>(a.month&&q.month==a.month)||(a.month_name&&q.name===a.month_name)); if(!p)return;
+    const i=P(p.ang,r0), o=P(p.ang,R); x.strokeStyle='rgba('+GPINK+',.45)'; x.setLineDash([2,3]); x.lineWidth=1; x.beginPath(); x.moveTo(i[0],i[1]); x.lineTo(o[0],o[1]); x.stroke(); x.setLineDash([]);
+    x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(o[0],o[1],3,0,6.28); x.fill(); });
+  // etiquetas de mes en el anillo
+  if(!small){ x.fillStyle='rgba('+GTXT+',.55)'; x.font='10px "JetBrains Mono",monospace'; x.textBaseline='middle';
+    pts.forEach(p=>{ const l=P(p.ang,R+13); x.textAlign=Math.abs(Math.cos(p.ang))<.25?'center':(Math.cos(p.ang)<0?'end':'start'); x.fillText((p.name||'').slice(0,3), l[0], l[1]); }); }
+  // núcleo: cifra monumental
+  const pct=Math.round(last.tot/cupo*100);
+  x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.font='700 '+Math.round(r0*0.92)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(pct+'%', cx, cy-r0*0.06);
+  if(!small){ x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('CONSUMIDO', cx, cy+r0*0.42);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.fillText(Math.round(last.tot).toLocaleString()+' / '+cupo.toLocaleString(), cx, cy+r0*0.66); }
+  // leyenda
+  if(!small){ x.textAlign='left'; x.textBaseline='middle'; x.font='10px "JetBrains Mono",monospace';
+    x.fillStyle='rgba('+GCY+',.9)'; x.fillRect(14,18,8,8); x.fillText('PRODUCCIÓN',28,22); x.fillStyle=MCOL[2]; x.fillRect(14,34,8,8); x.fillText('INVERSIÓN',28,38);
+    x.fillStyle='rgba('+GPINK+',.85)'; x.textAlign='right'; x.fillText('TECHO = 100% CUPO', W-14, 22); }
+  x.textAlign='left'; x.textBaseline='alphabetic';
   gnHover(el,s);
 }
 
