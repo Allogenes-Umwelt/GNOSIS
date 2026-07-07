@@ -1398,7 +1398,7 @@ function vizSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; cons
   if(cupo<=0){gnd(s);return;}
   const pad={l:52,r:140,t:40,b:44}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=sg.length;
   const Yv=v=>y0-(Math.min(v,cupo)/cupo)*(y0-y1), Xat=i=> n>1 ? x0+(i/(n-1))*(x1-x0) : (x0+x1)/2;
-  let cp=0,ci=0; const pts=sg.map((m,i)=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0); return {x:Xat(i),cp,ci,tot:cp+ci,name:(m.month_name||m.month||'')}; });
+  let cp=0,ci=0; const pts=sg.map((m,i)=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0); return {x:Xat(i),cp,ci,tot:cp+ci,name:(m.month_name||m.month||''),month:(m.month||'')}; });
   x.font='9px "JetBrains Mono",monospace'; x.textBaseline='middle';
   for(let t=0;t<=100;t+=25){ const yy=y0-(t/100)*(y0-y1); x.strokeStyle='rgba('+GTXT+',.1)'; x.lineWidth=1; x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.fillStyle='rgba('+GTXT+',.45)'; x.textAlign='right'; x.fillText(t+'%',x0-8,yy); }
   const yTop=Yv(cupo); x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.2; x.beginPath(); x.moveTo(x0,yTop); x.lineTo(x1,yTop); x.stroke(); x.setLineDash([]);
@@ -1413,6 +1413,11 @@ function vizSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; cons
   const last=pts[pts.length-1]; x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(last.x,Yv(last.tot),3.6,0,6.28); x.fill(); x.shadowBlur=0;
   x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='middle'; x.font='700 13px "Akzidenz-Grotesk",sans-serif'; x.fillText(Math.round(last.tot/cupo*100)+'%', x1+6, Yv(last.tot));
   x.fillStyle='rgba('+GCY+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.fillText('CONSUMIDO', x1+6, Yv(last.tot)+13);
+  // marcadores de agotamiento de cupo (transiciones)
+  (V.agotamientos||[]).forEach(a=>{ const pi=pts.findIndex(p=>(a.month&&p.month==a.month)||(a.month_name&&p.name===a.month_name)); if(pi<0)return; const p=pts[pi];
+    x.strokeStyle='rgba('+GPINK+',.5)'; x.setLineDash([3,3]); x.lineWidth=1; x.beginPath(); x.moveTo(p.x,y1); x.lineTo(p.x,y0); x.stroke(); x.setLineDash([]);
+    x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(p.x,Yv(p.tot),3,0,6.28); x.fill();
+    x.fillStyle='rgba('+GPINK+',.9)'; x.font='7px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('▲ AGOTADO', p.x, y0+28); });
   x.fillStyle='rgba('+GTXT+',.6)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic';
   pts.forEach((p,i)=>{ if(n<=12||i%2===0) x.fillText((p.name||'').slice(0,3), p.x, y0+16); });
   x.textAlign='left'; x.fillStyle='rgba('+GCY+',.9)'; x.fillRect(x0,y1-15,8,8); x.fillText('PRODUCCIÓN', x0+12, y1-8); x.fillStyle=MCOL[2]; x.fillRect(x0+104,y1-15,8,8); x.fillText('INVERSIÓN', x0+116, y1-8);
@@ -1767,10 +1772,12 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
     const acum=sg.length?(+sg[sg.length-1].acumulado||sg.reduce((a,m)=>a+(+m.consumo_total||0),0)):0;
     const n=sg.length, pct=cupo?Math.round(acum/cupo*100):0, rate=n?acum/n:0, remain=Math.max(0,cupo-acum), ml=rate>0?Math.ceil(remain/rate):0;
     const peak=sg.slice().sort((a,b)=>(+b.consumo_total||0)-(+a.consumo_total||0))[0]||{};
-    return W('¿Cómo evoluciona el consumo del cupo?',
-      [{k:'Consumido',v:pct+'%',d:N(acum)+' de '+N(cupo),t:pct>75?'tel':'acc'},{k:'Ritmo mensual',v:N(rate),d:'unid / mes',t:'sm'},
-       {k:'Mes pico',v:(peak.month_name||'—'),d:N(peak.consumo_total)+' unid',t:'sm'},{k:'Proyección',v:(ml?'~'+ml+' mes'+(ml!=1?'es':''):'—'),d:'para agotar',t:(ml&&ml<=2)?'tel':'sm'}],
-      'Se ha consumido el <b>'+pct+'%</b> del cupo en '+n+' meses (ritmo '+N(rate)+'/mes). Al paso actual el cupo se agota en <b>~'+ml+' mes'+(ml!=1?'es':'')+'</b>.',
+    const ag=(V.agotamientos||[]); const agN=ag.length;
+    const reads=[{k:'Consumido',v:pct+'%',d:N(acum)+' de '+N(cupo),t:pct>75?'tel':'acc'},{k:'Ritmo mensual',v:N(rate),d:'unid / mes',t:'sm'},
+      {k:'Mes pico',v:(peak.month_name||'—'),d:N(peak.consumo_total)+' unid',t:'sm'},{k:'Proyección',v:(ml?'~'+ml+' mes'+(ml!=1?'es':''):'—'),d:'para agotar',t:(ml&&ml<=2)?'tel':'sm'}];
+    if(agN) reads.push({k:'Cupos agotados',v:agN,d:(ag[agN-1].month_name||'')+' · último',t:'tel'});
+    return W('¿Cómo evoluciona el consumo del cupo?', reads,
+      'Se ha consumido el <b>'+pct+'%</b> del cupo en '+n+' meses (ritmo '+N(rate)+'/mes). Al paso actual el cupo se agota en <b>~'+ml+' mes'+(ml!=1?'es':'')+'</b>.'+(agN?' Ya se han agotado <b>'+agN+'</b> certificado'+(agN!=1?'s':'')+'.':''),
       'Fuente · seguimiento mensual del cupo'); }
   return '<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>';
 }

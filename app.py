@@ -340,6 +340,9 @@ def dashboard():
 
             # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4
             viz_data['seguimiento'] = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            # Agotamientos de cupo (transiciones prod + inv) — read-only, para marcar en la trayectoria
+            viz_data['agotamientos'] = (session.get('data', {}).get('TRANSICIONES_PRODUCCION', []) or []) \
+                + (session.get('data', {}).get('TRANSICIONES_INVERSION', []) or [])
         except Exception as _e:
             print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
             viz_data = {}
