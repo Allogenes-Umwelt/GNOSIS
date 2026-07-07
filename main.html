@@ -1549,7 +1549,7 @@ const SW_ORDER=['heatmap','icicle','flow','seguimiento','vintree','manh','chord'
 const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',seguimiento:'TRAYECTORIA',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
 
 // ── Tablero (ventanas W-C) ──
-function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
+function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; cv._redraw=function(){ try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }; gnBindHover(cv); try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
 function gnosisToggleWin(btn){ const win=btn.closest('.win'); const open=document.querySelectorAll('#gd-tablero .win:not(.collapsed)');
   if(!win.classList.contains('collapsed') && open.length<=1) return; // la última no se colapsa
   win.classList.toggle('collapsed'); setTimeout(gnosisRenderTablero,240); }
