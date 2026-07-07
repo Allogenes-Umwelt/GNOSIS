@@ -249,13 +249,17 @@
   /* Ventana A · síntesis */
   .solo-read-body { padding: 32px 30px 26px; display: flex; flex-direction: column; gap: 26px; }
   .solo-q { font-family: var(--font-d); font-weight: 700; font-size: 1.55rem; line-height: 1.18; color: var(--t1); letter-spacing: -.01em; }
-  .solo-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
-  .solo-kpi { background: var(--bg); padding: 18px; }
-  .solo-kpi .k { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
-  .solo-kpi .v { font-family: var(--font-d); font-weight: 700; font-size: 2.1rem; line-height: 1; color: var(--t1); margin: 10px 0 5px; word-break: break-word; }
-  .solo-kpi.sm .v { font-size: 1.15rem; line-height: 1.12; }
-  .solo-kpi .d { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
-  .solo-kpi.acc .v { color: var(--acc-text); } .solo-kpi.warn .v { color: var(--umwelt-on); } .solo-kpi.tel .v { color: var(--telos-on); }
+  /* Firma gráfica deep-tech (biomecha · reemplaza las cajas KPI) */
+  .solo-sig { position: relative; width: 100%; height: 320px; }
+  .solo-sig .win-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* Readouts de línea (secundarios · sin recuadros) */
+  .solo-reads { display: flex; flex-direction: column; }
+  .solo-reads .rd { display: flex; align-items: baseline; gap: 14px; padding: 11px 2px; border-top: 1px solid var(--line); }
+  .solo-reads .rd:last-child { border-bottom: 1px solid var(--line); }
+  .solo-reads .rk { flex: 0 0 auto; min-width: 132px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .solo-reads .rv { font-family: var(--font-d); font-weight: 700; font-size: 1.2rem; line-height: 1; color: var(--t1); }
+  .solo-reads .rv.acc { color: var(--acc-text); } .solo-reads .rv.warn { color: var(--umwelt-on); } .solo-reads .rv.tel { color: var(--telos-on); }
+  .solo-reads .rdd { margin-left: auto; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); text-align: right; }
   .solo-interp { border-left: 2px solid var(--acc); padding: 3px 0 3px 16px; font-family: var(--font-b); font-size: .92rem; line-height: 1.6; color: var(--t2); }
   .solo-interp b { color: var(--t1); font-weight: 700; }
   .solo-foot { margin-top: auto; padding-top: 16px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
@@ -1493,19 +1497,51 @@ function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getE
   const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){ rb.innerHTML='<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>'; } }
   const rp=document.getElementById('solo-read'), vp=document.getElementById('solo-viz'); if(rp)rp.classList.remove('solo-col'); if(vp)vp.classList.remove('solo-col');
   solo.dataset.viz=k; solo.hidden=false; gTheme();
-  requestAnimationFrame(()=>{ try{ VIZ[k].render(document.getElementById('solo-cv')); }catch(e){} }); }
+  requestAnimationFrame(gnosisSoloRenderAll); }
+function gnosisSoloRenderAll(){ const solo=document.getElementById('gd-solo'); if(!solo||solo.hidden)return; const k=solo.dataset.viz;
+  const cv=document.getElementById('solo-cv'); if(cv&&VIZ[k]){ try{ VIZ[k].render(cv); }catch(e){} }
+  const sc=document.getElementById('solo-sig-cv'); if(sc&&SIG[k]){ try{ SIG[k](sc); }catch(e){} } }
 function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
 function gnosisSoloToggle(which){ const read=document.getElementById('solo-read'), viz=document.getElementById('solo-viz'); if(!read||!viz)return;
   const target=which==='read'?read:viz, other=which==='read'?viz:read;
   if(!target.classList.contains('solo-col') && other.classList.contains('solo-col')) return; // no colapsar la última abierta
   target.classList.toggle('solo-col');
-  setTimeout(function(){ const solo=document.getElementById('gd-solo'); if(solo&&VIZ[solo.dataset.viz]){ try{ VIZ[solo.dataset.viz].render(document.getElementById('solo-cv')); }catch(e){} } }, 340); }
+  setTimeout(gnosisSoloRenderAll, 340); }
 
-// ── Síntesis por dashboard (interpretabilidad + KPIs clave, read-only) ──
+// ── Firmas gráficas deep-tech (biomecha) de la Ventana A · una por dashboard ──
+// #1 Estacionalidad: dial radial de 12 meses (radio ∝ volumen · el pico brilla · eco del isotipo GNOSIS)
+function sigHeatmap(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().serie_diaria||[]; const mon=new Array(13).fill(0); let tot=0;
+  rows.forEach(r=>{ const m=+((r.fecha||'').substr(4,2)); if(m>=1&&m<=12){mon[m]+=r.n||0;tot+=r.n||0;} });
+  const max=Math.max.apply(null,mon.slice(1))||1; let peak=1; for(let m=2;m<=12;m++) if(mon[m]>mon[peak])peak=m;
+  const order=[1,2,3,4,5,6,7,8,9,10,11,12].sort((a,b)=>mon[b]-mon[a]); const pct=tot?Math.round(order.slice(0,4).reduce((s,m)=>s+mon[m],0)/tot*100):0;
+  const MN=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-26, r0=R*0.40;
+  // orbes guía + órbita punteada (biomecha)
+  x.strokeStyle='rgba('+GCY+',.14)'; x.lineWidth=1; [r0,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
+  x.setLineDash([2,6]); x.strokeStyle='rgba('+GCY+',.22)'; x.beginPath(); x.arc(cx,cy,(r0+R)/2,0,6.28); x.stroke(); x.setLineDash([]);
+  x.textAlign='center'; x.textBaseline='middle';
+  for(let m=1;m<=12;m++){ const a=-Math.PI/2+(m-1)/12*2*Math.PI, len=r0+(mon[m]/max)*(R-r0), pk=(m===peak);
+    const ix=cx+Math.cos(a)*r0, iy=cy+Math.sin(a)*r0, ox=cx+Math.cos(a)*len, oy=cy+Math.sin(a)*len;
+    x.strokeStyle=pk?'rgba('+GCY+',1)':'rgba('+GCY+','+(0.24+0.55*mon[m]/max)+')'; x.lineWidth=pk?3:2;
+    if(pk){x.shadowColor='rgba('+GCY+',.9)';x.shadowBlur=12;} x.beginPath(); x.moveTo(ix,iy); x.lineTo(ox,oy); x.stroke(); x.shadowBlur=0;
+    x.fillStyle=pk?'#00D4FF':'rgba('+GCY+',.7)'; x.beginPath(); x.arc(ox,oy,pk?3.4:1.8,0,6.28); x.fill();
+    const lr=R+13, lx=cx+Math.cos(a)*lr, ly=cy+Math.sin(a)*lr; x.font=(pk?'700 ':'')+'8px "JetBrains Mono",monospace'; x.fillStyle=pk?'#00D4FF':'rgba('+GTXT+',.55)'; x.fillText(MN[m],lx,ly); }
+  // centro: la cifra memorable (concentración)
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText('CONCENTRADO',cx,cy-R*0.17);
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(R*0.42)+'px "AkzidenzGroteskPro-Bold","Helvetica Neue",sans-serif'; x.fillText(pct+'%',cx,cy+R*0.02);
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText('PICO · '+MN[peak],cx,cy+R*0.2);
+  x.textAlign='left'; x.textBaseline='alphabetic';
+}
+const SIG = { heatmap: sigHeatmap };  // se irá ampliando dashboard por dashboard
+
+// ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
   const MN=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
-  function K(a){ return '<div class="solo-kpis">'+a.map(o=>'<div class="solo-kpi '+(o.t||'')+'"><div class="k">'+o.k+'</div><div class="v">'+o.v+'</div><div class="d">'+(o.d||'')+'</div></div>').join('')+'</div>'; }
-  function W(q,a,i,f){ return '<div class="solo-q">'+q+'</div>'+K(a)+'<div class="solo-interp">'+i+'</div><div class="solo-foot">'+(f||'')+'</div>'; }
+  function RD(a){ return '<div class="solo-reads">'+a.map(function(o){ var cls=(o.t||'').replace('sm','').trim(); return '<div class="rd"><span class="rk">'+o.k+'</span><span class="rv '+cls+'">'+o.v+'</span><span class="rdd">'+(o.d||'')+'</span></div>'; }).join('')+'</div>'; }
+  function W(q,a,i,f){ return '<div class="solo-q">'+q+'</div>'
+    + (SIG[k]?'<div class="solo-sig"><canvas class="win-cv" id="solo-sig-cv"></canvas></div>':'')
+    + '<div class="solo-interp">'+i+'</div>' + RD(a) + '<div class="solo-foot">'+(f||'')+'</div>'; }
   if(k==='heatmap'){ const rows=V.serie_diaria||[]; const mon=new Array(13).fill(0); let tot=0;
     rows.forEach(r=>{ const m=+((r.fecha||'').substr(4,2)); if(m>=1&&m<=12){ mon[m]+=r.n||0; tot+=r.n||0; } });
     const order=[1,2,3,4,5,6,7,8,9,10,11,12].sort((a,b)=>mon[b]-mon[a]); const peak=order[0];
@@ -1588,7 +1624,7 @@ function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard')
   else { window.scrollTo({top:0,behavior:'smooth'}); } }
 
 // ── Init + resize + tema + Esc ──
-function gnosisRenderAll(){ gnosisRenderTablero(); const solo=document.getElementById('gd-solo'); if(solo && !solo.hidden && VIZ[solo.dataset.viz]) VIZ[solo.dataset.viz].render(document.getElementById('solo-cv')); }
+function gnosisRenderAll(){ gnosisRenderTablero(); gnosisSoloRenderAll(); }
 if(document.getElementById('gd-tablero')) requestAnimationFrame(gnosisRenderAll);
 window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('gd-tablero')) gnosisRenderAll(); });
 (function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(gnosisRenderAll,70); }); })();
