@@ -229,7 +229,14 @@
   .solo-title { display: flex; flex-direction: column; gap: 3px; }
   .solo-title .st-name { font-family: var(--font-d); font-weight: 700; font-size: 1.1rem; letter-spacing: .5px; color: var(--t1); }
   .solo-title .st-desc { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
-  .solo-head .gd-tablerosbtn { margin-left: auto; }
+  .solo-head .gd-tablerosbtn { margin-left: auto; flex: 0 0 auto; }
+  .solo-head .solo-title { min-width: 0; }
+  @media (max-width: 640px){
+    .solo-head { padding: 12px 14px; gap: 10px; }
+    .solo-head .solo-title .st-desc { display: none; }
+    .solo-head .solo-title .st-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .solo-head .solo-back, .solo-head .gd-tablerosbtn { white-space: nowrap; }
+  }
   /* Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica · W-C) */
   .solo-dual { flex: 1 1 auto; min-height: 0; display: flex; }
   .solo-pane { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; transition: flex-basis .32s cubic-bezier(.4,0,.2,1); }
