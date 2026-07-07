@@ -173,7 +173,7 @@ async function resetChat() {
     messagesContainer.innerHTML = '';
     suggestionsContainer.style.display = 'flex';
     tokenCounter.textContent = '';
-    addMessage('Hola, soy Gnosis AI. Puedo ayudarte a analizar los datos de importaciones de vehiculos. Selecciona una pregunta o escribe la tuya.', 'assistant');
+    addMessage('Hola, soy Gnosis·IA. Puedo analizar los datos de importaciones de vehículos de esta sesión. Selecciona una consulta o escribe la tuya.', 'assistant');
   } catch (err) {
     console.error('Error resetting chat:', err);
   }
@@ -215,7 +215,7 @@ if (savedMessages.length > 0) {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
   if (hasUserMessages) suggestionsContainer.style.display = 'none';
 } else {
-  addMessage('Hola, soy Gnosis AI. Puedo ayudarte a analizar los datos de importaciones de vehiculos. Selecciona una pregunta o escribe la tuya.', 'assistant');
+  addMessage('Hola, soy Gnosis·IA. Puedo analizar los datos de importaciones de vehículos de esta sesión. Selecciona una consulta o escribe la tuya.', 'assistant');
 }
 
 // ===== Supervisor mode =====

@@ -8,10 +8,106 @@
   body { align-items: stretch; text-align: left; }
   main { max-width: 100% !important; padding: 0 !important; }
 
-  /* Vista TOOL (app-shell 3 columnas) — solo cuando está activa bloquea el scroll */
+  /* ═══ Vista TOOL · Consola ÁREAS (HUD + paneles colapsables W-C) ═══ */
   body.tool-active, body.tool-active html { height: 100%; overflow: hidden; }
   body.tool-active main { flex: 1; overflow: hidden; display: flex; min-height: 0; }
-  .app-shell { height: calc(100vh - 96px); }
+  .app-shell { display: flex; width: 100%; height: calc(100vh - 65px); overflow: hidden; grid-template-columns: none; }
+  .app-shell .col-nav { flex: 0 0 240px; }
+  .app-shell .col-chat { flex: 1 1 auto; min-width: 0; }
+  .app-shell .col-panel { flex: 0 0 402px; }
+  .app-shell .col-nav, .app-shell .col-chat, .app-shell .col-panel { position: relative; min-height: 0; transition: flex-basis .34s cubic-bezier(.4,0,.2,1); }
+  .col-nav.axc-collapsed, .col-panel.axc-collapsed { flex-basis: 56px !important; }
+
+  /* Cabecera de columna + colapso */
+  .axc-head { display: flex; align-items: center; gap: 8px; padding: 0 14px 0 20px; min-height: 53px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .axc-head .mono-label { color: var(--t2); } .axc-head .mono-label b { color: var(--acc-text); }
+  .axc-x { margin-left: auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; cursor: pointer; font-size: .7rem; transition: .15s; }
+  .axc-x:hover { border-color: var(--acc); color: var(--acc-text); }
+  .axc-rail { display: none; flex: 1; align-items: center; justify-content: center; cursor: pointer; }
+  .axc-rail span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t3); }
+  .axc-rail:hover span { color: var(--acc-text); }
+  .axc-collapsed .axc-body, .axc-collapsed .axc-foot, .axc-collapsed .axc-head .mono-label { display: none; }
+  .axc-collapsed .axc-rail { display: flex; }
+  .axc-collapsed .axc-head { justify-content: center; padding: 0; }
+
+  /* COL NAV */
+  .app-shell .col-nav { background: var(--bg); border-right: 1px solid var(--line); padding: 0; overflow: hidden; }
+  .col-nav .col-nav-title { display: none; }
+  .axc-nav { padding: 8px 0; overflow-y: auto; }
+  .app-shell .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; background: transparent; border: none; border-left: 2px solid transparent; border-radius: 0; padding: 13px 20px; margin: 0; cursor: pointer; font-family: var(--font-b); font-weight: 700; font-size: .8rem; letter-spacing: .5px; color: var(--t2); transition: color .15s, background .15s; }
+  .app-shell .nav-item:hover { color: var(--t1); background: var(--surface); }
+  .app-shell .nav-item.active { color: var(--acc-text); border-left-color: var(--acc); background: var(--acc-subtle); font-weight: 700; }
+  .nav-item .axi-idx { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; color: var(--t3); }
+  .nav-item.active .axi-idx { color: var(--acc-text); }
+  .nav-item .nav-label { flex: 1; line-height: 1.2; }
+  .app-shell .nav-badge { background: transparent; color: var(--telos-on); border: 1px solid var(--telos-on); font-family: var(--font-mono); font-size: .5625rem; font-weight: 700; letter-spacing: 1px; border-radius: 0; padding: 2px 6px; margin-left: 6px; }
+  .axc-foot { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--line); flex: 0 0 auto; }
+  .axc-stat { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); padding: 4px 0; }
+  .axc-stat b { color: var(--t1); }
+
+  /* COL CHAT — cabecera HUD */
+  .app-shell .col-chat { border-right: none; background: var(--bg); }
+  .col-chat .chat-wrapper { height: 100%; }
+  .col-chat .chat-header { padding: 0 22px; min-height: 53px; background: transparent; border-bottom: 1px solid var(--line); }
+  .col-chat .chat-header h2 { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .col-chat .chat-header h2 b { color: var(--acc-text); }
+  .col-chat .chat-header .status-dot { width: 7px; height: 7px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
+  .col-chat .chat-messages { background: transparent; padding: 24px; }
+  .col-chat .suggestions { background: transparent; padding: 0 24px 4px; }
+  .col-chat .suggestion-btn { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px; padding: 8px 12px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: .5px; }
+  .col-chat .suggestion-btn::before { content: '›'; color: var(--acc-text); font-family: var(--font-b); }
+  .col-chat .suggestion-btn:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
+
+  /* TERMINAL input */
+  .col-chat .chat-input-area { display: block; padding: 0 22px 22px; background: transparent; border-top: none; }
+  .axt { border: 1px solid var(--line); background: var(--surface-2); position: relative; }
+  .axt::before, .axt::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; opacity: .7; }
+  .axt::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
+  .axt::after { bottom: 5px; right: 5px; border-width: 0 1px 1px 0; }
+  .axt:focus-within { border-color: var(--acc); }
+  .axt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .axt-head .l { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .axt-head .l b { color: var(--acc-text); }
+  .axt-head .r { font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
+  .axt-line { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+  .axt-prompt { font-family: var(--font-mono); font-size: .85rem; color: var(--acc-text); white-space: nowrap; padding-top: 2px; text-shadow: 0 0 10px rgba(0,212,255,.35); }
+  .axt-caret { width: 8px; height: 17px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); animation: axblink 1.1s step-end infinite; flex: 0 0 auto; margin-top: 2px; }
+  .axt.axt-typing .axt-caret { display: none; }
+  @keyframes axblink { 0%,55%{opacity:1} 56%,100%{opacity:0} }
+  .col-chat .chat-input-area textarea#chatInput { flex: 1; background: transparent; border: none; border-radius: 0; outline: none; resize: none; color: var(--t1); font-family: var(--font-mono); font-size: .85rem; line-height: 1.5; caret-color: var(--acc-solid); padding: 0; min-height: 19px; max-height: 120px; }
+  .col-chat .chat-input-area textarea#chatInput:focus { border: none; }
+  .col-chat .chat-input-area .btn-send { align-self: stretch; background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; padding: 0 16px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; gap: 7px; }
+  .col-chat .chat-input-area .btn-send:hover { background: var(--acc-subtle); }
+  .col-chat .token-counter { padding: 8px 24px 0; }
+
+  /* COL PANEL */
+  .app-shell .col-panel { background: var(--bg); border-left: 1px solid var(--line); overflow: hidden; }
+  .col-panel .axc-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  .col-panel .panel { padding: 24px; }
+  .col-panel .panel-title { font-family: var(--font-d); font-weight: 700; font-size: 1.35rem; letter-spacing: .3px; color: var(--t1); }
+  .col-panel .panel-desc { font-family: var(--font-b); font-size: .8rem; line-height: 1.6; color: var(--t2); }
+  .col-panel .upload-label { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .col-panel .file-drop { position: relative; border: 1px solid var(--line); border-radius: 0; background: var(--surface); padding: 24px 18px; text-align: center; cursor: pointer; transition: .15s; }
+  .col-panel .file-drop::before { content: '[ + ]'; display: block; font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: 2px; color: var(--acc-text); margin-bottom: 7px; }
+  .col-panel .file-drop span { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .col-panel .file-drop:hover { border-color: var(--acc); background: var(--acc-subtle); }
+  .col-panel .file-drop::after { content: ''; position: absolute; top: 5px; left: 5px; width: 9px; height: 9px; border: solid var(--line); border-width: 1px 0 0 1px; pointer-events: none; }
+  .col-panel .file-drop:hover::after { border-color: var(--acc); }
+  .col-panel .btn { background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; font-family: var(--font-b); font-weight: 700; font-size: .72rem; letter-spacing: 2px; text-transform: uppercase; padding: 12px 16px; transition: .15s; }
+  .col-panel .btn:hover { background: var(--acc-subtle); color: var(--acc-text); }
+  .col-panel .btn:disabled { border-color: var(--line); color: var(--t3); opacity: .55; background: transparent; }
+  .col-panel .btn-danger, .col-panel .btn-sm.btn { border-color: var(--telos-on); color: var(--telos-on); }
+  .col-panel .btn-danger:hover, .col-panel .btn-sm.btn:hover { background: transparent; border-color: var(--telos-on); color: var(--telos-on); }
+
+  /* Bitácora activa → ghost acento (no relleno sólido) */
+  .col-chat .btn-supervisor.active { background: var(--acc-subtle); color: var(--acc-text); border-color: var(--acc); }
+
+  /* Panel Dashboard · selector de sesión + estado como HUD */
+  .col-panel .session-label { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .col-panel .session-select { background: var(--surface-2); color: var(--t1); border: 1px solid var(--line); border-radius: 0; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .5px; padding: 6px 10px; }
+  .col-panel .session-status { background: transparent; border: 1px solid var(--umwelt-on); color: var(--umwelt-on); border-radius: 0; font-family: var(--font-mono); font-size: .6rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 9px; }
+  .col-panel .session-status.status-ok { border-color: var(--acc); color: var(--acc-text); }
+  .col-panel .stat-card { border-radius: 0; }
 
   /* ── Dashboard deck-style (portada + KPIs + exhibits) ── */
   .gd { width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 40px 64px; }
@@ -246,54 +342,76 @@
 <div id="gnosis-tool" hidden>
 <div class="app-shell">
 
-  <!-- ===== COL 1: Navigation ===== -->
-  <aside class="col-nav">
+  <!-- ===== COL 1: Navigation (colapsable) ===== -->
+  <aside class="col-nav" id="axc-nav">
+    <div class="axc-head">
+      <span class="mono-label"><b>ÁREAS</b> // CONSOLA</span>
+      <button type="button" class="axc-x" onclick="axcToggle('nav')" title="Colapsar" aria-label="Colapsar navegación">‹</button>
+    </div>
+    <div class="axc-rail" onclick="axcToggle('nav')"><span>ÁREAS ·</span></div>
     <div class="col-nav-title">Areas</div>
-    <button class="nav-item active" data-panel="fase1" onclick="switchPanel('fase1')">
-      <span class="nav-label">Cargar Facturas</span>
-    </button>
-    <button class="nav-item" data-panel="pipeline" onclick="switchPanel('pipeline')">
-      <span class="nav-label">Proceso Completo</span>
-    </button>
-    <button class="nav-item" data-panel="dashboard" onclick="switchPanel('dashboard')">
-      <span class="nav-label">Dashboard</span>
-    </button>
-    <button class="nav-item" data-panel="errores" onclick="switchPanel('errores')">
-      <span class="nav-label">Errores <span class="nav-badge" id="errores-nav-badge"{% if errores_count == 0 %} style="display:none"{% endif %}>{{ errores_count }}</span></span>
-    </button>
+    <nav class="axc-nav axc-body">
+      <button class="nav-item active" data-panel="fase1" onclick="switchPanel('fase1')">
+        <span class="axi-idx">01</span><span class="nav-label">Cargar Facturas</span>
+      </button>
+      <button class="nav-item" data-panel="pipeline" onclick="switchPanel('pipeline')">
+        <span class="axi-idx">02</span><span class="nav-label">Proceso Completo</span>
+      </button>
+      <button class="nav-item" data-panel="dashboard" onclick="switchPanel('dashboard')">
+        <span class="axi-idx">03</span><span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-panel="errores" onclick="switchPanel('errores')">
+        <span class="axi-idx">04</span><span class="nav-label">Errores</span><span class="nav-badge" id="errores-nav-badge"{% if errores_count == 0 %} style="display:none"{% endif %}>{{ errores_count }}</span>
+      </button>
+    </nav>
+    <div class="axc-foot axc-body">
+      <div class="axc-stat"><span>Sesión</span><b>#{{ current_session.id }}</b></div>
+      <div class="axc-stat"><span>Estado</span><b style="color:var(--acc-text)">{{ current_session.status|upper }}</b></div>
+      <div class="axc-stat"><span>Vehículos</span><b>{{ "{:,}".format(stats.total_importaciones) }}</b></div>
+    </div>
   </aside>
-
-  <!-- Resize handle 1 -->
-  <div class="resize-handle" data-side="left"></div>
 
   <!-- ===== COL 2: Chat ===== -->
   <section class="col-chat">
     <div class="chat-wrapper" style="max-width:100%; height:100%; margin:0;">
       <div class="chat-header">
-        <h2><span class="status-dot"></span>Gnosis AI</h2>
+        <h2><span class="status-dot"></span><b>GNOSIS·IA</b> // SESIÓN #{{ current_session.id }}</h2>
         <div style="display:flex;gap:0.5rem;">
-          <button id="supervisorBtn" class="btn-supervisor" onclick="toggleSupervisor()" title="Activar/desactivar bitacora de procesos">Bitacora</button>
-          <button class="btn-reset" onclick="resetChat()">Nueva conversacion</button>
+          <button id="supervisorBtn" class="btn-supervisor" onclick="toggleSupervisor()" title="Activar/desactivar bitacora de procesos">Bitácora</button>
+          <button class="btn-reset" onclick="resetChat()">Nueva consulta</button>
         </div>
       </div>
       <div class="chat-messages" id="chatMessages"></div>
       <div class="typing-indicator" id="typingIndicator">
-        <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis AI esta analizando...
+        <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis·IA está analizando...
       </div>
       <div class="suggestions" id="suggestions"></div>
       <div class="chat-input-area">
-        <textarea id="chatInput" placeholder="Escribe tu pregunta..." rows="1"></textarea>
-        <button id="sendBtn" class="btn-send">Enviar</button>
+        <div class="axt" id="axTerminal">
+          <div class="axt-head">
+            <span class="l"><b>▸ TERMINAL</b> // GNOSIS·IA · INTELIGENCIA SINTÉTICA</span>
+            <span class="r">↵ ejecutar · ⇧↵ nueva línea</span>
+          </div>
+          <div class="axt-line">
+            <span class="axt-prompt">gnosis@sesión-{{ current_session.id }} ▸</span>
+            <span class="axt-caret" id="axCaret"></span>
+            <textarea id="chatInput" placeholder="consultar el corpus de la sesión…" rows="1"></textarea>
+            <button id="sendBtn" class="btn-send">Ejecutar <span>↵</span></button>
+          </div>
+        </div>
+        <div class="token-counter" id="tokenCounter"></div>
       </div>
-      <div class="token-counter" id="tokenCounter"></div>
     </div>
   </section>
 
-  <!-- Resize handle 2 -->
-  <div class="resize-handle" data-side="right"></div>
-
-  <!-- ===== COL 3: Dynamic Panels ===== -->
-  <section class="col-panel">
+  <!-- ===== COL 3: Dynamic Panels (colapsable) ===== -->
+  <section class="col-panel" id="axc-panel">
+    <div class="axc-head">
+      <span class="mono-label"><b>PANEL</b> // GNOSIS</span>
+      <button type="button" class="axc-x" onclick="axcToggle('panel')" title="Colapsar" aria-label="Colapsar panel">›</button>
+    </div>
+    <div class="axc-rail" onclick="axcToggle('panel')"><span>· PANEL</span></div>
+    <div class="axc-body col-panel-body">
 
     <!-- PANEL: Cargar Facturas (Fase 1) -->
     <div id="panel-fase1" class="panel active">
@@ -304,7 +422,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Facturas (.zip) *</label>
           <div class="file-drop" onclick="document.getElementById('input-facturas').click()">
-            <span>📂 Clic para seleccionar o arrastra aquí</span>
+            <span>Clic para seleccionar o arrastra aquí</span>
           </div>
           <input type="file" id="input-facturas" name="facturas" accept=".zip" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-facturas')">
@@ -314,7 +432,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Extraccion Histórica (.xlsx) — Opcional</label>
           <div class="file-drop" onclick="document.getElementById('input-previo').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-previo" name="FilePrevio" accept=".xlsx"
                  style="display:none" onchange="handleFileSelect(this,'thumbs-previo')">
@@ -371,7 +489,7 @@
         <div class="upload-field-main">
           <label class="upload-label">DWH / Pedimento (.txt) *</label>
           <div class="file-drop" onclick="document.getElementById('input-dwh').click()">
-            <span>📂 Clic para seleccionar (múltiples archivos)</span>
+            <span>Clic para seleccionar (múltiples archivos)</span>
           </div>
           <input type="file" id="input-dwh" name="dwh" accept=".txt" multiple required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-dwh')">
@@ -381,7 +499,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Divisiones / Incrementables (.xlsx) *</label>
           <div class="file-drop" onclick="document.getElementById('input-inc').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-inc" name="incrementales" accept=".xlsx" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-inc')">
@@ -391,7 +509,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Cupo Inversion (.pdf) *</label>
           <div class="file-drop" onclick="document.getElementById('input-inv').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-inv" name="pdfInversion" accept=".pdf" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-inv')">
@@ -401,7 +519,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Cupo Produccion (.pdf) *</label>
           <div class="file-drop" onclick="document.getElementById('input-prod').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-prod" name="pdfProduccion" accept=".pdf" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-prod')">
@@ -456,7 +574,7 @@
                 </option>
               {% endfor %}
             </select>
-            <span class="session-status {{ 'status-ok' if current_session.status == 'completed' else 'status-progress' }}">
+            <span class="session-status {{ 'status-ok' if current_session.status|lower in ['completed','completado'] else 'status-progress' }}">
               {{ current_session.status }}
             </span>
           </div>
@@ -585,14 +703,14 @@
     <div id="panel-errores" class="panel">
       <h2 class="panel-title">
         Errores de Extracción
-        <span id="errores-panel-badge" style="font-size:0.8rem;font-weight:500;background:#FEE2E2;color:#991B1B;padding:0.2rem 0.6rem;border-radius:12px;margin-left:0.5rem;{% if errores_count == 0 %}display:none{% endif %}">
+        <span id="errores-panel-badge" style="display:inline-block;white-space:nowrap;vertical-align:middle;font-family:var(--font-mono);font-size:0.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.15rem 0.5rem;margin-left:0.6rem;{% if errores_count == 0 %}display:none{% endif %}">
           <span id="errores-panel-count">{{ errores_count }}</span> pendiente{{ 's' if errores_count != 1 else '' }}
         </span>
       </h2>
 
       <div id="errores-actions" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;{% if errores_count == 0 %}display:none!important{% endif %}">
         <a id="errores-zip-link" href="/errores/download-zip?sid={{ session_id }}"
-           class="btn btn-sm" style="font-size:0.82rem;background:var(--accent);color:#fff;text-decoration:none;">
+           class="btn btn-sm" style="text-decoration:none;">
           ↓ Descargar todos (.zip)
         </a>
       </div>
@@ -622,7 +740,7 @@
             <tr id="err-row-{{ loop.index }}">
               <td style="word-break:break-all;max-width:120px;">{{ err.filename }}</td>
               <td>
-                <span style="background:#FEE2E2;color:#991B1B;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;white-space:nowrap;">
+                <span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">
                   {{ err.error_type or 'parse' }}
                 </span>
               </td>
@@ -650,6 +768,7 @@
       </div>
     </div>
 
+    </div><!-- /axc-body -->
   </section>
 </div>
 </div><!-- /gnosis-tool -->
@@ -919,44 +1038,19 @@ document.getElementById('historicoForm').addEventListener('submit', async functi
   }
 });
 
-// ===== Resizable columns =====
-(function() {
-  const shell = document.querySelector('.app-shell');
-  let dragging = null, startX = 0, startW = 0;
-  let col1W = 200, col3W = 420;
+// ===== Paneles colapsables (filosofía W-C · el chat es el ancla) =====
+function axcToggle(which){
+  const p = document.getElementById('axc-' + which);
+  if (!p) return;
+  const col = p.classList.toggle('axc-collapsed');
+  const x = p.querySelector('.axc-x');
+  if (x) x.textContent = which === 'nav' ? (col ? '›' : '‹') : (col ? '‹' : '›');
+}
 
-  function applyWidths() {
-    shell.style.gridTemplateColumns = col1W + 'px 5px 1fr 5px ' + col3W + 'px';
-  }
-
-  document.querySelectorAll('.resize-handle').forEach(handle => {
-    handle.addEventListener('mousedown', e => {
-      dragging = handle.dataset.side;
-      startX = e.clientX;
-      startW = dragging === 'left' ? col1W : col3W;
-      handle.classList.add('dragging');
-      document.body.style.userSelect = 'none';
-      e.preventDefault();
-    });
-  });
-
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    if (dragging === 'left') {
-      col1W = Math.max(120, Math.min(400, startW + dx));
-    } else {
-      col3W = Math.max(250, Math.min(700, startW - dx));
-    }
-    applyWidths();
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('dragging'));
-    document.body.style.userSelect = '';
-    dragging = null;
-  });
+// ===== Terminal: ocultar caret decorativo mientras se escribe =====
+(function(){
+  const inp = document.getElementById('chatInput'), term = document.getElementById('axTerminal');
+  if (inp && term) inp.addEventListener('input', () => term.classList.toggle('axt-typing', inp.value.length > 0));
 })();
 
 // ===== Errores panel: reprocess =====
@@ -1045,7 +1139,7 @@ async function refreshErroresPanel() {
           const dlUrl = '/errores/download?sid=' + sid + '&f=' + encodeURIComponent(err.filename);
           return `<tr id="${rowId}">
             <td style="word-break:break-all;max-width:120px;">${err.filename}</td>
-            <td><span style="background:#FEE2E2;color:#991B1B;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;white-space:nowrap;">${err.error_type || 'parse'}</span></td>
+            <td><span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">${err.error_type || 'parse'}</span></td>
             <td style="max-width:140px;"><span title="${err.error_message || ''}">${truncated}</span></td>
             <td style="text-align:right;white-space:nowrap;">
               <a href="${dlUrl}" title="Descargar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none;font-size:0.85rem;margin-right:0.3rem;">↓</a>
