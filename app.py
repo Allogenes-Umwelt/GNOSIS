@@ -337,6 +337,9 @@ def dashboard():
 
             # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
             viz_data['por_marca'] = por_marca
+
+            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4
+            viz_data['seguimiento'] = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
         except Exception as _e:
             print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
             viz_data = {}

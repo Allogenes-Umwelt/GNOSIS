@@ -1371,6 +1371,33 @@ function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=g
     const llx=cx+Math.cos(amid)*(R+18), lly=cy+Math.sin(amid)*(R+18); x.fillStyle=MCOL[mi%6]; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,16),llx,lly); });
   x.fillStyle='#00D4FF'; x.beginPath(); x.arc(cx,cy,4,0,6.28); x.fill(); x.textAlign='left'; x.textBaseline='alphabetic';
 }
+// ── 8 · Trayectoria del Cupo (seguimiento mensual · consumo acumulado prod+inv hacia el techo) ──
+function vizSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const sg=(V.seguimiento||[]); if(!sg.length){gnd(s);return;}
+  const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0) || (+sg[sg.length-1].cupo_produccion_activo||0)+(+sg[sg.length-1].cupo_inversion_activo||0);
+  if(cupo<=0){gnd(s);return;}
+  const pad={l:52,r:140,t:40,b:44}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=sg.length;
+  const Yv=v=>y0-(Math.min(v,cupo)/cupo)*(y0-y1), Xat=i=> n>1 ? x0+(i/(n-1))*(x1-x0) : (x0+x1)/2;
+  let cp=0,ci=0; const pts=sg.map((m,i)=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0); return {x:Xat(i),cp,ci,tot:cp+ci,name:(m.month_name||m.month||'')}; });
+  x.font='9px "JetBrains Mono",monospace'; x.textBaseline='middle';
+  for(let t=0;t<=100;t+=25){ const yy=y0-(t/100)*(y0-y1); x.strokeStyle='rgba('+GTXT+',.1)'; x.lineWidth=1; x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.fillStyle='rgba('+GTXT+',.45)'; x.textAlign='right'; x.fillText(t+'%',x0-8,yy); }
+  const yTop=Yv(cupo); x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.2; x.beginPath(); x.moveTo(x0,yTop); x.lineTo(x1,yTop); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.font='8px "JetBrains Mono",monospace'; x.fillText('CUPO TOTAL '+cupo.toLocaleString(), x1+6, yTop);
+  // banda producción (0..cp) cian
+  x.beginPath(); x.moveTo(x0,y0); pts.forEach(p=>x.lineTo(p.x,Yv(p.cp))); x.lineTo(pts[pts.length-1].x,y0); x.closePath(); x.globalAlpha=.85; x.fillStyle='rgba('+GCY+',.26)'; x.fill(); x.globalAlpha=1;
+  // banda inversión (cp..tot) púrpura
+  x.beginPath(); pts.forEach((p,i)=>{ const yy=Yv(p.cp); i===0?x.moveTo(p.x,yy):x.lineTo(p.x,yy); }); for(let i=pts.length-1;i>=0;i--){ x.lineTo(pts[i].x,Yv(pts[i].tot)); } x.closePath(); x.globalAlpha=.42; x.fillStyle=MCOL[2]; x.fill(); x.globalAlpha=1;
+  // línea acumulado
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ i===0?x.moveTo(p.x,Yv(p.tot)):x.lineTo(p.x,Yv(p.tot)); }); x.stroke();
+  pts.forEach(p=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(p.x,Yv(p.tot),1.9,0,6.28); x.fill(); });
+  const last=pts[pts.length-1]; x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(last.x,Yv(last.tot),3.6,0,6.28); x.fill(); x.shadowBlur=0;
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='middle'; x.font='700 13px "Akzidenz-Grotesk",sans-serif'; x.fillText(Math.round(last.tot/cupo*100)+'%', x1+6, Yv(last.tot));
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.fillText('CONSUMIDO', x1+6, Yv(last.tot)+13);
+  x.fillStyle='rgba('+GTXT+',.6)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic';
+  pts.forEach((p,i)=>{ if(n<=12||i%2===0) x.fillText((p.name||'').slice(0,3), p.x, y0+16); });
+  x.textAlign='left'; x.fillStyle='rgba('+GCY+',.9)'; x.fillRect(x0,y1-15,8,8); x.fillText('PRODUCCIÓN', x0+12, y1-8); x.fillStyle=MCOL[2]; x.fillRect(x0+104,y1-15,8,8); x.fillText('INVERSIÓN', x0+116, y1-8);
+  x.textBaseline='alphabetic';
+}
 
 // ── Registro de tableros ──
 const VIZ={
@@ -1381,9 +1408,10 @@ const VIZ={
   icicle:{name:'Concentración de Volumen',desc:'Qué modelos cargan el volumen',render:vizIcicle},
   flow:{name:'Presión sobre el Cupo',desc:'Quién consume el cupo · cuánto queda',render:vizFlow},
   vintree:{name:'Anatomía de la Flota',desc:'De qué se compone la flota',render:vizVin},
+  seguimiento:{name:'Trayectoria del Cupo',desc:'Cómo evoluciona el consumo mes a mes',render:vizSeguimiento},
 };
-const SW_ORDER=['heatmap','icicle','flow','vintree','manh','chord','dendro'];
-const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
+const SW_ORDER=['heatmap','icicle','flow','seguimiento','vintree','manh','chord','dendro'];
+const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',seguimiento:'TRAYECTORIA',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
 
 // ── Tablero (ventanas W-C) ──
 function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
@@ -1598,7 +1626,31 @@ function sigDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const lig
     x.textAlign='left'; x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.92)'; x.fillText(lf.name.slice(0,14),lx+9,lf.y); });
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
-const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord, dendro: sigDendro };
+// #8 Trayectoria: quema del cupo — cifra = % consumido; curva acumulada + proyección de agotamiento
+function sigSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const sg=(V.seguimiento||[]); if(!sg.length){gnd(s);return;}
+  const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0) || (+sg[sg.length-1].cupo_produccion_activo||0)+(+sg[sg.length-1].cupo_inversion_activo||0);
+  if(cupo<=0){gnd(s);return;}
+  const acum=+sg[sg.length-1].acumulado || sg.reduce((a,m)=>a+(+m.consumo_total||0),0);
+  const n=sg.length, pct=Math.round(acum/cupo*100), rate=acum/Math.max(1,n), remain=Math.max(0,cupo-acum), monthsLeft=rate>0?remain/rate:Infinity;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(pct+'%', 20, 48);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('DEL CUPO CONSUMIDO · '+n+' MESES', 20, 65);
+  const pad={l:24,r:26,t:84,b:34}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, Yv=v=>y0-(Math.min(v,cupo)/cupo)*(y0-y1);
+  const dataW=(x1-x0)*0.60, stepX=n>1?dataW/(n-1):20; let cum=0; const pts=sg.map((m,i)=>{ cum+=(+m.consumo_total||0); return {x:x0+i*stepX, v:cum}; });
+  const yTop=Yv(cupo); x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.2; x.beginPath(); x.moveTo(x0,yTop); x.lineTo(x1,yTop); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText('CUPO TOTAL', x0, yTop-5);
+  x.beginPath(); x.moveTo(x0,y0); pts.forEach(p=>x.lineTo(p.x,Yv(p.v))); x.lineTo(pts[pts.length-1].x,y0); x.closePath(); x.fillStyle='rgba('+GCY+',.13)'; x.fill();
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ i===0?x.moveTo(p.x,Yv(p.v)):x.lineTo(p.x,Yv(p.v)); }); x.stroke();
+  const last=pts[pts.length-1];
+  if(isFinite(monthsLeft)&&monthsLeft>0){ const projX=Math.min(x1,last.x+stepX*monthsLeft);
+    x.strokeStyle='rgba('+GCY+',.5)'; x.setLineDash([3,4]); x.lineWidth=1.4; x.beginPath(); x.moveTo(last.x,Yv(last.v)); x.lineTo(projX,yTop); x.stroke(); x.setLineDash([]);
+    x.shadowColor='rgba('+GPINK+',.7)'; x.shadowBlur=9; x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(projX,yTop,3.4,0,6.28); x.fill(); x.shadowBlur=0;
+    const ml=Math.ceil(monthsLeft); x.fillStyle='rgba('+GPINK+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText('AGOTA ~'+ml+' MES'+(ml!=1?'ES':''), projX, yTop-8); }
+  x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.fillStyle='#00D4FF'; x.beginPath(); x.arc(last.x,Yv(last.v),3.6,0,6.28); x.fill(); x.shadowBlur=0;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord, dendro: sigDendro, seguimiento: sigSeguimiento };
 
 // ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
@@ -1690,6 +1742,16 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
        {k:'Marcas segmentadas',v:marcas.length,d:'en el árbol'},{k:'Ejes de perfil',v:'3',d:'estac·J/N·HHI'}],
       '<b>'+near.a+'</b> y <b>'+near.b+'</b> se comportan casi igual: misma estacionalidad, preferencia y mezcla de modelos. <b>'+out.m+'</b> es la más atípica.',
       'Fuente · perfil conductual · distancia euclidiana'); }
+  if(k==='seguimiento'){ const sg=V.seguimiento||[];
+    const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0)||(+((sg[sg.length-1]||{}).cupo_produccion_activo)||0)+(+((sg[sg.length-1]||{}).cupo_inversion_activo)||0);
+    const acum=sg.length?(+sg[sg.length-1].acumulado||sg.reduce((a,m)=>a+(+m.consumo_total||0),0)):0;
+    const n=sg.length, pct=cupo?Math.round(acum/cupo*100):0, rate=n?acum/n:0, remain=Math.max(0,cupo-acum), ml=rate>0?Math.ceil(remain/rate):0;
+    const peak=sg.slice().sort((a,b)=>(+b.consumo_total||0)-(+a.consumo_total||0))[0]||{};
+    return W('¿Cómo evoluciona el consumo del cupo?',
+      [{k:'Consumido',v:pct+'%',d:N(acum)+' de '+N(cupo),t:pct>75?'tel':'acc'},{k:'Ritmo mensual',v:N(rate),d:'unid / mes',t:'sm'},
+       {k:'Mes pico',v:(peak.month_name||'—'),d:N(peak.consumo_total)+' unid',t:'sm'},{k:'Proyección',v:(ml?'~'+ml+' mes'+(ml!=1?'es':''):'—'),d:'para agotar',t:(ml&&ml<=2)?'tel':'sm'}],
+      'Se ha consumido el <b>'+pct+'%</b> del cupo en '+n+' meses (ritmo '+N(rate)+'/mes). Al paso actual el cupo se agota en <b>~'+ml+' mes'+(ml!=1?'es':'')+'</b>.',
+      'Fuente · seguimiento mensual del cupo'); }
   return '<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>';
 }
 
