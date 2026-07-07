@@ -261,6 +261,12 @@
   /* Firma gráfica deep-tech (biomecha · reemplaza las cajas KPI) */
   .solo-sig { position: relative; width: 100%; height: 320px; }
   .solo-sig .win-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* Toggle de medida (conteo ⇄ valor) */
+  .solo-measure { display: flex; align-items: center; gap: 8px; }
+  .solo-measure .sm-l { font-family: var(--font-mono); font-size: .5rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-right: 2px; }
+  .solo-measure .sm-btn { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); background: transparent; border: 1px solid var(--line); padding: 5px 12px; cursor: pointer; }
+  .solo-measure .sm-btn.active { color: var(--acc-text); border-color: var(--acc); background: var(--acc-subtle); }
+  .solo-measure .sm-btn:hover { color: var(--acc-text); }
   /* Readouts de línea (secundarios · sin recuadros) */
   .solo-reads { display: flex; flex-direction: column; }
   .solo-reads .rd { display: flex; align-items: baseline; gap: 14px; padding: 11px 2px; border-top: 1px solid var(--line); }
@@ -1199,6 +1205,11 @@ document.querySelectorAll('.hud-link').forEach(a=>{
 let GCY='0,212,255', GPINK='245,127,156', GTXT='170,170,170', GLEAF='230,230,230';
 const MCOL=['#00D4FF','#A4133C','#7B3FA0','#FFB833','#33CC99','#6699CC'];
 function gnosisVizData(){ try{ return JSON.parse(document.getElementById('viz-data').textContent||'{}'); }catch(e){ return {}; } }
+// ── Medida activa del dashboard de Rutas: conteo ⇄ valor $ ──
+let gnosisMeasure='n';
+function mval(r){ return gnosisMeasure==='valor' ? (+r.valor||0) : (+r.n||0); }
+function fMoney(v){ v=+v||0; if(v>=1e6) return '$'+(v/1e6).toFixed(1)+'M'; if(v>=1e3) return '$'+Math.round(v/1e3)+'k'; return '$'+Math.round(v); }
+function fMeasure(v){ return gnosisMeasure==='valor' ? fMoney(v) : Math.round(v||0).toLocaleString(); }
 function gTheme(){ const light=document.documentElement.getAttribute('data-theme')==='light';
   GCY=light?'0,90,110':'0,212,255'; GPINK=light?'164,19,60':'245,127,156'; GTXT=light?'71,71,71':'170,170,170'; GLEAF=light?'47,47,47':'230,230,230'; return light; }
 function gc(el){ if(!el) return null; const r=el.getBoundingClientRect(); if(!r.width||r.height<2) return null; const dpr=2; el.width=r.width*dpr; el.height=r.height*dpr; const x=el.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,r.width,r.height); return {x,W:r.width,H:r.height}; }
@@ -1223,7 +1234,7 @@ function vizManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=
 }
 // ── 6 · Chord (rutas) ──
 function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const rows=gnosisVizData().flujo||[]; if(!rows.length){gnd(s);return;}
-  const M={},ps=new Set(),ms=new Set(); rows.forEach(r=>{ const p=r.pais||'—',m=r.marca||'—'; ps.add(p); ms.add(m); (M[p]=M[p]||{}); M[p][m]=(M[p][m]||0)+(r.n||0); });
+  const M={},ps=new Set(),ms=new Set(); rows.forEach(r=>{ const p=r.pais||'—',m=r.marca||'—'; ps.add(p); ms.add(m); (M[p]=M[p]||{}); M[p][m]=(M[p][m]||0)+mval(r); });
   let paises=[...ps],marcas=[...ms]; const pt2=p=>marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0), mt=m=>paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0);
   paises=paises.sort((a,b)=>pt2(b)-pt2(a)).slice(0,5); marcas=marcas.sort((a,b)=>mt(b)-mt(a)).slice(0,5);
   const mCol={}; marcas.forEach((m,i)=>mCol[m]=MCOL[i%5]);
@@ -1388,7 +1399,7 @@ function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!
 function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
 
 // ── Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica) ──
-function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); const solo=document.getElementById('gd-solo'); if(!solo||!VIZ[k])return;
+function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); gnosisMeasure='n'; const solo=document.getElementById('gd-solo'); if(!solo||!VIZ[k])return;
   document.getElementById('solo-name').textContent=VIZ[k].name; document.getElementById('solo-desc').textContent=VIZ[k].desc;
   const tag=document.getElementById('solo-viz-tag'); if(tag) tag.textContent=(SW_TAG[k]||'');
   const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){ rb.innerHTML='<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>'; } }
@@ -1400,6 +1411,8 @@ function gnosisSoloRenderAll(){ const solo=document.getElementById('gd-solo'); i
   const cv=document.getElementById('solo-cv'); if(cv&&VIZ[k]){ try{ VIZ[k].render(cv); }catch(e){} }
   const sc=document.getElementById('solo-sig-cv'); if(sc&&SIG[k]){ try{ SIG[k](sc); }catch(e){} } }
 function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
+function gnosisSetMeasure(m){ gnosisMeasure=m; const solo=document.getElementById('gd-solo'); if(!solo)return; const k=solo.dataset.viz;
+  const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){} } gnosisSoloRenderAll(); }
 function gnosisSoloToggle(which){ const read=document.getElementById('solo-read'), viz=document.getElementById('solo-viz'); if(!read||!viz)return;
   const target=which==='read'?read:viz, other=which==='read'?viz:read;
   if(!target.classList.contains('solo-col') && other.classList.contains('solo-col')) return; // no colapsar la última abierta
@@ -1524,20 +1537,20 @@ function sigManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light
 // #6 Rutas: ranking de rutas dominantes (origen ●━━● marca · grosor ∝ volumen · la #1 brilla)
 function sigChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
   const flujo=gnosisVizData().flujo||[]; if(!flujo.length){gnd(s);return;}
-  const M={}; flujo.forEach(r=>{ const key=(r.pais||'—')+'|'+(r.marca||'—'); M[key]=(M[key]||0)+(r.n||0); });
+  const M={}; flujo.forEach(r=>{ const key=(r.pais||'—')+'|'+(r.marca||'—'); M[key]=(M[key]||0)+mval(r); });
   let routes=Object.keys(M).map(k=>{ const i=k.indexOf('|'); return {p:k.slice(0,i), m:k.slice(i+1), n:M[k]}; }).sort((a,b)=>b.n-a.n);
   if(!routes.length){gnd(s);return;} const top=routes.slice(0,6), maxN=top[0].n||1;
   const pad={l:22,r:22,t:74,b:22}, rowH=(H-pad.t-pad.b)/top.length, px=pad.l+86, mx=W-pad.r-96;
   x.textAlign='left'; x.textBaseline='alphabetic';
-  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(top[0].n.toLocaleString(), pad.l, pad.t-26);
-  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('RUTA PRINCIPAL · '+top[0].p.slice(0,10)+' → '+top[0].m.slice(0,10), pad.l, pad.t-9);
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(fMeasure(top[0].n), pad.l, pad.t-26);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('RUTA PRINCIPAL · '+(gnosisMeasure==='valor'?'VALOR':'UNID')+' · '+top[0].p.slice(0,9)+' → '+top[0].m.slice(0,9), pad.l, pad.t-9);
   x.textBaseline='middle';
   top.forEach((rt,i)=>{ const y=pad.t+rowH*(i+0.5), glow=(i===0), col=MCOL[i%6], bandW=Math.max(1.6,(rt.n/maxN)*9);
     x.fillStyle='rgba('+GTXT+',.85)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(rt.p.slice(0,10), px-8, y);
     x.strokeStyle=glow?'rgba('+GCY+',.95)':col; x.globalAlpha=glow?1:.6; x.lineWidth=bandW; if(glow){x.shadowColor='rgba('+GCY+',.7)';x.shadowBlur=8;} x.beginPath(); x.moveTo(px,y); x.lineTo(mx,y); x.stroke(); x.shadowBlur=0; x.globalAlpha=1;
     x.fillStyle=glow?'#00D4FF':col; x.beginPath();x.arc(px,y,3,0,6.28);x.fill(); x.beginPath();x.arc(mx,y,3,0,6.28);x.fill();
     x.textAlign='left'; x.fillStyle=glow?'#00D4FF':'rgba('+GTXT+',.88)'; x.font=(glow?'700 ':'')+'9px "JetBrains Mono",monospace'; x.fillText(rt.m.slice(0,9), mx+8, y);
-    x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText(rt.n.toLocaleString(), mx+8+(Math.min(9,rt.m.length))*7.2, y); });
+    x.fillStyle='rgba('+GTXT+',.5)'; x.font='8px "JetBrains Mono",monospace'; x.fillText(fMeasure(rt.n), mx+8+(Math.min(9,rt.m.length))*7.2, y); });
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
 // #7 Segmentación: dendrograma con corte natural — el mayor salto de fusión define nº de clústeres; cada grupo se colorea y la costura brilla
@@ -1647,15 +1660,19 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
        {k:'Mayor dispersión',v:maxP,d:'CV '+maxCv.toFixed(2),t:'sm'},{k:'Umbral',v:'3σ',d:'z-score'}],
       anom? '<b>'+anom+' registros</b> superan el umbral de 3σ — conviene inspeccionarlos como posible error de captura.' : 'Ningún registro supera 3σ: el volumen diario es <b>estable</b>, sin picos anómalos.',
       'Fuente · serie diaria · z-score por país'); }
-  if(k==='chord'){ const flujo=V.flujo||[]; const M={}, pais={}; let best={p:'—',m:'—',n:0}; const orig={};
-    flujo.forEach(r=>{ const p=r.pais||'—',mk=r.marca||'—',n=r.n||0; const key=p+'|'+mk; M[key]=(M[key]||0)+n; pais[p]=(pais[p]||0)+n; (orig[mk]=orig[mk]||new Set()).add(p); if(M[key]>best.n) best={p,m:mk,n:M[key]}; });
+  if(k==='chord'){ const flujo=V.flujo||[]; const M={}, pais={}; let best={p:'—',m:'—',n:0}; const orig={}; let gtot=0;
+    const money=gnosisMeasure==='valor', unit=money?'valor':'unid', fmt=v=>money?fMoney(v):N(v);
+    flujo.forEach(r=>{ const p=r.pais||'—',mk=r.marca||'—',v=mval(r); const key=p+'|'+mk; M[key]=(M[key]||0)+v; pais[p]=(pais[p]||0)+v; gtot+=v; (orig[mk]=orig[mk]||new Set()).add(p); if(M[key]>best.n) best={p,m:mk,n:M[key]}; });
     const tp=Object.keys(pais).sort((a,b)=>pais[b]-pais[a])[0]||'—';
     const multi=Object.keys(orig).map(m=>({m,c:orig[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
-    return W('¿Cómo fluye origen → marca?',
-      [{k:'Ruta principal',v:best.p+' → '+best.m,d:N(best.n)+' unid',t:'acc sm'},{k:'Origen dominante',v:tp,d:N(pais[tp])+' unid',t:'sm'},
-       {k:'Multi-origen',v:multi.m,d:multi.c+' países',t:'sm'},{k:'Rutas activas',v:Object.keys(M).length,d:'país × marca'}],
-      'La ruta <b>'+best.p+' → '+best.m+'</b> es la más cargada ('+N(best.n)+'). <b>'+multi.m+'</b> se importa desde '+multi.c+' orígenes distintos.',
-      'Fuente · flujo país × marca'); }
+    const toggle='<div class="solo-measure"><span class="sm-l">Medida</span>'
+      +'<button class="sm-btn'+(money?'':' active')+'" onclick="gnosisSetMeasure(\'n\')">Conteo</button>'
+      +'<button class="sm-btn'+(money?' active':'')+'" onclick="gnosisSetMeasure(\'valor\')">Valor $</button></div>';
+    return toggle + W((money?'¿Qué rutas mueven más valor?':'¿Cómo fluye origen → marca?'),
+      [{k:'Ruta principal',v:best.p+' → '+best.m,d:fmt(best.n)+' '+unit,t:'acc sm'},{k:(money?'Origen $ dominante':'Origen dominante'),v:tp,d:fmt(pais[tp])+' '+unit,t:'sm'},
+       {k:'Multi-origen',v:multi.m,d:multi.c+' países',t:'sm'},(money?{k:'Valor total',v:fMoney(gtot),d:'importado',t:'acc'}:{k:'Rutas activas',v:Object.keys(M).length,d:'país × marca'})],
+      'La ruta <b>'+best.p+' → '+best.m+'</b> es la más '+(money?'valiosa':'cargada')+' ('+fmt(best.n)+' '+unit+'). <b>'+multi.m+'</b> se importa desde '+multi.c+' orígenes distintos.',
+      'Fuente · flujo país × marca'+(money?' · $ = Σ precio':'')); }
   if(k==='dendro'){ const pm=(V.por_marca||[]).filter(r=>r.nombre); const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
     let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre);
     const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
