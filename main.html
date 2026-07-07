@@ -1558,7 +1558,25 @@ function sigIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const lig
   show.slice(0,4).forEach((m,i)=>{ x.save(); x.translate(x0+i*bw+bw/2, y0+8); x.rotate(-Math.PI/4); x.textAlign='right'; x.fillText(m.t.slice(0,9), 0, 0); x.restore(); });
   x.textAlign='left'; x.textBaseline='alphabetic';
 }
-const SIG = { heatmap: sigHeatmap, icicle: sigIcicle };  // se irá ampliando dashboard por dashboard
+// #3 Presión sobre el Cupo: medidor/tanque vertical (nivel = % disponible · umbral crítico · severidad por color)
+function sigFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
+  const pct=cupo.ini?Math.max(0,Math.min(1,cupo.sal/cupo.ini)):0.4, P=Math.round(pct*100);
+  const crit=P<25, col=crit?GPINK:GCY;
+  const gw=62, gx=W*0.20-gw/2, gy=H*0.13, gh=H*0.74;
+  x.font='8px "JetBrains Mono",monospace'; x.textAlign='right'; x.textBaseline='middle'; x.strokeStyle='rgba('+GTXT+',.22)';
+  for(let t=0;t<=100;t+=25){ const yy=gy+gh*(1-t/100); x.beginPath(); x.moveTo(gx-4,yy); x.lineTo(gx,yy); x.stroke(); x.fillStyle='rgba('+GTXT+',.45)'; x.fillText(t+'', gx-8, yy); }
+  x.strokeStyle='rgba('+col+',.7)'; x.lineWidth=1.4; x.strokeRect(gx,gy,gw,gh);
+  const fh=gh*pct; x.fillStyle='rgba('+col+',.22)'; x.fillRect(gx+1, gy+gh-fh+1, gw-2, Math.max(0,fh-2));
+  x.strokeStyle='rgba('+col+',1)'; x.lineWidth=2; x.shadowColor='rgba('+col+',.9)'; x.shadowBlur=12; x.beginPath(); x.moveTo(gx+1, gy+gh-fh); x.lineTo(gx+gw-1, gy+gh-fh); x.stroke(); x.shadowBlur=0;
+  const thY=gy+gh*(1-0.25); x.strokeStyle='rgba('+GPINK+',.8)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(gx-2,thY); x.lineTo(gx+gw+2,thY); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.fillText('UMBRAL 25%', gx+gw+8, thY);
+  x.fillStyle=crit?'rgba('+GPINK+',1)':(light?'#005A6E':'#FFFFFF');
+  x.font='700 '+Math.round(H*0.28)+'px "AkzidenzGroteskPro-Bold","Helvetica Neue",sans-serif'; x.textBaseline='alphabetic'; x.fillText(P+'%', W*0.44, H*0.50);
+  x.fillStyle='rgba('+GTXT+',.6)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('DEL CUPO DISPONIBLE', W*0.44, H*0.50+18);
+  x.fillStyle='rgba('+GTXT+',.5)'; x.fillText('SALDO · '+Math.round(cupo.sal).toLocaleString(), W*0.44, H*0.50+34);
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow };  // se irá ampliando dashboard por dashboard
 
 // ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
 function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
@@ -1591,7 +1609,7 @@ function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0)
     const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
     const pct=cupo.ini?Math.round(cupo.sal/cupo.ini*100):0;
     return W('¿Quién consume el cupo y cuánto queda?',
-      [{k:'Disponible',v:pct+'%',d:N(cupo.sal)+' saldo',t:pct<25?'tel':(pct<50?'warn':'acc')},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
+      [{k:'Disponible',v:pct+'%',d:N(cupo.sal)+' saldo',t:pct<25?'tel':'acc'},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
        {k:'Consumo N',v:N(totN),d:'sin preferencia'},{k:'Cupo inicial',v:N(cupo.ini),d:'asignado'}],
       '<b>'+top.m+'</b> es la mayor presión sobre el cupo con '+N(top.n)+' unidades sin preferencia. Queda el <b>'+pct+'%</b> del cupo disponible.',
       'Fuente · flujo N × cupos de la sesión'); }
