@@ -161,6 +161,14 @@
   .gd-tcard { background: var(--surface); }
   .gd-tcard .th { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 12px 16px; border-bottom: 1px solid var(--line); }
   .gd-tcard tr.gd-trtot td { border-top: 1px solid var(--acc); color: var(--acc-text); font-weight: 700; }
+  /* Desglose de tipos de error (consola Áreas) */
+  .err-types { margin: 0 0 1rem; border: 1px solid var(--line); }
+  .err-types .et-h { font-family: var(--font-mono); font-size: .55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .err-types .et-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+  .err-types .et-k { flex: 0 0 42%; font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .err-types .et-bar { flex: 1 1 auto; height: 6px; background: var(--surface-2); position: relative; }
+  .err-types .et-bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--telos-on); }
+  .err-types .et-v { flex: 0 0 auto; font-family: var(--font-mono); font-size: .65rem; color: var(--telos-on); min-width: 26px; text-align: right; }
   .gd-downloads { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
   .gd-empty { padding: 120px 0; text-align: center; }
   .gd-empty .t { font-family: var(--font-d); font-weight: 700; font-size: 2rem; color: var(--t1); }
@@ -673,6 +681,18 @@
         </a>
       </div>
       <p class="panel-desc" id="errores-desc" {% if errores_count == 0 %}style="display:none"{% endif %}>Descarga el PDF, corrígelo y súbelo de nuevo con el botón ↑.</p>
+
+      <!-- Desglose por tipo de error (frontend-only · desde la lista ya renderizada) -->
+      <div id="err-types" class="err-types" {% if errores_count == 0 %}style="display:none"{% endif %}></div>
+      <script type="application/json" id="err-types-data">{{ errores | map(attribute='error_type') | list | tojson }}</script>
+      <script>(function(){ var el=document.getElementById('err-types'); var data;
+        try{ data=JSON.parse(document.getElementById('err-types-data').textContent||'[]'); }catch(e){ data=[]; }
+        if(!el||!data.length){ if(el) el.style.display='none'; return; }
+        var c={}; data.forEach(function(t){ t=(t||'sin_tipo'); c[t]=(c[t]||0)+1; });
+        var rows=Object.keys(c).map(function(k){return {k:k,n:c[k]};}).sort(function(a,b){return b.n-a.n;}); var max=rows[0].n||1;
+        var h='<div class="et-h">Tipos de error · '+data.length+' registro'+(data.length!=1?'s':'')+'</div>';
+        rows.forEach(function(r){ h+='<div class="et-row"><span class="et-k" title="'+r.k+'">'+r.k.replace(/_/g,' ')+'</span><span class="et-bar"><span style="width:'+(r.n/max*100)+'%"></span></span><span class="et-v">'+r.n+'</span></div>'; });
+        el.innerHTML=h; })();</script>
 
       <div id="errores-success-banner" style="display:none;background:var(--acc-subtle);color:var(--acc-text);border:1px solid var(--acc);padding:0.6rem 0.8rem;border-radius:2px;font-size:0.85rem;">
         ✓ Todos los errores resueltos
