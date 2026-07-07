@@ -203,7 +203,7 @@ def dashboard():
         has_graphs=False, has_zip=False, has_historico_zip=False,
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
-        viz_data={},
+        viz_data={}, data={},
     )
 
     try:
@@ -367,6 +367,7 @@ def dashboard():
             errores=errores,
             session_id=sid,
             viz_data=viz_data,
+            data=session.get('data', {}),
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")

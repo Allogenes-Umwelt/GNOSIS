@@ -157,9 +157,10 @@
   .gd-ex canvas { display: block; width: 100%; margin-top: 12px; }
   .gd-ex2 { display: grid; grid-template-columns: 1fr 1fr; }
   .gd-ex2 .gd-ex:first-child { border-right: 1px solid var(--line); }
-  .gd-tables { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 24px; }
+  .gd-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 24px; }
   .gd-tcard { background: var(--surface); }
   .gd-tcard .th { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .gd-tcard tr.gd-trtot td { border-top: 1px solid var(--acc); color: var(--acc-text); font-weight: 700; }
   .gd-downloads { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
   .gd-empty { padding: 120px 0; text-align: center; }
   .gd-empty .t { font-family: var(--font-d); font-weight: 700; font-size: 2rem; color: var(--t1); }
@@ -363,6 +364,17 @@
       <div class="gd-tcard"><div class="th">Por Marca</div><table class="table table-hover mb-0"><tbody>{% for item in por_marca %}<tr><td>{{ item.nombre }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
       <div class="gd-tcard"><div class="th">Por País</div><table class="table table-hover mb-0"><tbody>{% for item in por_pais %}<tr><td>{{ item.pais_nombre or item.pais_code }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
       <div class="gd-tcard"><div class="th">Preferencia Arancelaria</div><table class="table table-hover mb-0"><tbody>{% for item in por_jyn %}<tr><td>{{ 'Con pref. (J)' if item.j_y_n == 'J' else 'Sin pref. (N)' if item.j_y_n == 'N' else item.j_y_n or 'Sin dato' }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      {% if data and data.get('SUMA TODAS LAS MARCAS SIN ORIGEN') is not none %}
+      <div class="gd-tcard"><div class="th">Marcas sin Origen</div><table class="table table-hover mb-0"><tbody>
+        <tr><td>Audi</td><td>{{ "{:,}".format(data.get('Audi', 0)) }}</td></tr>
+        <tr><td>Porsche</td><td>{{ "{:,}".format(data.get('Porsche', 0)) }}</td></tr>
+        <tr><td>Seat</td><td>{{ "{:,}".format(data.get('Seat', 0)) }}</td></tr>
+        <tr><td>Bentley</td><td>{{ "{:,}".format(data.get('Bentley', 0)) }}</td></tr>
+        <tr><td>VW Comerciales</td><td>{{ "{:,}".format(data.get('Volkswagen (Vehiculos Comerciales)', 0)) }}</td></tr>
+        <tr><td>India</td><td>{{ "{:,}".format(data.get('India', 0)) }}</td></tr>
+        <tr class="gd-trtot"><td>Suma sin origen</td><td>{{ "{:,}".format(data.get('SUMA TODAS LAS MARCAS SIN ORIGEN', 0)) }}</td></tr>
+      </tbody></table></div>
+      {% endif %}
     </div>
 
     <div class="gd-downloads">
