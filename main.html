@@ -25,7 +25,7 @@
   .gd-meta .mv { font-family: var(--font-b); font-size: .75rem; font-weight: 700; letter-spacing: 1px; color: var(--t1); text-transform: uppercase; }
   .gd-graphic { display: flex; justify-content: flex-end; align-items: center; }
   .gd-sel { background: var(--surface-2); color: var(--t1); border: 1px solid var(--line); border-radius: 0; padding: 8px 12px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 1px; }
-  .gd-panel { padding: 0; background: rgba(10,10,10,.5); }
+  .gd-panel { padding: 0; background: transparent; }
   .gd-dh { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
   .gd-dh .l { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
   .gd-dh .l b { color: var(--acc-text); }
@@ -106,11 +106,11 @@
       <div class="gd-ex">
         <div class="gd-ex-t">Mapa de Anomalías // Validación de Registros</div>
         <div class="gd-ex-s">Densidad por país · Eje Y: Z-score de volumen diario · Umbral 3σ</div>
-        <canvas id="ex-manhattan" height="280"></canvas>
+        <canvas id="ex-manhattan" data-h="280" height="280"></canvas>
       </div>
       <div class="gd-ex2">
-        <div class="gd-ex"><div class="gd-ex-t">Flujos de Importación // País → Marca</div><div class="gd-ex-s">Cruce origen × marca · ancho = volumen</div><canvas id="ex-chord" height="340"></canvas></div>
-        <div class="gd-ex"><div class="gd-ex-t">Taxonomía de Marcas // Sector Automotriz</div><div class="gd-ex-s">Agrupamiento por volumen · distancia = disimilitud</div><canvas id="ex-dendro" height="340"></canvas></div>
+        <div class="gd-ex"><div class="gd-ex-t">Flujos de Importación // País → Marca</div><div class="gd-ex-s">Cruce origen × marca · ancho = volumen</div><canvas id="ex-chord" data-h="340" height="340"></canvas></div>
+        <div class="gd-ex"><div class="gd-ex-t">Taxonomía de Marcas // Sector Automotriz</div><div class="gd-ex-s">Agrupamiento por volumen · distancia = disimilitud</div><canvas id="ex-dendro" data-h="340" height="340"></canvas></div>
       </div>
     </div>
 
@@ -1035,11 +1035,18 @@ document.querySelectorAll('.hud-link').forEach(a=>{
 });
 
 // ═══════════ GNOSIS · exhibits deep-tech (canvas · #viz-data) ═══════════
-const GCY='0,212,255';
+let GCY='0,212,255', GPINK='245,127,156', GTXT='170,170,170', GLEAF='230,230,230';
 function gnosisVizData(){ try{ return JSON.parse(document.getElementById('viz-data').textContent||'{}'); }catch(e){ return {}; } }
-function gnosisRenderExhibits(){ const V=gnosisVizData(); gnosisManhattan(V.serie_diaria||[]); gnosisChord(V.flujo||[]); gnosisDendro(V.por_marca||[]); }
-function gSetup(id){ const c=document.getElementById(id); if(!c) return null; const r=c.getBoundingClientRect(); if(!r.width) return null; const h=+c.getAttribute('height')||300, dpr=2; c.width=r.width*dpr; c.height=h*dpr; const x=c.getContext('2d'); x.scale(dpr,dpr); return {x,W:r.width,H:h}; }
-function gNoData(s){ if(!s) return; const {x,W,H}=s; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba(170,170,170,0.5)'; x.textAlign='center'; x.fillText('SIN DATOS SUFICIENTES',W/2,H/2); x.textAlign='left'; }
+function gnosisRenderExhibits(){
+  const light=document.documentElement.getAttribute('data-theme')==='light';
+  GCY   = light ? '0,90,110'   : '0,212,255';
+  GPINK = light ? '164,19,60'  : '245,127,156';
+  GTXT  = light ? '71,71,71'   : '170,170,170';
+  GLEAF = light ? '47,47,47'   : '230,230,230';
+  const V=gnosisVizData(); gnosisManhattan(V.serie_diaria||[]); gnosisChord(V.flujo||[]); gnosisDendro(V.por_marca||[]);
+}
+function gSetup(id){ const c=document.getElementById(id); if(!c) return null; const r=c.getBoundingClientRect(); if(!r.width) return null; const h=+c.getAttribute('data-h')||300, dpr=2; c.style.height=h+'px'; c.width=r.width*dpr; c.height=h*dpr; const x=c.getContext('2d'); x.scale(dpr,dpr); return {x,W:r.width,H:h}; }
+function gNoData(s){ if(!s) return; const {x,W,H}=s; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.5)'; x.textAlign='center'; x.fillText('SIN DATOS SUFICIENTES',W/2,H/2); x.textAlign='left'; }
 
 function gnosisManhattan(rows){
   const s=gSetup('ex-manhattan'); if(!s) return; const {x,W,H}=s;
@@ -1048,17 +1055,17 @@ function gnosisManhattan(rows){
   let paises=Object.keys(byPais).sort((a,b)=>byPais[b].reduce((x,y)=>x+y,0)-byPais[a].reduce((x,y)=>x+y,0));
   if(paises.length>8) paises=paises.slice(0,8);
   const pad={l:16,r:16,t:24,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22;
-  x.strokeStyle='rgba(245,127,156,0.7)'; x.setLineDash([5,5]); x.beginPath(); x.moveTo(pad.l,thY); x.lineTo(W-pad.r,thY); x.stroke(); x.setLineDash([]);
-  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba(245,127,156,0.9)'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
+  x.strokeStyle='rgba('+GPINK+',0.7)'; x.setLineDash([5,5]); x.beginPath(); x.moveTo(pad.l,thY); x.lineTo(W-pad.r,thY); x.stroke(); x.setLineDash([]);
+  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GPINK+',0.95)'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
   paises.forEach((p,i)=>{
     const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length;
     const sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1;
     const cx0=pad.l+i*bw, op=(i%2)?0.5:0.85;
     arr.forEach(v=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+Math.random()*(bw-16), anom=z>3;
-      x.fillStyle=anom?'#FF80AA':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')';
+      x.fillStyle=anom?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+Math.random()*0.45))+')';
       x.beginPath(); x.arc(px,yy,anom?3.2:1.5,0,6.28); x.fill();
-      if(anom){ x.strokeStyle='rgba(255,128,170,0.5)'; x.beginPath(); x.arc(px,yy,7,0,6.28); x.stroke(); } });
-    x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba(170,170,170,0.9)'; x.textAlign='center'; x.fillText((p||'').slice(0,10).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left';
+      if(anom){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,7,0,6.28); x.stroke(); } });
+    x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.95)'; x.textAlign='center'; x.fillText((p||'').slice(0,10).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left';
   });
 }
 
@@ -1080,7 +1087,7 @@ function gnosisChord(rows){
   seg.forEach(g=>{ const span=g.val*scale; g.a0=a; g.a1=a+span; pos[g.name]={cur:a}; const col=g.type==='m'?mCol[g.name]:'#6699CC';
     x.strokeStyle=col; x.lineWidth=6; x.beginPath(); x.arc(cx,cy,R,g.a0,g.a1); x.stroke();
     const mid=(g.a0+g.a1)/2, lr=R+14+(g.val<tot*0.045?13:0), lx=cx+Math.cos(mid)*lr, ly=cy+Math.sin(mid)*lr;
-    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba(200,200,200,.9)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly);
+    x.font='9px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba('+GTXT+',0.95)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly);
     a=g.a1+gap; });
   const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
   paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
@@ -1112,13 +1119,15 @@ function gnosisDendro(rows){
     x.beginPath(); x.moveTo(nx,Math.min(...ys)); x.lineTo(nx,Math.max(...ys)); x.stroke(); nd.y=(Math.min(...ys)+Math.max(...ys))/2; return nd.y; })(root);
   x.textBaseline='middle';
   leaves.forEach(lf=>{ x.fillStyle='#00D4FF'; x.beginPath(); x.arc(lx,lf.y,2.6,0,6.28); x.fill();
-    const nm=lf.name.slice(0,12); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba(230,230,230,.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
-    x.fillStyle='rgba(150,150,150,.8)'; x.fillText('· '+(lf.total||0).toLocaleString(),lx+10+nm.length*7.4,lf.y); });
-  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba(150,150,150,.7)'; x.textBaseline='alphabetic';
+    const nm=lf.name.slice(0,12); x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+10,lf.y);
+    x.fillStyle='rgba('+GTXT+',.85)'; x.fillText('· '+(lf.total||0).toLocaleString(),lx+10+nm.length*7.4,lf.y); });
+  x.font='9px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.75)'; x.textBaseline='alphabetic';
   x.fillText('VOLUMEN',pad.l,pad.t-14); x.fillText('PREMIUM',pad.l,H-8);
 }
 
 if(document.getElementById('ex-manhattan')) gnosisRenderExhibits();
 window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('ex-manhattan')) gnosisRenderExhibits(); });
+// Re-render exhibits (theme-aware colors) when the mode toggle flips
+(function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(function(){ if(document.getElementById('ex-manhattan') && !document.body.classList.contains('tool-active')) gnosisRenderExhibits(); }, 60); }); })();
 </script>
 {% endblock %}
