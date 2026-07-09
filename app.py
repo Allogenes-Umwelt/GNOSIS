@@ -199,10 +199,11 @@ def dashboard():
         empty=True, sessions=[], current_session=None,
         stats={'total_importaciones': 0, 'total_extraccion': 0,
                'total_faltantes': 0, 'total_errores': 0},
-        por_marca=[], por_pais=[], por_jyn=[],
+        por_marca=[], por_pais=[], por_jyn=[], por_aduana=[], por_fraccion=[], por_moneda=[],
         has_graphs=False, has_zip=False, has_historico_zip=False,
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
+        viz_data={}, data={},
     )
 
     try:
@@ -282,6 +283,90 @@ def dashboard():
             "SELECT j_y_n, COUNT(*) as total FROM importaciones WHERE session_id = ? GROUP BY j_y_n",
             (session_id,)).fetchall()]
 
+        # ── Desgloses adicionales (read-only · no fatales): aduana, fracción arancelaria, moneda ──
+        try:
+            por_aduana = [dict(r) for r in conn.execute(
+                "SELECT aduana, COUNT(*) as total FROM pedimentos WHERE session_id = ? AND aduana IS NOT NULL AND aduana != '' GROUP BY aduana ORDER BY total DESC",
+                (session_id,)).fetchall()]
+        except Exception: por_aduana = []
+        try:
+            por_fraccion = [dict(r) for r in conn.execute(
+                """SELECT c.fraccion, COUNT(*) as total FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   WHERE i.session_id = ? AND c.fraccion IS NOT NULL AND c.fraccion != ''
+                   GROUP BY c.fraccion ORDER BY total DESC LIMIT 12""",
+                (session_id,)).fetchall()]
+        except Exception: por_fraccion = []
+        try:
+            por_moneda = [dict(r) for r in conn.execute(
+                "SELECT COALESCE(NULLIF(moneda,''),'—') as moneda, COUNT(*) as total FROM extraccion_facturas WHERE session_id = ? GROUP BY moneda ORDER BY total DESC",
+                (session_id,)).fetchall()]
+        except Exception: por_moneda = []
+
+        # ── GNOSIS deep-tech viz data contract (read-only aggregations · Decisión 1A) ──
+        # Solo lectura; si algo falla, el dashboard sigue renderizando sin viz_data.
+        viz_data = {}
+        try:
+            # Flujo país × marca × preferencia (+ valor) — chord / flow-to-reservoir
+            viz_data['flujo'] = [dict(r) for r in conn.execute(
+                """SELECT COALESCE(p.nombre, i.pais_code) AS pais, m.nombre AS marca,
+                          i.j_y_n AS jn, COUNT(*) AS n, COALESCE(SUM(i.precio), 0) AS valor
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   LEFT JOIN paises p ON i.pais_code = p.codigo
+                   WHERE i.session_id = ? GROUP BY pais, marca, jn""",
+                (session_id,)).fetchall()]
+
+            # Serie diaria por marca y país — Manhattan (z-score) + heatmap marca×mes
+            viz_data['serie_diaria'] = [dict(r) for r in conn.execute(
+                """SELECT substr(i.fecha_factura, 1, 8) AS fecha, m.nombre AS marca,
+                          COALESCE(p.nombre, i.pais_code) AS pais, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   LEFT JOIN paises p ON i.pais_code = p.codigo
+                   WHERE i.session_id = ? AND i.fecha_factura IS NOT NULL
+                   GROUP BY fecha, marca, pais""",
+                (session_id,)).fetchall()]
+
+            # Jerarquía marca → modelo (tipo) — icicle / dendrograma
+            viz_data['jerarquia_modelo'] = [dict(r) for r in conn.execute(
+                """SELECT m.nombre AS marca, c.tipo AS tipo, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   WHERE i.session_id = ? GROUP BY marca, tipo""",
+                (session_id,)).fetchall()]
+
+            # Cupos — reservorio (flow-to-reservoir / waterfall)
+            viz_data['cupo'] = [dict(r) for r in conn.execute(
+                """SELECT tipo, cantidad_inicial, cantidad_consumida, cantidad_saldo
+                   FROM cupos WHERE session_id = ?""",
+                (session_id,)).fetchall()]
+
+            # Flota por código/VIN — árbol circular VIN (T1)
+            viz_data['flota'] = [dict(r) for r in conn.execute(
+                """SELECT i.auto_code AS auto, c.tipo AS tipo, m.nombre AS marca, COUNT(*) AS n
+                   FROM importaciones i
+                   JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+                   JOIN marcas m ON c.marca_id = m.id
+                   WHERE i.session_id = ? AND i.auto_code IS NOT NULL
+                   GROUP BY i.auto_code, c.tipo, m.nombre""",
+                (session_id,)).fetchall()]
+
+            # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
+            viz_data['por_marca'] = por_marca
+
+            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4
+            viz_data['seguimiento'] = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            # Agotamientos de cupo (transiciones prod + inv) — read-only, para marcar en la trayectoria
+            viz_data['agotamientos'] = (session.get('data', {}).get('TRANSICIONES_PRODUCCION', []) or []) \
+                + (session.get('data', {}).get('TRANSICIONES_INVERSION', []) or [])
+        except Exception as _e:
+            print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
+            viz_data = {}
+
         conn.close()
 
         graphs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'plotly_graphs')
@@ -299,6 +384,9 @@ def dashboard():
             por_marca=por_marca,
             por_pais=por_pais,
             por_jyn=por_jyn,
+            por_aduana=por_aduana,
+            por_fraccion=por_fraccion,
+            por_moneda=por_moneda,
             has_graphs=has_graphs,
             has_zip=has_zip,
             has_historico_zip=has_historico_zip,
@@ -307,6 +395,8 @@ def dashboard():
             errores_count=errores_count,
             errores=errores,
             session_id=sid,
+            viz_data=viz_data,
+            data=session.get('data', {}),
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")

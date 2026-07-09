@@ -5,66 +5,568 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
 <style>
-  /* Lock viewport — no outer scroll */
-  html, body { height: 100%; overflow: hidden; }
   body { align-items: stretch; text-align: left; }
-  main { max-width: 100% !important; padding: 0 !important; flex: 1; overflow: hidden; display: flex; min-height: 0; }
-  /* App shell fills remaining height exactly */
-  .app-shell { height: 100%; }
+  main { max-width: 100% !important; padding: 0 !important; }
+
+  /* ═══ Vista TOOL · Consola ÁREAS (HUD + paneles colapsables W-C) ═══ */
+  body.tool-active, body.tool-active html { height: 100%; overflow: hidden; }
+  body.tool-active main { flex: 1; overflow: hidden; display: flex; min-height: 0; }
+  body.tool-active #gnosis-tool { flex: 1 1 auto; min-width: 0; display: flex; }  /* llenar el main (antes se encogía a su contenido → banda blanca a la derecha) */
+  .app-shell { display: flex; width: 100%; height: calc(100vh - 65px); overflow: hidden; grid-template-columns: none; }
+  .app-shell .col-nav { flex: 0 0 240px; }
+  .app-shell .col-chat { flex: 1 1 auto; min-width: 0; }
+  .app-shell .col-panel { flex: 0 0 402px; }
+  .app-shell .col-nav, .app-shell .col-chat, .app-shell .col-panel { position: relative; min-height: 0; transition: flex-basis .34s cubic-bezier(.4,0,.2,1); }
+  .col-nav.axc-collapsed, .col-panel.axc-collapsed { flex-basis: 56px !important; }
+
+  /* Cabecera de columna + colapso */
+  .axc-head { display: flex; align-items: center; gap: 8px; padding: 0 14px 0 20px; min-height: 53px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .axc-head .mono-label { color: var(--t2); } .axc-head .mono-label b { color: var(--acc-text); }
+  .axc-x { margin-left: auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; cursor: pointer; font-size: .7rem; transition: .15s; }
+  .axc-x:hover { border-color: var(--acc); color: var(--acc-text); }
+  .axc-rail { display: none; flex: 1; align-items: center; justify-content: center; cursor: pointer; }
+  .axc-rail span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t3); }
+  .axc-rail:hover span { color: var(--acc-text); }
+  .axc-collapsed .axc-body, .axc-collapsed .axc-foot, .axc-collapsed .axc-head .mono-label { display: none; }
+  .axc-collapsed .axc-rail { display: flex; }
+  .axc-collapsed .axc-head { justify-content: center; padding: 0; }
+
+  /* COL NAV */
+  .app-shell .col-nav { background: var(--bg); border-right: 1px solid var(--line); padding: 0; overflow: hidden; }
+  .col-nav .col-nav-title { display: none; }
+  .axc-nav { padding: 8px 0; overflow-y: auto; }
+  .app-shell .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; background: transparent; border: none; border-left: 2px solid transparent; border-radius: 0; padding: 13px 20px; margin: 0; cursor: pointer; font-family: var(--font-b); font-weight: 700; font-size: .8rem; letter-spacing: .5px; color: var(--t2); transition: color .15s, background .15s; }
+  .app-shell .nav-item:hover { color: var(--t1); background: var(--surface); }
+  .app-shell .nav-item.active { color: var(--acc-text); border-left-color: var(--acc); background: var(--acc-subtle); font-weight: 700; }
+  .nav-item .axi-idx { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; color: var(--t3); }
+  .nav-item.active .axi-idx { color: var(--acc-text); }
+  .nav-item .nav-label { flex: 1; line-height: 1.2; }
+  .app-shell .nav-badge { background: transparent; color: var(--telos-on); border: 1px solid var(--telos-on); font-family: var(--font-mono); font-size: .5625rem; font-weight: 700; letter-spacing: 1px; border-radius: 0; padding: 2px 6px; margin-left: 6px; }
+  .axc-foot { margin-top: auto; padding: 16px 20px; border-top: 1px solid var(--line); flex: 0 0 auto; }
+  .axc-stat { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); padding: 4px 0; }
+  .axc-stat b { color: var(--t1); }
+
+  /* COL CHAT — cabecera HUD */
+  .app-shell .col-chat { border-right: none; background: var(--bg); }
+  .col-chat .chat-wrapper { height: 100%; }
+  .col-chat .chat-header { padding: 0 22px; min-height: 53px; background: transparent; border-bottom: 1px solid var(--line); }
+  .col-chat .chat-header h2 { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .col-chat .chat-header h2 b { color: var(--acc-text); }
+  .col-chat .chat-header .status-dot { width: 7px; height: 7px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
+  .col-chat .chat-messages { background: transparent; padding: 24px; }
+  .col-chat .suggestions { background: transparent; padding: 0 24px 4px; }
+  .col-chat .suggestion-btn { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px; padding: 8px 12px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: .5px; }
+  .col-chat .suggestion-btn::before { content: '›'; color: var(--acc-text); font-family: var(--font-b); }
+  .col-chat .suggestion-btn:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
+
+  /* TERMINAL input */
+  .col-chat .chat-input-area { display: block; padding: 0 22px 22px; background: transparent; border-top: none; }
+  .axt { border: 1px solid var(--line); background: var(--surface-2); position: relative; }
+  .axt::before, .axt::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; opacity: .7; }
+  .axt::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
+  .axt::after { bottom: 5px; right: 5px; border-width: 0 1px 1px 0; }
+  .axt:focus-within { border-color: var(--acc); }
+  .axt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--line); }
+  .axt-head .l { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .axt-head .l b { color: var(--acc-text); }
+  .axt-head .r { font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
+  .axt-line { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; }
+  .axt-prompt { font-family: var(--font-mono); font-size: .85rem; color: var(--acc-text); white-space: nowrap; padding-top: 2px; text-shadow: 0 0 10px rgba(0,212,255,.35); }
+  .axt-caret { width: 8px; height: 17px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); animation: axblink 1.1s step-end infinite; flex: 0 0 auto; margin-top: 2px; }
+  .axt.axt-typing .axt-caret { display: none; }
+  @keyframes axblink { 0%,55%{opacity:1} 56%,100%{opacity:0} }
+  .col-chat .chat-input-area textarea#chatInput { flex: 1; background: transparent; border: none; border-radius: 0; outline: none; resize: none; color: var(--t1); font-family: var(--font-mono); font-size: .85rem; line-height: 1.5; caret-color: var(--acc-solid); padding: 0; min-height: 19px; max-height: 120px; }
+  .col-chat .chat-input-area textarea#chatInput:focus { border: none; }
+  .col-chat .chat-input-area .btn-send { align-self: stretch; background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; padding: 0 16px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; display: flex; align-items: center; gap: 7px; }
+  .col-chat .chat-input-area .btn-send:hover { background: var(--acc-subtle); }
+  .col-chat .token-counter { padding: 8px 24px 0; }
+
+  /* COL PANEL */
+  .app-shell .col-panel { background: var(--bg); border-left: 1px solid var(--line); overflow: hidden; }
+  .col-panel .axc-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; }
+  .col-panel .panel { padding: 24px; }
+  .col-panel .panel-title { font-family: var(--font-d); font-weight: 700; font-size: 1.35rem; letter-spacing: .3px; color: var(--t1); }
+  .col-panel .panel-desc { font-family: var(--font-b); font-size: .8rem; line-height: 1.6; color: var(--t2); }
+  .col-panel .upload-label { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .col-panel .file-drop { position: relative; border: 1px solid var(--line); border-radius: 0; background: var(--surface); padding: 24px 18px; text-align: center; cursor: pointer; transition: .15s; }
+  .col-panel .file-drop::before { content: '[ + ]'; display: block; font-family: var(--font-mono); font-size: 1.05rem; letter-spacing: 2px; color: var(--acc-text); margin-bottom: 7px; }
+  .col-panel .file-drop span { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .col-panel .file-drop:hover { border-color: var(--acc); background: var(--acc-subtle); }
+  .col-panel .file-drop::after { content: ''; position: absolute; top: 5px; left: 5px; width: 9px; height: 9px; border: solid var(--line); border-width: 1px 0 0 1px; pointer-events: none; }
+  .col-panel .file-drop:hover::after { border-color: var(--acc); }
+  .col-panel .btn { background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; font-family: var(--font-b); font-weight: 700; font-size: .72rem; letter-spacing: 2px; text-transform: uppercase; padding: 12px 16px; transition: .15s; }
+  .col-panel .btn:hover { background: var(--acc-subtle); color: var(--acc-text); }
+  .col-panel .btn:disabled { border-color: var(--line); color: var(--t3); opacity: .55; background: transparent; }
+  .col-panel .btn-danger, .col-panel .btn-sm.btn { border-color: var(--telos-on); color: var(--telos-on); }
+  .col-panel .btn-danger:hover, .col-panel .btn-sm.btn:hover { background: transparent; border-color: var(--telos-on); color: var(--telos-on); }
+
+  /* Bitácora activa → ghost acento (no relleno sólido) */
+  .col-chat .btn-supervisor.active { background: var(--acc-subtle); color: var(--acc-text); border-color: var(--acc); }
+
+  /* Panel Dashboard · selector de sesión + estado como HUD */
+  .col-panel .session-label { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .col-panel .session-select { background: var(--surface-2); color: var(--t1); border: 1px solid var(--line); border-radius: 0; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: .5px; padding: 6px 10px; }
+  .col-panel .session-status { background: transparent; border: 1px solid var(--umwelt-on); color: var(--umwelt-on); border-radius: 0; font-family: var(--font-mono); font-size: .6rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 3px 9px; }
+  .col-panel .session-status.status-ok { border-color: var(--acc); color: var(--acc-text); }
+  .col-panel .stat-card { border-radius: 0; }
+
+  /* ── Dashboard deck-style (portada + KPIs + exhibits) ── */
+  .gd { width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 40px 64px; }
+  .gd-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); }
+  .gd-hero { padding: 40px 0 30px; overflow: hidden; transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .35s ease, padding .5s ease; max-height: 640px; opacity: 1; }
+  .gd-hero.collapsed { max-height: 0; opacity: 0; padding: 0; pointer-events: none; }
+  .gd-hero-row { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; margin-top: 22px; }
+  @keyframes gd-bob { 0%,100%{transform:translateY(0);opacity:.55} 50%{transform:translateY(-4px);opacity:1} }
+  /* Portada: en estado inicial sólo hero + KPIs; el tablero se revela con la pestaña */
+  #gnosis-dashboard:not(.revealed) #gd-tablero,
+  #gnosis-dashboard:not(.revealed) .gd-tables,
+  #gnosis-dashboard:not(.revealed) .gd-downloads { display: none; }
+  /* Pestaña de revelado — a todo el ancho, fija abajo */
+  #gd-reveal { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; height: 56px; display: flex; align-items: center; justify-content: center; gap: 14px; background: var(--bg); border-top: 1px solid var(--acc); cursor: pointer; font-family: var(--font-b); font-weight: 700; font-size: .7rem; letter-spacing: 3px; text-transform: uppercase; color: var(--acc-text); transition: background .16s, letter-spacing .18s; }
+  #gd-reveal::before, #gd-reveal::after { content: ''; position: absolute; top: 8px; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; opacity: .8; }
+  #gd-reveal::before { left: 12px; border-width: 1px 0 0 1px; } #gd-reveal::after { right: 12px; border-width: 1px 1px 0 0; }
+  #gd-reveal:hover { background: var(--acc-subtle); letter-spacing: 4.5px; }
+  #gd-reveal .ico { font-size: 1.05rem; line-height: 1; }
+  #gd-reveal .chev { font-size: .8rem; animation: gd-bob 2s ease-in-out infinite; }
+  #gnosis-dashboard.revealed #gd-reveal { display: none; }
+  /* Portada: llenar el alto disponible (header → pestaña) para que no quede banda muerta sobre "Dashboards" */
+  #gnosis-dashboard:not(.revealed) .gd { min-height: calc(100vh - 64px - 56px); display: flex; flex-direction: column; justify-content: center; }
+  body:has(#gnosis-dashboard:not(.revealed)) .gstl-footer { display: none; }
+  .gd-portadabtn { display: none; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; padding: 7px 13px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: color .16s, border-color .16s; }
+  .gd-portadabtn:hover { border-color: var(--acc); color: var(--acc-text); }
+  #gnosis-dashboard.revealed .gd-portadabtn { display: inline-flex; }
+  .gd-title { font-family: var(--font-d); font-weight: 700; font-size: 3rem; line-height: 1.05; letter-spacing: -.01em; color: var(--t1); margin-top: 22px; }
+  .gd-sub { margin-top: 22px; max-width: 460px; font-family: var(--font-b); font-size: .95rem; line-height: 1.7; color: var(--t2); }
+  .gd-meta { margin-top: 30px; display: flex; gap: 26px; flex-wrap: wrap; align-items: center; }
+  .gd-meta .m { display: flex; flex-direction: column; gap: 4px; }
+  .gd-meta .mk { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .gd-meta .mv { font-family: var(--font-b); font-size: .75rem; font-weight: 700; letter-spacing: 1px; color: var(--t1); text-transform: uppercase; }
+  .gd-graphic { display: flex; justify-content: flex-end; align-items: center; }
+  .gd-sel { background: var(--surface-2); color: var(--t1); border: 1px solid var(--line); border-radius: 0; padding: 8px 12px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 1px; }
+  .gd-panel { padding: 0; background: transparent; }
+  .gd-dh { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .gd-dh .l { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
+  .gd-dh .l b { color: var(--acc-text); }
+  .gd-dh .st { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); display: flex; align-items: center; gap: 8px; }
+  .gd-dh .st .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
+  .gd-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); border-bottom: 1px solid var(--line); }
+  .gd-kpi { padding: 16px 20px; border-left: 2px solid var(--acc); box-shadow: -1px 0 0 var(--line); }
+  .gd-kpi.warn { border-left-color: var(--umwelt-on); } .gd-kpi.danger { border-left-color: var(--telos-on); }
+  .gd-kpi .k { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .gd-kpi .v { font-family: var(--font-d); font-weight: 700; font-size: 2rem; line-height: 1; color: var(--t1); margin: 8px 0 6px; }
+  .gd-kpi .d { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .gd-ex { padding: 18px 20px; border-bottom: 1px solid var(--line); }
+  .gd-ex-t { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); }
+  .gd-ex-s { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); margin-top: 5px; }
+  .gd-ex canvas { display: block; width: 100%; margin-top: 12px; }
+  .gd-ex2 { display: grid; grid-template-columns: 1fr 1fr; }
+  .gd-ex2 .gd-ex:first-child { border-right: 1px solid var(--line); }
+  .gd-tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(288px, 1fr)); gap: 10px; margin-top: 24px; }
+  .gd-tcard { background: var(--surface); border: 1px solid var(--line); position: relative; }
+  .gd-tcard::before, .gd-tcard::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; opacity: .45; pointer-events: none; }
+  .gd-tcard::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+  .gd-tcard::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
+  .gd-tcard .th { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); padding: 12px 16px 10px; border-bottom: 1px solid var(--line); }
+  .gd-tcard .th .thn { font-family: var(--font-d); font-weight: 700; font-size: .8rem; letter-spacing: 0; color: var(--t3); }
+  .gd-tcard tr.gd-trtot td { border-top: 1px solid var(--acc); color: var(--acc-text); font-weight: 700; }
+  /* Distribución deep-tech (reemplaza las tablas planas) */
+  .dx-dist { padding: 6px 0 8px; }
+  .dx-row { display: grid; grid-template-columns: minmax(64px, 34%) 1fr auto; align-items: center; gap: 12px; padding: 5px 16px; }
+  .dx-k { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dx-bar { height: 5px; background: var(--surface-2); position: relative; overflow: hidden; }
+  .dx-bar span { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(0,212,255,.32); transition: width .55s cubic-bezier(.2,.7,.2,1); }
+  .dx-bar span::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 2px; background: var(--acc-solid); opacity: .55; }
+  .dx-row.lead .dx-bar span { background: var(--acc-solid); box-shadow: 0 0 9px var(--acc-solid); }
+  .dx-row.lead .dx-bar span::after { opacity: 1; box-shadow: 0 0 6px var(--acc-solid); }
+  .dx-v { font-family: var(--font-d); font-weight: 700; font-size: 1rem; line-height: 1; color: var(--t1); text-align: right; min-width: 42px; }
+  .dx-row.lead .dx-v { font-size: 1.34rem; color: var(--acc-text); text-shadow: 0 0 14px rgba(0,212,255,.35); }
+  .dx-tot { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 9px 16px; border-top: 1px solid var(--acc); }
+  .dx-tot .l { font-family: var(--font-mono); font-size: .55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .dx-tot .v { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; color: var(--acc-text); }
+  /* Desglose de tipos de error (consola Áreas) */
+  .err-types { margin: 0 0 1rem; border: 1px solid var(--line); }
+  .err-types .et-h { font-family: var(--font-mono); font-size: .55rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .err-types .et-row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+  .err-types .et-k { flex: 0 0 42%; font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px; text-transform: uppercase; color: var(--t2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .err-types .et-bar { flex: 1 1 auto; height: 6px; background: var(--surface-2); position: relative; }
+  .err-types .et-bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--telos-on); }
+  .err-types .et-v { flex: 0 0 auto; font-family: var(--font-mono); font-size: .65rem; color: var(--telos-on); min-width: 26px; text-align: right; }
+  .gd-downloads { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+  .gd-empty { padding: 120px 0; text-align: center; }
+  .gd-empty .t { font-family: var(--font-d); font-weight: 700; font-size: 2rem; color: var(--t1); }
+  .gd-empty .s { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-top: 14px; }
+  .gd-toolbtn { margin-top: 30px; }
+
+  /* ── KPI panel (sticky bajo el header) + trigger de Tableros ── */
+  #gd-kpipanel { position: relative; z-index: 1; background: var(--bg); }
+  .gd-dh-r { display: flex; align-items: center; gap: 18px; }
+  .gd-tablerosbtn { display: inline-flex; align-items: center; gap: 8px; background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 0; padding: 7px 14px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; transition: background .16s, color .16s; }
+  .gd-tablerosbtn:hover { background: var(--acc-subtle); }
+  .gd-tablerosbtn .ico { font-size: .95rem; line-height: 1; }
+
+  /* ── TABLERO · ventanas colapsables (W-C) ── */
+  .gd-tablero { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); margin-top: 24px; min-height: calc(100vh - 200px); }
+  .win { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; background: var(--bg); transition: flex-grow .32s cubic-bezier(.4,0,.2,1); }
+  .win.collapsed { flex: 0 0 auto; }
+  .win-head { display: flex; align-items: baseline; gap: 14px; padding: 13px 20px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .win.collapsed .win-head { border-bottom: none; }
+  .win-head .wt { font-family: var(--font-d); font-weight: 700; font-size: .95rem; letter-spacing: .3px; color: var(--t1); }
+  .win-head .ws { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  .win-x { margin-left: auto; flex: 0 0 auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; cursor: pointer; font-size: .8rem; transition: color .16s, border-color .16s, transform .28s; }
+  .win-x:hover { color: var(--acc-text); border-color: var(--acc); }
+  .win-x.win-x-off { opacity: .28; cursor: not-allowed; }
+  .win-x.win-x-off:hover { color: var(--t2); border-color: var(--line); }
+  .win.collapsed .win-x { transform: rotate(-90deg); }
+  .win-body { flex: 1 1 auto; min-height: 0; position: relative; }
+  .win.collapsed .win-body { display: none; }
+  .win-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ── MODAL · Selector de Análisis (7 tableros) ── */
+  .sw-backdrop { position: fixed; inset: 0; z-index: 90; background: rgba(3,3,3,.86); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 32px; }
+  .sw-backdrop[hidden] { display: none; }
+  .switcher { width: 100%; max-width: 1180px; max-height: 90vh; overflow: auto; background: var(--bg); border: 1px solid var(--line); }
+  .sw-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 24px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  .sw-head .t { font-family: var(--font-d); font-weight: 700; font-size: 1rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t1); }
+  .sw-head .s { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); margin-left: auto; }
+  .sw-close { width: 34px; height: 34px; border: 1px solid var(--line); background: transparent; color: var(--t2); font-size: 1rem; cursor: pointer; border-radius: 0; }
+  .sw-close:hover { color: var(--t1); border-color: var(--t1); }
+  .sw-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 1px; background: var(--line); }
+  .sw-card { background: var(--surface); cursor: pointer; position: relative; transition: background .16s; }
+  .sw-card:hover, .sw-card:focus-visible { background: var(--surface-2); outline: none; }
+  .sw-card:focus-visible::before, .sw-card:focus-visible::after,
+  .sw-card:hover::before, .sw-card:hover::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; }
+  .sw-card:focus-visible::before, .sw-card:hover::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
+  .sw-card:focus-visible::after, .sw-card:hover::after { bottom: 5px; right: 5px; border-width: 0 1px 1px 0; }
+  .sw-card .num { position: absolute; top: 10px; left: 12px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; color: var(--t3); z-index: 2; }
+  .sw-card .tag { position: absolute; top: 10px; right: 12px; font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1px; color: var(--t3); text-transform: uppercase; }
+  .sw-cv { display: block; width: 100%; height: 130px; margin-top: 26px; }
+  .sw-card .meta { padding: 12px 16px 16px; }
+  .sw-card .name { font-family: var(--font-d); font-weight: 700; font-size: .875rem; letter-spacing: .5px; color: var(--t1); line-height: 1.15; }
+  .sw-card:hover .name, .sw-card:focus-visible .name { color: var(--acc-text); }
+  .sw-card .desc { margin-top: 6px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); line-height: 1.5; }
+  .sw-empty { cursor: default; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 240px; }
+  .sw-empty:hover { background: var(--bg); } .sw-empty:hover::before, .sw-empty:hover::after { display: none; }
+  .sw-empty .ph-mk { font-size: 1.4rem; color: var(--t3); opacity: .5; }
+  .sw-empty .ph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); opacity: .6; }
+
+  /* ── VISTA DEDICADA (super gráfica standalone) ── */
+  /* main crea contexto de apilamiento (z-index:1) que atrapaba los overlays fixed;
+     lo neutralizamos para que modal/solo cubran el header (z-50) sin romper bg-field */
+  body > main { z-index: auto; }
+  .gd-solo { position: fixed; inset: 0; z-index: 80; background: var(--bg); display: flex; flex-direction: column; }
+  .gd-solo[hidden] { display: none; }
+  .solo-head { display: flex; align-items: center; gap: 20px; padding: 16px 32px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .solo-back { background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 0; padding: 8px 14px; font-family: var(--font-b); font-weight: 700; font-size: .625rem; letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; transition: color .16s, border-color .16s; }
+  .solo-back:hover { color: var(--t1); border-color: var(--t1); }
+  .solo-title { display: flex; flex-direction: column; gap: 3px; }
+  .solo-title .st-name { font-family: var(--font-d); font-weight: 700; font-size: 1.1rem; letter-spacing: .5px; color: var(--t1); }
+  .solo-title .st-desc { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  .solo-head .gd-tablerosbtn { margin-left: auto; flex: 0 0 auto; }
+  .solo-head .solo-title { min-width: 0; }
+  @media (max-width: 640px){
+    .solo-head { padding: 12px 14px; gap: 10px; }
+    .solo-head .solo-title .st-desc { display: none; }
+    .solo-head .solo-title .st-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+    .solo-head .solo-back, .solo-head .gd-tablerosbtn { white-space: nowrap; }
+  }
+  /* Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica · W-C) */
+  .solo-dual { flex: 1 1 auto; min-height: 0; display: flex; }
+  .solo-pane { position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; transition: flex-basis .32s cubic-bezier(.4,0,.2,1); }
+  .solo-read { flex: 0 0 38%; border-right: 1px solid var(--line); }
+  .solo-viz { flex: 1 1 0; }
+  .solo-read.solo-col { flex-basis: 54px; } .solo-viz.solo-col { flex: 0 0 54px; }
+  .solo-dual.viz-col .solo-read { flex: 1 1 auto; }   /* espejo: al colapsar Análisis, Síntesis se vuelve monumental */
+  .solo-pane-head { display: flex; align-items: baseline; gap: 12px; padding: 0 18px; min-height: 48px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
+  .solo-pane-head .sph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--acc-text); }
+  .solo-pane-head .sph-s { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .solo-pane-head .win-x { margin-left: auto; align-self: center; }
+  .solo-pane.solo-col .solo-pane-head { justify-content: center; padding: 0; }
+  .solo-pane.solo-col .sph-t, .solo-pane.solo-col .sph-s { display: none; }
+  .solo-rail { display: none; flex: 1; align-items: center; justify-content: center; cursor: pointer; }
+  .solo-rail span { writing-mode: vertical-rl; transform: rotate(180deg); font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t3); }
+  .solo-rail:hover span { color: var(--acc-text); }
+  .solo-pane.solo-col .solo-pane-body { display: none; } .solo-pane.solo-col .solo-rail { display: flex; }
+  .solo-pane-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  /* Ventana A · síntesis */
+  .solo-read-body { padding: 32px 30px 26px; display: flex; flex-direction: column; gap: 26px; }
+  .solo-q { font-family: var(--font-d); font-weight: 700; font-size: 1.55rem; line-height: 1.18; color: var(--t1); letter-spacing: -.01em; }
+  /* Firma gráfica deep-tech (biomecha · reemplaza las cajas KPI) */
+  .solo-sig { position: relative; width: 100%; height: 320px; }
+  .solo-sig .win-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  /* Toggle de medida (conteo ⇄ valor) */
+  .solo-measure { display: flex; align-items: center; gap: 8px; }
+  .solo-measure .sm-l { font-family: var(--font-mono); font-size: .5rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); margin-right: 2px; }
+  .solo-measure .sm-btn { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); background: transparent; border: 1px solid var(--line); padding: 5px 12px; cursor: pointer; }
+  .solo-measure .sm-btn.active { color: var(--acc-text); border-color: var(--acc); background: var(--acc-subtle); }
+  .solo-measure .sm-btn:hover { color: var(--acc-text); }
+  /* Toggles de conceptualización (capas on/off) en el header de Análisis */
+  .solo-opts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .solo-opts .so-btn { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: .5rem; letter-spacing: 1.2px; text-transform: uppercase; color: var(--t3); background: transparent; border: 1px solid var(--line); padding: 4px 9px; cursor: pointer; transition: color .16s, border-color .16s; }
+  .solo-opts .so-btn::before { content: ''; width: 6px; height: 6px; border: 1px solid var(--line-2); background: transparent; flex: 0 0 auto; }
+  .solo-opts .so-btn.on { color: var(--acc-text); border-color: var(--acc); }
+  .solo-opts .so-btn.on::before { background: var(--acc-solid); border-color: var(--acc); box-shadow: 0 0 6px var(--acc-solid); }
+  .solo-opts .so-btn:hover { color: var(--acc-text); border-color: var(--acc); }
+  .solo-pane.solo-col .solo-opts { display: none; }
+  /* Readouts de línea (secundarios · sin recuadros) */
+  .solo-reads { display: flex; flex-direction: column; }
+  .solo-reads .rd { display: flex; align-items: baseline; gap: 14px; padding: 11px 2px; border-top: 1px solid var(--line); }
+  .solo-reads .rd:last-child { border-bottom: 1px solid var(--line); }
+  .solo-reads .rk { flex: 0 0 auto; min-width: 132px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .solo-reads .rv { font-family: var(--font-d); font-weight: 700; font-size: 1.2rem; line-height: 1; color: var(--t1); }
+  .solo-reads .rv.acc { color: var(--acc-text); } .solo-reads .rv.warn { color: var(--umwelt-on); } .solo-reads .rv.tel { color: var(--telos-on); }
+  .solo-reads .rdd { margin-left: auto; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); text-align: right; }
+  .solo-interp { border-left: 2px solid var(--acc); padding: 3px 0 3px 16px; font-family: var(--font-b); font-size: .92rem; line-height: 1.6; color: var(--t2); }
+  .solo-interp b { color: var(--t1); font-weight: 700; }
+  .solo-foot { margin-top: auto; padding-top: 16px; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1.5px; text-transform: uppercase; color: var(--t3); }
+  /* Ventana B · gráfica */
+  .solo-viz-body { position: relative; padding: 20px 26px 26px; }
+  .solo-viz-body .win-cv { position: absolute; top: 20px; right: 26px; bottom: 26px; left: 26px; width: calc(100% - 52px); height: calc(100% - 46px); }
+  @media (max-width: 900px){ .solo-dual { flex-direction: column; } .solo-read { flex: 0 0 auto; border-right: none; border-bottom: 1px solid var(--line); } }
+
+  @media (max-width: 860px) {
+    .gd-hero-row { grid-template-columns: 1fr; }
+    .gd-kpis, .gd-tables { grid-template-columns: 1fr; }
+    .gd-graphic { display: none; }
+    .sw-grid { grid-template-columns: repeat(2,1fr); }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
+<script type="application/json" id="viz-data">{{ viz_data | tojson }}</script>
+
+<!-- ═══════════ DASHBOARD deck-style (vista por defecto) ═══════════ -->
+<div id="gnosis-dashboard">
+{% if empty %}
+  <div class="gd"><div class="gd-empty">
+    <div class="t">Sin datos procesados</div>
+    <div class="s">Carga facturas en Áreas para revelar el análisis</div>
+    <button class="btn gd-toolbtn" onclick="gnosisShowTool()">Abrir Áreas →</button>
+  </div></div>
+{% else %}
+  <div class="gd">
+    <!-- HERO (colapsa al hacer scroll) -->
+    <div class="gd-hero" id="gd-hero">
+      <div class="gd-eyebrow">GNOSIS · Importaciones · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
+      <div class="gd-hero-row">
+        <div>
+          <h1 class="gd-title">Una sola fuente<br>de la verdad.</h1>
+          <p class="gd-sub">{{ "{:,}".format(stats.total_importaciones) }} vehículos conciliados contra facturas y cupos — validados, sin fragmentación, en un solo sistema.</p>
+          <div class="gd-meta">
+            <div class="m"><span class="mk">Sesión</span>
+              <select class="gd-sel" onchange="window.location='/?session_id='+this.value">{% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}</select>
+            </div>
+            <div class="m"><span class="mk">Estado</span><span class="mv" style="color:var(--acc-text)">{{ current_session.status }}</span></div>
+          </div>
+        </div>
+        <div class="gd-graphic">
+          <svg width="340" height="280" viewBox="0 0 360 300" aria-hidden="true">
+            <defs>
+              <radialGradient id="gd-glow" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".2"/><stop offset="55%" stop-color="#00D4FF" stop-opacity=".05"/><stop offset="100%" stop-color="#00D4FF" stop-opacity="0"/></radialGradient>
+              <linearGradient id="gd-fade" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#00D4FF" stop-opacity=".28"/><stop offset="100%" stop-color="#00D4FF" stop-opacity=".04"/></linearGradient>
+            </defs>
+            <rect x="30" y="20" width="300" height="260" fill="url(#gd-glow)"/>
+            <g stroke="url(#gd-fade)" stroke-width=".6"><line x1="90" y1="20" x2="90" y2="280"/><line x1="150" y1="20" x2="150" y2="280"/><line x1="210" y1="20" x2="210" y2="280"/><line x1="270" y1="20" x2="270" y2="280"/><line x1="30" y1="80" x2="330" y2="80"/><line x1="30" y1="150" x2="330" y2="150"/><line x1="30" y1="220" x2="330" y2="220"/></g>
+            <circle cx="180" cy="150" r="22" fill="none" stroke="#00D4FF" stroke-width="1" stroke-opacity=".5"/><circle cx="180" cy="150" r="10" fill="none" stroke="#FAFAF8" stroke-width="1.5"/><circle cx="180" cy="150" r="4.5" fill="#00D4FF"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pestaña de revelado: click → colapsa el hero y muestra el tablero -->
+    <div id="gd-reveal" onclick="gnosisReveal(true)" role="button" tabindex="0"
+         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gnosisReveal(true);}">
+      <span class="ico">◫</span> Dashboards <span class="chev">▴</span>
+    </div>
+
+    <!-- KPI panel + trigger de Tableros (sticky) -->
+    <div class="hud-frame gd-panel" id="gd-kpipanel">
+      <div class="gd-dh">
+        <div class="l">GNOSIS <b>//</b> IMPORTACIONES · SESIÓN #{{ current_session.id }}</div>
+        <div class="gd-dh-r">
+          <button class="gd-portadabtn" onclick="gnosisReveal(false)"><span>▴</span> Portada</button>
+          <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
+          <div class="st"><span class="dot"></span> {{ current_session.status|upper }}</div>
+        </div>
+      </div>
+      <div class="gd-kpis">
+        <div class="gd-kpi"><div class="k">Vehículos · DWH</div><div class="v">{{ "{:,}".format(stats.total_importaciones) }}</div><div class="d">conciliados en sesión</div></div>
+        <div class="gd-kpi"><div class="k">Registros de facturas</div><div class="v">{{ "{:,}".format(stats.total_extraccion) }}</div><div class="d">cargados · procesados</div></div>
+        <div class="gd-kpi warn"><div class="k">Facturas faltantes</div><div class="v">{{ "{:,}".format(stats.total_faltantes) }}</div><div class="d">sin conciliar</div></div>
+        <div class="gd-kpi danger"><div class="k">Registros con error</div><div class="v">{{ "{:,}".format(stats.total_errores) }}</div><div class="d">auto-detectado · flag</div></div>
+        <div class="gd-kpi"><div class="k">Valor importado</div><div class="v" id="kpi-valor">—</div><div class="d">Σ precio · sesión</div></div>
+      </div>
+    </div>
+
+    <!-- TABLERO: ventanas colapsables (W-C) -->
+    <div class="gd-tablero" id="gd-tablero">
+      <div class="win" data-viz="chord">
+        <div class="win-head"><span class="wt">Rutas de Importación</span><span class="ws">Cómo fluye origen → marca</span><button class="win-x" title="Colapsar" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
+      </div>
+      <div class="win collapsed" data-viz="dendro">
+        <div class="win-head"><span class="wt">Segmentación de Marcas</span><span class="ws">Qué marcas se comportan igual</span><button class="win-x" title="Expandir" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
+      </div>
+      <div class="win collapsed" data-viz="manh">
+        <div class="win-head"><span class="wt">Anomalías de Validación</span><span class="ws">Registros fuera de patrón · Z-score · 3σ</span><button class="win-x" title="Expandir" onclick="gnosisToggleWin(this)">▾</button></div>
+        <div class="win-body"><canvas class="win-cv"></canvas></div>
+      </div>
+    </div>
+
+    <div class="gd-tables">
+      <div class="gd-tcard"><div class="th">Por Marca</div><table class="table table-hover mb-0"><tbody>{% for item in por_marca %}<tr><td>{{ item.nombre }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      <div class="gd-tcard"><div class="th">Por País</div><table class="table table-hover mb-0"><tbody>{% for item in por_pais %}<tr><td>{{ item.pais_nombre or item.pais_code }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      <div class="gd-tcard"><div class="th">Preferencia Arancelaria</div><table class="table table-hover mb-0"><tbody>{% for item in por_jyn %}<tr><td>{{ 'Con pref. (J)' if item.j_y_n == 'J' else 'Sin pref. (N)' if item.j_y_n == 'N' else item.j_y_n or 'Sin dato' }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      {% if data and data.get('SUMA TODAS LAS MARCAS SIN ORIGEN') is not none %}
+      <div class="gd-tcard"><div class="th">Marcas sin Origen</div><table class="table table-hover mb-0"><tbody>
+        <tr><td>Audi</td><td>{{ "{:,}".format(data.get('Audi', 0)) }}</td></tr>
+        <tr><td>Porsche</td><td>{{ "{:,}".format(data.get('Porsche', 0)) }}</td></tr>
+        <tr><td>Seat</td><td>{{ "{:,}".format(data.get('Seat', 0)) }}</td></tr>
+        <tr><td>Bentley</td><td>{{ "{:,}".format(data.get('Bentley', 0)) }}</td></tr>
+        <tr><td>VW Comerciales</td><td>{{ "{:,}".format(data.get('Volkswagen (Vehiculos Comerciales)', 0)) }}</td></tr>
+        <tr><td>India</td><td>{{ "{:,}".format(data.get('India', 0)) }}</td></tr>
+        <tr class="gd-trtot"><td>Suma sin origen</td><td>{{ "{:,}".format(data.get('SUMA TODAS LAS MARCAS SIN ORIGEN', 0)) }}</td></tr>
+      </tbody></table></div>
+      {% endif %}
+      {% if por_aduana %}
+      <div class="gd-tcard"><div class="th">Por Aduana</div><table class="table table-hover mb-0"><tbody>{% for item in por_aduana %}<tr><td>{{ item.aduana }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      {% endif %}
+      {% if por_fraccion %}
+      <div class="gd-tcard"><div class="th">Fracción Arancelaria</div><table class="table table-hover mb-0"><tbody>{% for item in por_fraccion %}<tr><td>{{ item.fraccion }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      {% endif %}
+      {% if por_moneda %}
+      <div class="gd-tcard"><div class="th">Por Moneda</div><table class="table table-hover mb-0"><tbody>{% for item in por_moneda %}<tr><td>{{ item.moneda }}</td><td>{{ "{:,}".format(item.total) }}</td></tr>{% endfor %}</tbody></table></div>
+      {% endif %}
+    </div>
+
+    <div class="gd-downloads">
+      {% if has_zip %}<a href="{{ url_for('download_file', filename='ZipGeneral.zip') }}" class="btn btn-danger">Descargar resultados</a>{% endif %}
+      {% if has_historico_zip %}<a href="{{ url_for('download_file', filename='Historico_ZipGeneral.zip') }}" class="btn">Histórico</a>{% endif %}
+      <button class="btn" onclick="gnosisShowTool()">Áreas · Consola →</button>
+    </div>
+  </div>
+{% endif %}
+</div>
+
+{% if not empty %}
+<!-- ═══════════ MODAL · Selector de Análisis (7 tableros) ═══════════ -->
+<div class="sw-backdrop" id="sw-modal" hidden onclick="if(event.target===this)gnosisCloseSwitcher()">
+  <div class="switcher hud-frame">
+    <div class="sw-head">
+      <div class="t">Selector de Análisis</div>
+      <div class="s">GNOSIS · 7 TABLEROS · SESIÓN #{{ current_session.id }}</div>
+      <button class="sw-close" onclick="gnosisCloseSwitcher()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="sw-grid" id="sw-grid"></div>
+  </div>
+</div>
+
+<!-- ═══════════ VISTA DEDICADA (super gráfica standalone) ═══════════ -->
+<div class="gd-solo" id="gd-solo" hidden>
+  <div class="solo-head">
+    <button class="solo-back" onclick="gnosisCloseSolo()">← Dashboard</button>
+    <div class="solo-title"><span class="st-name" id="solo-name"></span><span class="st-desc" id="solo-desc"></span></div>
+    <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
+  </div>
+  <div class="solo-dual" id="solo-dual">
+    <!-- Ventana A · Síntesis (interpretabilidad + KPIs) -->
+    <section class="solo-pane solo-read" id="solo-read">
+      <div class="solo-pane-head">
+        <span class="sph-t">Síntesis</span><span class="sph-s">Interpretabilidad</span>
+        <button class="win-x" title="Colapsar síntesis" onclick="gnosisSoloToggle('read')">◂</button>
+      </div>
+      <div class="solo-rail" onclick="gnosisSoloToggle('read')"><span>Síntesis ·</span></div>
+      <div class="solo-pane-body solo-read-body" id="solo-read-body"></div>
+    </section>
+    <!-- Ventana B · Análisis (gráfica) -->
+    <section class="solo-pane solo-viz" id="solo-viz">
+      <div class="solo-pane-head">
+        <span class="sph-t">Análisis</span><span class="sph-s" id="solo-viz-tag"></span>
+        <span class="solo-opts" id="solo-opts"></span>
+        <button class="win-x" title="Colapsar análisis" onclick="gnosisSoloToggle('viz')">▸</button>
+      </div>
+      <div class="solo-rail" onclick="gnosisSoloToggle('viz')"><span>· Análisis</span></div>
+      <div class="solo-pane-body solo-viz-body"><canvas class="win-cv" id="solo-cv"></canvas></div>
+    </section>
+  </div>
+</div>
+{% endif %}
+
+<!-- ═══════════ TOOL existente (app-shell) — bajo toggle "Áreas" ═══════════ -->
+<div id="gnosis-tool" hidden>
 <div class="app-shell">
 
-  <!-- ===== COL 1: Navigation ===== -->
-  <aside class="col-nav">
+  <!-- ===== COL 1: Navigation (colapsable) ===== -->
+  <aside class="col-nav" id="axc-nav">
+    <div class="axc-head">
+      <span class="mono-label"><b>ÁREAS</b> // CONSOLA</span>
+      <button type="button" class="axc-x" onclick="axcToggle('nav')" title="Colapsar" aria-label="Colapsar navegación">‹</button>
+    </div>
+    <div class="axc-rail" onclick="axcToggle('nav')"><span>ÁREAS ·</span></div>
     <div class="col-nav-title">Areas</div>
-    <button class="nav-item active" data-panel="fase1" onclick="switchPanel('fase1')">
-      <span class="nav-label">Cargar Facturas</span>
-    </button>
-    <button class="nav-item" data-panel="pipeline" onclick="switchPanel('pipeline')">
-      <span class="nav-label">Proceso Completo</span>
-    </button>
-    <button class="nav-item" data-panel="dashboard" onclick="switchPanel('dashboard')">
-      <span class="nav-label">Dashboard</span>
-    </button>
-    <button class="nav-item" data-panel="errores" onclick="switchPanel('errores')">
-      <span class="nav-label">Errores <span class="nav-badge" id="errores-nav-badge"{% if errores_count == 0 %} style="display:none"{% endif %}>{{ errores_count }}</span></span>
-    </button>
+    <nav class="axc-nav axc-body">
+      <button class="nav-item active" data-panel="fase1" onclick="switchPanel('fase1')">
+        <span class="axi-idx">01</span><span class="nav-label">Cargar Facturas</span>
+      </button>
+      <button class="nav-item" data-panel="pipeline" onclick="switchPanel('pipeline')">
+        <span class="axi-idx">02</span><span class="nav-label">Proceso Completo</span>
+      </button>
+      <button class="nav-item" onclick="gnosisShowDash();gnosisReveal(true)">
+        <span class="axi-idx">03</span><span class="nav-label">Dashboard →</span>
+      </button>
+      <button class="nav-item" data-panel="errores" onclick="switchPanel('errores')">
+        <span class="axi-idx">04</span><span class="nav-label">Errores</span><span class="nav-badge" id="errores-nav-badge"{% if errores_count == 0 %} style="display:none"{% endif %}>{{ errores_count }}</span>
+      </button>
+    </nav>
+    <div class="axc-foot axc-body">
+      <div class="axc-stat"><span>Sesión</span><b>#{{ current_session.id }}</b></div>
+      <div class="axc-stat"><span>Estado</span><b style="color:var(--acc-text)">{{ current_session.status|upper }}</b></div>
+      <div class="axc-stat"><span>Vehículos</span><b>{{ "{:,}".format(stats.total_importaciones) }}</b></div>
+    </div>
   </aside>
-
-  <!-- Resize handle 1 -->
-  <div class="resize-handle" data-side="left"></div>
 
   <!-- ===== COL 2: Chat ===== -->
   <section class="col-chat">
     <div class="chat-wrapper" style="max-width:100%; height:100%; margin:0;">
       <div class="chat-header">
-        <h2><span class="status-dot"></span>Gnosis AI</h2>
+        <h2><span class="status-dot"></span><b>GNOSIS·IA</b> // SESIÓN #{{ current_session.id }}</h2>
         <div style="display:flex;gap:0.5rem;">
-          <button id="supervisorBtn" class="btn-supervisor" onclick="toggleSupervisor()" title="Activar/desactivar bitacora de procesos">Bitacora</button>
-          <button class="btn-reset" onclick="resetChat()">Nueva conversacion</button>
+          <button id="supervisorBtn" class="btn-supervisor" onclick="toggleSupervisor()" title="Activar/desactivar bitacora de procesos">Bitácora</button>
+          <button class="btn-reset" onclick="resetChat()">Nueva consulta</button>
         </div>
       </div>
       <div class="chat-messages" id="chatMessages"></div>
       <div class="typing-indicator" id="typingIndicator">
-        <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis AI esta analizando...
+        <span class="typing-dots"><span>.</span><span>.</span><span>.</span></span> Gnosis·IA está analizando...
       </div>
       <div class="suggestions" id="suggestions"></div>
       <div class="chat-input-area">
-        <textarea id="chatInput" placeholder="Escribe tu pregunta..." rows="1"></textarea>
-        <button id="sendBtn" class="btn-send">Enviar</button>
+        <div class="axt" id="axTerminal">
+          <div class="axt-head">
+            <span class="l"><b>▸ TERMINAL</b> // GNOSIS·IA · INTELIGENCIA SINTÉTICA</span>
+            <span class="r">↵ ejecutar · ⇧↵ nueva línea</span>
+          </div>
+          <div class="axt-line">
+            <span class="axt-prompt">gnosis@sesión-{{ current_session.id }} ▸</span>
+            <span class="axt-caret" id="axCaret"></span>
+            <textarea id="chatInput" placeholder="consultar el corpus de la sesión…" rows="1"></textarea>
+            <button id="sendBtn" class="btn-send">Ejecutar <span>↵</span></button>
+          </div>
+        </div>
+        <div class="token-counter" id="tokenCounter"></div>
       </div>
-      <div class="token-counter" id="tokenCounter"></div>
     </div>
   </section>
 
-  <!-- Resize handle 2 -->
-  <div class="resize-handle" data-side="right"></div>
-
-  <!-- ===== COL 3: Dynamic Panels ===== -->
-  <section class="col-panel">
+  <!-- ===== COL 3: Dynamic Panels (colapsable) ===== -->
+  <section class="col-panel" id="axc-panel">
+    <div class="axc-head">
+      <span class="mono-label"><b>PANEL</b> // GNOSIS</span>
+      <button type="button" class="axc-x" onclick="axcToggle('panel')" title="Colapsar" aria-label="Colapsar panel">›</button>
+    </div>
+    <div class="axc-rail" onclick="axcToggle('panel')"><span>· PANEL</span></div>
+    <div class="axc-body col-panel-body">
 
     <!-- PANEL: Cargar Facturas (Fase 1) -->
     <div id="panel-fase1" class="panel active">
@@ -75,7 +577,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Facturas (.zip) *</label>
           <div class="file-drop" onclick="document.getElementById('input-facturas').click()">
-            <span>📂 Clic para seleccionar o arrastra aquí</span>
+            <span>Clic para seleccionar o arrastra aquí</span>
           </div>
           <input type="file" id="input-facturas" name="facturas" accept=".zip" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-facturas')">
@@ -85,7 +587,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Extraccion Histórica (.xlsx) — Opcional</label>
           <div class="file-drop" onclick="document.getElementById('input-previo').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-previo" name="FilePrevio" accept=".xlsx"
                  style="display:none" onchange="handleFileSelect(this,'thumbs-previo')">
@@ -106,7 +608,7 @@
             <td>
               <span id="fase1Errors">{{ fase1_stats.errores }}</span>
               {% if fase1_stats.errores > 0 %}
-                &nbsp;<a href="#" onclick="switchPanel('errores');return false;" style="font-size:0.8rem;color:#DC2626;">Ver →</a>
+                &nbsp;<a href="#" onclick="switchPanel('errores');return false;" style="font-size:0.8rem;color:var(--telos-on);">Ver →</a>
               {% endif %}
             </td>
           </tr>
@@ -142,7 +644,7 @@
         <div class="upload-field-main">
           <label class="upload-label">DWH / Pedimento (.txt) *</label>
           <div class="file-drop" onclick="document.getElementById('input-dwh').click()">
-            <span>📂 Clic para seleccionar (múltiples archivos)</span>
+            <span>Clic para seleccionar (múltiples archivos)</span>
           </div>
           <input type="file" id="input-dwh" name="dwh" accept=".txt" multiple required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-dwh')">
@@ -152,7 +654,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Divisiones / Incrementables (.xlsx) *</label>
           <div class="file-drop" onclick="document.getElementById('input-inc').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-inc" name="incrementales" accept=".xlsx" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-inc')">
@@ -162,7 +664,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Cupo Inversion (.pdf) *</label>
           <div class="file-drop" onclick="document.getElementById('input-inv').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-inv" name="pdfInversion" accept=".pdf" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-inv')">
@@ -172,7 +674,7 @@
         <div class="upload-field-main">
           <label class="upload-label">Cupo Produccion (.pdf) *</label>
           <div class="file-drop" onclick="document.getElementById('input-prod').click()">
-            <span>📂 Clic para seleccionar</span>
+            <span>Clic para seleccionar</span>
           </div>
           <input type="file" id="input-prod" name="pdfProduccion" accept=".pdf" required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-prod')">
@@ -190,8 +692,8 @@
       <div id="pipelineResult" class="phase-result" style="display:none;"></div>
 
       <!-- Proceso Histórico -->
-      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid #E5E7EB;">
-        <h3 style="font-size:1rem;font-weight:600;color:#374151;margin-bottom:0.4rem;">Proceso Histórico</h3>
+      <div style="margin-top:2rem;padding-top:1.25rem;border-top:1px solid var(--line);">
+        <h3 style="font-size:1rem;font-weight:600;color:var(--t1);margin-bottom:0.4rem;">Proceso Histórico</h3>
         <p class="panel-desc" style="margin-bottom:0.75rem;">Usa todos los meses almacenados. No requiere archivos.</p>
         <form action="/procesar/historico" method="POST" id="historicoForm">
           <button type="submit" class="btn" id="historicoBtn" style="width:100%;"
@@ -205,171 +707,36 @@
       </div>
     </div>
 
-    <!-- PANEL: Dashboard -->
-    <div id="panel-dashboard" class="panel">
-      <h2 class="panel-title">Dashboard</h2>
-
-      {% if empty %}
-        <div style="text-align:center;padding:2rem 0;color:#6B7280;">
-          <p style="font-size:1.1rem;margin-bottom:0.5rem;">Sin datos procesados</p>
-          <p>Carga facturas para comenzar.</p>
-        </div>
-      {% else %}
-        <!-- Session selector -->
-        <div class="session-bar" style="max-width:100%;margin:0 0 1rem;">
-          <div class="session-info">
-            <span class="session-label">Sesion:</span>
-            <select class="session-select"
-                    onchange="window.location='/?session_id='+this.value+'&panel=dashboard'">
-              {% for s in sessions %}
-                <option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>
-                  #{{ s.id }} — {{ s.session_date[:10] }}
-                </option>
-              {% endfor %}
-            </select>
-            <span class="session-status {{ 'status-ok' if current_session.status == 'completed' else 'status-progress' }}">
-              {{ current_session.status }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Stats 2x2 -->
-        <div class="stats-grid" style="max-width:100%;grid-template-columns:repeat(2,1fr);margin-bottom:1rem;">
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_importaciones) }}</div>
-            <div class="stat-label">Vehículos (DWH)</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_extraccion) }}</div>
-            <div class="stat-label">Registros facturas</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_faltantes) }}</div>
-            <div class="stat-label">Facturas faltantes</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ "{:,}".format(stats.total_errores) }}</div>
-            <div class="stat-label">Con error</div>
-          </div>
-        </div>
-
-        <!-- Por Marca -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Por Marca</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>Marca</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_marca %}
-                <tr>
-                  <td>{{ item.nombre }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-                <tr class="table-highlight">
-                  <td><strong>Total</strong></td>
-                  <td><strong>{{ "{:,}".format(stats.total_importaciones) }}</strong></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Por País -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Por País</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>País</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_pais %}
-                <tr>
-                  <td>{{ item.pais_nombre or item.pais_code }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Preferencia Arancelaria -->
-        <article class="card custom-table-card" style="margin-bottom:1rem;">
-          <div class="card-header bg-white"><h5 class="mb-0">Preferencia Arancelaria</h5></div>
-          <div class="card-body p-0">
-            <table class="table table-hover rounded-table mb-0">
-              <thead><tr><th>Tipo</th><th>Total</th></tr></thead>
-              <tbody>
-                {% for item in por_jyn %}
-                <tr>
-                  <td>{{ 'Con preferencia (J)' if item.j_y_n == 'J' else 'Sin preferencia (N)' if item.j_y_n == 'N' else item.j_y_n or 'Sin dato' }}</td>
-                  <td>{{ "{:,}".format(item.total) }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        </article>
-
-        <!-- Gráficas -->
-        {% if has_graphs %}
-        <article class="card" style="margin-bottom:1rem;overflow:hidden;">
-          <div class="card-body" style="padding:0;">
-            <div id="dashCarousel" class="carousel slide" data-bs-ride="carousel">
-              <div class="carousel-inner">
-                {% for i in range(1, 14) %}
-                <div class="carousel-item {% if i == 1 %}active{% endif %}">
-                  <iframe src="{{ url_for('static', filename='plotly_graphs/' + '{:02d}.html'.format(i)) }}"
-                          style="width:100%;aspect-ratio:4/3;border:none;display:block;"></iframe>
-                </div>
-                {% endfor %}
-              </div>
-              <button class="carousel-control-prev" type="button" data-bs-target="#dashCarousel" data-bs-slide="prev">
-                <span class="carousel-control-prev-icon"></span>
-              </button>
-              <button class="carousel-control-next" type="button" data-bs-target="#dashCarousel" data-bs-slide="next">
-                <span class="carousel-control-next-icon"></span>
-              </button>
-            </div>
-          </div>
-        </article>
-        {% endif %}
-
-        {% if has_zip %}
-        <a href="{{ url_for('download_file', filename='ZipGeneral.zip') }}"
-           class="btn" style="width:100%;display:block;text-align:center;margin-bottom:0.5rem;"
-           onclick="if(window.gnosisSupervise) gnosisSupervise('Descarga iniciada: ZipGeneral.zip')">
-          Descargar Resultados
-        </a>
-        {% endif %}
-        {% if has_historico_zip %}
-        <a href="{{ url_for('download_file', filename='Historico_ZipGeneral.zip') }}"
-           class="btn" style="width:100%;display:block;text-align:center;"
-           onclick="if(window.gnosisSupervise) gnosisSupervise('Descarga iniciada: Historico_ZipGeneral.zip')">
-          Descargar Resultados Histórico
-        </a>
-        {% endif %}
-      {% endif %}
-    </div>
-
     <!-- PANEL: Errores -->
     <div id="panel-errores" class="panel">
       <h2 class="panel-title">
         Errores de Extracción
-        <span id="errores-panel-badge" style="font-size:0.8rem;font-weight:500;background:#FEE2E2;color:#991B1B;padding:0.2rem 0.6rem;border-radius:12px;margin-left:0.5rem;{% if errores_count == 0 %}display:none{% endif %}">
+        <span id="errores-panel-badge" style="display:inline-block;white-space:nowrap;vertical-align:middle;font-family:var(--font-mono);font-size:0.6rem;font-weight:700;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.15rem 0.5rem;margin-left:0.6rem;{% if errores_count == 0 %}display:none{% endif %}">
           <span id="errores-panel-count">{{ errores_count }}</span> pendiente{{ 's' if errores_count != 1 else '' }}
         </span>
       </h2>
 
       <div id="errores-actions" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;{% if errores_count == 0 %}display:none!important{% endif %}">
         <a id="errores-zip-link" href="/errores/download-zip?sid={{ session_id }}"
-           class="btn btn-sm" style="font-size:0.82rem;background:var(--accent);color:#fff;text-decoration:none;">
+           class="btn btn-sm" style="text-decoration:none;">
           ↓ Descargar todos (.zip)
         </a>
       </div>
       <p class="panel-desc" id="errores-desc" {% if errores_count == 0 %}style="display:none"{% endif %}>Descarga el PDF, corrígelo y súbelo de nuevo con el botón ↑.</p>
 
-      <div id="errores-success-banner" style="display:none;background:#D1FAE5;color:#065F46;padding:0.6rem 0.8rem;border-radius:8px;font-size:0.85rem;">
+      <!-- Desglose por tipo de error (frontend-only · desde la lista ya renderizada) -->
+      <div id="err-types" class="err-types" {% if errores_count == 0 %}style="display:none"{% endif %}></div>
+      <script type="application/json" id="err-types-data">{{ errores | map(attribute='error_type') | list | tojson }}</script>
+      <script>(function(){ var el=document.getElementById('err-types'); var data;
+        try{ data=JSON.parse(document.getElementById('err-types-data').textContent||'[]'); }catch(e){ data=[]; }
+        if(!el||!data.length){ if(el) el.style.display='none'; return; }
+        var c={}; data.forEach(function(t){ t=(t||'sin_tipo'); c[t]=(c[t]||0)+1; });
+        var rows=Object.keys(c).map(function(k){return {k:k,n:c[k]};}).sort(function(a,b){return b.n-a.n;}); var max=rows[0].n||1;
+        var h='<div class="et-h">Tipos de error · '+data.length+' registro'+(data.length!=1?'s':'')+'</div>';
+        rows.forEach(function(r){ h+='<div class="et-row"><span class="et-k" title="'+r.k+'">'+r.k.replace(/_/g,' ')+'</span><span class="et-bar"><span style="width:'+(r.n/max*100)+'%"></span></span><span class="et-v">'+r.n+'</span></div>'; });
+        el.innerHTML=h; })();</script>
+
+      <div id="errores-success-banner" style="display:none;background:var(--acc-subtle);color:var(--acc-text);border:1px solid var(--acc);padding:0.6rem 0.8rem;border-radius:2px;font-size:0.85rem;">
         ✓ Todos los errores resueltos
       </div>
 
@@ -393,7 +760,7 @@
             <tr id="err-row-{{ loop.index }}">
               <td style="word-break:break-all;max-width:120px;">{{ err.filename }}</td>
               <td>
-                <span style="background:#FEE2E2;color:#991B1B;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;white-space:nowrap;">
+                <span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">
                   {{ err.error_type or 'parse' }}
                 </span>
               </td>
@@ -421,8 +788,10 @@
       </div>
     </div>
 
+    </div><!-- /axc-body -->
   </section>
 </div>
+</div><!-- /gnosis-tool -->
 {% endblock %}
 
 {% block scripts %}
@@ -446,11 +815,14 @@ function switchPanel(id) {
   if (btn) btn.classList.add('active');
 }
 
-// Switch panel from URL param on load
-(function() {
+// Switch view/panel from URL param on load (deferred so view helpers are defined)
+window.addEventListener('DOMContentLoaded', function() {
   const p = new URLSearchParams(window.location.search).get('panel');
-  if (p) switchPanel(p);
-})();
+  if (!p) return;
+  if (p === 'dashboard') { if (window.gnosisReveal) gnosisReveal(true); return; }  // el tablero vive en la vista Dashboard
+  if (window.gnosisShowTool) gnosisShowTool();
+  switchPanel(p);
+});
 
 // ===== File type styles (real previews) =====
 const TYPE_STYLES = {
@@ -689,44 +1061,19 @@ document.getElementById('historicoForm').addEventListener('submit', async functi
   }
 });
 
-// ===== Resizable columns =====
-(function() {
-  const shell = document.querySelector('.app-shell');
-  let dragging = null, startX = 0, startW = 0;
-  let col1W = 200, col3W = 420;
+// ===== Paneles colapsables (filosofía W-C · el chat es el ancla) =====
+function axcToggle(which){
+  const p = document.getElementById('axc-' + which);
+  if (!p) return;
+  const col = p.classList.toggle('axc-collapsed');
+  const x = p.querySelector('.axc-x');
+  if (x) x.textContent = which === 'nav' ? (col ? '›' : '‹') : (col ? '‹' : '›');
+}
 
-  function applyWidths() {
-    shell.style.gridTemplateColumns = col1W + 'px 5px 1fr 5px ' + col3W + 'px';
-  }
-
-  document.querySelectorAll('.resize-handle').forEach(handle => {
-    handle.addEventListener('mousedown', e => {
-      dragging = handle.dataset.side;
-      startX = e.clientX;
-      startW = dragging === 'left' ? col1W : col3W;
-      handle.classList.add('dragging');
-      document.body.style.userSelect = 'none';
-      e.preventDefault();
-    });
-  });
-
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const dx = e.clientX - startX;
-    if (dragging === 'left') {
-      col1W = Math.max(120, Math.min(400, startW + dx));
-    } else {
-      col3W = Math.max(250, Math.min(700, startW - dx));
-    }
-    applyWidths();
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    document.querySelectorAll('.resize-handle').forEach(h => h.classList.remove('dragging'));
-    document.body.style.userSelect = '';
-    dragging = null;
-  });
+// ===== Terminal: ocultar caret decorativo mientras se escribe =====
+(function(){
+  const inp = document.getElementById('chatInput'), term = document.getElementById('axTerminal');
+  if (inp && term) inp.addEventListener('input', () => term.classList.toggle('axt-typing', inp.value.length > 0));
 })();
 
 // ===== Errores panel: reprocess =====
@@ -742,13 +1089,13 @@ async function reprocessFile(input, filename, sid, rowId) {
     const ok = data.exitosos && data.exitosos.includes(filename);
     if (ok) {
       if (window.gnosisSupervise) gnosisSupervise('Archivo corregido procesado: ' + filename);
-      row.style.background = '#D1FAE5';
+      row.style.background = 'var(--acc-subtle)';
       row.style.transition = 'opacity 1s';
       setTimeout(() => { row.style.opacity = '0'; setTimeout(() => { row.remove(); checkAllResolved(); }, 1000); }, 1500);
     } else {
       const fallido = data.fallidos && data.fallidos.find(f => f.file === filename);
       if (window.gnosisSupervise) gnosisSupervise('Error al reprocesar ' + filename + (fallido ? ': ' + fallido.detalle : '.'));
-      row.style.background = '#FEE2E2';
+      row.style.background = 'rgba(164,19,60,.15)';
       setTimeout(() => row.style.background = '', 2000);
     }
   } catch(e) {
@@ -815,7 +1162,7 @@ async function refreshErroresPanel() {
           const dlUrl = '/errores/download?sid=' + sid + '&f=' + encodeURIComponent(err.filename);
           return `<tr id="${rowId}">
             <td style="word-break:break-all;max-width:120px;">${err.filename}</td>
-            <td><span style="background:#FEE2E2;color:#991B1B;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.75rem;white-space:nowrap;">${err.error_type || 'parse'}</span></td>
+            <td><span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">${err.error_type || 'parse'}</span></td>
             <td style="max-width:140px;"><span title="${err.error_message || ''}">${truncated}</span></td>
             <td style="text-align:right;white-space:nowrap;">
               <a href="${dlUrl}" title="Descargar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none;font-size:0.85rem;margin-right:0.3rem;">↓</a>
@@ -852,7 +1199,7 @@ function checkAllResolved() {
     if (remaining > 0) {
       const lnk = document.createElement('a');
       lnk.href = '#'; lnk.textContent = ' Ver →';
-      lnk.style.cssText = 'font-size:0.8rem;color:#DC2626;';
+      lnk.style.cssText = 'font-size:0.8rem;color:var(--telos-on);';
       lnk.onclick = function(e) { e.preventDefault(); switchPanel('errores'); };
       errCell.parentNode.appendChild(lnk);
     }
@@ -891,5 +1238,811 @@ function checkAllResolved() {
     if (panelBadge) panelBadge.style.display = 'none';
   }
 }
+
+// ═══════════ GNOSIS · toggle de vistas (Dashboard ↔ Áreas) ═══════════
+function gnosisSetNav(which){
+  document.querySelectorAll('.hud-link').forEach(a=>{
+    const t=a.textContent.trim().toLowerCase();
+    a.classList.toggle('active', which==='tool' ? (t==='áreas'||t==='areas') : t==='dashboard');
+  });
+}
+function gnosisShowTool(){
+  const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool');
+  if(d) d.hidden=true; if(tl) tl.hidden=false;
+  document.documentElement.style.overflow='hidden'; document.body.classList.add('tool-active');
+  gnosisSetNav('tool');
+}
+function gnosisShowDash(){
+  const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool');
+  if(tl) tl.hidden=true; if(d) d.hidden=false;
+  document.documentElement.style.overflow=''; document.body.classList.remove('tool-active');
+  gnosisSetNav('dash'); requestAnimationFrame(gnosisRenderAll);
+}
+document.querySelectorAll('.hud-link').forEach(a=>{
+  const t=a.textContent.trim().toLowerCase();
+  if(t==='áreas'||t==='areas') a.addEventListener('click',e=>{e.preventDefault();gnosisShowTool();});
+  if(t==='dashboard') a.addEventListener('click',e=>{e.preventDefault();gnosisShowDash();});
+});
+
+// ═══════════ GNOSIS · 7 exhibits + tablero W-C + modal + vistas dedicadas ═══════════
+let GCY='0,212,255', GPINK='245,127,156', GTXT='170,170,170', GLEAF='230,230,230', GACC='#00D4FF';
+const MCOL=['#00D4FF','#A4133C','#7B3FA0','#FFB833','#33CC99','#6699CC'];
+function gnosisVizData(){ try{ return JSON.parse(document.getElementById('viz-data').textContent||'{}'); }catch(e){ return {}; } }
+// ── Medida activa del dashboard de Rutas: conteo ⇄ valor $ ──
+let gnosisMeasure='n';
+// ── Toggles de conceptualización (capas on/off por gráfica) ──
+const GNT = { hmVals:true, icOtros:true, cluster:true, jpct:true, sgBands:true, sgAgota:true, mhOnly:false, chRibbons:true, flThresh:true };
+const GNOPTS = {
+  heatmap:     [{k:'hmVals',   label:'Números'}],
+  icicle:      [{k:'icOtros',  label:'Agrupar «Otros»'}],
+  dendro:      [{k:'cluster',  label:'Clústeres'}, {k:'jpct', label:'Total · J%'}],
+  seguimiento: [{k:'sgBands',  label:'Bandas'}, {k:'sgAgota', label:'Agotamiento'}],
+  manh:        [{k:'mhOnly',   label:'Solo anomalías'}],
+  chord:       [{k:'chRibbons',label:'Cintas'}],
+  flow:        [{k:'flThresh', label:'Umbral'}],
+};
+function gnosisFillOpts(k){ const box=document.getElementById('solo-opts'); if(!box)return;
+  box.innerHTML=(GNOPTS[k]||[]).map(o=>'<button type="button" class="so-btn'+(GNT[o.k]?' on':'')+'" data-k="'+o.k+'" onclick="gnosisToggleOpt(\''+o.k+'\')" aria-pressed="'+(GNT[o.k]?'true':'false')+'">'+o.label+'</button>').join(''); }
+function gnosisToggleOpt(key){ GNT[key]=!GNT[key]; const solo=document.getElementById('gd-solo'); const k=solo?solo.dataset.viz:''; gnosisFillOpts(k); gnosisSoloRenderAll(); }
+// ── Chord: aislar cintas · clic en un arco (país/marca) para ver solo sus flujos; clic vacío = limpiar ──
+const chSel = new Set();
+function gnosisChordPick(key){ if(key==null){ if(!chSel.size)return; chSel.clear(); }
+  else { if(chSel.has(key)) chSel.delete(key); else chSel.add(key); }
+  document.querySelectorAll('.win-cv').forEach(c=>{ if(c._vizkey==='chord'&&c._redraw)c._redraw(); }); }
+function mval(r){ return gnosisMeasure==='valor' ? (+r.valor||0) : (+r.n||0); }
+function fMoney(v){ v=+v||0; if(v>=1e6) return '$'+(v/1e6).toFixed(1)+'M'; if(v>=1e3) return '$'+Math.round(v/1e3)+'k'; return '$'+Math.round(v); }
+function fMeasure(v){ return gnosisMeasure==='valor' ? fMoney(v) : Math.round(v||0).toLocaleString(); }
+function gTheme(){ const light=document.documentElement.getAttribute('data-theme')==='light';
+  GCY=light?'0,90,110':'0,212,255'; GPINK=light?'164,19,60':'245,127,156'; GTXT=light?'71,71,71':'170,170,170'; GLEAF=light?'47,47,47':'230,230,230'; GACC=light?'#005A6E':'#00D4FF'; return light; }
+function gc(el){ if(!el) return null; const r=el.getBoundingClientRect(); if(!r.width||r.height<2) return null; const dpr=2; el.width=r.width*dpr; el.height=r.height*dpr; const x=el.getContext('2d'); x.scale(dpr,dpr); x.clearRect(0,0,r.width,r.height); return {x,W:r.width,H:r.height}; }
+function gnd(s){ if(!s) return; const {x,W,H}=s; x.font='12px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',0.5)'; x.textAlign='center'; x.fillText('SIN DATOS SUFICIENTES',W/2,H/2); x.textAlign='left'; }
+
+// ── Hover / tooltip genérico sobre canvas (hit-testing · re-render barato · sin tocar la data) ──
+function gnRnd(n){ const s=Math.sin(n*12.9898)*43758.5453; return s-Math.floor(s); }  // pseudo-aleatorio determinista (estable entre renders)
+function gnSmall(el,W){ return (el&&(''+el.className).indexOf('sw-cv')>=0) || W<300; }  // thumbnail del selector (o lienzo diminuto): modo compacto sin etiquetas amontonadas
+function gnHitTest(h,mx,my){
+  if(h.shape==='rect') return mx>=h.x&&mx<=h.x+h.w&&my>=h.y&&my<=h.y+h.h;
+  if(h.shape==='circle'){ const dx=mx-h.x,dy=my-h.y,rr=Math.max(h.r||3,h.hr||9); return dx*dx+dy*dy<=rr*rr; }
+  if(h.shape==='arc'){ const dx=mx-h.cx,dy=my-h.cy,d=Math.sqrt(dx*dx+dy*dy); if(d<h.r0||d>h.r1)return false; let a=Math.atan2(dy,dx); while(a<h.a0)a+=6.283185307; while(a>h.a0+6.283185307)a-=6.283185307; return a<=h.a1; }
+  return false;
+}
+function gnTip(s,px,py,lines,color){ if(!lines||!lines.length)return; const {x,W,H}=s;
+  x.save(); const pad=9,lh=16,tf='12px "JetBrains Mono",monospace';
+  let tw=0; lines.forEach((l,i)=>{ x.font=(i?'':'700 ')+tf; tw=Math.max(tw,x.measureText(typeof l==='string'?l:l.t).width); });
+  const bw=tw+pad*2+3, bh=lines.length*lh+pad*2-4;
+  let bx=px+16,by=py+16; if(bx+bw>W-2)bx=px-bw-16; if(bx<2)bx=2; if(by+bh>H-2)by=py-bh-16; if(by<2)by=2;
+  const light=document.documentElement.getAttribute('data-theme')==='light';
+  x.fillStyle=light?'rgba(255,255,255,.97)':'rgba(7,9,13,.96)'; x.strokeStyle=color||('rgba('+GCY+',.9)'); x.lineWidth=1; x.shadowColor='rgba(0,0,0,.38)'; x.shadowBlur=11;
+  x.beginPath(); x.rect(bx+.5,by+.5,bw,bh); x.fill(); x.shadowBlur=0; x.stroke();
+  x.fillStyle=color||('rgba('+GCY+',1)'); x.fillRect(bx+.5,by+.5,3,bh);
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  lines.forEach((l,i)=>{ const t=typeof l==='string'?l:l.t; x.font=(i?'':'700 ')+tf;
+    x.fillStyle=(typeof l==='object'&&l.c)?l.c:(i===0?(light?'#083b47':'#EAF6FF'):(light?'#3a4a52':'rgba('+GTXT+',.82)'));
+    x.fillText(t,bx+pad+3,by+pad+12+i*lh); });
+  x.restore();
+}
+function gnHover(el,s){ if(!el||el._hoverKey==null)return; const h=(el._hits||[]).find(z=>z.key===el._hoverKey); if(!h)return; const {x}=s;
+  x.save(); x.globalAlpha=1;
+  if(h.shape==='rect'){ x.strokeStyle=h.hl||'#fff'; x.lineWidth=2; x.strokeRect(h.x+1,h.y+1,Math.max(1,h.w-2),Math.max(1,h.h-2)); }
+  else if(h.shape==='circle'){ x.strokeStyle=h.hl||'#fff'; x.lineWidth=2; x.beginPath(); x.arc(h.x,h.y,(h.r||3)+4.5,0,6.283185); x.stroke(); }
+  else if(h.shape==='arc'){ x.strokeStyle=h.hl||'#fff'; x.lineWidth=(h.r1-h.r0)+3; x.beginPath(); x.arc(h.cx,h.cy,(h.r0+h.r1)/2,h.a0,h.a1); x.stroke(); }
+  x.restore(); gnTip(s,el._mx||0,el._my||0,h.tip,h.color||h.hl);
+}
+function gnBindHover(el){ if(!el||el._hoverBound)return; el._hoverBound=1; el.style.cursor='crosshair';
+  el.addEventListener('mousemove',function(ev){ const r=el.getBoundingClientRect(); el._mx=ev.clientX-r.left; el._my=ev.clientY-r.top;
+    const hits=el._hits||[]; let f=null; for(let i=hits.length-1;i>=0;i--){ if(gnHitTest(hits[i],el._mx,el._my)){ f=hits[i]; break; } }
+    const k=f?f.key:null, moved=(k!==el._hoverKey); el._hoverKey=k; el.style.cursor=f?'pointer':'crosshair';
+    if((k!=null||moved)&&el._redraw)el._redraw(); });
+  el.addEventListener('mouseleave',function(){ if(el._hoverKey!=null){ el._hoverKey=null; if(el._redraw)el._redraw(); } });
+  el.addEventListener('click',function(ev){ if(!el._onpick)return; const r=el.getBoundingClientRect(); const mx=ev.clientX-r.left,my=ev.clientY-r.top;
+    const hits=el._hits||[]; let f=null; for(let i=hits.length-1;i>=0;i--){ if(gnHitTest(hits[i],mx,my)){ f=hits[i]; break; } }
+    el._onpick(f?f.key:null); });
+}
+// Re-render exacto cuando la caja del canvas cambia de tamaño (fin de transiciones, resize del hero, etc.).
+// Elimina el "corte"/estiramiento por dimensionar el backing a una altura intermedia — es la garantía definitiva de tamaño.
+function gnBindResize(el){ if(!el||el._roBound||typeof ResizeObserver==='undefined')return; el._roBound=1; let raf=0;
+  const ro=new ResizeObserver(function(){ if(raf)return; raf=requestAnimationFrame(function(){ raf=0; if(el._redraw)el._redraw(); }); });
+  ro.observe(el); }
+
+// ── 1 · Manhattan (anomalías) ──
+function vizManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
+  const byPais={}; rows.forEach(r=>{ const p=r.pais||'—'; (byPais[p]=byPais[p]||[]).push(r.n||0); });
+  let paises=Object.keys(byPais).sort((a,b)=>byPais[b].reduce((u,v)=>u+v,0)-byPais[a].reduce((u,v)=>u+v,0)).slice(0,8);
+  const pad={l:16,r:16,t:26,b:26}, bw=(W-pad.l-pad.r)/paises.length, y0=H-pad.b, thY=pad.t+22, R=Math.max(1.5,Math.min(3,W/520));
+  x.strokeStyle='rgba('+GTXT+',0.12)'; x.lineWidth=1; for(let i=1;i<paises.length;i++){ const gx=pad.l+i*bw; x.beginPath(); x.moveTo(gx,pad.t); x.lineTo(gx,y0); x.stroke(); }
+  x.strokeStyle='rgba('+GPINK+',0.7)'; x.setLineDash([5,5]); x.beginPath(); x.moveTo(pad.l,thY); x.lineTo(W-pad.r,thY); x.stroke(); x.setLineDash([]);
+  x.font='11px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GPINK+',0.95)'; x.textAlign='left'; x.fillText('UMBRAL_ANOMALÍA · 3σ',pad.l+2,thY-5);
+  let anoms=0;
+  paises.forEach((p,i)=>{ const arr=byPais[p], mean=arr.reduce((a,b)=>a+b,0)/arr.length, sd=Math.sqrt(arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/arr.length)||1, cx0=pad.l+i*bw, op=(i%2)?0.55:0.9;
+    arr.forEach((v,vi)=>{ const z=Math.abs((v-mean)/sd), yy=y0-(Math.min(z,4)/3)*(y0-thY), px=cx0+8+gnRnd(i*131+vi*17+1)*(bw-16), an=z>3; if(an)anoms++; if(GNT.mhOnly&&!an)return;
+      x.shadowColor=an?'rgba('+GPINK+',.85)':'rgba('+GCY+',.6)'; x.shadowBlur=an?7:3.2;   // glow mecha sutil por punto
+      x.fillStyle=an?'rgba('+GPINK+',1)':'rgba('+GCY+','+(op*(0.4+gnRnd(i*131+vi*17+91)*0.45))+')'; x.beginPath(); x.arc(px,yy,an?R+1.8:R,0,6.28); x.fill(); x.shadowBlur=0;
+      if(an){ x.strokeStyle='rgba('+GPINK+',0.5)'; x.beginPath(); x.arc(px,yy,R+5.5,0,6.28); x.stroke(); }
+      el._hits.push({shape:'circle',x:px,y:yy,r:an?R+1.8:R,hr:8,key:p+'|'+vi,color:an?'rgba('+GPINK+',1)':'rgba('+GCY+',1)',hl:an?'rgba('+GPINK+',1)':'#fff',tip:[(p||'').toUpperCase(),'Valor: '+(v||0).toLocaleString(),'Z-score: '+z.toFixed(2)+'σ',an?'⚠ ANOMALÍA (>3σ)':'En patrón']}); });
+    x.fillStyle='rgba('+GTXT+',0.95)'; x.font=(small?'10px':'12px')+' "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText((p||'').slice(0, small?3:12).toUpperCase(),cx0+bw/2,H-8); x.textAlign='left'; });
+  if(W>520){ x.font='11px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillStyle = anoms>0 ? 'rgba('+GPINK+',0.95)' : 'rgba('+GTXT+',0.7)';
+    x.fillText(anoms>0 ? anoms+' ANOMALÍA'+(anoms!=1?'S':'')+' · >3σ' : 'SIN ANOMALÍAS · 0 REGISTROS > 3σ', W-pad.r-2, thY-5); x.textAlign='left'; }
+  gnHover(el,s);
+}
+// ── 6 · Chord (rutas) ──
+function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const rows=gnosisVizData().flujo||[]; if(!rows.length){gnd(s);return;}
+  const M={},ps=new Set(),ms=new Set(); rows.forEach(r=>{ const p=r.pais||'—',m=r.marca||'—'; ps.add(p); ms.add(m); (M[p]=M[p]||{}); M[p][m]=(M[p][m]||0)+mval(r); });
+  let paises=[...ps],marcas=[...ms]; const pt2=p=>marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0), mt=m=>paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0);
+  paises=paises.sort((a,b)=>pt2(b)-pt2(a)).slice(0,5); marcas=marcas.sort((a,b)=>mt(b)-mt(a)).slice(0,5);
+  const mCol={}; marcas.forEach((m,i)=>mCol[m]=MCOL[i%5]);
+  const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-46, 330), rin=R-10, seg=[]; let tot=0;   // radio capado: en ventanas grandes el círculo no crece hasta invadir
+  paises.forEach(p=>{const val=marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:p,type:'p',val}); tot+=val;});
+  marcas.forEach(m=>{const val=paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:m,type:'m',val}); tot+=val;});
+  if(tot<=0){ gnd(s); return; } const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={}; x.textBaseline='middle';
+  seg.forEach(g=>{ const span=g.val*scale; g.a0=a; g.a1=a+span; pos[g.name]={cur:a}; const col=g.type==='m'?mCol[g.name]:'#6699CC'; const _on=chSel.size===0||chSel.has(g.type+'|'+g.name);
+    x.globalAlpha=_on?1:.26; x.strokeStyle=col; x.lineWidth=_on?6:5; x.beginPath(); x.arc(cx,cy,R,g.a0,g.a1); x.stroke(); x.globalAlpha=1;
+    el._hits.push({shape:'arc',cx:cx,cy:cy,r0:R-7,r1:R+7,a0:g.a0,a1:g.a1,key:g.type+'|'+g.name,color:col,hl:col,tip:[(g.name||'').toUpperCase()+(g.type==='m'?' · MARCA':' · ORIGEN'),(gnosisMeasure==='valor'?'Valor: ':'Registros: ')+(typeof fMeasure==='function'?fMeasure(g.val):Math.round(g.val).toLocaleString()), (chSel.size? (chSel.has(g.type+'|'+g.name)?'✓ aislado · clic para quitar':'clic para aislar') : 'clic para aislar sus cintas')]});
+    const mid=(g.a0+g.a1)/2, lr=R+14+(g.val<tot*0.045?13:0), lx=cx+Math.cos(mid)*lr, ly=cy+Math.sin(mid)*lr;
+    x.globalAlpha=_on?1:.4; x.font='10px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba('+GTXT+',0.95)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly); x.globalAlpha=1; a=g.a1+gap; });
+  const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
+  if(GNT.chRibbons) paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
+    if(chSel.size && !(chSel.has('p|'+p)||chSel.has('m|'+m))) return;   // aislar: solo cintas de los arcos seleccionados
+    const [x1,y1]=P(pa,rin),[x2,y2]=P(pa+span,rin),[x3,y3]=P(ma,rin),[x4,y4]=P(ma+span,rin);
+    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x4,y4); x.lineTo(x3,y3); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  if(W>360){ x.textAlign='center'; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.5)';
+    x.fillText(chSel.size? (chSel.size+' AISLADO'+(chSel.size!=1?'S':'')+' · CLIC EN VACÍO = LIMPIAR') : 'CLIC EN UN ARCO PARA AISLAR SUS CINTAS', cx, H-6); x.textAlign='left'; }
+  gnHover(el,s);
+}
+// ── 7 · Dendrograma conductual (segmentación por comportamiento · T2) ──
+// Agrupa marcas por PERFIL, no por volumen: estacionalidad (12m) + preferencia J/N + concentración de modelos (HHI).
+function vizDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const V=gnosisVizData();
+  const pm=(V.por_marca||[]).filter(r=>r.nombre); if(pm.length<2){gnd(s);return;}
+  const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+  let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre);
+  if(marcas.length<2){gnd(s);return;}
+  const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+  serie.forEach(r=>{ const f=F[r.marca]; if(!f)return; const mo=+((r.fecha||'').substr(4,2)); if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;} });
+  flujo.forEach(r=>{ const f=F[r.marca]; if(!f)return; const n=r.n||0; f.jn+=n; if((r.jn||'').toUpperCase()==='J')f.j+=n; });
+  jer.forEach(r=>{ const f=F[r.marca]; if(!f)return; const t=r.tipo||'—'; f.mods[t]=(f.mods[t]||0)+(r.n||0); f.modTot+=r.n||0; });
+  function vec(m){ const f=F[m]; const mon=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);
+    const jr=f.jn>0?f.j/f.jn:0.5; let hhi=0; if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;hhi+=p*p;}); else hhi=1;
+    return {v:mon.map(v=>v*2).concat([jr,hhi]),jr:jr}; }
+  const VE={}; marcas.forEach(m=>VE[m]=vec(m));
+  const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+  const totOf=m=>(pm.find(r=>r.nombre===m)||{}).total||0;
+  let nodes=marcas.map(m=>({name:m,v:VE[m].v,jr:VE[m].jr,total:totOf(m),leaf:true})); const dists=[];
+  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=D(nodes[i].v,nodes[j].v);if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=nodes[bi],B=nodes[bj],nv=A.v.map((_,k)=>(A.v[k]+B.v[k])/2); const n={leaf:false,children:[A,B],v:nv,dist:bd}; dists.push(bd); nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(n); }
+  const root=nodes[0], big=W>520; const pad={t:32,b:big?36:20,r:big?230:150,l:big?150:56}, leaves=[];
+  // corte natural (mayor salto) para colorear cada clúster igual que la firma de Síntesis
+  const sd=dists.slice().sort((a,b)=>a-b); let gi=0,gg=-1; for(let i=0;i<sd.length-1;i++){const g=sd[i+1]-sd[i]; if(g>gg){gg=g;gi=i;}}
+  const cutD=sd.length>1?(sd[gi]+sd[gi+1])/2:(sd[0]||1)*1.5; let cc=-1; const cmap={};
+  (function split(nd){ if(nd.leaf||nd.dist<cutD){ cc++; (function lv(n){ n.leaf?cmap[n.name]=cc:n.children.forEach(lv); })(nd); } else nd.children.forEach(split); })(root);
+  (function ann(nd){ if(nd.leaf){nd.cid=cmap[nd.name];return;} nd.children.forEach(ann); nd.cid=(nd.dist<cutD)?nd.children[0].cid:null; })(root);
+  (function col(nd){nd.leaf?leaves.push(nd):nd.children.forEach(col);})(root);
+  const gapY=(H-pad.t-pad.b)/Math.max(1,leaves.length-1); leaves.forEach((lf,i)=>lf.y=pad.t+i*gapY);
+  const lx=W-pad.r, maxd=(root.dist||1), xFor=nd=>nd.leaf?lx:lx-(nd.dist/maxd)*(lx-pad.l);
+  // costura del corte natural (dashed cian con glow · detrás del árbol)
+  const xCut=lx-(cutD/maxd)*(lx-pad.l);
+  x.strokeStyle='rgba('+GCY+',.45)'; x.setLineDash([4,5]); x.lineWidth=1.2; x.shadowColor='rgba('+GCY+',.5)'; x.shadowBlur=8; x.beginPath(); x.moveTo(xCut,pad.t-4); x.lineTo(xCut,H-pad.b+4); x.stroke(); x.setLineDash([]); x.shadowBlur=0;
+  // ramas del árbol — glow en los clústeres, nodo de fusión en cada junta
+  (function draw(nd){ if(nd.leaf)return nd.y; const ys=nd.children.map(draw), nx=xFor(nd), inC=nd.dist<cutD, useC=inC&&GNT.cluster, col=useC?MCOL[nd.cid%6]:'rgba('+GCY+',.4)';
+    x.strokeStyle=col; x.lineWidth=useC?2:1.2; if(useC){x.shadowColor=MCOL[nd.cid%6];x.shadowBlur=9;}
+    nd.children.forEach((c,k)=>{x.beginPath();x.moveTo(nx,ys[k]);x.lineTo(xFor(c),ys[k]);x.stroke();});
+    x.beginPath();x.moveTo(nx,Math.min(...ys));x.lineTo(nx,Math.max(...ys));x.stroke(); x.shadowBlur=0;
+    nd.y=(Math.min(...ys)+Math.max(...ys))/2; x.fillStyle=col; x.beginPath(); x.arc(nx,nd.y,useC?2.6:1.6,0,6.28); x.fill(); return nd.y; })(root);
+  const rowH=Math.max(14,Math.min(24,gapY)); x.textBaseline='middle'; leaves.forEach(lf=>{ const LC=GNT.cluster?MCOL[(cmap[lf.name]||0)%6]:GACC;
+    x.shadowColor=LC; x.shadowBlur=10; x.fillStyle=LC; x.beginPath(); x.arc(lx,lf.y,3.6,0,6.28); x.fill(); x.shadowBlur=0;
+    const nm=lf.name.slice(0,16); x.font='12px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GLEAF+',.95)'; x.textAlign='left'; x.fillText(nm,lx+11,lf.y);
+    if(GNT.jpct){ x.fillStyle='rgba('+GTXT+',.85)'; x.fillText('· '+(lf.total||0).toLocaleString()+(big?'  · J '+Math.round(lf.jr*100)+'%':''),lx+11+nm.length*7.4,lf.y); }
+    el._hits.push({shape:'rect',x:lx-9,y:lf.y-rowH/2,w:W-(lx-9)-2,h:rowH,key:lf.name,color:LC,hl:LC,tip:[lf.name.toUpperCase(),'Total: '+(lf.total||0).toLocaleString(),'Preferencia J: '+Math.round(lf.jr*100)+'%','Clúster: '+((cmap[lf.name]||0)+1)]}); });
+  x.textBaseline='alphabetic'; x.textAlign='left'; x.font='11px "JetBrains Mono",monospace';
+  if(big){ x.fillStyle='rgba('+GTXT+',.75)'; x.fillText('AGRUPADO POR PERFIL CONDUCTUAL',pad.l,pad.t-14);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.fillText('ESTACIONALIDAD · PREFERENCIA J/N · CONCENTRACIÓN DE MODELOS',pad.l,H-14); }
+  else { x.fillStyle='rgba('+GTXT+',.6)'; x.fillText('CONDUCTUAL',pad.l,pad.t-11); }
+  gnHover(el,s);
+}
+// ── 2 · Heatmap marca×mes (estacionalidad) ──
+const MNAME=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+function vizHeatmap(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
+  const M={}, mo=new Set(); rows.forEach(r=>{ const m=(r.fecha||'').substr(4,2); if(!m)return; mo.add(m); const k=r.marca||'—'; (M[k]=M[k]||{}); M[k][m]=(M[k][m]||0)+(r.n||0); });
+  let marcas=Object.keys(M).sort((a,b)=>Object.values(M[b]).reduce((u,v)=>u+v,0)-Object.values(M[a]).reduce((u,v)=>u+v,0)).slice(0,7);
+  let months=[...mo].sort(); let max=0; marcas.forEach(k=>months.forEach(m=>max=Math.max(max,M[k][m]||0))); if(max<=0){gnd(s);return;}
+  const pl=96,pt=18,pb=22, cw=(W-pl-16)/months.length, ch=(H-pt-pb)/marcas.length;
+  x.textBaseline='middle';
+  marcas.forEach((k,ri)=>{ months.forEach((m,ci)=>{ const raw=M[k][m]||0, v=raw/max; x.fillStyle='rgba('+GCY+','+(0.06+v*0.9)+')'; x.fillRect(pl+ci*cw+1,pt+ri*ch+1,cw-2,ch-2);
+      el._hits.push({shape:'rect',x:pl+ci*cw+1,y:pt+ri*ch+1,w:cw-2,h:ch-2,key:k+'|'+m,color:'rgba('+GCY+',1)',hl:'#fff',tip:[k.toUpperCase()+' · '+(MNAME[+m]||m),'Volumen: '+raw.toLocaleString(),(max?Math.round(raw/max*100):0)+'% del pico']});
+      if(GNT.hmVals && v>0.16 && ch>16){ x.fillStyle=v>0.6?'#030303':'rgba('+GLEAF+',.9)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText(String(raw),pl+ci*cw+cw/2,pt+ri*ch+ch/2);} });
+    x.fillStyle='rgba('+GTXT+',.95)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(k.slice(0,13).toUpperCase(),pl-10,pt+ri*ch+ch/2); });
+  if(!small){ x.fillStyle='rgba('+GTXT+',.7)'; x.textAlign='center'; x.textBaseline='alphabetic'; months.forEach((m,ci)=>x.fillText(MNAME[+m]||m,pl+ci*cw+cw/2,H-7)); }
+  gnHover(el,s);
+}
+// ── 3 · Icicle marca→modelo (concentración) ──
+function vizIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const rows=gnosisVizData().jerarquia_modelo||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const k=r.marca||'—'; (M[k]=M[k]||[]).push({t:r.tipo||'—',n:r.n||0}); });
+  let marcas=Object.keys(M).map(k=>({k,tot:M[k].reduce((u,o)=>u+o.n,0),ms:M[k].sort((a,b)=>b.n-a.n)})).sort((a,b)=>b.tot-a.tot).slice(0,6);
+  const max=Math.max(...marcas.map(m=>m.tot)); if(max<=0){gnd(s);return;}
+  const pl=120,pt=14,pb=14, rh=(H-pt-pb)/marcas.length; x.textBaseline='middle';
+  marcas.forEach((m,ri)=>{ const bw=(m.tot/max)*(W-pl-70); let sx=pl; let mods; if(GNT.icOtros){ mods=m.ms.slice(0,5); const rest=m.ms.slice(5).reduce((u,o)=>u+o.n,0); if(rest>0)mods.push({t:'Otros',n:rest}); } else { mods=m.ms; }
+    mods.forEach((o,si)=>{ const w=(o.n/m.tot)*bw; x.fillStyle='rgba('+GCY+','+(0.9-si*0.13)+')'; x.fillRect(sx,pt+ri*rh+3,Math.max(1,w-1),rh-6);
+      el._hits.push({shape:'rect',x:sx,y:pt+ri*rh+3,w:Math.max(1,w-1),h:rh-6,key:m.k+'|'+o.t+'|'+si,color:'rgba('+GCY+',1)',hl:'#fff',tip:[m.k.toUpperCase()+' · '+(o.t||'').toString().toUpperCase(),'Unidades: '+o.n.toLocaleString(),(m.tot?Math.round(o.n/m.tot*100):0)+'% de la marca']});
+      if(w>54 && rh>24){ const nm=(o.t||'').toString().slice(0,14).toUpperCase(), cy=pt+ri*rh+rh/2; x.textAlign='left'; x.textBaseline='middle';
+        x.font='11px "JetBrains Mono",monospace'; x.fillStyle = si<3 ? 'rgba(3,3,3,.82)' : 'rgba('+GLEAF+',.92)'; x.fillText(nm, sx+8, cy-(rh>42?7:0));
+        if(rh>42){ x.font='10px "JetBrains Mono",monospace'; x.fillStyle = si<3 ? 'rgba(3,3,3,.6)' : 'rgba('+GTXT+',.8)'; x.fillText(o.n.toLocaleString(), sx+8, cy+9); } }
+      sx+=w; });
+    x.font='12px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.95)'; x.textAlign='right'; x.fillText(m.k.slice(0,14).toUpperCase(),pl-10,pt+ri*rh+rh/2);
+    x.fillStyle='rgba('+GLEAF+',.9)'; x.textAlign='left'; x.fillText(m.tot.toLocaleString(),pl+bw+8,pt+ri*rh+rh/2); });
+  gnHover(el,s);
+}
+// ── 4 · Flow-to-Reservoir (presión sobre el cupo) ──
+// Burndown de cupo: reservorio (remanente, glow cian) bajo la escalera + headroom consumido (telos) arriba; cascadas por marca brillantes
+function vizFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const flujo=V.flujo||[];
+  const marcaN={}; flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ marcaN[r.marca]=(marcaN[r.marca]||0)+(r.n||0);} });
+  let marcas=Object.keys(marcaN).map(m=>({m,n:marcaN[m]})).sort((a,b)=>b.n-a.n).slice(0,6); const totN=marcas.reduce((u,o)=>u+o.n,0)||1;
+  const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
+  if(!cupo.ini){ gnd(s); return; }
+  const consumed=Math.max(0,cupo.ini-cupo.sal); marcas.forEach(o=>o.c=(o.n/totN)*consumed);
+  const pad={l:60,r:150,t:46,b:56}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=marcas.length, Yv=v=>y0-(v/cupo.ini)*(y0-y1);
+  const yCupo=Yv(cupo.ini), ySaldo=Yv(cupo.sal);
+  // grid
+  x.font='11px "JetBrains Mono",monospace'; x.textBaseline='middle';
+  for(let t=0;t<=100;t+=25){ const yy=Yv(cupo.ini*t/100), crit=(t===25)&&GNT.flThresh;
+    x.strokeStyle=crit?'rgba('+GPINK+',.5)':'rgba('+GTXT+',.10)'; x.lineWidth=1; if(crit)x.setLineDash([4,4]);
+    x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.setLineDash([]);
+    x.fillStyle=crit?'rgba('+GPINK+',.9)':'rgba('+GTXT+',.4)'; x.textAlign='right'; x.fillText(t+'%', x0-8, yy); }
+  // construir la escalera (puntos) + geometría de cada caída
+  const stepW=(x1-x0)/(n+1); const stair=[[x0,yCupo]]; let cxp=x0, cur=cupo.ini;
+  marcas.forEach((o)=>{ const nx=cxp+stepW; stair.push([nx,Yv(cur)]); o._nx=nx; o._yTop=Yv(cur); cur-=o.c; stair.push([nx,Yv(cur)]); o._yBot=Yv(cur); cxp=nx; });
+  stair.push([x1,ySaldo]);
+  // headroom consumido (entre techo y escalera) · degradado telos tenue
+  const gCon=x.createLinearGradient(0,yCupo,0,ySaldo); gCon.addColorStop(0,'rgba('+GPINK+',.16)'); gCon.addColorStop(1,'rgba('+GPINK+',.03)');
+  x.beginPath(); x.moveTo(x0,yCupo); x.lineTo(x1,yCupo); for(let i=stair.length-1;i>=0;i--) x.lineTo(stair[i][0],stair[i][1]); x.closePath(); x.fillStyle=gCon; x.fill();
+  // reservorio remanente (bajo la escalera) · degradado cian con glow
+  const gRes=x.createLinearGradient(0,ySaldo,0,y0); gRes.addColorStop(0,'rgba('+GCY+',.36)'); gRes.addColorStop(1,'rgba('+GCY+',.05)');
+  x.beginPath(); x.moveTo(x0,y0); stair.forEach(p=>x.lineTo(p[0],p[1])); x.lineTo(x1,y0); x.closePath(); x.fillStyle=gRes; x.fill();
+  // línea techo (cupo) · telos punteada
+  x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.3; x.beginPath(); x.moveTo(x0,yCupo); x.lineTo(x1,yCupo); x.stroke(); x.setLineDash([]);
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='alphabetic'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CUPO '+cupo.ini.toLocaleString(), x0, yCupo-8);
+  // escalera con glow (superficie del reservorio)
+  x.shadowColor='rgba('+GCY+',.7)'; x.shadowBlur=13; x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2.6; x.beginPath(); stair.forEach((p,i)=>{ i?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]); }); x.stroke(); x.shadowBlur=0;
+  // cascadas por marca (drops con glow) + nodos + etiquetas
+  x.textBaseline='middle';
+  marcas.forEach((o,i)=>{ const col=MCOL[i%6];
+    x.shadowColor=col; x.shadowBlur=11; x.strokeStyle=col; x.lineWidth=4.5; x.beginPath(); x.moveTo(o._nx,o._yTop); x.lineTo(o._nx,o._yBot); x.stroke(); x.shadowBlur=0;
+    x.shadowColor=col; x.shadowBlur=9; x.fillStyle=col; x.beginPath(); x.arc(o._nx,o._yBot,3.4,0,6.28); x.fill(); x.shadowBlur=0;
+    el._hits.push({shape:'circle',x:o._nx,y:o._yBot,r:3.4,hr:12,key:o.m,color:col,hl:col,tip:[(o.m||'').toUpperCase(),'Consumo: '+Math.round(o.c).toLocaleString(),(consumed?Math.round(o.c/consumed*100):0)+'% del consumido']});
+    if(!small){ x.fillStyle=col; x.font='11px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText('−'+Math.round(o.c).toLocaleString(), o._nx+7, (o._yTop+o._yBot)/2);
+      x.save(); x.translate(o._nx, y0+12); x.rotate(-Math.PI/4); x.textAlign='right'; x.fillStyle=col; x.fillText((o.m||'').slice(0,10), 0, 0); x.restore(); } });
+  // nodo saldo + cifra monumental
+  x.shadowColor='rgba('+GCY+',.95)'; x.shadowBlur=15; x.fillStyle=GACC; x.beginPath(); x.arc(x1,ySaldo,4.6,0,6.28); x.fill(); x.shadowBlur=0;
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.textAlign='left'; x.textBaseline='middle'; x.font='700 15px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText('SALDO '+cupo.sal.toLocaleString(), x1+10, ySaldo-3);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText(Math.round(cupo.sal/cupo.ini*100)+'% DISPONIBLE', x1+10, ySaldo+13);
+  if(GNT.flThresh && !small){ x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.textBaseline='middle'; x.font='11px "JetBrains Mono",monospace'; x.fillText('UMBRAL', x1+10, Yv(cupo.ini*0.25)); }
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  gnHover(el,s);
+}
+// ── 5 · Árbol circular VIN (anatomía de la flota) ──
+function vizVin(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const light=document.documentElement.getAttribute('data-theme')==='light'; const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const k=r.marca||'—'; (M[k]=M[k]||[]).push({t:(r.tipo||r.auto||'—'),n:r.n||0}); });
+  let marcas=Object.keys(M).map(k=>({k,leaves:M[k].sort((a,b)=>b.n-a.n).slice(0,6),tot:M[k].reduce((u,o)=>u+o.n,0)})).sort((a,b)=>b.tot-a.tot).slice(0,6);
+  const totL=marcas.reduce((u,m)=>u+m.leaves.length,0)||1, cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-42, 330), midR=R*0.52;   // radio capado (ver chord)
+  const maxTot=Math.max.apply(null,marcas.map(m=>m.tot))||1;
+  x.strokeStyle='rgba('+GCY+',.16)'; x.lineWidth=.8; [midR,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
+  let ai=-Math.PI/2; x.textBaseline='middle';
+  marcas.forEach((m,mi)=>{ const span=(m.leaves.length/totL)*6.28, a0=ai, amid=ai+span/2; ai+=span;
+    const mx=cx+Math.cos(amid)*midR, my=cy+Math.sin(amid)*midR;
+    // tronco centro→hub (grosor ∝ total de la marca)
+    x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.7; x.lineWidth=1+2.6*(m.tot/maxTot); x.beginPath(); x.moveTo(cx,cy); x.lineTo(mx,my); x.stroke(); x.globalAlpha=1;
+    // ramas hub→hoja + nodos hoja (anillo exterior)
+    m.leaves.forEach((lf,li)=>{ const a=a0+span*(li+0.5)/m.leaves.length, lx=cx+Math.cos(a)*R, ly=cy+Math.sin(a)*R;
+      x.strokeStyle=MCOL[mi%6]; x.globalAlpha=.5; x.lineWidth=1; x.beginPath(); x.moveTo(mx,my); x.lineTo(lx,ly); x.stroke(); x.globalAlpha=1;
+      const lr=1.8+Math.min(3.5,Math.log10(lf.n+1)); x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(lx,ly,lr,0,6.28); x.fill();
+      el._hits.push({shape:'circle',x:lx,y:ly,r:lr,hr:11,key:m.k+'|'+lf.t+'|'+li,color:MCOL[mi%6],hl:MCOL[mi%6],tip:[m.k.toUpperCase()+' · '+(lf.t||'').toString().toUpperCase(),'Unidades: '+(lf.n||0).toLocaleString()]}); });
+    // NODO HUB de marca — llena el anillo medio (tamaño ∝ total)
+    const hr=3.4+Math.min(7.5,Math.log10(m.tot+1)*2.1);
+    x.shadowColor=MCOL[mi%6]; x.shadowBlur=8; x.fillStyle=MCOL[mi%6]; x.beginPath(); x.arc(mx,my,hr,0,6.28); x.fill(); x.shadowBlur=0;
+    x.fillStyle=light?'rgba(255,255,255,.85)':'rgba(6,9,13,.9)'; x.beginPath(); x.arc(mx,my,hr*0.4,0,6.28); x.fill();   // ojo (dona) para lectura
+    el._hits.push({shape:'circle',x:mx,y:my,r:hr,hr:hr+4,key:'hub|'+m.k,color:MCOL[mi%6],hl:MCOL[mi%6],tip:[m.k.toUpperCase(),'Total: '+m.tot.toLocaleString()+' unid',m.leaves.length+' modelo'+(m.leaves.length!=1?'s':'')]});
+    // total de la marca hacia el centro (llena la zona media)
+    if(!small){ const tx=cx+Math.cos(amid)*R*0.30, ty=cy+Math.sin(amid)*R*0.30; x.fillStyle=MCOL[mi%6]; x.font='11px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText(m.tot.toLocaleString(), tx, ty); }
+    // etiqueta marca (exterior)
+    const llx=cx+Math.cos(amid)*(R+18), lly=cy+Math.sin(amid)*(R+18); x.fillStyle=MCOL[mi%6]; x.font=(small?'10px':'11px')+' "JetBrains Mono",monospace'; x.textAlign=Math.cos(amid)<0?'end':'start'; x.fillText(m.k.slice(0,16),llx,lly); });
+  // núcleo central (flota)
+  x.strokeStyle='rgba('+GCY+',.4)'; x.lineWidth=1; x.beginPath(); x.arc(cx,cy,7,0,6.28); x.stroke();
+  x.shadowColor='rgba('+GCY+',.85)'; x.shadowBlur=11; x.fillStyle=GACC; x.beginPath(); x.arc(cx,cy,4.5,0,6.28); x.fill(); x.shadowBlur=0;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  gnHover(el,s);
+}
+// ── 8 · Trayectoria del Cupo (seguimiento mensual · consumo acumulado prod+inv hacia el techo) ──
+// Órbita de Agotamiento: espiral polar · ángulo = mes (ENE arriba, horario) · radio = % del cupo consumido
+// hacia el anillo exterior (techo 100%). Producción (cian) e Inversión (púrpura) apiladas radialmente;
+// cifra monumental al centro; proyección de agotamiento punteada hasta el anillo.
+function vizSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const small=gnSmall(el,W); const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const sg=(V.seguimiento||[]); if(!sg.length){gnd(s);return;}
+  const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0) || (+sg[sg.length-1].cupo_produccion_activo||0)+(+sg[sg.length-1].cupo_inversion_activo||0);
+  if(cupo<=0){gnd(s);return;}
+  const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-38, 300), r0=Math.max(30,R*0.26);
+  const Rr=v=>r0+(Math.min(Math.max(v,0),cupo)/cupo)*(R-r0);
+  const P=(a,r)=>[cx+Math.cos(a)*r, cy+Math.sin(a)*r];
+  let cp=0,ci=0; const pts=sg.map(m=>{ cp+=(+m.consumo_produccion||0); ci+=(+m.consumo_inversion||0);
+    const mn=+((''+(m.month||'')).slice(0,2))||0, ang=-Math.PI/2 + ((mn?mn-1:0)/12)*2*Math.PI;
+    return {ang,cp,ci,tot:cp+ci,name:(m.month_name||m.month||''),month:(''+(m.month||''))}; });
+  const last=pts[pts.length-1];
+  // guías radiales 25/50/75 + techo (anillo exterior telos)
+  x.strokeStyle='rgba('+GTXT+',.10)'; x.lineWidth=1; [0.25,0.5,0.75].forEach(fp=>{ x.beginPath(); x.arc(cx,cy,r0+fp*(R-r0),0,6.28); x.stroke(); });
+  x.strokeStyle='rgba('+GPINK+',.55)'; x.lineWidth=1.5; x.beginPath(); x.arc(cx,cy,R,0,6.28); x.stroke();
+  if(!small){ x.fillStyle='rgba('+GTXT+',.4)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='middle';
+    [[0.25,'25'],[0.5,'50'],[0.75,'75']].forEach(g=>x.fillText(g[1]+'%', cx, cy-(r0+g[0]*(R-r0)))); }
+  // bandas espirales apiladas
+  if(GNT.sgBands && pts.length>1){
+    x.beginPath(); pts.forEach((p,i)=>{ const q=P(p.ang,Rr(p.cp)); i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); });
+    for(let i=pts.length-1;i>=0;i--){ const q=P(pts[i].ang,Rr(pts[i].tot)); x.lineTo(q[0],q[1]); }
+    x.closePath(); x.globalAlpha=.4; x.fillStyle=MCOL[2]; x.fill(); x.globalAlpha=1;                          // Inversión (exterior)
+    x.beginPath(); { const q=P(pts[0].ang,r0); x.moveTo(q[0],q[1]); } pts.forEach(p=>{ const q=P(p.ang,Rr(p.cp)); x.lineTo(q[0],q[1]); });
+    for(let i=pts.length-1;i>=0;i--){ const q=P(pts[i].ang,r0); x.lineTo(q[0],q[1]); }
+    x.closePath(); x.globalAlpha=.8; x.fillStyle='rgba('+GCY+',.22)'; x.fill(); x.globalAlpha=1;               // Producción (interior)
+  }
+  // línea de trayectoria (acumulado) + nodos por mes
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ const q=P(p.ang,Rr(p.tot)); i?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); }); x.stroke();
+  pts.forEach(p=>{ const q=P(p.ang,Rr(p.tot)); x.fillStyle=GACC; x.beginPath(); x.arc(q[0],q[1],2,0,6.28); x.fill();
+    el._hits.push({shape:'circle',x:q[0],y:q[1],r:2,hr:12,key:p.month||p.name,color:GACC,hl:'#fff',tip:[(p.name||'').toUpperCase()+' · MES','Producción: '+Math.round(p.cp).toLocaleString(),'Inversión: '+Math.round(p.ci).toLocaleString(),'Acumulado: '+Math.round(p.tot).toLocaleString(),Math.round(p.tot/cupo*100)+'% del cupo']}); });
+  { const q=P(last.ang,Rr(last.tot)); x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=12; x.fillStyle=GACC; x.beginPath(); x.arc(q[0],q[1],4,0,6.28); x.fill(); x.shadowBlur=0; }
+  // proyección de agotamiento (extiende la espiral hasta el anillo, al ritmo medio)
+  const rate=last.tot/pts.length, remain=Math.max(0,cupo-last.tot), monthsLeft=rate>0?remain/rate:Infinity;
+  if(isFinite(monthsLeft)&&monthsLeft>0){ const stp=Math.max(6,Math.ceil(monthsLeft)*2);
+    x.strokeStyle='rgba('+GCY+',.5)'; x.setLineDash([3,5]); x.lineWidth=1.4; x.beginPath();
+    for(let k=0;k<=stp;k++){ const t=k/stp*monthsLeft, a=last.ang+(t/12)*2*Math.PI, q=P(a,Rr(last.tot+rate*t)); k?x.lineTo(q[0],q[1]):x.moveTo(q[0],q[1]); }
+    x.stroke(); x.setLineDash([]);
+    const aE=last.ang+(monthsLeft/12)*2*Math.PI, e=P(aE,R); x.shadowColor='rgba('+GPINK+',.8)'; x.shadowBlur=10; x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(e[0],e[1],4,0,6.28); x.fill(); x.shadowBlur=0;
+    if(!small){ const l=P(aE,R+15); x.fillStyle='rgba('+GPINK+',.9)'; x.font='10px "JetBrains Mono",monospace'; x.textAlign=Math.cos(aE)<-0.2?'end':(Math.cos(aE)>0.2?'start':'center'); x.textBaseline='middle'; x.fillText('AGOTA ~'+Math.ceil(monthsLeft)+' MES'+(Math.ceil(monthsLeft)!=1?'ES':''), l[0], l[1]); } }
+  // marcadores de agotamiento (transiciones): radio telos hasta el anillo
+  if(GNT.sgAgota) (V.agotamientos||[]).forEach(a=>{ const p=pts.find(q=>(a.month&&q.month==a.month)||(a.month_name&&q.name===a.month_name)); if(!p)return;
+    const i=P(p.ang,r0), o=P(p.ang,R); x.strokeStyle='rgba('+GPINK+',.45)'; x.setLineDash([2,3]); x.lineWidth=1; x.beginPath(); x.moveTo(i[0],i[1]); x.lineTo(o[0],o[1]); x.stroke(); x.setLineDash([]);
+    x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(o[0],o[1],3,0,6.28); x.fill(); });
+  // etiquetas de mes en el anillo
+  if(!small){ x.fillStyle='rgba('+GTXT+',.55)'; x.font='10px "JetBrains Mono",monospace'; x.textBaseline='middle';
+    pts.forEach(p=>{ const l=P(p.ang,R+13); x.textAlign=Math.abs(Math.cos(p.ang))<.25?'center':(Math.cos(p.ang)<0?'end':'start'); x.fillText((p.name||'').slice(0,3), l[0], l[1]); }); }
+  // núcleo: cifra monumental
+  const pct=Math.round(last.tot/cupo*100);
+  x.textAlign='center'; x.textBaseline='middle';
+  x.fillStyle=(light?'#005A6E':'#FFFFFF'); x.font='700 '+Math.round(r0*0.92)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(pct+'%', cx, cy-r0*0.06);
+  if(!small){ x.fillStyle='rgba('+GCY+',.9)'; x.font='9px "JetBrains Mono",monospace'; x.fillText('CONSUMIDO', cx, cy+r0*0.42);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.fillText(Math.round(last.tot).toLocaleString()+' / '+cupo.toLocaleString(), cx, cy+r0*0.66); }
+  // leyenda
+  if(!small){ x.textAlign='left'; x.textBaseline='middle'; x.font='10px "JetBrains Mono",monospace';
+    x.fillStyle='rgba('+GCY+',.9)'; x.fillRect(14,18,8,8); x.fillText('PRODUCCIÓN',28,22); x.fillStyle=MCOL[2]; x.fillRect(14,34,8,8); x.fillText('INVERSIÓN',28,38);
+    x.fillStyle='rgba('+GPINK+',.85)'; x.textAlign='right'; x.fillText('TECHO = 100% CUPO', W-14, 22); }
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  gnHover(el,s);
+}
+
+// ── Registro de tableros ──
+const VIZ={
+  manh:{name:'Anomalías de Validación',desc:'Registros fuera de patrón · Z-score · 3σ',render:vizManh},
+  chord:{name:'Rutas de Importación',desc:'Cómo fluye origen → marca',render:vizChord},
+  dendro:{name:'Segmentación de Marcas',desc:'Qué marcas se comportan igual',render:vizDendro},
+  heatmap:{name:'Estacionalidad de Importación',desc:'Cuándo se concentra el volumen',render:vizHeatmap},
+  icicle:{name:'Concentración de Volumen',desc:'Qué modelos cargan el volumen',render:vizIcicle},
+  flow:{name:'Presión sobre el Cupo',desc:'Quién consume el cupo · cuánto queda',render:vizFlow},
+  vintree:{name:'Anatomía de la Flota',desc:'De qué se compone la flota',render:vizVin},
+  seguimiento:{name:'Trayectoria del Cupo',desc:'Cómo evoluciona el consumo mes a mes',render:vizSeguimiento},
+};
+const SW_ORDER=['heatmap','icicle','flow','seguimiento','vintree','manh','chord','dendro'];
+const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',seguimiento:'TRAYECTORIA',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
+
+// ── Tablero (ventanas W-C) ──
+function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; cv._vizkey=k; cv._onpick=(k==='chord')?gnosisChordPick:null; cv._redraw=function(){ try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }; gnBindHover(cv); gnBindResize(cv); try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
+// Re-render del tablero por frames durante la transición flex-grow .32s (evita que el canvas se dimensione
+// a una altura intermedia y quede estirado/cortado — mismo patrón que la vista Solo)
+let _tabFrames=0,_tabRunning=false;
+function gnosisTableroRenderLoop(frames){ _tabFrames=Math.max(_tabFrames,frames||24); if(_tabRunning)return; _tabRunning=true;
+  (function f(){ gnosisRenderTablero(); if(--_tabFrames>0) requestAnimationFrame(f); else _tabRunning=false; })(); }
+function gnosisUpdateWinBtns(){ const only=document.querySelectorAll('#gd-tablero .win:not(.collapsed)').length<=1;
+  document.querySelectorAll('#gd-tablero .win').forEach(w=>{ const btn=w.querySelector('.win-x'); if(!btn)return;
+    const lastOpen=only && !w.classList.contains('collapsed'); btn.classList.toggle('win-x-off', lastOpen); btn.setAttribute('aria-disabled', lastOpen?'true':'false');
+    btn.title=lastOpen?'Deja al menos un tablero abierto':(w.classList.contains('collapsed')?'Expandir':'Colapsar'); }); }
+function gnosisToggleWin(btn){ const win=btn.closest('.win'); const open=document.querySelectorAll('#gd-tablero .win:not(.collapsed)');
+  if(!win.classList.contains('collapsed') && open.length<=1) return; // la última no se colapsa (botón atenuado)
+  win.classList.toggle('collapsed'); gnosisUpdateWinBtns(); gnosisTableroRenderLoop(28); }
+
+// ── Modal switcher ──
+function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!m)return; const grid=document.getElementById('sw-grid');
+  if(grid && !grid.dataset.built){ grid.dataset.built='1'; SW_ORDER.forEach((k,i)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>gnosisOpenDashboard(k);
+    c.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span><span class="tag">'+SW_TAG[k]+'</span><canvas class="sw-cv"></canvas><div class="meta"><div class="name">'+VIZ[k].name+'</div><div class="desc">'+VIZ[k].desc+'</div></div>'; grid.appendChild(c); });
+    for(var e=SW_ORDER.length; e%4!==0; e++){ var ph=document.createElement('div'); ph.className='sw-card sw-empty'; ph.innerHTML='<span class="ph-mk">◇</span><span class="ph-t">Ranura reservada</span>'; grid.appendChild(ph); } }
+  m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; try{ VIZ[k].render(cv); }catch(e){} }); }); }
+function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
+
+// ── Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica) ──
+function gnosisOpenDashboard(k){ gnosisCloseSwitcher(); gnosisMeasure='n'; chSel.clear(); const solo=document.getElementById('gd-solo'); if(!solo||!VIZ[k])return;
+  document.getElementById('solo-name').textContent=VIZ[k].name; document.getElementById('solo-desc').textContent=VIZ[k].desc;
+  const tag=document.getElementById('solo-viz-tag'); if(tag) tag.textContent=(SW_TAG[k]||''); gnosisFillOpts(k);
+  const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){ rb.innerHTML='<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>'; } }
+  const rp=document.getElementById('solo-read'), vp=document.getElementById('solo-viz'); if(rp)rp.classList.remove('solo-col'); if(vp)vp.classList.remove('solo-col');
+  const dl=document.getElementById('solo-dual'); if(dl) dl.classList.remove('viz-col','read-col');
+  solo.dataset.viz=k; solo.hidden=false; gTheme();
+  requestAnimationFrame(function(){ gnosisSoloRenderLoop(20); }); }
+function gnosisSoloRenderAll(){ const solo=document.getElementById('gd-solo'); if(!solo||solo.hidden)return; const k=solo.dataset.viz;
+  const cv=document.getElementById('solo-cv'); if(cv&&VIZ[k]){ cv._vizkey=k; cv._onpick=(k==='chord')?gnosisChordPick:null; cv._redraw=function(){ try{ VIZ[k].render(cv); }catch(e){} }; gnBindHover(cv); gnBindResize(cv); try{ VIZ[k].render(cv); }catch(e){} }
+  const sc=document.getElementById('solo-sig-cv'); if(sc&&SIG[k]){ sc._redraw=function(){ try{ SIG[k](sc); }catch(e){} }; gnBindHover(sc); gnBindResize(sc); try{ SIG[k](sc); }catch(e){} } }
+// Re-render por frames durante la transición de las panes (evita que el canvas se estire por CSS · el chord deja de "saltar")
+let _soloFrames=0, _soloRunning=false;
+function gnosisSoloRenderLoop(frames){ _soloFrames=Math.max(_soloFrames, frames||22); if(_soloRunning)return; _soloRunning=true;
+  (function f(){ gnosisSoloRenderAll(); if(--_soloFrames>0) requestAnimationFrame(f); else _soloRunning=false; })(); }
+function gnosisCloseSolo(){ const solo=document.getElementById('gd-solo'); if(solo)solo.hidden=true; }
+function gnosisSetMeasure(m){ gnosisMeasure=m; const solo=document.getElementById('gd-solo'); if(!solo)return; const k=solo.dataset.viz;
+  const rb=document.getElementById('solo-read-body'); if(rb){ try{ rb.innerHTML=gnosisSoloRead(k); }catch(e){} } gnosisSoloRenderAll(); }
+function gnosisSoloToggle(which){ const read=document.getElementById('solo-read'), viz=document.getElementById('solo-viz'); if(!read||!viz)return;
+  const target=which==='read'?read:viz, other=which==='read'?viz:read;
+  if(!target.classList.contains('solo-col') && other.classList.contains('solo-col')){
+    other.classList.remove('solo-col'); target.classList.add('solo-col');   // ambos no pueden colapsar → intercambiar el foco (siempre responde)
+  } else {
+    target.classList.toggle('solo-col');
+  }
+  const dual=document.getElementById('solo-dual'); if(dual){ dual.classList.toggle('viz-col', viz.classList.contains('solo-col')); dual.classList.toggle('read-col', read.classList.contains('solo-col')); }
+  gnosisSoloRenderLoop(24); }
+
+// ── Firmas gráficas deep-tech (biomecha) de la Ventana A · una por dashboard ──
+// #1 Estacionalidad: dial radial de 12 meses (radio ∝ volumen · el pico brilla · eco del isotipo GNOSIS)
+function sigHeatmap(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().serie_diaria||[]; const mon=new Array(13).fill(0); let tot=0;
+  rows.forEach(r=>{ const m=+((r.fecha||'').substr(4,2)); if(m>=1&&m<=12){mon[m]+=r.n||0;tot+=r.n||0;} });
+  const max=Math.max.apply(null,mon.slice(1))||1; let peak=1; for(let m=2;m<=12;m++) if(mon[m]>mon[peak])peak=m;
+  const order=[1,2,3,4,5,6,7,8,9,10,11,12].sort((a,b)=>mon[b]-mon[a]); const pct=tot?Math.round(order.slice(0,4).reduce((s,m)=>s+mon[m],0)/tot*100):0;
+  const MN=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2-26, r0=R*0.40;
+  // orbes guía + órbita punteada (biomecha)
+  x.strokeStyle='rgba('+GCY+',.14)'; x.lineWidth=1; [r0,R].forEach(rr=>{x.beginPath();x.arc(cx,cy,rr,0,6.28);x.stroke();});
+  x.setLineDash([2,6]); x.strokeStyle='rgba('+GCY+',.22)'; x.beginPath(); x.arc(cx,cy,(r0+R)/2,0,6.28); x.stroke(); x.setLineDash([]);
+  x.textAlign='center'; x.textBaseline='middle';
+  for(let m=1;m<=12;m++){ const a=-Math.PI/2+(m-1)/12*2*Math.PI, len=r0+(mon[m]/max)*(R-r0), pk=(m===peak);
+    const ix=cx+Math.cos(a)*r0, iy=cy+Math.sin(a)*r0, ox=cx+Math.cos(a)*len, oy=cy+Math.sin(a)*len;
+    x.strokeStyle=pk?'rgba('+GCY+',1)':'rgba('+GCY+','+(0.24+0.55*mon[m]/max)+')'; x.lineWidth=pk?3:2;
+    if(pk){x.shadowColor='rgba('+GCY+',.9)';x.shadowBlur=12;} x.beginPath(); x.moveTo(ix,iy); x.lineTo(ox,oy); x.stroke(); x.shadowBlur=0;
+    x.fillStyle=pk?GACC:'rgba('+GCY+',.7)'; x.beginPath(); x.arc(ox,oy,pk?3.4:1.8,0,6.28); x.fill();
+    el._hits.push({shape:'circle',x:ox,y:oy,r:pk?3.4:1.8,hr:13,key:'m'+m,color:GACC,hl:'#fff',tip:[MN[m]+' · MES','Volumen: '+(mon[m]||0).toLocaleString(),(max?Math.round(mon[m]/max*100):0)+'% del pico']});
+    const lr=R+13, lx=cx+Math.cos(a)*lr, ly=cy+Math.sin(a)*lr; x.font=(pk?'700 ':'')+'11px "JetBrains Mono",monospace'; x.fillStyle=pk?GACC:'rgba('+GTXT+',.55)'; x.fillText(MN[m],lx,ly); }
+  // centro: la cifra memorable (concentración)
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CONCENTRADO',cx,cy-R*0.17);
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(R*0.42)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(pct+'%',cx,cy+R*0.02);
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('PICO · '+MN[peak],cx,cy+R*0.2);
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+// #2 Concentración: Pareto (barras marginales por modelo + curva acumulada · codo 80% brilla)
+function sigIcicle(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().jerarquia_modelo||[]; const mt={}; let tot=0;
+  rows.forEach(r=>{ const t=r.tipo||'—'; mt[t]=(mt[t]||0)+(r.n||0); tot+=r.n||0; });
+  let mods=Object.keys(mt).map(t=>({t,n:mt[t]})).sort((a,b)=>b.n-a.n); if(!tot||!mods.length){gnd(s);return;}
+  let ck=0,k80=0; for(const m of mods){ ck+=m.n; k80++; if(ck/tot>=0.8) break; }
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(String(k80), 20, 48);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('MODELOS = 80% DEL VOLUMEN · '+mods.length+' EN TOTAL', 20, 65);
+  const show=mods.slice(0,12), pad={l:34,r:14,t:86,b:40}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, n=show.length, bw=(x1-x0)/n;
+  x.font='11px "JetBrains Mono",monospace'; x.textBaseline='middle';
+  [[1,'100'],[0.8,'80'],[0.5,'50']].forEach(g=>{ const yy=y0-(y0-y1)*g[0], p80=(g[0]===0.8);
+    x.strokeStyle=p80?'rgba('+GPINK+',.55)':'rgba('+GTXT+',.12)'; x.lineWidth=1; if(p80)x.setLineDash([4,4]);
+    x.beginPath(); x.moveTo(x0,yy); x.lineTo(x1,yy); x.stroke(); x.setLineDash([]);
+    x.fillStyle=p80?'rgba('+GPINK+',.9)':'rgba('+GTXT+',.4)'; x.textAlign='right'; x.fillText(g[1]+'%', x0-4, yy); });
+  const maxShare=show[0].n/tot; let cumH=0;
+  show.forEach((m,i)=>{ const h=(m.n/tot)/maxShare*(y0-y1)*0.86, bx=x0+i*bw+bw*0.30; x.fillStyle='rgba('+GCY+','+(0.5-i*0.028)+')'; x.fillRect(bx, y0-h, bw*0.40, h);
+    cumH+=m.n; el._hits.push({shape:'rect',x:x0+i*bw,y:y1,w:bw,h:y0-y1,key:'ic'+i,color:'rgba('+GCY+',1)',hl:'#fff',tip:[(m.t||'').toString().toUpperCase()+' · #'+(i+1),'Unidades: '+(m.n||0).toLocaleString(),(tot?Math.round(m.n/tot*100):0)+'% · acum '+(tot?Math.round(cumH/tot*100):0)+'%']}); });
+  let cum=0; const pts=[]; show.forEach((m,i)=>{ cum+=m.n; pts.push([x0+i*bw+bw/2, y0-(cum/tot)*(y0-y1)]); });
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); x.moveTo(x0,y0); pts.forEach(p=>x.lineTo(p[0],p[1])); x.stroke();
+  pts.forEach(p=>{ x.fillStyle='rgba('+GCY+',.9)'; x.beginPath(); x.arc(p[0],p[1],1.7,0,6.28); x.fill(); });
+  if(k80<=show.length){ const kp=pts[k80-1]; x.strokeStyle='rgba('+GCY+',.4)'; x.setLineDash([2,4]); x.beginPath(); x.moveTo(kp[0],kp[1]); x.lineTo(kp[0],y0); x.stroke(); x.setLineDash([]);
+    x.shadowColor='rgba('+GCY+',.9)'; x.shadowBlur=13; x.fillStyle=GACC; x.beginPath(); x.arc(kp[0],kp[1],4.2,0,6.28); x.fill(); x.shadowBlur=0;
+    x.textAlign='center'; x.textBaseline='alphabetic'; x.fillStyle='rgba('+GPINK+',.95)'; x.font='10px "JetBrains Mono",monospace'; x.fillText('RODILLA 80%', kp[0]+(k80<n/2?38:-38), kp[1]-8); }
+  x.fillStyle='rgba('+GTXT+',.7)'; x.font='10px "JetBrains Mono",monospace';
+  show.slice(0,4).forEach((m,i)=>{ x.save(); x.translate(x0+i*bw+bw/2, y0+8); x.rotate(-Math.PI/4); x.textAlign='right'; x.fillText(m.t.slice(0,9), 0, 0); x.restore(); });
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+// #3 Presión sobre el Cupo: medidor/tanque vertical (nivel = % disponible · umbral crítico · severidad por color)
+function sigFlow(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const cupo=(V.cupo||[]).reduce((a,c)=>({ini:a.ini+(+c.cantidad_inicial||0),sal:a.sal+(+c.cantidad_saldo||0)}),{ini:0,sal:0});
+  const pct=cupo.ini?Math.max(0,Math.min(1,cupo.sal/cupo.ini)):0.4, P=Math.round(pct*100);
+  const crit=P<25, col=crit?GPINK:GCY;
+  const gw=62, gx=W*0.20-gw/2, gy=H*0.13, gh=H*0.74;
+  x.font='11px "JetBrains Mono",monospace'; x.textAlign='right'; x.textBaseline='middle'; x.strokeStyle='rgba('+GTXT+',.22)';
+  for(let t=0;t<=100;t+=25){ const yy=gy+gh*(1-t/100); x.beginPath(); x.moveTo(gx-4,yy); x.lineTo(gx,yy); x.stroke(); x.fillStyle='rgba('+GTXT+',.45)'; x.fillText(t+'', gx-8, yy); }
+  x.strokeStyle='rgba('+col+',.7)'; x.lineWidth=1.4; x.strokeRect(gx,gy,gw,gh);
+  el._hits.push({shape:'rect',x:gx,y:gy,w:gw,h:gh,key:'gauge',color:'rgba('+col+',1)',hl:'#fff',tip:['CUPO DISPONIBLE',P+'% del cupo','Saldo: '+Math.round(cupo.sal).toLocaleString(),'Inicial: '+Math.round(cupo.ini).toLocaleString()]});
+  const fh=gh*pct; x.fillStyle='rgba('+col+',.22)'; x.fillRect(gx+1, gy+gh-fh+1, gw-2, Math.max(0,fh-2));
+  x.strokeStyle='rgba('+col+',1)'; x.lineWidth=2; x.shadowColor='rgba('+col+',.9)'; x.shadowBlur=12; x.beginPath(); x.moveTo(gx+1, gy+gh-fh); x.lineTo(gx+gw-1, gy+gh-fh); x.stroke(); x.shadowBlur=0;
+  const thY=gy+gh*(1-0.25); x.strokeStyle='rgba('+GPINK+',.8)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(gx-2,thY); x.lineTo(gx+gw+2,thY); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.textAlign='left'; x.fillText('UMBRAL 25%', gx+gw+8, thY);
+  x.fillStyle=crit?'rgba('+GPINK+',1)':(light?'#005A6E':'#FFFFFF');
+  x.font='700 '+Math.round(H*0.28)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.textBaseline='alphabetic'; x.fillText(P+'%', W*0.44, H*0.50);
+  x.fillStyle='rgba('+GTXT+',.6)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('DEL CUPO DISPONIBLE', W*0.44, H*0.50+18);
+  x.fillStyle='rgba('+GTXT+',.5)'; x.fillText('SALDO · '+Math.round(cupo.sal).toLocaleString(), W*0.44, H*0.50+34);
+  gnHover(el,s);
+}
+// #4 Anatomía de la Flota: carriles de composición (una lane por marca · modelos como nodos ∝ volumen · la más diversa brilla)
+function sigVintree(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().flota||[]; if(!rows.length){gnd(s);return;}
+  const M={}; rows.forEach(r=>{ const m=r.marca||'—', t=r.tipo||r.auto||'—'; (M[m]=M[m]||{}); M[m][t]=(M[m][t]||0)+(r.n||0); });
+  let marcas=Object.keys(M).map(m=>({m, mods:Object.keys(M[m]).map(t=>({t,n:M[m][t]})).sort((a,b)=>b.n-a.n)}));
+  marcas.sort((a,b)=>b.mods.length-a.mods.length); const top=marcas.slice(0,6);
+  const maxMods=Math.max.apply(null,top.map(o=>o.mods.length))||1;
+  const totMod=Object.keys(M).reduce((sm,m)=>sm+Object.keys(M[m]).length,0);
+  const pad={l:104,t:26,b:22}, laneH=(H-pad.t-pad.b)/top.length, laneMax=W*0.40;
+  x.textBaseline='middle';
+  top.forEach((o,i)=>{ const y=pad.t+laneH*(i+0.5), glow=(i===0), laneW=(o.mods.length/maxMods)*laneMax;
+    el._hits.push({shape:'rect',x:0,y:pad.t+laneH*i,w:W,h:laneH,key:o.m,color:'rgba('+GCY+',1)',hl:'#fff',tip:[o.m.toUpperCase(),(o.mods.length)+' modelo'+(o.mods.length!=1?'s':''),'Top: '+((o.mods[0]||{}).t||'—')]});
+    x.strokeStyle=glow?'rgba('+GCY+',.9)':'rgba('+GCY+',.28)'; x.lineWidth=glow?1.5:1; x.beginPath(); x.moveTo(pad.l,y); x.lineTo(pad.l+Math.max(6,laneW),y); x.stroke();
+    o.mods.forEach((md,j)=>{ const nx=pad.l+(o.mods.length<=1?0:(j/(o.mods.length-1))*laneW), r=1.7+Math.min(3.6,Math.log10((md.n||0)+1));
+      if(glow){x.shadowColor='rgba('+GCY+',.85)';x.shadowBlur=8;} x.fillStyle=glow?GACC:'rgba('+GCY+',.55)'; x.beginPath(); x.arc(nx,y,r,0,6.28); x.fill(); x.shadowBlur=0; });
+    x.fillStyle=glow?GACC:'rgba('+GTXT+',.85)'; x.font=(glow?'700 ':'')+'11px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(o.m.slice(0,13), pad.l-10, y);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText(o.mods.length+' mod', pad.l+Math.max(6,laneW)+8, y); });
+  const nx0=W*0.80;
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.textAlign='center'; x.textBaseline='alphabetic'; x.font='700 '+Math.round(H*0.24)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(totMod+'', nx0, H*0.46);
+  x.fillStyle='rgba('+GTXT+',.55)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('MODELOS DISTINTOS', nx0, H*0.46+18);
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+// #5 Anomalías: estado grande (0 cian=limpio · N telos glow) + distribución de |z| con umbral 3σ
+function sigManh(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const rows=gnosisVizData().serie_diaria||[]; if(!rows.length){gnd(s);return;}
+  el._hits=[]; const byP={}; rows.forEach(r=>{ (byP[r.pais||'—']=byP[r.pais||'—']||[]).push(r.n||0); });
+  const zs=[]; let anom=0;
+  Object.keys(byP).forEach(p=>{ const a=byP[p], mean=a.reduce((u,v)=>u+v,0)/a.length, sd=Math.sqrt(a.reduce((u,v)=>u+(v-mean)*(v-mean),0)/a.length)||1;
+    a.forEach(v=>{ const z=Math.abs((v-mean)/sd); zs.push(z); if(z>3)anom++; }); });
+  const total=zs.length, clean=(anom===0), bins=16, maxZ=4, hist=new Array(bins).fill(0);
+  zs.forEach(z=>{ const b=Math.min(bins-1,Math.floor(z/maxZ*bins)); hist[b]++; }); const maxH=Math.max.apply(null,hist)||1;
+  const pad={l:44,r:44,t:24,b:44}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, chartTop=H*0.44;
+  x.textAlign='center'; x.textBaseline='alphabetic';
+  x.fillStyle=clean?(light?'#005A6E':'#FFFFFF'):'rgba('+GPINK+',1)'; if(!clean){x.shadowColor='rgba('+GPINK+',.7)';x.shadowBlur=16;}
+  x.font='700 '+Math.round(H*0.26)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(anom+'', W/2, H*0.28); x.shadowBlur=0;
+  x.fillStyle='rgba('+GTXT+',.6)'; x.font='11px "JetBrains Mono",monospace'; x.fillText(clean?'SIN ANOMALÍAS · PATRÓN LIMPIO':('ANOMALÍA'+(anom!=1?'S':'')+' · > 3σ · DE '+total+' REGISTROS'), W/2, H*0.28+18);
+  const bw=(x1-x0)/bins, th3=x0+(3/maxZ)*(x1-x0);
+  for(let b=0;b<bins;b++){ const zc=(b+0.5)/bins*maxZ, h=(hist[b]/maxH)*(y0-chartTop), bx=x0+b*bw;
+    x.fillStyle= zc>3 ? 'rgba('+GPINK+',.9)' : 'rgba('+GCY+','+(0.28+0.55*hist[b]/maxH)+')'; x.fillRect(bx+1, y0-h, bw-2, Math.max(0,h));
+    const zlo=(b/bins*maxZ).toFixed(1), zhi=((b+1)/bins*maxZ).toFixed(1); el._hits.push({shape:'rect',x:bx,y:chartTop,w:bw,h:y0-chartTop,key:'b'+b,color:zc>3?'rgba('+GPINK+',1)':'rgba('+GCY+',1)',hl:zc>3?'rgba('+GPINK+',1)':'#fff',tip:['Z '+zlo+'–'+zhi+'σ',hist[b]+' registro'+(hist[b]!=1?'s':''),zc>3?'⚠ zona anómala':'en patrón']}); }
+  x.strokeStyle='rgba('+GTXT+',.2)'; x.lineWidth=1; x.beginPath(); x.moveTo(x0,y0); x.lineTo(x1,y0); x.stroke();
+  x.strokeStyle='rgba('+GPINK+',.8)'; x.setLineDash([4,4]); x.beginPath(); x.moveTo(th3,chartTop-4); x.lineTo(th3,y0); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('UMBRAL 3σ', th3, chartTop-10);
+  x.fillStyle='rgba('+GTXT+',.5)'; for(let t=0;t<=4;t++){ const xx=x0+(t/maxZ)*(x1-x0); x.fillText(t+'σ', xx, y0+16); }
+  x.textAlign='left'; gnHover(el,s);
+}
+// #6 Rutas: ranking de rutas dominantes (origen ●━━● marca · grosor ∝ volumen · la #1 brilla)
+function sigChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const flujo=gnosisVizData().flujo||[]; if(!flujo.length){gnd(s);return;}
+  const M={}; flujo.forEach(r=>{ const key=(r.pais||'—')+'|'+(r.marca||'—'); M[key]=(M[key]||0)+mval(r); });
+  let routes=Object.keys(M).map(k=>{ const i=k.indexOf('|'); return {p:k.slice(0,i), m:k.slice(i+1), n:M[k]}; }).sort((a,b)=>b.n-a.n);
+  if(!routes.length){gnd(s);return;} const top=routes.slice(0,6), maxN=top[0].n||1;
+  const pad={l:22,r:22,t:74,b:22}, rowH=(H-pad.t-pad.b)/top.length, px=pad.l+86, mx=W-pad.r-96;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(fMeasure(top[0].n), pad.l, pad.t-26);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('RUTA PRINCIPAL · '+(gnosisMeasure==='valor'?'VALOR':'UNID')+' · '+top[0].p.slice(0,9)+' → '+top[0].m.slice(0,9), pad.l, pad.t-9);
+  x.textBaseline='middle';
+  top.forEach((rt,i)=>{ const y=pad.t+rowH*(i+0.5), glow=(i===0), col=MCOL[i%6], bandW=Math.max(1.6,(rt.n/maxN)*9);
+    el._hits.push({shape:'rect',x:0,y:pad.t+rowH*i,w:W,h:rowH,key:'rt'+i,color:glow?GACC:col,hl:glow?GACC:col,tip:[rt.p.toUpperCase()+' → '+rt.m.toUpperCase(),(gnosisMeasure==='valor'?'Valor: ':'Unidades: ')+fMeasure(rt.n),'Ruta #'+(i+1)]});
+    x.fillStyle='rgba('+GTXT+',.85)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='right'; x.fillText(rt.p.slice(0,10), px-8, y);
+    x.strokeStyle=glow?'rgba('+GCY+',.95)':col; x.globalAlpha=glow?1:.6; x.lineWidth=bandW; if(glow){x.shadowColor='rgba('+GCY+',.7)';x.shadowBlur=8;} x.beginPath(); x.moveTo(px,y); x.lineTo(mx,y); x.stroke(); x.shadowBlur=0; x.globalAlpha=1;
+    x.fillStyle=glow?GACC:col; x.beginPath();x.arc(px,y,3,0,6.28);x.fill(); x.beginPath();x.arc(mx,y,3,0,6.28);x.fill();
+    x.textAlign='left'; x.fillStyle=glow?GACC:'rgba('+GTXT+',.88)'; x.font=(glow?'700 ':'')+'11px "JetBrains Mono",monospace'; x.fillText(rt.m.slice(0,9), mx+8, y);
+    x.fillStyle='rgba('+GTXT+',.5)'; x.font='11px "JetBrains Mono",monospace'; x.fillText(fMeasure(rt.n), mx+8+(Math.min(9,rt.m.length))*7.2, y); });
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+// #7 Segmentación: dendrograma con corte natural — el mayor salto de fusión define nº de clústeres; cada grupo se colorea y la costura brilla
+function sigDendro(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const pm=(V.por_marca||[]).filter(r=>r.nombre); if(pm.length<2){gnd(s);return;}
+  const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+  let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre); if(marcas.length<2){gnd(s);return;}
+  const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+  serie.forEach(r=>{const f=F[r.marca];if(!f)return;const mo=+((r.fecha||'').substr(4,2));if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;}});
+  flujo.forEach(r=>{const f=F[r.marca];if(!f)return;const n=r.n||0;f.jn+=n;if((r.jn||'').toUpperCase()==='J')f.j+=n;});
+  jer.forEach(r=>{const f=F[r.marca];if(!f)return;const t=r.tipo||'—';f.mods[t]=(f.mods[t]||0)+(r.n||0);f.modTot+=r.n||0;});
+  const vec=m=>{const f=F[m];const mo=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);const jr=f.jn>0?f.j/f.jn:.5;let h=0;if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;h+=p*p;});else h=1;return mo.map(v=>v*2).concat([jr,h]);};
+  const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+  let nodes=marcas.map(m=>({name:m,v:vec(m),leaf:true})); const dists=[];
+  while(nodes.length>1){ let bi=0,bj=1,bd=1e9; for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){const d=D(nodes[i].v,nodes[j].v);if(d<bd){bd=d;bi=i;bj=j;}}
+    const A=nodes[bi],B=nodes[bj],nv=A.v.map((_,k)=>(A.v[k]+B.v[k])/2); const nd={leaf:false,children:[A,B],v:nv,dist:bd}; dists.push(bd); nodes=nodes.filter((_,k)=>k!==bi&&k!==bj); nodes.push(nd); }
+  const root=nodes[0], N=marcas.length;
+  // corte natural: el mayor salto entre distancias de fusión consecutivas (elbow)
+  const sorted=dists.slice().sort((a,b)=>a-b); let gi=0,gg=-1; for(let i=0;i<sorted.length-1;i++){const g=sorted[i+1]-sorted[i]; if(g>gg){gg=g;gi=i;}}
+  const cutDist=sorted.length>1?(sorted[gi]+sorted[gi+1])/2:(sorted[0]||1)*1.5;
+  // asignar clúster a cada hoja bajo el corte + anotar cada nodo con su id de grupo (null si cruza el corte)
+  let cid=-1; const cc={}; (function split(nd){ if(nd.leaf||nd.dist<cutDist){ cid++; (function lv(n){ n.leaf?cc[n.name]=cid:n.children.forEach(lv); })(nd); } else nd.children.forEach(split); })(root);
+  const clusters=Math.max(1,cid+1);
+  (function ann(nd){ if(nd.leaf){nd.cid=cc[nd.name];return;} nd.children.forEach(ann); nd.cid=(nd.dist<cutDist)?nd.children[0].cid:null; })(root);
+  // cifra monumental + rótulo
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(String(clusters), 20, 48);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('CLÚSTERES NATURALES · '+N+' MARCAS', 20, 65);
+  // ── Mapa de Similitud (constelación 2D · cercanía = comportamiento parecido) ──
+  // Proyección MDS (stress majorization / SMACOF) de los vectores de perfil a 2D.
+  const MK=marcas.map(m=>({name:m, vec:vec(m), cid:(cc[m]||0), total:(pm.find(r=>r.nombre===m)||{}).total||0}));
+  const nK=MK.length, Dm=MK.map(a=>MK.map(b=>D(a.vec,b.vec))); let dmax=0; Dm.forEach(r=>r.forEach(d=>dmax=Math.max(dmax,d))); dmax=dmax||1;
+  MK.forEach((nn,i)=>{ const a=-Math.PI/2 + i/nK*2*Math.PI; nn.px=Math.cos(a); nn.py=Math.sin(a); });
+  const tgt=(i,j)=>Dm[i][j]/dmax*1.9 + 0.02;
+  for(let it=0; it<240; it++){ for(let i=0;i<nK;i++){ let sx=0,sy=0,ws=0; const nn=MK[i];
+      for(let j=0;j<nK;j++){ if(i===j)continue; const o=MK[j], dx=nn.px-o.px, dy=nn.py-o.py, d=Math.sqrt(dx*dx+dy*dy)||1e-4, tt=tgt(i,j), w=1/(tt*tt);
+        sx+=w*(o.px+dx/d*tt); sy+=w*(o.py+dy/d*tt); ws+=w; }
+      nn.nx=sx/ws; nn.ny=sy/ws; }
+    for(let i=0;i<nK;i++){ MK[i].px=MK[i].nx; MK[i].py=MK[i].ny; } }
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; MK.forEach(nn=>{ mnx=Math.min(mnx,nn.px);mxx=Math.max(mxx,nn.px);mny=Math.min(mny,nn.py);mxy=Math.max(mxy,nn.py); });
+  const cpad={l:26,r:26,t:82,b:30}, aw=W-cpad.l-cpad.r, ah=H-cpad.t-cpad.b, sc=Math.min(aw/((mxx-mnx)||1), ah/((mxy-mny)||1))*0.8;
+  const ox=cpad.l+aw/2-(mnx+mxx)/2*sc, oy=cpad.t+ah/2-(mny+mxy)/2*sc; MK.forEach(nn=>{ nn.X=ox+nn.px*sc; nn.Y=oy+nn.py*sc; });
+  let outI=0,outD=-1; for(let i=0;i<nK;i++){ let sd=0; for(let j=0;j<nK;j++) sd+=Dm[i][j]; if(sd>outD){outD=sd;outI=i;} }
+  let bi=0,bj=1,bd=1e9; for(let i=0;i<nK;i++)for(let j=i+1;j<nK;j++){ if(Dm[i][j]<bd){bd=Dm[i][j];bi=i;bj=j;} }
+  // enlaces (telaraña) por similitud
+  for(let i=0;i<nK;i++)for(let j=i+1;j<nK;j++){ const sim=1-Dm[i][j]/dmax; if(sim<0.35)continue; x.strokeStyle='rgba('+GCY+','+(0.04+sim*0.16).toFixed(3)+')'; x.lineWidth=0.8; x.beginPath(); x.moveTo(MK[i].X,MK[i].Y); x.lineTo(MK[j].X,MK[j].Y); x.stroke(); }
+  // par más similar — enlace brillante
+  x.strokeStyle='rgba('+GCY+',.85)'; x.lineWidth=2; x.shadowColor='rgba('+GCY+',.7)'; x.shadowBlur=9; x.beginPath(); x.moveTo(MK[bi].X,MK[bi].Y); x.lineTo(MK[bj].X,MK[bj].Y); x.stroke(); x.shadowBlur=0;
+  // atípica — anillo telos
+  { const nn=MK[outI]; x.strokeStyle='rgba('+GPINK+',.7)'; x.setLineDash([3,3]); x.lineWidth=1.2; x.beginPath(); x.arc(nn.X,nn.Y,16,0,6.28); x.stroke(); x.setLineDash([]);
+    x.fillStyle='rgba('+GPINK+',.9)'; x.font='8px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='middle'; x.fillText('ATÍPICA', nn.X, nn.Y-24); }
+  // nodos (glow · color por clúster · tamaño ∝ total) + etiquetas
+  x.textBaseline='middle'; MK.forEach(nn=>{ const col=MCOL[nn.cid%6], r=4+Math.min(7,Math.log10((nn.total||0)+1)*1.9);
+    x.shadowColor=col; x.shadowBlur=11; x.fillStyle=col; x.beginPath(); x.arc(nn.X,nn.Y,r,0,6.28); x.fill(); x.shadowBlur=0;
+    x.fillStyle=light?'rgba(255,255,255,.9)':'rgba(6,9,13,.92)'; x.beginPath(); x.arc(nn.X,nn.Y,r*0.38,0,6.28); x.fill();
+    el._hits.push({shape:'circle',x:nn.X,y:nn.Y,r:r,hr:r+5,key:nn.name,color:col,hl:col,tip:[nn.name.toUpperCase(),'Clúster: '+((nn.cid)+1)+' de '+clusters,'Total: '+(nn.total||0).toLocaleString()]});
+    x.fillStyle='rgba('+GLEAF+',.92)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='top'; x.fillText(nn.name.slice(0,11), nn.X, nn.Y+r+3); });
+  x.fillStyle='rgba('+GTXT+',.5)'; x.font='9px "JetBrains Mono",monospace'; x.textAlign='center'; x.textBaseline='alphabetic'; x.fillText('CERCANÍA = COMPORTAMIENTO SIMILAR', W/2, H-8);
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+// #8 Trayectoria: quema del cupo — cifra = % consumido; curva acumulada + proyección de agotamiento
+function sigSeguimiento(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[]; const light=document.documentElement.getAttribute('data-theme')==='light';
+  const V=gnosisVizData(); const sg=(V.seguimiento||[]); if(!sg.length){gnd(s);return;}
+  const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0) || (+sg[sg.length-1].cupo_produccion_activo||0)+(+sg[sg.length-1].cupo_inversion_activo||0);
+  if(cupo<=0){gnd(s);return;}
+  const acum=+sg[sg.length-1].acumulado || sg.reduce((a,m)=>a+(+m.consumo_total||0),0);
+  const n=sg.length, pct=Math.round(acum/cupo*100), rate=acum/Math.max(1,n), remain=Math.max(0,cupo-acum), monthsLeft=rate>0?remain/rate:Infinity;
+  x.textAlign='left'; x.textBaseline='alphabetic';
+  x.fillStyle=light?'#005A6E':'#FFFFFF'; x.font='700 '+Math.round(H*0.17)+'px "Akzidenz-Grotesk","Helvetica Neue",sans-serif'; x.fillText(pct+'%', 20, 48);
+  x.fillStyle='rgba('+GCY+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.fillText('DEL CUPO CONSUMIDO · '+n+' MESES', 20, 65);
+  const pad={l:24,r:26,t:84,b:34}, x0=pad.l, x1=W-pad.r, y0=H-pad.b, y1=pad.t, Yv=v=>y0-(Math.min(v,cupo)/cupo)*(y0-y1);
+  const dataW=(x1-x0)*0.60, stepX=n>1?dataW/(n-1):20; let cum=0; const pts=sg.map((m,i)=>{ cum+=(+m.consumo_total||0); return {x:x0+i*stepX, v:cum}; });
+  const yTop=Yv(cupo); x.strokeStyle='rgba('+GPINK+',.6)'; x.setLineDash([5,4]); x.lineWidth=1.2; x.beginPath(); x.moveTo(x0,yTop); x.lineTo(x1,yTop); x.stroke(); x.setLineDash([]);
+  x.fillStyle='rgba('+GPINK+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='left'; x.fillText('CUPO TOTAL', x0, yTop-5);
+  x.beginPath(); x.moveTo(x0,y0); pts.forEach(p=>x.lineTo(p.x,Yv(p.v))); x.lineTo(pts[pts.length-1].x,y0); x.closePath(); x.fillStyle='rgba('+GCY+',.13)'; x.fill();
+  x.strokeStyle='rgba('+GCY+',.95)'; x.lineWidth=2; x.beginPath(); pts.forEach((p,i)=>{ i===0?x.moveTo(p.x,Yv(p.v)):x.lineTo(p.x,Yv(p.v)); }); x.stroke();
+  pts.forEach((p,i)=>{ el._hits.push({shape:'circle',x:p.x,y:Yv(p.v),r:2.5,hr:11,key:'sg'+i,color:GACC,hl:'#fff',tip:[((sg[i].month_name||sg[i].month||'')+'').toUpperCase()+' · MES','Acumulado: '+Math.round(p.v).toLocaleString(),Math.round(p.v/cupo*100)+'% del cupo']}); });
+  const last=pts[pts.length-1];
+  if(isFinite(monthsLeft)&&monthsLeft>0){ const projX=Math.min(x1,last.x+stepX*monthsLeft);
+    x.strokeStyle='rgba('+GCY+',.5)'; x.setLineDash([3,4]); x.lineWidth=1.4; x.beginPath(); x.moveTo(last.x,Yv(last.v)); x.lineTo(projX,yTop); x.stroke(); x.setLineDash([]);
+    x.shadowColor='rgba('+GPINK+',.7)'; x.shadowBlur=9; x.fillStyle='rgba('+GPINK+',1)'; x.beginPath(); x.arc(projX,yTop,3.4,0,6.28); x.fill(); x.shadowBlur=0;
+    const ml=Math.ceil(monthsLeft); x.fillStyle='rgba('+GPINK+',.9)'; x.font='11px "JetBrains Mono",monospace'; x.textAlign='center'; x.fillText('AGOTA ~'+ml+' MES'+(ml!=1?'ES':''), projX, yTop-8); }
+  x.shadowColor='rgba('+GCY+',.8)'; x.shadowBlur=10; x.fillStyle=GACC; x.beginPath(); x.arc(last.x,Yv(last.v),3.6,0,6.28); x.fill(); x.shadowBlur=0;
+  x.textAlign='left'; x.textBaseline='alphabetic'; gnHover(el,s);
+}
+const SIG = { heatmap: sigHeatmap, icicle: sigIcicle, flow: sigFlow, vintree: sigVintree, manh: sigManh, chord: sigChord, dendro: sigDendro, seguimiento: sigSeguimiento };
+
+// ── Síntesis por dashboard (interpretabilidad + gráfica-firma + readouts, read-only) ──
+function gnosisSoloRead(k){ const V=gnosisVizData(); const N=v=>Math.round(v||0).toLocaleString();
+  const MN=['','ENE','FEB','MAR','ABR','MAY','JUN','JUL','AGO','SEP','OCT','NOV','DIC'];
+  function RD(a){ return '<div class="solo-reads">'+a.map(function(o){ var cls=(o.t||'').replace('sm','').trim(); return '<div class="rd"><span class="rk">'+o.k+'</span><span class="rv '+cls+'">'+o.v+'</span><span class="rdd">'+(o.d||'')+'</span></div>'; }).join('')+'</div>'; }
+  function W(q,a,i,f){ return '<div class="solo-q">'+q+'</div>'
+    + (SIG[k]?'<div class="solo-sig"><canvas class="win-cv" id="solo-sig-cv"></canvas></div>':'')
+    + '<div class="solo-interp">'+i+'</div>' + RD(a) + '<div class="solo-foot">'+(f||'')+'</div>'; }
+  if(k==='heatmap'){ const rows=V.serie_diaria||[]; const mon=new Array(13).fill(0); let tot=0;
+    rows.forEach(r=>{ const m=+((r.fecha||'').substr(4,2)); if(m>=1&&m<=12){ mon[m]+=r.n||0; tot+=r.n||0; } });
+    const order=[1,2,3,4,5,6,7,8,9,10,11,12].sort((a,b)=>mon[b]-mon[a]); const peak=order[0];
+    const top4=order.slice(0,4).reduce((s,m)=>s+mon[m],0), pct=tot?Math.round(top4/tot*100):0, act=order.filter(m=>mon[m]>0).length;
+    return W('¿Cuándo se concentra el volumen?',
+      [{k:'Mes pico',v:MN[peak],d:N(mon[peak])+' unid',t:'acc'},{k:'Concentración',v:pct+'%',d:'en 4 meses'},
+       {k:'Meses activos',v:act,d:'de 12'},{k:'Volumen total',v:N(tot),d:'registros'}],
+      'El volumen se concentra en <b>'+order.slice(0,2).map(m=>MN[m]).join(' · ')+'</b>; <b>'+MN[peak]+'</b> es el pico. El '+pct+'% del año cae en 4 meses — el resto es temporada baja.',
+      'Fuente · serie diaria por marca'); }
+  if(k==='icicle'){ const rows=V.jerarquia_modelo||[]; const mt={}; let tot=0;
+    rows.forEach(r=>{ const t=r.tipo||'—'; mt[t]=(mt[t]||0)+(r.n||0); tot+=r.n||0; });
+    const mods=Object.keys(mt).map(t=>({t,n:mt[t]})).sort((a,b)=>b.n-a.n), top=mods[0]||{t:'—',n:0}, tp=tot?Math.round(top.n/tot*100):0;
+    let acc=0,k80=0; for(const m of mods){ acc+=m.n; k80++; if(tot&&acc/tot>=0.8) break; }
+    return W('¿Qué modelos cargan el volumen?',
+      [{k:'Modelo líder',v:top.t,d:N(top.n)+' · '+tp+'%',t:'acc'},{k:'Pareto 80%',v:k80,d:'modelos = 80%'},
+       {k:'Modelos distintos',v:mods.length,d:'en la flota'},{k:'Volumen total',v:N(tot),d:'unidades'}],
+      '<b>'+top.t+'</b> encabeza con '+tp+'% del volumen. Sólo <b>'+k80+' modelos</b> concentran el 80% — la cola larga aporta poco.',
+      'Fuente · jerarquía marca → modelo'); }
+  if(k==='flow'){ const flujo=V.flujo||[]; const mN={}; let totN=0;
+    flujo.forEach(r=>{ if((r.jn||'').toUpperCase()==='N'){ mN[r.marca]=(mN[r.marca]||0)+(r.n||0); totN+=r.n||0; } });
+    const top=Object.keys(mN).map(m=>({m,n:mN[m]})).sort((a,b)=>b.n-a.n)[0]||{m:'—',n:0};
+    const g={all:{ini:0,sal:0},prod:{ini:0,sal:0},inv:{ini:0,sal:0}};
+    (V.cupo||[]).forEach(c=>{ const t=(c.tipo||'').toLowerCase(), ini=+c.cantidad_inicial||0, sal=+c.cantidad_saldo||0;
+      g.all.ini+=ini; g.all.sal+=sal; if(t.indexOf('prod')>=0){g.prod.ini+=ini;g.prod.sal+=sal;} else if(t.indexOf('inv')>=0){g.inv.ini+=ini;g.inv.sal+=sal;} });
+    const P=x=>x.ini?Math.round(x.sal/x.ini*100):0, pct=P(g.all), split=(g.prod.ini>0&&g.inv.ini>0);
+    const reads = split
+      ? [{k:'Disponible total',v:pct+'%',d:N(g.all.sal)+' saldo',t:pct<25?'tel':'acc'},
+         {k:'Cupo Producción',v:P(g.prod)+'%',d:N(g.prod.sal)+' de '+N(g.prod.ini),t:P(g.prod)<25?'tel':'acc sm'},
+         {k:'Cupo Inversión',v:P(g.inv)+'%',d:N(g.inv.sal)+' de '+N(g.inv.ini),t:P(g.inv)<25?'tel':'acc sm'},
+         {k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'}]
+      : [{k:'Disponible',v:pct+'%',d:N(g.all.sal)+' saldo',t:pct<25?'tel':'acc'},{k:'Mayor presión',v:top.m,d:N(top.n)+' N',t:'sm'},
+         {k:'Consumo N',v:N(totN),d:'sin preferencia'},{k:'Cupo inicial',v:N(g.all.ini),d:'asignado'}];
+    const interp = split
+      ? 'Del cupo unilateral queda el <b>'+pct+'%</b>: producción al <b>'+P(g.prod)+'%</b>, inversión al <b>'+P(g.inv)+'%</b>. <b>'+top.m+'</b> es la mayor presión con '+N(top.n)+' unidades sin preferencia.'
+      : '<b>'+top.m+'</b> es la mayor presión sobre el cupo con '+N(top.n)+' unidades sin preferencia. Queda el <b>'+pct+'%</b> del cupo disponible.';
+    return W('¿Quién consume el cupo y cuánto queda?', reads, interp, 'Fuente · flujo N × cupos de la sesión'); }
+  if(k==='vintree'){ const rows=V.flota||[]; const bym={};
+    rows.forEach(r=>{ const m=r.marca||'—'; (bym[m]=bym[m]||new Set()).add(r.tipo||r.auto||'—'); });
+    const marcas=Object.keys(bym), div=marcas.map(m=>({m,c:bym[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
+    const totMod=marcas.reduce((s,m)=>s+bym[m].size,0);
+    return W('¿De qué se compone la flota?',
+      [{k:'Marcas',v:marcas.length,d:'en la sesión',t:'acc'},{k:'Modelos distintos',v:totMod,d:'configuraciones'},
+       {k:'Más diversa',v:div.m,d:div.c+' modelos',t:'sm'},{k:'Prom. modelos',v:marcas.length?Math.round(totMod/marcas.length):0,d:'por marca'}],
+      'La flota abarca <b>'+marcas.length+' marcas</b> y '+totMod+' modelos distintos. <b>'+div.m+'</b> es la más diversa con '+div.c+' configuraciones.',
+      'Fuente · flota por código/VIN'); }
+  if(k==='manh'){ const rows=V.serie_diaria||[]; const byP={}; rows.forEach(r=>{ (byP[r.pais||'—']=byP[r.pais||'—']||[]).push(r.n||0); });
+    let anom=0,total=0,maxCv=0,maxP='—';
+    Object.keys(byP).forEach(p=>{ const a=byP[p], mean=a.reduce((x,y)=>x+y,0)/a.length, sd=Math.sqrt(a.reduce((x,y)=>x+(y-mean)*(y-mean),0)/a.length)||1;
+      a.forEach(v=>{ total++; if(Math.abs((v-mean)/sd)>3) anom++; }); const cv=sd/(mean||1); if(cv>maxCv){maxCv=cv;maxP=p;} });
+    return W('¿Hay registros fuera de patrón?',
+      [{k:'Anomalías >3σ',v:anom,d:anom?'a revisar':'patrón limpio',t:anom?'tel':'acc'},{k:'Registros',v:N(total),d:'día × país'},
+       {k:'Mayor dispersión',v:maxP,d:'CV '+maxCv.toFixed(2),t:'sm'},{k:'Umbral',v:'3σ',d:'z-score'}],
+      anom? '<b>'+anom+' registros</b> superan el umbral de 3σ — conviene inspeccionarlos como posible error de captura.' : 'Ningún registro supera 3σ: el volumen diario es <b>estable</b>, sin picos anómalos.',
+      'Fuente · serie diaria · z-score por país'); }
+  if(k==='chord'){ const flujo=V.flujo||[]; const M={}, pais={}; let best={p:'—',m:'—',n:0}; const orig={}; let gtot=0;
+    const money=gnosisMeasure==='valor', unit=money?'valor':'unid', fmt=v=>money?fMoney(v):N(v);
+    flujo.forEach(r=>{ const p=r.pais||'—',mk=r.marca||'—',v=mval(r); const key=p+'|'+mk; M[key]=(M[key]||0)+v; pais[p]=(pais[p]||0)+v; gtot+=v; (orig[mk]=orig[mk]||new Set()).add(p); if(M[key]>best.n) best={p,m:mk,n:M[key]}; });
+    const tp=Object.keys(pais).sort((a,b)=>pais[b]-pais[a])[0]||'—';
+    const multi=Object.keys(orig).map(m=>({m,c:orig[m].size})).sort((a,b)=>b.c-a.c)[0]||{m:'—',c:0};
+    const toggle='<div class="solo-measure"><span class="sm-l">Medida</span>'
+      +'<button class="sm-btn'+(money?'':' active')+'" onclick="gnosisSetMeasure(\'n\')">Conteo</button>'
+      +'<button class="sm-btn'+(money?' active':'')+'" onclick="gnosisSetMeasure(\'valor\')">Valor $</button></div>';
+    return toggle + W((money?'¿Qué rutas mueven más valor?':'¿Cómo fluye origen → marca?'),
+      [{k:'Ruta principal',v:best.p+' → '+best.m,d:fmt(best.n)+' '+unit,t:'acc sm'},{k:(money?'Origen $ dominante':'Origen dominante'),v:tp,d:fmt(pais[tp])+' '+unit,t:'sm'},
+       {k:'Multi-origen',v:multi.m,d:multi.c+' países',t:'sm'},(money?{k:'Valor total',v:fMoney(gtot),d:'importado',t:'acc'}:{k:'Rutas activas',v:Object.keys(M).length,d:'país × marca'})],
+      'La ruta <b>'+best.p+' → '+best.m+'</b> es la más '+(money?'valiosa':'cargada')+' ('+fmt(best.n)+' '+unit+'). <b>'+multi.m+'</b> se importa desde '+multi.c+' orígenes distintos.',
+      'Fuente · flujo país × marca'+(money?' · $ = Σ precio':'')); }
+  if(k==='dendro'){ const pm=(V.por_marca||[]).filter(r=>r.nombre); const serie=V.serie_diaria||[], flujo=V.flujo||[], jer=V.jerarquia_modelo||[];
+    let marcas=pm.slice().sort((a,b)=>(b.total||0)-(a.total||0)).slice(0,7).map(r=>r.nombre);
+    const F={}; marcas.forEach(m=>F[m]={mon:new Array(12).fill(0),monTot:0,j:0,jn:0,mods:{},modTot:0});
+    serie.forEach(r=>{const f=F[r.marca];if(!f)return;const mo=+((r.fecha||'').substr(4,2));if(mo>=1&&mo<=12){f.mon[mo-1]+=r.n||0;f.monTot+=r.n||0;}});
+    flujo.forEach(r=>{const f=F[r.marca];if(!f)return;const n=r.n||0;f.jn+=n;if((r.jn||'').toUpperCase()==='J')f.j+=n;});
+    jer.forEach(r=>{const f=F[r.marca];if(!f)return;const t=r.tipo||'—';f.mods[t]=(f.mods[t]||0)+(r.n||0);f.modTot+=r.n||0;});
+    const vec=m=>{const f=F[m];const mo=f.monTot>0?f.mon.map(v=>v/f.monTot):f.mon.map(()=>1/12);const jr=f.jn>0?f.j/f.jn:.5;let h=0;if(f.modTot>0)Object.values(f.mods).forEach(v=>{const p=v/f.modTot;h+=p*p;});else h=1;return mo.map(v=>v*2).concat([jr,h]);};
+    const VE={}; marcas.forEach(m=>VE[m]=vec(m)); const D=(a,b)=>{let s=0;for(let i=0;i<a.length;i++){const d=a[i]-b[i];s+=d*d;}return Math.sqrt(s);};
+    let near={a:'—',b:'—',d:1e9}; const minD={};
+    for(let i=0;i<marcas.length;i++){ minD[marcas[i]]=1e9; for(let j=0;j<marcas.length;j++){ if(i===j)continue; const dd=D(VE[marcas[i]],VE[marcas[j]]); if(dd<minD[marcas[i]])minD[marcas[i]]=dd; if(i<j&&dd<near.d)near={a:marcas[i],b:marcas[j],d:dd}; } }
+    const out=marcas.map(m=>({m,d:minD[m]})).sort((a,b)=>b.d-a.d)[0]||{m:'—'};
+    return W('¿Qué marcas se comportan igual?',
+      [{k:'Par más similar',v:near.a+' · '+near.b,d:'perfil casi idéntico',t:'acc sm'},{k:'Más atípica',v:out.m,d:'perfil único',t:'sm'},
+       {k:'Marcas segmentadas',v:marcas.length,d:'en el árbol'},{k:'Ejes de perfil',v:'3',d:'estac·J/N·HHI'}],
+      '<b>'+near.a+'</b> y <b>'+near.b+'</b> se comportan casi igual: misma estacionalidad, preferencia y mezcla de modelos. <b>'+out.m+'</b> es la más atípica.',
+      'Fuente · perfil conductual · distancia euclidiana'); }
+  if(k==='seguimiento'){ const sg=V.seguimiento||[];
+    const cupo=(V.cupo||[]).reduce((a,c)=>a+(+c.cantidad_inicial||0),0)||(+((sg[sg.length-1]||{}).cupo_produccion_activo)||0)+(+((sg[sg.length-1]||{}).cupo_inversion_activo)||0);
+    const acum=sg.length?(+sg[sg.length-1].acumulado||sg.reduce((a,m)=>a+(+m.consumo_total||0),0)):0;
+    const n=sg.length, pct=cupo?Math.round(acum/cupo*100):0, rate=n?acum/n:0, remain=Math.max(0,cupo-acum), ml=rate>0?Math.ceil(remain/rate):0;
+    const peak=sg.slice().sort((a,b)=>(+b.consumo_total||0)-(+a.consumo_total||0))[0]||{};
+    const ag=(V.agotamientos||[]); const agN=ag.length;
+    const reads=[{k:'Consumido',v:pct+'%',d:N(acum)+' de '+N(cupo),t:pct>75?'tel':'acc'},{k:'Ritmo mensual',v:N(rate),d:'unid / mes',t:'sm'},
+      {k:'Mes pico',v:(peak.month_name||'—'),d:N(peak.consumo_total)+' unid',t:'sm'},{k:'Proyección',v:(ml?'~'+ml+' mes'+(ml!=1?'es':''):'—'),d:'para agotar',t:(ml&&ml<=2)?'tel':'sm'}];
+    if(agN) reads.push({k:'Cupos agotados',v:agN,d:(ag[agN-1].month_name||'')+' · último',t:'tel'});
+    return W('¿Cómo evoluciona el consumo del cupo?', reads,
+      'Se ha consumido el <b>'+pct+'%</b> del cupo en '+n+' meses (ritmo '+N(rate)+'/mes). Al paso actual el cupo se agota en <b>~'+ml+' mes'+(ml!=1?'es':'')+'</b>.'+(agN?' Ya se han agotado <b>'+agN+'</b> certificado'+(agN!=1?'s':'')+'.':''),
+      'Fuente · seguimiento mensual del cupo'); }
+  return '<div class="solo-q">'+VIZ[k].name+'</div><div class="solo-interp">'+VIZ[k].desc+'</div>';
+}
+
+// ── Revelado del tablero por pestaña (reemplaza el scroll-colapso) ──
+function gnosisReveal(show){ const d=document.getElementById('gnosis-dashboard'), h=document.getElementById('gd-hero'); if(!d)return;
+  d.classList.toggle('revealed', show); if(h) h.classList.toggle('collapsed', show);
+  if(show){ requestAnimationFrame(gnosisRenderAll); gnosisDeepTables(); gnosisUpdateWinBtns();
+    setTimeout(function(){ const t=document.getElementById('gd-kpipanel'); if(t) t.scrollIntoView({behavior:'smooth',block:'start'}); }, 80); }
+  else { window.scrollTo({top:0,behavior:'smooth'}); } }
+
+// ── Init + resize + tema + Esc ──
+function gnosisRenderAll(){ gnosisTableroRenderLoop(24); gnosisSoloRenderAll(); }
+function gnosisFillValorKpi(){ const el=document.getElementById('kpi-valor'); if(!el)return;
+  const f=gnosisVizData().flujo||[]; const tot=f.reduce((a,r)=>a+(+r.valor||0),0); el.textContent=tot>0?fMoney(tot):'—'; }
+// Convierte las tablas de desglose en distribuciones deep-tech (barras ranqueadas · líder brilla · números Akzidenz)
+function gnosisDeepTables(){
+  document.querySelectorAll('.gd-tcard').forEach(function(card){
+    if(card.dataset.dx) return; const tbl=card.querySelector('table'); if(!tbl) return;
+    var data=[], totalTxt=null;
+    [].slice.call(tbl.querySelectorAll('tbody tr')).forEach(function(tr){ var td=tr.querySelectorAll('td'); if(td.length<2) return;
+      var raw=td[1].textContent.trim(), val=parseFloat(raw.replace(/[^0-9.\-]/g,''))||0;
+      if(tr.classList.contains('gd-trtot')) totalTxt=raw; else data.push({label:td[0].textContent.trim(),raw:raw,val:val}); });
+    if(!data.length) return;
+    var mx=Math.max.apply(null,data.map(function(d){return d.val;}))||1, sum=data.reduce(function(a,d){return a+d.val;},0);
+    var maxIdx=data.reduce(function(bi,d,i,a){return d.val>a[bi].val?i:bi;},0);
+    var h='<div class="dx-dist">';
+    data.forEach(function(d,i){ h+='<div class="dx-row'+(i===maxIdx?' lead':'')+'"><span class="dx-k" title="'+d.label.replace(/"/g,'&quot;')+'">'+d.label+'</span><span class="dx-bar"><span data-w="'+(d.val/mx*100)+'"></span></span><span class="dx-v">'+d.raw+'</span></div>'; });
+    tbl.outerHTML=h+'</div>';
+    var th=card.querySelector('.th'); if(th){ var nm=th.textContent.trim(); th.innerHTML='<span>'+nm+'</span><span class="thn">'+(totalTxt||sum.toLocaleString())+'</span>'; }
+    card.dataset.dx='1';
+  });
+  requestAnimationFrame(function(){ document.querySelectorAll('.dx-bar span[data-w]').forEach(function(s){ s.style.width=s.getAttribute('data-w')+'%'; }); });
+}
+if(document.getElementById('gd-tablero')) requestAnimationFrame(gnosisRenderAll);
+gnosisFillValorKpi();
+window.addEventListener('resize', function(){ if(!document.body.classList.contains('tool-active') && document.getElementById('gd-tablero')) gnosisRenderAll(); });
+(function(){ var tt=document.getElementById('theme-toggle'); if(tt) tt.addEventListener('click', function(){ setTimeout(gnosisRenderAll,70); }); })();
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ var sw=document.getElementById('sw-modal'); if(sw && !sw.hidden){ gnosisCloseSwitcher(); } else { gnosisCloseSolo(); } } });
 </script>
 {% endblock %}

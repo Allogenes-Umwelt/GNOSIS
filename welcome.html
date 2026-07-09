@@ -1,84 +1,109 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <meta name="autor" content="Jorge Vilchis Gonzalez">
-  <meta name="description" content="Pagina principal">
-  <title>Gestell VW Aduanas</title>
-      <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+{% extends "base.html" %}
+{% block title %}GNOSIS · Ingesta{% endblock %}
 
-<link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
-</head>
-<body>
-  <!-- Header section -->
-  <header>
-    <div class="header-container" style="position:relative;width:100%;">
-      <img src="../static/icono.png" alt="Gestell logo" class="header-image">
-      <a href="/gnosisia" style="position:absolute;right:2rem;top:50%;transform:translateY(-50%);background:#6d838a;color:#fff;padding:0.5rem 1.2rem;border-radius:8px;text-decoration:none;font-size:0.9rem;">Gnosis AI</a>
+{% block extra_css %}
+<style>
+  body { align-items: stretch; text-align: left; }
+  .ing { width: 100%; max-width: 1200px; margin: 0 auto; padding: 72px 40px 80px; position: relative; z-index: 1; }
+  .ing-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); margin-bottom: 22px; }
+  .ing-title { font-family: var(--font-d); font-weight: 700; font-size: 3.2rem; line-height: 1.04; letter-spacing: -.01em; color: var(--t1); }
+  .ing-sub { margin-top: 22px; max-width: 460px; font-family: var(--font-b); font-size: .95rem; line-height: 1.7; color: var(--t2); }
+  .ing-form { margin-top: 44px; max-width: 640px; }
+  .ing-grid { display: flex; flex-direction: column; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .chan { display: flex; align-items: center; gap: 16px; padding: 16px 18px; background: var(--surface); cursor: pointer; transition: border-color .18s, background .18s; border-left: 2px solid transparent; }
+  .chan:hover { background: var(--surface-2); }
+  .chan.armed { border-left-color: var(--acc); background: rgba(0,212,255,.04); }
+  .chan .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--line-2); flex-shrink: 0; transition: background .18s; }
+  .chan.armed .dot { background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
+  .chan .cn { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 1px; color: var(--t3); }
+  .chan.armed .cn { color: var(--acc-text); }
+  .chan .cl { font-family: var(--font-b); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; font-size: .75rem; color: var(--t1); }
+  .chan .ct { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; color: var(--t3); margin-left: 8px; }
+  .chan .cs { margin-left: auto; font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
+  .chan.armed .cs { color: var(--acc-text); }
+  .chan input[type=file] { display: none; }
+  .chan .opt { color: var(--t3); font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 1px; }
+  .ing-submit { margin-top: 24px; }
+  .ing-loading { display: none; align-items: center; gap: 14px; margin-top: 44px; }
+  .ing-loading .bar { width: 180px; height: 2px; background: var(--line); position: relative; overflow: hidden; }
+  .ing-loading .bar::after { content: ''; position: absolute; inset: 0; width: 40%; background: var(--acc-solid); animation: ingscan 1.1s cubic-bezier(.4,0,.2,1) infinite; }
+  @keyframes ingscan { from { transform: translateX(-100%); } to { transform: translateX(350%); } }
+  @media (prefers-reduced-motion: reduce) { .ing-loading .bar::after { animation: none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ing">
+  <div class="ing-eyebrow">GNOSIS · Ingesta de Fuentes</div>
+  <h1 class="ing-title">Carga<br>tus datos.</h1>
+  <p class="ing-sub">Carga las fuentes del periodo. GNOSIS consolida, valida y concilia — hacia una sola fuente de la verdad.</p>
+
+  <form id="uploadForm" method="POST" action="/processing" enctype="multipart/form-data" class="ing-form">
+    <div class="ing-grid">
+      <label class="chan" for="facturas">
+        <span class="dot"></span><span class="cn">01</span>
+        <span class="cl">Facturas<span class="ct">.ZIP</span></span>
+        <span class="cs">En espera</span>
+        <input type="file" id="facturas" name="facturas" accept=".zip" required onchange="markUploaded(this)">
+      </label>
+      <label class="chan" for="dwh">
+        <span class="dot"></span><span class="cn">02</span>
+        <span class="cl">DWH / Pedimento<span class="ct">.TXT</span></span>
+        <span class="cs">En espera</span>
+        <input type="file" id="dwh" name="dwh" accept=".txt" multiple required onchange="markUploaded(this)">
+      </label>
+      <label class="chan" for="FilePrevio">
+        <span class="dot"></span><span class="cn">03</span>
+        <span class="cl">Extracción Histórica<span class="ct">.XLSX</span></span>
+        <span class="cs"><span class="opt">Opcional ·</span> En espera</span>
+        <input type="file" id="FilePrevio" name="FilePrevio" accept=".xlsx" onchange="markUploaded(this)">
+      </label>
+      <label class="chan" for="incrementales">
+        <span class="dot"></span><span class="cn">04</span>
+        <span class="cl">Incrementables<span class="ct">.XLSX</span></span>
+        <span class="cs">En espera</span>
+        <input type="file" id="incrementales" name="incrementales" accept=".xlsx" required onchange="markUploaded(this)">
+      </label>
+      <label class="chan" for="pdfInversion">
+        <span class="dot"></span><span class="cn">05</span>
+        <span class="cl">Cupo Inversión<span class="ct">.PDF</span></span>
+        <span class="cs">En espera</span>
+        <input type="file" id="pdfInversion" name="pdfInversion" accept=".pdf" required onchange="markUploaded(this)">
+      </label>
+      <label class="chan" for="pdfProduccion">
+        <span class="dot"></span><span class="cn">06</span>
+        <span class="cl">Cupo Producción<span class="ct">.PDF</span></span>
+        <span class="cs">En espera</span>
+        <input type="file" id="pdfProduccion" name="pdfProduccion" accept=".pdf" required onchange="markUploaded(this)">
+      </label>
     </div>
-  </header>
+    <button type="submit" id="subbutton" class="btn btn-danger ing-submit">Iniciar análisis</button>
+  </form>
 
-  <!-- Main content section -->
-  <main>
-    <h1 class="page-title">Calificación de preferencia arancelaria de vehículos</h1>
-    <div class="upload-box" id="upload-container">
-      <form id="uploadForm" method="POST" action="/processing" enctype="multipart/form-data">
-        <label class="file-label" for="facturas">Cargar Facturas (.zip)</label>
-        <input type="file" id="facturas" name="facturas" class="file-input" onchange="markUploaded(this)" accept=".zip" required><br><br>
+  <div id="loading-container" class="ing-loading">
+    <div class="bar"></div>
+    <span class="mono-label">GNOSIS · Procesando fuentes…</span>
+  </div>
+</div>
+{% endblock %}
 
-        <label class="file-label" for="FilePrevio">Cargar Extraccion Historica (.xlsx)</label>
-        <input type="file" id="FilePrevio" name="FilePrevio" class="file-input" onchange="markUploaded(this)" accept=".xlsx" ><br><br>
-        
-
-        <label class="file-label" for="dwh">Cargar DWH / Pedimento (.txt)</label>
-        <input type="file" id="dwh" name="dwh" class="file-input" onchange="markUploaded(this)" accept=".txt" multiple required><br><br>
-
-        <label class="file-label" for="incrementales">Cargar Incrementables (.xlsx)</label>
-        <input type="file" id="incrementales" name="incrementales" onchange="markUploaded(this)" class="file-input"  accept=".xlsx"   required><br><br>
-
-        <label class="file-label" for="pdfInversion">Cargar Cupo Inversion (.pdf)</label>
-        <input type="file" id="pdfInversion" name="pdfInversion" class="file-input" onchange="markUploaded(this)" accept=".pdf" required><br><br>
-
-        <label class="file-label" for="pdfProduccion">Cargar Cupo Produccion (.pdf)</label>
-        <input type="file" id="pdfProduccion" name="pdfProduccion" class="file-input" onchange="markUploaded(this)" accept=".pdf" required><br><br>
-
-        <button type="submit" id="subbutton" class="submit-btn">Cargar Archivos</button>
-      </form>
-
-    </div>
-         <!-- LOADING GIF -->
-
-        <div id="loading-container">
-        <img id="loading" src="{{ url_for('static', filename='loading.gif') }}" alt="Loading">
-    </div>
-  </main>
-
-  <!-- Footer section -->
-
-
-  <script>
-    // Hide GIF initially
-    document.getElementById("loading-container").style.display = "none";
-
-    // Only hide boxes, show GIF — NO opacity changes
-    function activateLoading() {
-        document.getElementById("upload-container").style.display = "none";
-        document.getElementById("loading-container").style.display = "flex";
+{% block scripts %}
+<script>
+  function markUploaded(input) {
+    var chan = input.closest('.chan');
+    if (!chan) return;
+    var armed = input.files && input.files.length > 0;
+    chan.classList.toggle('armed', armed);
+    var cs = chan.querySelector('.cs');
+    if (cs) {
+      var opt = chan.querySelector('.opt');
+      var prefix = opt ? opt.outerHTML + ' ' : '';
+      cs.innerHTML = prefix + (armed ? (input.files.length > 1 ? input.files.length + ' archivos' : 'Armado') : 'En espera');
     }
-
-    document.getElementById("uploadForm").onsubmit = activateLoading;
-
-    // Mark files as uploaded
-    function markUploaded(input) {
-        if (input.files.length > 0) {
-            input.classList.add("uploaded");
-        }
-    }
-  </script>
-
-
-</body>
-<footer>
-  <center>Gestell 2025 ®</center>
-</footer>
-</html>
+  }
+  document.getElementById('uploadForm').addEventListener('submit', function() {
+    this.style.display = 'none';
+    document.getElementById('loading-container').style.display = 'flex';
+  });
+</script>
+{% endblock %}

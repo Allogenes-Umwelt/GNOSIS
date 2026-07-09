@@ -4,123 +4,101 @@
 
 {% block extra_css %}
 <style>
-  .errores-page { padding: 2rem; }
-  .errores-header { margin-bottom: 1rem; }
-  .errores-header h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
-  .errores-header .subtitle { color: #6B7280; font-size: 0.9rem; }
+  .errores-page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 48px 40px 80px; text-align: left; position: relative; z-index: 1; }
+  .errores-header { margin-bottom: 22px; }
+  .errores-header .eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); }
+  .errores-header h1 { font-family: var(--font-d); font-weight: 700; font-size: 2rem; letter-spacing: -.01em; color: var(--t1); margin: 14px 0 8px; }
+  .errores-header .subtitle { font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .errores-header .subtitle b { color: var(--telos-on); }
+  .errores-header .subtitle a { color: var(--acc-text); text-decoration: none; }
+  .errores-header .subtitle a:hover { text-decoration: underline; }
 
-  /* Banner de flujo */
+  /* Banner de flujo (instrucciones) */
   .flujo-banner {
-    background: #EFF6FF;
-    border: 1px solid #BFDBFE;
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1.25rem;
-    font-size: 0.875rem;
-    color: #1E40AF;
-    line-height: 1.6;
+    position: relative; background: var(--surface); border: 1px solid var(--line);
+    border-left: 2px solid var(--acc); border-radius: 0; padding: 16px 20px;
+    margin-bottom: 22px; font-family: var(--font-b); font-size: .82rem; color: var(--t2); line-height: 1.9;
   }
-  .flujo-banner a { color: #1D4ED8; font-weight: 600; }
+  .flujo-banner strong { color: var(--t1); font-weight: 700; }
+  .flujo-banner a { color: var(--acc-text); font-weight: 700; text-decoration: none; }
+  .flujo-banner a:hover { text-decoration: underline; }
 
-  /* Banner final (oculto hasta que contador = 0) */
+  /* Banner final (todo corregido) */
   .banner-final {
-    background: #D1FAE5;
-    border: 1px solid #6EE7B7;
-    border-radius: 6px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    font-size: 0.9rem;
-    color: #065F46;
+    background: var(--acc-subtle); border: 1px solid var(--acc); border-radius: 0;
+    padding: 16px 22px; margin-bottom: 22px; display: flex; align-items: center; gap: 16px;
+    font-family: var(--font-b); font-size: .9rem; color: var(--acc-text);
   }
+  .banner-final .ok { color: var(--acc-text); font-family: var(--font-mono); }
   .banner-final strong { font-weight: 700; }
 
+  /* Badges de categoría (afilados · JS reconstruye estas clases) */
   .badge-categoria {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
+    display: inline-block; font-family: var(--font-mono); font-size: .6rem; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; padding: 2px 7px; border: 1px solid; border-radius: 0; white-space: nowrap;
   }
-  .cat-factura_formato_desconocido { background: #FEF3C7; color: #92400E; }
-  .cat-datos_incompletos           { background: #DBEAFE; color: #1E40AF; }
-  .cat-imagen_o_corrupto           { background: #FCE7F3; color: #9D174D; }
-  .cat-documento_no_relacionado    { background: #F3F4F6; color: #374151; }
-  .cat-corrupto                    { background: #FEE2E2; color: #991B1B; }
-  .cat-parsing_failed              { background: #F3F4F6; color: #374151; }
+  .cat-factura_formato_desconocido { border-color: var(--umwelt-on); color: var(--umwelt-on); }
+  .cat-datos_incompletos           { border-color: var(--acc); color: var(--acc-text); }
+  .cat-imagen_o_corrupto           { border-color: var(--telos-on); color: var(--telos-on); }
+  .cat-documento_no_relacionado    { border-color: var(--line); color: var(--t3); }
+  .cat-corrupto                    { border-color: var(--telos-on); color: var(--telos-on); }
+  .cat-parsing_failed              { border-color: var(--line); color: var(--t3); }
 
-  .mensaje-celda {
-    font-size: 0.78rem;
-    color: #6B7280;
-    max-width: 380px;
-    word-break: break-word;
-  }
+  .mensaje-celda { font-family: var(--font-mono); font-size: .72rem; color: var(--t3); max-width: 380px; word-break: break-word; line-height: 1.5; }
+  .mensaje-celda details summary { cursor: pointer; color: var(--t3); font-size: .68rem; list-style: none; text-transform: uppercase; letter-spacing: 1px; }
+  .mensaje-celda details div { color: var(--t3); font-size: .68rem; margin-top: 4px; word-break: break-all; }
   .acciones-celda { white-space: nowrap; }
 
-  .upload-label {
-    cursor: pointer;
-    font-size: 0.8rem;
-    padding: 4px 10px;
-    border: 1px solid #D1D5DB;
-    border-radius: 4px;
-    background: #F9FAFB;
-    color: #374151;
-    transition: background 0.15s, opacity 0.15s;
-    display: inline-block;
-  }
-  .upload-label:hover:not([disabled]) { background: #E5E7EB; }
-  .upload-label.cargando {
-    pointer-events: none;
-    opacity: 0.6;
-    background: #F3F4F6;
-  }
+  /* Tabla HUD (override Bootstrap) */
+  .errores-page .table { width: 100%; margin: 0; border-collapse: collapse; color: var(--t2); }
+  .errores-page .table thead th { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); background: var(--surface); border-bottom: 1px solid var(--line); padding: 12px 14px; text-align: left; }
+  .errores-page .table tbody td { border-top: 1px solid var(--line); padding: 14px; font-size: .82rem; vertical-align: middle; }
+  .errores-page .table tbody tr:hover { background: var(--surface); }
+  .errores-page .table code { font-family: var(--font-mono); font-size: .75rem; color: var(--t1); background: transparent; padding: 0; }
+  tr.procesando { background: var(--acc-subtle) !important; }
 
-  .toast-container {
-    position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
-    z-index: 9999;
+  /* Botón subir corregido (ghost acento) */
+  .upload-label {
+    cursor: pointer; display: inline-block; font-family: var(--font-b); font-weight: 700; font-size: .6rem;
+    letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 11px; border: 1px solid var(--acc);
+    border-radius: 2px; background: transparent; color: var(--acc-text); transition: background .15s, opacity .15s;
   }
+  .upload-label:hover:not([disabled]) { background: var(--acc-subtle); }
+  .upload-label.cargando { pointer-events: none; opacity: .55; }
+
+  /* Descargar (ghost neutro) */
+  .errores-page .btn-outline-secondary {
+    background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px;
+    font-family: var(--font-b); font-weight: 700; font-size: .6rem; letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 11px;
+  }
+  .errores-page .btn-outline-secondary:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
+
+  /* Borrar (ghost telos) */
+  .btn-borrar {
+    font-family: var(--font-b); font-weight: 700; font-size: .6rem; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 6px 11px; border: 1px solid var(--telos-on); border-radius: 2px; background: transparent; color: var(--telos-on);
+    cursor: pointer; transition: background .15s; white-space: nowrap;
+  }
+  .btn-borrar:hover { background: transparent; border-color: var(--telos-on); opacity: .8; }
+
+  .toolbar-errores { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+
+  /* Toasts HUD */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
   .toast-msg {
-    padding: 0.75rem 1.25rem;
-    border-radius: 6px;
-    color: #fff;
-    margin-top: 0.5rem;
-    font-size: 0.9rem;
-    opacity: 0;
-    transition: opacity 0.3s;
-    max-width: 340px;
+    padding: 12px 18px; border-radius: 0; border: 1px solid; margin-top: 8px; font-family: var(--font-mono);
+    font-size: .75rem; letter-spacing: .5px; opacity: 0; transition: opacity .3s; max-width: 360px; background: var(--surface-2);
   }
   .toast-msg.show { opacity: 1; }
-  .toast-ok  { background: #059669; }
-  .toast-err { background: #DC2626; }
+  .toast-ok  { border-color: var(--acc); color: var(--acc-text); }
+  .toast-err { border-color: var(--telos-on); color: var(--telos-on); }
 
-  .empty-state { text-align: center; padding: 3rem; color: #9CA3AF; }
-
-  tr.procesando { background: #FFFBEB !important; }
-
-  .btn-borrar {
-    font-size: 0.75rem;
-    padding: 3px 8px;
-    border: 1px solid #FCA5A5;
-    border-radius: 4px;
-    background: #FFF5F5;
-    color: #DC2626;
-    cursor: pointer;
-    transition: background 0.15s;
-    white-space: nowrap;
-  }
-  .btn-borrar:hover { background: #FEE2E2; }
-
-  .toolbar-errores {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-  }
+  /* Empty state */
+  .empty-state { text-align: center; padding: 90px 0; }
+  .empty-state .g { font-family: var(--font-mono); font-size: 1.6rem; color: var(--acc-text); letter-spacing: 3px; }
+  .empty-state p { font-family: var(--font-mono); font-size: .8rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); margin: 16px 0 24px; }
+  .empty-state .btn { background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; font-family: var(--font-b); font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 11px 20px; font-size: .72rem; text-decoration: none; }
+  .empty-state .btn:hover { background: var(--acc-subtle); }
 </style>
 {% endblock %}
 
@@ -128,11 +106,12 @@
 <div class="errores-page">
 
   <div class="errores-header">
+    <div class="eyebrow">GNOSIS · CONTROL DE CALIDAD // EXTRACCIÓN</div>
     <h1>PDFs con Error de Procesamiento</h1>
     <p class="subtitle">
-      Sesión #{{ session_id }} &mdash;
-      <span id="contadorPendientes">{{ errores|length }}</span> archivo(s) pendiente(s)
-      &nbsp;|&nbsp;
+      Sesión #{{ session_id }} &nbsp;·&nbsp;
+      <b><span id="contadorPendientes">{{ errores|length }}</span> pendiente(s)</b>
+      &nbsp;·&nbsp;
       <a href="/procesar">← Volver a Procesar</a>
     </p>
   </div>
@@ -151,8 +130,8 @@
 
   <!-- Banner final (se muestra cuando contador llega a 0) -->
   <div id="bannerFinal" style="display:none" class="banner-final">
-    <span>✅ <strong>Todos los errores fueron corregidos.</strong></span>
-    <a href="/procesar" class="btn btn-sm" style="background:#059669; color:#fff; border:none;">
+    <span class="ok">◇ <strong>Todos los errores fueron corregidos.</strong></span>
+    <a href="/procesar" class="btn btn-sm" style="background:transparent;border:1px solid var(--acc);color:var(--acc-text);text-decoration:none;">
       Continuar al Procesamiento →
     </a>
   </div>
@@ -190,12 +169,8 @@
             {{ parts[0] or '—' }}
             {% if parts|length > 1 %}
             <details style="margin-top:0.25rem;">
-              <summary style="cursor:pointer; color:#9CA3AF; font-size:0.72rem; list-style:none;">
-                ▸ detalles técnicos
-              </summary>
-              <div style="color:#9CA3AF; font-size:0.72rem; margin-top:0.2rem; word-break:break-all;">
-                {{ parts[1] }}
-              </div>
+              <summary>▸ detalles técnicos</summary>
+              <div>{{ parts[1] }}</div>
             </details>
             {% endif %}
           </td>
@@ -240,11 +215,9 @@
     y opciones para descargar el original y subir una versión corregida.
   </div>
   <div class="empty-state">
-    <p style="font-size:2rem;">✅</p>
+    <p class="g">◇</p>
     <p>No hay PDFs con error en esta sesión.</p>
-    <a href="/procesar" class="btn" style="background:#1D4ED8; color:#fff;">
-      Ir a Procesar →
-    </a>
+    <a href="/procesar" class="btn">Ir a Procesar →</a>
   </div>
   {% endif %}
 
@@ -301,13 +274,13 @@
           const exitoso = data.exitosos && data.exitosos.includes(file.name);
 
           if (exitoso) {
-            showToast('✅ ' + file.name + ' procesado correctamente.', true);
+            showToast('✓ ' + file.name + ' procesado correctamente.', true);
             decrementarContador();
             if (row) {
-              // 1. Verde inmediato con texto de éxito
+              // 1. Marca de éxito (acento) inmediata
               row.style.transition = 'background 0.4s';
-              row.style.background = '#D1FAE5';
-              row.cells[0].innerHTML = '<strong style="color:#065F46">✓ Procesado</strong> <code style="color:#374151">' + file.name + '</code>';
+              row.style.background = 'var(--acc-subtle)';
+              row.cells[0].innerHTML = '<strong style="color:var(--acc-text)">✓ Procesado</strong> <code style="color:var(--t2)">' + file.name + '</code>';
               row.cells[1].innerHTML = '';
               row.cells[2].innerHTML = '';
               row.cells[3].innerHTML = '';
@@ -321,7 +294,7 @@
           } else {
             const fallido = (data.fallidos || []).find(f => f.file === file.name);
             const cat = fallido ? fallido.categoria : 'error desconocido';
-            showToast('❌ Sigue fallando: ' + cat, false);
+            showToast('✕ Sigue fallando: ' + cat, false);
 
             // Actualizar badge y mensaje en la fila
             if (row && fallido) {
