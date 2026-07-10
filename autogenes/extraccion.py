@@ -141,6 +141,22 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
                 if clave not in vistas:
                     base.entidades.append(e)
                     acuerdo[clave] = False
+            # sus relaciones también se fusionan (si no, sus entidades
+            # llegarían siempre huérfanas): entran solo las que anclan en
+            # el conjunto fusionado y no duplican un triple de base
+            nombres_fusion = {e.nombre.strip().lower() for e in base.entidades}
+            triples_base = {
+                (r.desde.strip().lower(), r.hasta.strip().lower(), r.tipo.strip().lower())
+                for r in base.relaciones
+            }
+            for r in propuestas[1].relaciones:
+                triple = (r.desde.strip().lower(), r.hasta.strip().lower(),
+                          r.tipo.strip().lower())
+                if triple in triples_base:
+                    continue
+                if triple[0] in nombres_fusion and triple[1] in nombres_fusion:
+                    base.relaciones.append(r)
+                    triples_base.add(triple)
         else:
             acuerdo = {e.nombre.strip().lower(): None for e in base.entidades}
         propuesta, quorum = base, resultado["quorum"]

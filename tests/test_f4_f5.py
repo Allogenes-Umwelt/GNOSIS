@@ -147,3 +147,44 @@ def test_senales_del_radar(conn):
 
     from autogenes.estado import estado_de_sesion
     assert estado_de_sesion(conn, 1)["senales"] == r["total"]
+
+
+def test_quorum_fusiona_relaciones_del_segundo_modelo(conn, monkeypatch):
+    """Las entidades que solo vio el modelo B no deben llegar huérfanas:
+    sus relaciones ancladas en el conjunto fusionado también entran."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "d.pdf")
+    fid = s.agregar_fragmentos(art.id, [(1, "texto")])[0].id
+    g1 = ('{"entidades": [{"nombre": "Agencia", "tipo": "organizacion",'
+          f' "evidencia": ["{fid}"]}}], "relaciones": []}}')
+    g2 = ('{"entidades": [{"nombre": "Solo-B", "tipo": "concepto",'
+          f' "evidencia": ["{fid}"]}},'
+          '{"nombre": "agencia", "tipo": "organizacion",'
+          f' "evidencia": ["{fid}"]}}],'
+          '"relaciones": [{"desde": "Solo-B", "hasta": "agencia", "tipo": "opera",'
+          f' "evidencia": ["{fid}"]}}]}}')
+    import jarvis.llm_interface as li
+    monkeypatch.setattr(li, "proveedores_para_quorum",
+                        lambda cfg=None, maximo=2: [("a", ProveedorGuionado(g1)),
+                                                    ("b", ProveedorGuionado(g2))])
+    r = extraer_de_artefacto(conn, 1, art.id, con_quorum=True)
+    tipos = {(x["desde"].lower(), x["hasta"].lower()) for x in r["relaciones"]}
+    assert ("solo-b", "agencia") in tipos    # la relación del modelo B sobrevive
+    nombres = {e["nombre"].lower() for e in r["entidades"]}
+    assert "solo-b" in nombres               # y su entidad no llega huérfana
+
+
+def test_radar_sobrevive_fecha_imposible_heredada(conn):
+    """Un evento envenenado (insertado antes del cierre de validación) no
+    debe tumbar señales/estado/radar de toda la sesión."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "x.pdf")
+    fid = s.agregar_fragmentos(art.id, [(1, "t")])[0].id
+    conn.execute(
+        "INSERT INTO ag_eventos (id, session_id, titulo, fecha, precision,"
+        " entidades, evidencia, origen) VALUES ('ev-toxico', 1, 'malo',"
+        " '2026-07-32', 'dia', '[]', ?, 'synesis')", (f'["{fid}"]',),
+    )
+    conn.commit()
+    r = senales_de_sesion(conn, 1, hoy="2026-07-10")
+    assert all(v["id"] != "ev-toxico" for v in r["vencimientos"])

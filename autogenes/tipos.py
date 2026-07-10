@@ -111,10 +111,12 @@ class PropuestaEntidad(BaseModel):
     resumen: Optional[str] = None
     evidencia: list[str] = Field(default_factory=list)
 
-    @field_validator("nombre")
+    @field_validator("nombre", mode="before")
     @classmethod
-    def _recortar_nombre(cls, v: str) -> str:
-        return v.strip()[:80]
+    def _recortar_nombre(cls, v):
+        # strip ANTES de validar min_length: "  " no puede colarse como
+        # entidad sin nombre
+        return v.strip()[:80] if isinstance(v, str) else v
 
     @field_validator("resumen")
     @classmethod
@@ -146,10 +148,11 @@ class PropuestaEvento(BaseModel):
     entidades: list[str] = Field(default_factory=list)
     evidencia: list[str] = Field(default_factory=list)
 
-    @field_validator("titulo")
+    @field_validator("titulo", mode="before")
     @classmethod
-    def _recortar_titulo(cls, v: str) -> str:
-        return v.strip()[:160]
+    def _recortar_titulo(cls, v):
+        # strip ANTES de validar min_length (mismo cierre que PropuestaEntidad)
+        return v.strip()[:160] if isinstance(v, str) else v
 
     @field_validator("entidades")
     @classmethod

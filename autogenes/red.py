@@ -28,6 +28,10 @@ _TABLAS_VERSION = (
 _cache: dict[int, tuple[tuple, nx.MultiDiGraph]] = {}
 
 
+_TABLAS_ADUANALES = ("importaciones", "extraccion_facturas", "pedimentos",
+                     "catalogo_vehiculos")
+
+
 def version_de_sesion(conn: sqlite3.Connection, session_id: int) -> tuple:
     """Monotonic-enough version stamp: bitácora high-water mark + row counts."""
     marca = conn.execute(
@@ -40,13 +44,24 @@ def version_de_sesion(conn: sqlite3.Connection, session_id: int) -> tuple:
         ).fetchone()[0]
         for t in _TABLAS_VERSION
     )
+    # las tablas aduanales NO escriben bitácora: un reproceso que borra y
+    # reinserta cambia max(rowid) aunque el conteo coincida
+    aduanal = tuple(
+        conn.execute(
+            f"SELECT COUNT(*), COALESCE(MAX(rowid), 0) FROM {t} WHERE session_id = ?",  # noqa: S608
+            (session_id,),
+        ).fetchone()
+        for t in _TABLAS_ADUANALES
+    )
     # huella de contenido: dos bases DISTINTAS con los mismos conteos no
-    # deben compartir caché (los ids ag_* son uuid — únicos por base)
+    # deben compartir caché (los ids ag_* son uuid — únicos por base) y la
+    # ruta del archivo separa una base restaurada de la viva
     huella = conn.execute(
         "SELECT COALESCE(MIN(id), '') || COALESCE(MAX(id), '') FROM ag_relaciones"
         " WHERE session_id = ?", (session_id,),
     ).fetchone()[0]
-    return (marca, huella, *conteos)
+    ruta = conn.execute("PRAGMA database_list").fetchone()[2] or ":memory:"
+    return (ruta, marca, huella, *conteos, *aduanal)
 
 
 def construir_red(conn: sqlite3.Connection, session_id: int,

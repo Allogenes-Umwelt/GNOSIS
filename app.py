@@ -47,7 +47,7 @@ DOWNLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__)) + '/downloads'
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 10000 * 1024 * 1024 *1024
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # una carga jamas debe poder tumbar el proceso
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'Gestel2025')
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -1310,9 +1310,13 @@ def api_autogenes_estado():
         if not session_id:
             return jsonify({'error': 'No hay sesiones procesadas'}), 404
         conn = get_connection()
-        est = estado_de_sesion(conn, session_id)
-        conn.close()
+        try:
+            est = estado_de_sesion(conn, session_id)
+        finally:
+            conn.close()
         return jsonify(est)
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 404
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1522,13 +1526,19 @@ def autogenes_vinculos():
 
 
 def _con_sesion(handler):
-    """Patrón común de los endpoints de camino: conexión + sesión activa."""
+    """Patrón común de los endpoints AUTOGENES: conexión + sesión activa
+    verificada (una sesión inexistente es 404, no un 500 críptico)."""
     from database import get_connection
     session_id = request.args.get('session_id', type=int) or _sesion_activa()
     if not session_id:
         return jsonify({'error': 'No hay sesiones procesadas'}), 404
     conn = get_connection()
     try:
+        existe = conn.execute(
+            'SELECT 1 FROM processing_sessions WHERE id = ?', (session_id,)
+        ).fetchone()
+        if not existe:
+            return jsonify({'error': f'Sesión inexistente: {session_id}'}), 404
         return handler(conn, session_id)
     finally:
         conn.close()
@@ -1626,13 +1636,14 @@ def api_autogenes_grafo():
     from autogenes.proyeccion import construir_grafo
     try:
         conn = get_connection()
-        session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-        if not session_id:
+        try:
+            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
+            if not session_id:
+                return jsonify({'error': 'No hay sesiones procesadas'}), 404
+            limite = request.args.get('limite_vehiculos', type=int)
+            grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
+        finally:
             conn.close()
-            return jsonify({'error': 'No hay sesiones procesadas'}), 404
-        limite = request.args.get('limite_vehiculos', type=int)
-        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
-        conn.close()
         return jsonify({'session_id': session_id, **grafo})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1646,12 +1657,13 @@ def api_autogenes_arbol():
     from autogenes.proyeccion import arbol_ontologia
     try:
         conn = get_connection()
-        session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-        if not session_id:
+        try:
+            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
+            if not session_id:
+                return jsonify({'error': 'No hay sesiones procesadas'}), 404
+            arbol = arbol_ontologia(conn, session_id)
+        finally:
             conn.close()
-            return jsonify({'error': 'No hay sesiones procesadas'}), 404
-        arbol = arbol_ontologia(conn, session_id)
-        conn.close()
         return jsonify({'session_id': session_id, 'arbol': arbol})
     except Exception as e:
         return jsonify({'error': str(e)}), 500

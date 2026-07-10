@@ -45,8 +45,9 @@ def formatear_fecha_es(fecha: str, precision: str) -> str:
     mes = partes[1] if len(partes) > 1 else ""
     dia = partes[2] if len(partes) > 2 else ""
     try:
-        nombre_mes = MES_CORTO[int(mes) - 1]
-    except (ValueError, IndexError):
+        m = int(mes)
+        nombre_mes = MES_CORTO[m - 1] if 1 <= m <= 12 else mes
+    except ValueError:
         nombre_mes = mes
     if precision == "anio":
         return anio

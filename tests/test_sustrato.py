@@ -204,3 +204,106 @@ def test_bitacora_audita_toda_mutacion_y_nunca_se_reescribe(sustrato: Sustrato):
     despues = sustrato.bitacora(limite=500)
     assert len(despues) == len(antes) + 1             # append-only: cascade adds, never removes
     assert despues[0]["accion"] == "quitar-fuente"
+
+
+def test_eventos_rechazan_fecha_imposible(sustrato: Sustrato):
+    """2026-07-32 pasa el regex pero envenenaría toda lectura por fecha."""
+    _, frags = _fuente_con_fragmentos(sustrato)
+    for fecha in ("2026-07-32", "2026-13-01", "2026-02-30"):
+        with pytest.raises(ValueError, match="imposible"):
+            sustrato.agregar_eventos([
+                {"titulo": "x", "fecha": fecha, "precision": "dia",
+                 "evidencia": [frags[0].id], "origen": "synesis"}
+            ])
+
+
+def test_mutaciones_no_cruzan_la_frontera_de_sesion(sustrato: Sustrato):
+    """Un Sustrato de la sesión A jamás borra material de la sesión B,
+    ni siquiera con el id correcto en la mano."""
+    conn = sustrato.conn
+    conn.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed, year_processed)"
+        " VALUES ('2026-08-10', 8, 2026)"
+    )
+    sid_b = conn.execute("SELECT MAX(id) AS m FROM processing_sessions").fetchone()["m"]
+    otro = Sustrato(conn, sid_b)
+    art_b, frags_b = _fuente_con_fragmentos(otro)
+    ent_b = otro.upsert_entidad("Entidad B", "organizacion", "synesis",
+                                evidencia=[frags_b[0].id])
+    rel_b = otro.agregar_relacion(ent_b.id, ent_b.id, "self", 0.5, [])
+    ev_b = otro.agregar_eventos([
+        {"titulo": "evento B", "fecha": "2026-08-15", "precision": "dia",
+         "evidencia": [frags_b[0].id], "origen": "synesis"}
+    ])[0]
+
+    # la sesión 1 intenta mutar material de la sesión B: no pasa nada
+    sustrato.quitar_artefacto(art_b.id)
+    sustrato.cortar_relacion(rel_b.id)
+    sustrato.quitar_evento(ev_b.id)
+    assert conn.execute("SELECT COUNT(*) FROM ag_artefactos WHERE id = ?",
+                        (art_b.id,)).fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM ag_relaciones WHERE id = ?",
+                        (rel_b.id,)).fetchone()[0] == 1
+    assert conn.execute("SELECT COUNT(*) FROM ag_eventos WHERE id = ?",
+                        (ev_b.id,)).fetchone()[0] == 1
+    # la entidad de B sigue citando fragmentos vivos (sin cascada cruzada)
+    assert otro.entidad_por_id(ent_b.id).evidencia == [frags_b[0].id]
+
+
+def test_reintegrar_propuesta_no_duplica_relaciones(sustrato: Sustrato):
+    """Integrar dos veces la misma propuesta enriquece evidencia, no
+    duplica aristas — los grados y el digesto no se inflan."""
+    _, frags = _fuente_con_fragmentos(sustrato)
+    propuesta = PropuestaGrafo(
+        entidades=[
+            PropuestaEntidad(nombre="Audi AG", tipo="organizacion",
+                             evidencia=[frags[0].id]),
+            PropuestaEntidad(nombre="VW México", tipo="organizacion",
+                             evidencia=[frags[1].id]),
+        ],
+        relaciones=[
+            PropuestaRelacion(desde="Audi AG", hasta="VW México", tipo="grupo",
+                              evidencia=[frags[0].id]),
+        ],
+    )
+    sustrato.integrar_propuesta(propuesta)
+    propuesta2 = PropuestaGrafo(
+        entidades=propuesta.entidades,
+        relaciones=[
+            PropuestaRelacion(desde="Audi AG", hasta="VW México", tipo="grupo",
+                              evidencia=[frags[1].id]),
+        ],
+    )
+    resultado = sustrato.integrar_propuesta(propuesta2)
+    assert resultado["relaciones"] == 0
+    filas = sustrato.conn.execute(
+        "SELECT evidencia FROM ag_relaciones WHERE session_id = ?",
+        (sustrato.session_id,),
+    ).fetchall()
+    assert len(filas) == 1
+    import json as _json
+    assert set(_json.loads(filas[0]["evidencia"])) == {frags[0].id, frags[1].id}
+
+
+def test_propuesta_con_nombre_en_blanco_se_rechaza():
+    """'  ' no puede colarse como entidad sin nombre: strip antes de validar."""
+    with pytest.raises(Exception):
+        PropuestaEntidad(nombre="   ")
+
+
+def test_fusion_une_evidencia_de_triples_duplicados(sustrato: Sustrato):
+    """Al fusionar, la evidencia del triple colapsado sobrevive en el kept."""
+    _, frags = _fuente_con_fragmentos(sustrato)
+    a = sustrato.upsert_entidad("A", "organizacion", "operador")
+    b1 = sustrato.upsert_entidad("B uno", "organizacion", "operador")
+    b2 = sustrato.upsert_entidad("B dos", "organizacion", "operador")
+    sustrato.agregar_relacion(a.id, b1.id, "contrata", 0.5, [frags[0].id])
+    sustrato.agregar_relacion(a.id, b2.id, "contrata", 0.5, [frags[1].id])
+    sustrato.fusionar_entidades(b1.id, b2.id)
+    filas = sustrato.conn.execute(
+        "SELECT evidencia FROM ag_relaciones WHERE session_id = ?",
+        (sustrato.session_id,),
+    ).fetchall()
+    assert len(filas) == 1
+    import json as _json
+    assert set(_json.loads(filas[0]["evidencia"])) == {frags[0].id, frags[1].id}

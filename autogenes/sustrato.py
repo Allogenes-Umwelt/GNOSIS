@@ -62,6 +62,14 @@ class Sustrato:
     def __init__(self, conn: sqlite3.Connection, session_id: int):
         self.conn = conn
         self.session_id = session_id
+        self._lote = False   # True mientras una operación compuesta está en vuelo
+
+    def _commit(self) -> None:
+        """Commit unitario; dentro de un lote (integrar_propuesta) se
+        difiere al commit único del lote para que una propuesta jamás
+        quede aplicada a medias."""
+        if not self._lote:
+            self.conn.commit()
 
     # ── bitácora (append-only; never rewritten) ──────────────────────
 
@@ -136,7 +144,7 @@ class Sustrato:
             (aid, self.session_id, kind, nombre, paginas, blob_ref),
         )
         self._registrar("dockear-fuente", f"Fuente dockeada: {nombre}")
-        self.conn.commit()
+        self._commit()
         r = self.conn.execute("SELECT * FROM ag_artefactos WHERE id = ?", (aid,)).fetchone()
         return Artefacto(**dict(r))
 
@@ -156,7 +164,7 @@ class Sustrato:
             ).fetchone()
             nuevos.append(Fragmento(**dict(r)))
         self._registrar("fragmentos", f"{len(nuevos)} fragmentos anclados")
-        self.conn.commit()
+        self._commit()
         return nuevos
 
     # ── entities ─────────────────────────────────────────────────────
@@ -198,7 +206,7 @@ class Sustrato:
                 (tipo_final, resumen_final, campo_final, _js(evidencia_final), existente.id),
             )
             self._registrar("entidad", f"Entidad actualizada: {existente.nombre}")
-            self.conn.commit()
+            self._commit()
             return self.entidad_por_id(existente.id)  # type: ignore[return-value]
 
         eid = _uuid()
@@ -208,7 +216,7 @@ class Sustrato:
             (eid, self.session_id, nombre.strip(), tipo, resumen, campo, origen, _js(evidencia)),
         )
         self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})")
-        self.conn.commit()
+        self._commit()
         return self.entidad_por_id(eid)  # type: ignore[return-value]
 
     def editar_entidad(self, entidad_id: str, cambios: dict[str, Any]) -> None:
@@ -230,15 +238,17 @@ class Sustrato:
             "editar-entidad",
             f"Entidad editada por el operador: {campos.get('nombre', entidad.nombre)}",
         )
-        self.conn.commit()
+        self._commit()
 
     def set_geo_entidad(self, entidad_id: str, geo: Optional[GeoPunto]) -> None:
         self.conn.execute(
-            "UPDATE ag_entidades SET geo_lat = ?, geo_lon = ? WHERE id = ?",
-            (geo.lat if geo else None, geo.lon if geo else None, entidad_id),
+            "UPDATE ag_entidades SET geo_lat = ?, geo_lon = ?"
+            " WHERE id = ? AND session_id = ?",
+            (geo.lat if geo else None, geo.lon if geo else None,
+             entidad_id, self.session_id),
         )
         self._registrar("geo", "Coordenadas fijadas" if geo else "Coordenadas retiradas")
-        self.conn.commit()
+        self._commit()
 
     def quitar_entidad(self, entidad_id: str) -> None:
         """Drop the entity, its relations, and prune its name from events
@@ -267,7 +277,7 @@ class Sustrato:
             )
         self.conn.execute("DELETE FROM ag_entidades WHERE id = ?", (entidad_id,))
         self._registrar("quitar-entidad", f"Entidad eliminada: {entidad.nombre}")
-        self.conn.commit()
+        self._commit()
 
     # ── relations ────────────────────────────────────────────────────
 
@@ -286,26 +296,40 @@ class Sustrato:
             (rid, self.session_id, desde_id, hasta_id, tipo, peso, _js(evidencia or [])),
         )
         self._registrar("relacion", f"Relación: {tipo}")
-        self.conn.commit()
+        self._commit()
         r = self.conn.execute("SELECT * FROM ag_relaciones WHERE id = ?", (rid,)).fetchone()
         return Relacion(**{**dict(r), "evidencia": _jl(r["evidencia"])})
 
     def cortar_relacion(self, relacion_id: str) -> None:
         r = self.conn.execute(
-            "SELECT tipo FROM ag_relaciones WHERE id = ?", (relacion_id,)
+            "SELECT tipo FROM ag_relaciones WHERE id = ? AND session_id = ?",
+            (relacion_id, self.session_id),
         ).fetchone()
-        self.conn.execute("DELETE FROM ag_relaciones WHERE id = ?", (relacion_id,))
-        self._registrar("cortar-relacion", f"Relación cortada: {r['tipo'] if r else ''}")
-        self.conn.commit()
+        if r is None:
+            return  # jamás cortar a través de la frontera de sesión
+        self.conn.execute(
+            "DELETE FROM ag_relaciones WHERE id = ? AND session_id = ?",
+            (relacion_id, self.session_id),
+        )
+        self._registrar("cortar-relacion", f"Relación cortada: {r['tipo']}")
+        self._commit()
 
     # ── events ───────────────────────────────────────────────────────
 
     def agregar_eventos(self, items: Sequence[dict]) -> list[Evento]:
+        from datetime import date as _date
+
         from autogenes.tipos import FECHA_ISO
 
         for it in items:
             if not re.match(FECHA_ISO, it.get("fecha", "")):
                 raise ValueError(f"Fecha no normalizada: {it.get('fecha')!r}")
+            try:
+                # forma correcta no basta: 2026-07-32 pasa el regex y
+                # envenenaría toda lectura por fecha de la sesión
+                _date.fromisoformat(it["fecha"])
+            except ValueError:
+                raise ValueError(f"Fecha imposible: {it['fecha']!r}") from None
             if it.get("precision") not in ("dia", "mes", "anio"):
                 raise ValueError(f"Precisión inválida: {it.get('precision')!r}")
         nuevos: list[Evento] = []
@@ -337,13 +361,18 @@ class Sustrato:
             )
         plural = "evento fechado" if len(nuevos) == 1 else "eventos fechados"
         self._registrar("eventos", f"{len(nuevos)} {plural}")
-        self.conn.commit()
+        self._commit()
         return nuevos
 
     def quitar_evento(self, evento_id: str) -> None:
-        self.conn.execute("DELETE FROM ag_eventos WHERE id = ?", (evento_id,))
+        borrado = self.conn.execute(
+            "DELETE FROM ag_eventos WHERE id = ? AND session_id = ?",
+            (evento_id, self.session_id),
+        ).rowcount
+        if not borrado:
+            return
         self._registrar("quitar-evento", "Evento eliminado")
-        self.conn.commit()
+        self._commit()
 
     # ── products (E3) ────────────────────────────────────────────────
 
@@ -372,7 +401,7 @@ class Sustrato:
             ),
         )
         self._registrar("producto", f"Producto {clase} dockeado: {titulo}")
-        self.conn.commit()
+        self._commit()
         r = self.conn.execute("SELECT * FROM ag_productos WHERE id = ?", (pid,)).fetchone()
         return Producto(
             **{
@@ -384,18 +413,26 @@ class Sustrato:
         )
 
     def quitar_producto(self, producto_id: str) -> None:
-        self.conn.execute("DELETE FROM ag_productos WHERE id = ?", (producto_id,))
+        borrado = self.conn.execute(
+            "DELETE FROM ag_productos WHERE id = ? AND session_id = ?",
+            (producto_id, self.session_id),
+        ).rowcount
+        if not borrado:
+            return
         self._registrar("quitar-producto", "Producto eliminado")
-        self.conn.commit()
+        self._commit()
 
     # ── the provenance cascade ───────────────────────────────────────
 
     def quitar_artefacto(self, artefacto_id: str) -> None:
         """Delete a source with full provenance cascade (see module doc)."""
         r = self.conn.execute(
-            "SELECT nombre FROM ag_artefactos WHERE id = ?", (artefacto_id,)
+            "SELECT nombre FROM ag_artefactos WHERE id = ? AND session_id = ?",
+            (artefacto_id, self.session_id),
         ).fetchone()
-        nombre = r["nombre"] if r else "fuente"
+        if r is None:
+            return  # la cascada jamás cruza la frontera de sesión
+        nombre = r["nombre"]
 
         muertos = {
             row["id"]
@@ -473,7 +510,7 @@ class Sustrato:
         self.conn.execute("DELETE FROM ag_fragmentos WHERE artefacto_id = ?", (artefacto_id,))
         self.conn.execute("DELETE FROM ag_artefactos WHERE id = ?", (artefacto_id,))
         self._registrar("quitar-fuente", f"Fuente eliminada con cascada: {nombre}")
-        self.conn.commit()
+        self._commit()
 
     # ── fusion ───────────────────────────────────────────────────────
 
@@ -505,7 +542,7 @@ class Sustrato:
             ),
         )
 
-        vistas: set[str] = set()
+        vistas: dict[str, str] = {}
         for row in self.conn.execute(
             "SELECT * FROM ag_relaciones WHERE session_id = ? ORDER BY created_at, id",
             (self.session_id,),
@@ -513,10 +550,23 @@ class Sustrato:
             desde = ganador_id if row["desde_id"] == perdedor_id else row["desde_id"]
             hasta = ganador_id if row["hasta_id"] == perdedor_id else row["hasta_id"]
             triple = f"{desde}|{hasta}|{row['tipo'].lower()}"
-            if desde == hasta or triple in vistas:
+            if desde == hasta:
                 self.conn.execute("DELETE FROM ag_relaciones WHERE id = ?", (row["id"],))
                 continue
-            vistas.add(triple)
+            duplicada = vistas.get(triple)
+            if duplicada:
+                # el triple colapsa pero su evidencia sobrevive en el kept
+                kept = self.conn.execute(
+                    "SELECT evidencia FROM ag_relaciones WHERE id = ?", (duplicada,)
+                ).fetchone()
+                union = list(dict.fromkeys([*_jl(kept["evidencia"]), *_jl(row["evidencia"])]))
+                self.conn.execute(
+                    "UPDATE ag_relaciones SET evidencia = ? WHERE id = ?",
+                    (_js(union), duplicada),
+                )
+                self.conn.execute("DELETE FROM ag_relaciones WHERE id = ?", (row["id"],))
+                continue
+            vistas[triple] = row["id"]
             self.conn.execute(
                 "UPDATE ag_relaciones SET desde_id = ?, hasta_id = ? WHERE id = ?",
                 (desde, hasta, row["id"]),
@@ -537,7 +587,7 @@ class Sustrato:
 
         self.conn.execute("DELETE FROM ag_entidades WHERE id = ?", (perdedor_id,))
         self._registrar("fusion", f"Fusión: {ganador.nombre} absorbe a {perdedor.nombre}")
-        self.conn.commit()
+        self._commit()
         return self.entidad_por_id(ganador_id)
 
     # ── sanitized integration: the one door for model proposals ─────
@@ -545,12 +595,30 @@ class Sustrato:
     def integrar_propuesta(self, propuesta: PropuestaGrafo) -> dict[str, int]:
         """Integrate an extraction proposal. Evidence is sanitized against
         the session's REAL fragment ids; a proposal citing nothing real is
-        dropped. Relation endpoints resolve by (upserted) name."""
+        dropped. Relation endpoints resolve by (upserted) name. Atomic:
+        o entra toda la propuesta aprobada o no entra nada."""
         reales = self.fragmento_ids()
 
         def sanear(ev: list[str]) -> list[str]:
             return [x for x in ev if x in reales]
 
+        # una transacción para toda la propuesta (y BEGIN IMMEDIATE toma
+        # el candado de escritura: dos integraciones concurrentes no
+        # pueden duplicar una entidad por el mismo nombre)
+        if not self.conn.in_transaction:
+            self.conn.execute("BEGIN IMMEDIATE")
+        self._lote = True
+        try:
+            resultado = self._integrar_lote(propuesta, sanear)
+            self.conn.commit()
+            return resultado
+        except Exception:
+            self.conn.rollback()
+            raise
+        finally:
+            self._lote = False
+
+    def _integrar_lote(self, propuesta: PropuestaGrafo, sanear) -> dict[str, int]:
         integradas = 0
         por_nombre: dict[str, str] = {}
         for pe in propuesta.entidades:
@@ -576,6 +644,15 @@ class Sustrato:
             for a in e.alias:
                 por_nombre.setdefault(_norm(a), e.id)
 
+        # triples existentes: re-integrar una propuesta ENRIQUECE la
+        # evidencia de la relación, jamás duplica la arista
+        existentes: dict[str, str] = {}
+        for row in self.conn.execute(
+            "SELECT id, desde_id, hasta_id, tipo FROM ag_relaciones"
+            " WHERE session_id = ?", (self.session_id,),
+        ).fetchall():
+            existentes[f"{row['desde_id']}|{row['hasta_id']}|{row['tipo'].lower()}"] = row["id"]
+
         relaciones = 0
         for pr in propuesta.relaciones:
             ev = sanear(pr.evidencia)
@@ -583,14 +660,26 @@ class Sustrato:
             hasta = por_nombre.get(_norm(pr.hasta))
             if not ev or not desde or not hasta or desde == hasta:
                 continue
-            self.agregar_relacion(desde, hasta, pr.tipo, pr.peso, ev)
+            triple = f"{desde}|{hasta}|{pr.tipo.lower()}"
+            previa = existentes.get(triple)
+            if previa:
+                r = self.conn.execute(
+                    "SELECT evidencia FROM ag_relaciones WHERE id = ?", (previa,)
+                ).fetchone()
+                union = list(dict.fromkeys([*_jl(r["evidencia"]), *ev]))
+                self.conn.execute(
+                    "UPDATE ag_relaciones SET evidencia = ? WHERE id = ?",
+                    (_js(union), previa),
+                )
+                continue
+            nueva = self.agregar_relacion(desde, hasta, pr.tipo, pr.peso, ev)
+            existentes[triple] = nueva.id
             relaciones += 1
 
         self._registrar(
             "integrar",
             f"Propuesta integrada: {integradas} entidades, {relaciones} relaciones",
         )
-        self.conn.commit()
         return {"entidades": integradas, "relaciones": relaciones}
 
     # ── full graph read (export / projections / tests) ──────────────

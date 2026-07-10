@@ -133,3 +133,17 @@ def test_sintesis_renderiza():
     assert "sn-informe" in html and "sn-trazas" in html and "sintesis.js" in html
     assert "Digesto" in html and "SESIÓN 07/2026" in html
     assert 'id="sn-redactar"' in html and 'id="sn-dockear"' in html
+
+
+def test_conciliado_pct_se_acota_a_cero_cien(conn):
+    """Un reproceso parcial puede dejar más faltantes que vehículos: el
+    porcentaje se acota, jamás se muestra negativo."""
+    conn.execute("DELETE FROM facturas_faltantes")
+    for i in range(9):
+        conn.execute(
+            "INSERT INTO facturas_faltantes (session_id, factura) VALUES (1, ?)",
+            (f"FAC-F-{i}",),
+        )
+    conn.commit()
+    pct = estado_de_sesion(conn, 1)["conciliado_pct"]
+    assert pct == 0

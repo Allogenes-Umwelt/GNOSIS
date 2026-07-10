@@ -37,7 +37,9 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
 
     conciliado_pct: Optional[int] = None
     if vehiculos:
-        conciliado_pct = round(100 * (vehiculos - faltantes) / vehiculos)
+        # faltantes puede exceder vehiculos tras un reproceso parcial:
+        # el porcentaje se acota, jamás se muestra negativo o >100
+        conciliado_pct = max(0, min(100, round(100 * (vehiculos - faltantes) / vehiculos)))
 
     valor_total = conn.execute(
         "SELECT COALESCE(SUM(precio), 0) FROM importaciones WHERE session_id = ?",

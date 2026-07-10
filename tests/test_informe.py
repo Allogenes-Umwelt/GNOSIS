@@ -179,3 +179,9 @@ def test_dockear_informe_sin_citas_reales_no_dockea(conn):
     r = dockear_informe(conn, 1, crudo)
     assert "error" in r
     assert Sustrato(conn, 1).leer_grafo()["productos"] == []
+
+
+def test_formatear_fecha_mes_invalido_no_se_disfraza():
+    """Mes 00 no debe renderizar 'DIC' (indexado -1): queda literal."""
+    assert formatear_fecha_es("2024-00-12", "mes") == "00 2024"
+    assert formatear_fecha_es("2024-13-12", "mes") == "13 2024"

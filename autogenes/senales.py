@@ -24,16 +24,21 @@ def senales_de_sesion(conn: sqlite3.Connection, session_id: int,
     hoy_d = date.fromisoformat(hoy) if hoy else date.today()
     limite = hoy_d + timedelta(days=VENTANA_DIAS)
 
-    vencimientos = [
-        {"id": r["id"], "titulo": r["titulo"], "fecha": r["fecha"],
-         "precision": r["precision"],
-         "dias": (date.fromisoformat(r["fecha"]) - hoy_d).days}
-        for r in conn.execute(
-            "SELECT id, titulo, fecha, precision FROM ag_eventos"
-            " WHERE session_id = ? AND fecha >= ? AND fecha <= ? ORDER BY fecha",
-            (session_id, hoy_d.isoformat(), limite.isoformat()),
-        )
-    ]
+    vencimientos = []
+    for r in conn.execute(
+        "SELECT id, titulo, fecha, precision FROM ag_eventos"
+        " WHERE session_id = ? AND fecha >= ? AND fecha <= ? ORDER BY fecha",
+        (session_id, hoy_d.isoformat(), limite.isoformat()),
+    ):
+        try:
+            # una fecha imposible heredada (p. ej. 2026-07-32) no debe
+            # tumbar el radar de toda la sesión
+            dias = (date.fromisoformat(r["fecha"]) - hoy_d).days
+        except ValueError:
+            continue
+        vencimientos.append({"id": r["id"], "titulo": r["titulo"],
+                             "fecha": r["fecha"], "precision": r["precision"],
+                             "dias": dias})
 
     # fuentes frías: ningún fragmento del artefacto es citado por entidad alguna
     citados: set[str] = set()
