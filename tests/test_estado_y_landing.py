@@ -147,3 +147,22 @@ def test_conciliado_pct_se_acota_a_cero_cien(conn):
     conn.commit()
     pct = estado_de_sesion(conn, 1)["conciliado_pct"]
     assert pct == 0
+
+
+def test_qualia_renderiza():
+    html = _flask_render("autogenes_qualia.html", sesion_etiqueta="07/2026")
+    assert "QLA-01" in html
+    assert "qa-dial" in html and "qa-lienzo" in html
+    assert "fijar base" in html
+    assert "qualia.js" in html
+
+
+def test_estado_anomalias_none_sin_base(conn):
+    assert estado_de_sesion(conn, 1)["anomalias"] is None
+
+
+def test_estado_cuenta_anomalias_con_base(conn):
+    from autogenes import qualia as q
+    conn.executescript(models_autogenes.AG_SCHEMA_SQL)
+    q.fijar_base(conn, 1)
+    assert estado_de_sesion(conn, 1)["anomalias"] == 0

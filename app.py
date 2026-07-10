@@ -1233,7 +1233,8 @@ AUTOGENES_SECCIONES = {
         'tipo': 'Instrumento', 'fase': 'Fase F7',
         'descripcion': 'La máquina de inteligencia: topología de red, comunidades, '
                        'puentes, anomalías y drift entre sesiones.',
-        'metricas': [], 'estado': 'Latente hasta F7 — port completo aprobado.'},
+        'metricas': [('anomalias', 'Anomalías vs base')],
+        'estado': 'Activo — red, escalera, anomalías y drift.'},
 }
 
 
@@ -1333,6 +1334,14 @@ def autogenes_ingesta():
 def autogenes_radar():
     """Radar (F5): vencimientos, fuentes frías, huérfanas y pendientes."""
     return render_template('autogenes_radar.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/qualia')
+def autogenes_qualia():
+    """Qualia (F7): la red topológica del caso — comunidades, puentes,
+    escalera de renormalización, anomalías contra la base del operador."""
+    return render_template('autogenes_qualia.html',
                            sesion_etiqueta=_etiqueta_sesion())
 
 
