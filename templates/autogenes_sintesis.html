@@ -15,10 +15,11 @@
     <!-- Izquierda: digesto del grafo -->
     <aside class="ag-panel" id="ag-panel-izq" aria-label="Digesto del grafo">
       <div class="ag-panel-head">
-        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
         <h2>Digesto</h2>
+        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
       </div>
-      <p class="sn-hint">Lo que el grafo aporta al informe. Cada cita traza hasta su nodo aquí.</p>
+      <p class="sn-hint">Lo que el grafo aporta al informe. Toca un nodo para ver
+      qué puntos lo citan; cada cita traza hasta aquí.</p>
       <div class="ag-grupo">Entidades</div>
       <ul class="sn-nodos" id="sn-entidades"></ul>
       <div class="ag-grupo">Fragmentos</div>
@@ -30,16 +31,19 @@
       <div class="ag-centro-head">
         <span class="t">◆ Síntesis · Informe del caso</span>
         <span class="gr-controles">
-          <button type="button" id="sn-redactar" class="ag-plegar"
-                  style="min-width:auto;padding:0 14px">redactar</button>
-          <button type="button" id="sn-dockear" class="ag-plegar"
-                  style="min-width:auto;padding:0 14px" disabled>dockear</button>
+          <button type="button" id="sn-redactar" class="sn-accion">redactar</button>
+          <button type="button" id="sn-dockear" class="sn-accion" disabled>dockear</button>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
       <div class="sn-informe" id="sn-informe" aria-live="polite">
-        <p class="gr-vacio">Redacta el informe ejecutivo del caso. Cada afirmación llega
-        anclada a su fragmento o entidad — lo que no se puede citar, no se escribe.</p>
+        <div class="sn-vacio">
+          <span class="marca" aria-hidden="true">◆</span>
+          <div class="e">Informe ejecutivo citado</div>
+          <p>Redacta el informe del caso sobre el grafo. Cada afirmación llega
+          anclada a su fragmento o entidad — lo que no se puede citar, no se
+          escribe.</p>
+        </div>
       </div>
       <ul class="ag-leyenda" style="margin-top:8px">
         <li><b>▬</b> cita a fragmento</li>
