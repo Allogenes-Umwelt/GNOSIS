@@ -40,7 +40,13 @@ def version_de_sesion(conn: sqlite3.Connection, session_id: int) -> tuple:
         ).fetchone()[0]
         for t in _TABLAS_VERSION
     )
-    return (marca, *conteos)
+    # huella de contenido: dos bases DISTINTAS con los mismos conteos no
+    # deben compartir caché (los ids ag_* son uuid — únicos por base)
+    huella = conn.execute(
+        "SELECT COALESCE(MIN(id), '') || COALESCE(MAX(id), '') FROM ag_relaciones"
+        " WHERE session_id = ?", (session_id,),
+    ).fetchone()[0]
+    return (marca, huella, *conteos)
 
 
 def construir_red(conn: sqlite3.Connection, session_id: int,

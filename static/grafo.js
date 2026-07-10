@@ -22,17 +22,20 @@
     return base + Math.min(6, Math.sqrt(n.grado || 0) * 0.9);
   }
 
+  function q(sel) { return sel ? document.querySelector(sel) : null; }
+
   function montar(cont) {
     var canvas = cont.querySelector('canvas');
     var ctx = canvas.getContext('2d');
-    var inspector = document.querySelector(cont.getAttribute('data-inspector') || '');
-    var estadoLinea = document.querySelector(cont.getAttribute('data-estado') || '');
+    var inspector = q(cont.getAttribute('data-inspector'));
+    var estadoLinea = q(cont.getAttribute('data-estado'));
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     var nodos = [], enlaces = [], porId = {}, vecinos = {};
     var sim = null, animando = false, t0 = 0;
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
+    var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
     var colores = {};
 
     // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
@@ -89,6 +92,7 @@
                                  { anillos: ANILLOS, fuerzaPorKind: FUERZA_ANILLO });
         if (reduce) { sim.correr(300); encuadrar(); dibujar(0); }
         else { sim.correr(60); encuadrar(); animar(); }
+        cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
       }).catch(function () {
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
       });
@@ -131,13 +135,15 @@
 
       var foco = sel || hover;
       var visibles = foco ? vecinos[foco.id] || {} : null;
+      if (resalte) { visibles = null; }
 
       // enlaces
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
         var toca = foco && (e.source === foco.id || e.target === foco.id);
-        var apagado = foco && !toca;
+        var apagado = resalte ? !resalte.enlaces[e.id] : (foco && !toca);
+        if (resalte && resalte.enlaces[e.id]) { toca = true; }
         ctx.globalAlpha = apagado ? 0.05 : (e.kind === 'relacion' ? 0.55 : 0.16);
         ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
         ctx.lineWidth = e.kind === 'relacion' ? 0.6 + (e.peso || 0.5) * 1.6 : 0.6;
@@ -149,7 +155,8 @@
       // nodos
       nodos.forEach(function (n) {
         var r = radioDe(n);
-        var apagado = foco && n !== foco && !(visibles && visibles[n.id]);
+        var apagado = resalte ? !resalte.nodos[n.id]
+          : (foco && n !== foco && !(visibles && visibles[n.id]));
         ctx.globalAlpha = apagado ? 0.13 : 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
         var esFrame = !vivo;
@@ -183,7 +190,7 @@
         }
         // etiquetas con LOD: siempre las estructurales, el resto al acercarse
         var conEtiqueta = ['nucleo', 'pedimento', 'marca', 'pais', 'producto'].indexOf(n.kind) >= 0
-          || n === foco || (visibles && visibles[n.id])
+          || n === foco || (visibles && visibles[n.id]) || (resalte && resalte.nodos[n.id])
           || (vista.k > 1.6 && n.kind !== 'fragmento') || (n.grado || 0) >= 6;
         if (conEtiqueta && !apagado) {
           ctx.font = (10 / Math.max(vista.k, 1)) + 'px "JetBrains Mono", monospace';
@@ -317,7 +324,7 @@
     }
 
     // ── controles externos ──────────────────────────────────────────
-    var buscar = document.querySelector(cont.getAttribute('data-buscar') || '');
+    var buscar = q(cont.getAttribute('data-buscar'));
     if (buscar) {
       buscar.addEventListener('change', function () {
         var q = buscar.value.trim().toLowerCase();
@@ -330,15 +337,36 @@
         }
       });
     }
-    var reset = document.querySelector(cont.getAttribute('data-reset') || '');
+    var reset = q(cont.getAttribute('data-reset'));
     if (reset) {
       reset.addEventListener('click', function () {
         vista = { x: 0, y: 0, k: 1 }; sel = null; pintarInspector(null);
         if (!animando) dibujar(0);
       });
     }
-    var cap = document.querySelector(cont.getAttribute('data-cap') || '');
+    var cap = q(cont.getAttribute('data-cap'));
     if (cap) cap.addEventListener('change', function () { cargar(cap.value || null); });
+
+    // API para vistas que cabalgan el lienzo (Vínculos)
+    cont.grafoAPI = {
+      nodos: function () { return nodos; },
+      resaltar: function (idsNodos, idsEnlaces) {
+        var rn = {}, re = {};
+        (idsNodos || []).forEach(function (i) { rn[i] = true; });
+        (idsEnlaces || []).forEach(function (i) { re[i] = true; });
+        resalte = { nodos: rn, enlaces: re };
+        if (!animando) dibujar(0);
+      },
+      limpiar: function () { resalte = null; sel = null; pintarInspector(null); if (!animando) dibujar(0); },
+      enfocar: function (id) {
+        var n = porId[id];
+        if (!n) return;
+        sel = n; pintarInspector(n);
+        vista.k = Math.max(vista.k, 1.4);
+        vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
+        if (!animando) dibujar(0);
+      }
+    };
 
     leerColores();
     tamano();

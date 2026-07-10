@@ -1317,6 +1317,117 @@ def api_autogenes_estado():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/autogenes/vinculos')
+def autogenes_vinculos():
+    """Vínculos (F3): camino más corto citado, vecindario y hubs."""
+    from database import get_connection
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    etiqueta = '—'
+    if session_id:
+        conn = get_connection()
+        ses = conn.execute(
+            "SELECT month_processed, year_processed FROM processing_sessions WHERE id = ?",
+            (session_id,)).fetchone()
+        conn.close()
+        if ses:
+            etiqueta = f"{ses['month_processed']:02d}/{ses['year_processed']}"
+    return render_template('autogenes_vinculos.html', sesion_etiqueta=etiqueta)
+
+
+def _con_sesion(handler):
+    """Patrón común de los endpoints de camino: conexión + sesión activa."""
+    from database import get_connection
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    if not session_id:
+        return jsonify({'error': 'No hay sesiones procesadas'}), 404
+    conn = get_connection()
+    try:
+        return handler(conn, session_id)
+    finally:
+        conn.close()
+
+
+@app.route('/api/v1/autogenes/camino', methods=['GET'])
+def api_autogenes_camino():
+    from autogenes.caminos import camino_mas_corto
+    desde = request.args.get('desde', '')
+    hasta = request.args.get('hasta', '')
+    if not desde or not hasta:
+        return jsonify({'error': 'Faltan parámetros desde/hasta'}), 400
+
+    def handler(conn, session_id):
+        cam = camino_mas_corto(conn, session_id, desde, hasta)
+        if cam is None:
+            return jsonify({'camino': None,
+                            'mensaje': 'No existe camino entre esos nodos'}), 200
+        return jsonify({'session_id': session_id, 'camino': cam})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/vecindario', methods=['GET'])
+def api_autogenes_vecindario():
+    from autogenes.caminos import vecindario
+    nodo = request.args.get('nodo', '')
+    grados = min(max(request.args.get('grados', default=2, type=int), 1), 4)
+    if not nodo:
+        return jsonify({'error': 'Falta el parámetro nodo'}), 400
+
+    def handler(conn, session_id):
+        v = vecindario(conn, session_id, nodo, grados=grados)
+        if v is None:
+            return jsonify({'error': 'Nodo desconocido'}), 404
+        return jsonify({'session_id': session_id, **v})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/hubs', methods=['GET'])
+def api_autogenes_hubs():
+    from autogenes.caminos import mas_conectadas
+    top = min(max(request.args.get('top', default=10, type=int), 1), 50)
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id,
+                        'hubs': mas_conectadas(conn, session_id, top=top)})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/camino/dockear', methods=['POST'])
+def api_autogenes_camino_dockear():
+    """Dockea el camino como Producto (recomputado en servidor — el
+    cliente jamás dicta el cuerpo ni la evidencia)."""
+    from autogenes.caminos import camino_mas_corto, cuerpo_camino_guardado
+    from autogenes.sustrato import Sustrato
+    data = request.get_json(silent=True) or {}
+    desde, hasta = data.get('desde_id', ''), data.get('hasta_id', '')
+    if not desde or not hasta:
+        return jsonify({'error': 'Faltan desde_id/hasta_id'}), 400
+
+    def handler(conn, session_id):
+        cam = camino_mas_corto(conn, session_id, desde, hasta)
+        if cam is None:
+            return jsonify({'error': 'No existe camino entre esos nodos'}), 404
+        cuerpo = cuerpo_camino_guardado(cam)
+        anclas = [n['id'] for n in (cam['desde'], cam['hasta'])
+                  if n['kind'] == 'entidad']
+        p = Sustrato(conn, session_id).dockear_producto(
+            'camino', f"Camino: {cuerpo['desde']} → {cuerpo['hasta']}",
+            'vinculos', cuerpo, entidades=anclas, evidencia=cam['evidencia'])
+        return jsonify({'status': 'ok', 'producto_id': p.id, 'titulo': p.titulo})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/grafo', methods=['GET'])
 def api_autogenes_grafo():
     """La ontologia de una sesion como {nodos, enlaces} (solo lectura).

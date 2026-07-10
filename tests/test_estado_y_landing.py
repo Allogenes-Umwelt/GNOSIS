@@ -108,3 +108,9 @@ def test_lienzo_del_grafo_renderiza():
     assert "fuerzas.js" in html and "grafo.js" in html
     assert 'data-inspector="#gr-inspector"' in html
     assert "SESIÓN 07/2026" in html
+
+
+def test_vinculos_renderiza():
+    html = _flask_render("autogenes_vinculos.html", sesion_etiqueta="07/2026")
+    assert "vn-desde" in html and "vn-hasta" in html and "vn-dockear" in html
+    assert "vinculos.js" in html and "grafo.js" in html and "<canvas" in html
