@@ -188,3 +188,23 @@ def test_radar_sobrevive_fecha_imposible_heredada(conn):
     conn.commit()
     r = senales_de_sesion(conn, 1, hoy="2026-07-10")
     assert all(v["id"] != "ev-toxico" for v in r["vencimientos"])
+
+
+def test_anomalias_qualia_publican_al_radar(conn):
+    """OBSERVAR → ACTUAR: una desviación medida contra la base aparece
+    como señal del Radar y cuenta en el total."""
+    from autogenes import qualia
+    from autogenes.metabolismo import metabolismo_de_sesion
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "base.pdf")
+    frag = s.agregar_fragmentos(art.id, [(1, "t")])[0]
+    s.upsert_entidad("Ancla", "organizacion", "synesis", evidencia=[frag.id])
+    qualia.fijar_base(conn, 1)
+    s.upsert_entidad("Isla radar", "concepto", "operador")   # isla vs base
+    sen = senales_de_sesion(conn, 1, hoy="2026-07-10")
+    assert any(a["detector"] == "islas" for a in sen["anomalias"])
+    assert sen["total"] >= len(sen["anomalias"])
+    urg = metabolismo_de_sesion(conn, 1)["urgencias"]
+    anomalia = next(u for u in urg if u["tipo"] == "anomalia")
+    assert anomalia["accion"] == "/autogenes/qualia/terreno"
+    assert "severidad" in anomalia["sub"]

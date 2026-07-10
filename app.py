@@ -1369,6 +1369,22 @@ def autogenes_qualia_horizonte():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/qualia/orbe')
+def autogenes_qualia_orbe():
+    """Qualia · Orbe (F7): sistema orbital por centralidad — masa, rango
+    y plano de comunidad; tap para el porqué de cada masa."""
+    return render_template('autogenes_qualia_orbe.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/qualia/cuerdas')
+def autogenes_qualia_cuerdas():
+    """Qualia · Cuerdas (F7): el anillo en orden de comunidad con cada
+    vínculo como cuerda al centro — tocar aísla un concepto."""
+    return render_template('autogenes_qualia_cuerdas.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/autogenes/sintesis')
 def autogenes_sintesis():
     """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe
@@ -1653,12 +1669,14 @@ def api_qualia_red():
         if not 0 <= nivel < len(escalera):
             return jsonify({'error': f'Nivel fuera de la escalera (0–{len(escalera) - 1})'}), 400
         r = escalera[nivel]
+        comunidad = topologia.detectar_comunidades(r)
         cuerpo = {
             'session_id': session_id,
             'nivel': nivel,
             'niveles': [len(x['nodos']) for x in escalera],
             'red': r,
-            'comunidad': topologia.detectar_comunidades(r),
+            'comunidad': comunidad,
+            'orden': topologia.ordenar_por_comunidad(r, comunidad),
             'grado': topologia.grado_ponderado(r),
             'masas': topologia.centralidad_vector_propio(r),
             'resumen': topologia.resumen_red(r),

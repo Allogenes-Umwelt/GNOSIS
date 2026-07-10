@@ -16,22 +16,12 @@ def _count(conn: sqlite3.Connection, tabla: str, session_id: int) -> int:
     ).fetchone()[0]
 
 
-def _anomalias_qualia(conn: sqlite3.Connection, session_id: int):
-    """Conteo de anomalías contra la base del operador; None sin base
-    (el satélite queda latente — jamás se finge una referencia)."""
-    from autogenes.qualia import anomalias_de_sesion, leer_base
+def _tiene_base_qualia(conn: sqlite3.Connection, session_id: int) -> bool:
+    from autogenes.qualia import leer_base
     try:
-        if leer_base(conn, session_id) is None:
-            return None
-        return len(anomalias_de_sesion(conn, session_id)["hallazgos"])
+        return leer_base(conn, session_id) is not None
     except sqlite3.OperationalError:
-        return None   # esquema qualia aún no migrado en esta base
-
-
-def _total_senales(conn: sqlite3.Connection, session_id: int) -> int:
-    from autogenes.senales import senales_de_sesion
-
-    return senales_de_sesion(conn, session_id)["total"]
+        return False   # esquema qualia aún no migrado en esta base
 
 
 def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
@@ -58,6 +48,9 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         (session_id,),
     ).fetchone()[0]
 
+    from autogenes.senales import senales_de_sesion
+    sen = senales_de_sesion(conn, session_id)
+
     productos_informe = conn.execute(
         "SELECT COUNT(*) FROM ag_productos WHERE session_id = ? AND clase = 'informe'",
         (session_id,),
@@ -83,10 +76,13 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         "relaciones": _count(conn, "ag_relaciones", session_id),
         "productos_informe": productos_informe,
         "productos_camino": productos_camino,
-        # señales del Radar (F5): total real
-        "senales": _total_senales(conn, session_id),
-        # anomalías Qualia (F7): medidas SOLO si el operador fijó base
-        "anomalias": _anomalias_qualia(conn, session_id),
+        # señales del Radar (F5, ya incluye anomalías Qualia): total real
+        "senales": sen["total"],
+        # anomalías Qualia (F7): con base es conteo (aun 0); sin base solo
+        # las de actividad — si tampoco hay, el satélite queda latente
+        "anomalias": (len(sen["anomalias"])
+                      if sen["anomalias"] or _tiene_base_qualia(conn, session_id)
+                      else None),
         "hallazgos": None,    # F9 motor de hallazgos
         "reglas": None,       # F12 NOMOS
     }

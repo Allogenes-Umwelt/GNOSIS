@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}GNOSIS · Qualia — Horizonte de eventos{% endblock %}
+{% block title %}GNOSIS · Qualia — Cuerdas{% endblock %}
 {% block nav_autogenes %}active{% endblock %}
 
 {% block extra_css %}
@@ -11,46 +11,44 @@
 <div class="ag-wrap">
   <div class="ag-landing gr-marco qa-marco" id="ag-landing">
 
-    <!-- Centro: el osciloscopio -->
-    <section class="ag-centro gr-centro" aria-label="Horizonte de eventos">
+    <!-- Centro: el sistema orbital -->
+    <section class="ag-centro gr-centro" aria-label="Cuerdas">
       <div class="ag-centro-head">
         <span class="qa-desig">
-          <span class="cod">QLA-04 · AUTOGENES F7</span>
-          <span class="nom">◆ Qualia · Horizonte de eventos</span>
+          <span class="cod">QLA-06 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Cuerdas del caso</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia">red</a>
           <a href="/autogenes/qualia/orbe">orbe</a>
-          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/cuerdas" class="activo" aria-current="page">cuerdas</a>
           <a href="/autogenes/qualia/terreno">terreno</a>
           <a href="/autogenes/qualia/cascada">cascada</a>
-          <a href="/autogenes/qualia/horizonte" class="activo" aria-current="page">horizonte</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
         </nav>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
-      <div class="qa-lienzo" id="qh-lienzo"><canvas></canvas></div>
+      <div class="qa-lienzo" id="qd-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>●</b> muestra de telemetría — nada entre muestras se inventa</li>
-        <li><b>│</b> intervención del operador — tócala para su delta medido</li>
-        <li><span id="qh-info" role="status">CARGANDO EL HORIZONTE…</span></li>
+        <li><b>◜</b> tick — frontera entre comunidades del anillo</li>
+        <li><b>⌒</b> cuerda — grosor = peso del vínculo · toca el anillo para aislar</li>
+        <li><span id="qd-info" role="status">CARGANDO EL ANILLO…</span></li>
       </ul>
     </section>
 
-    <!-- Derecha: la ficha -->
-    <aside class="ag-panel" id="ag-panel-der" aria-label="Detalle del horizonte">
+    <!-- Derecha: por qué pesa -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Concepto y comunidades">
       <div class="ag-panel-head">
         <h2>Ficha</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
-      <div class="qa-sec" style="margin-top:0">Intervención</div>
-      <div id="qh-detalle" class="gr-inspector" aria-live="polite">
-        <p class="qa-base-hint">Toca una línea vertical para ver la intervención
-        y su delta medido entre las muestras que la flanquean.</p>
+      <div class="qa-sec" style="margin-top:0">Concepto</div>
+      <div id="qd-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca el anillo para aislar las cuerdas de un
+        concepto; el resto se atenúa.</p>
       </div>
-      <div class="qa-sec">Telemetría</div>
-      <div class="qa-spec" id="qh-spec"></div>
-      <div class="qa-sec">Intervenciones</div>
-      <div class="qa-lista" id="qh-lineas"></div>
+      <div class="qa-sec">Comunidades</div>
+      <div class="qa-lista" id="qd-comunidades"></div>
       <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
     </aside>
   </div>
@@ -58,7 +56,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='qualia_horizonte.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_cuerdas.js') }}"></script>
 <script>
 (function () {
   var landing = document.getElementById('ag-landing');

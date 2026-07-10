@@ -187,3 +187,15 @@ def test_qualia_horizonte_renderiza():
     assert "QLA-04" in html
     assert "qh-lienzo" in html and "qualia_horizonte.js" in html
     assert "Horizonte de eventos" in html
+
+
+def test_qualia_orbe_renderiza():
+    html = _flask_render("autogenes_qualia_orbe.html", sesion_etiqueta="07/2026")
+    assert "QLA-05" in html
+    assert "qo-lienzo" in html and "qualia_orbe.js" in html
+
+
+def test_qualia_cuerdas_renderiza():
+    html = _flask_render("autogenes_qualia_cuerdas.html", sesion_etiqueta="07/2026")
+    assert "QLA-06" in html
+    assert "qd-lienzo" in html and "qualia_cuerdas.js" in html

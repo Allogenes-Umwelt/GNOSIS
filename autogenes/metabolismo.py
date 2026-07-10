@@ -109,6 +109,12 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
         salud = None
 
     urgencias = []
+    # anomalías Qualia primero: una desviación medida es lo más accionable
+    for a in sen.get("anomalias", []):
+        urgencias.append({"tipo": "anomalia", "titulo": a["titulo"],
+                          "sub": "severidad " + str(round(a["severidad"] * 100)) + "%",
+                          "critico": a["severidad"] >= 0.5,
+                          "accion": "/autogenes/qualia/terreno"})
     for v in sen["vencimientos"]:
         urgencias.append({"tipo": "vencimiento", "titulo": v["titulo"],
                           "sub": v["fecha"] + " · en " + str(v["dias"]) + " días",

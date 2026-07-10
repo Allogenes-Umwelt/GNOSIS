@@ -76,7 +76,16 @@ def senales_de_sesion(conn: sqlite3.Connection, session_id: int,
         "SELECT COUNT(*) FROM facturas_errores WHERE session_id = ?",
         (session_id,)).fetchone()[0]
 
+    # anomalías Qualia (F7): OBSERVAR publica al Radar. Estructurales solo
+    # con base fijada; ráfaga/ritmo miden contra su propia historia.
+    from autogenes.qualia import anomalias_de_sesion
+    try:
+        anomalias = anomalias_de_sesion(conn, session_id)["hallazgos"]
+    except sqlite3.OperationalError:
+        anomalias = []   # esquema qualia aún no migrado en esta base
+
     total = (len(vencimientos) + len(fuentes_frias) + len(huerfanas)
+             + len(anomalias)
              + (1 if faltantes else 0) + (1 if errores else 0))
     return {
         "session_id": session_id,
@@ -85,6 +94,7 @@ def senales_de_sesion(conn: sqlite3.Connection, session_id: int,
         "vencimientos": vencimientos,
         "fuentes_frias": fuentes_frias,
         "huerfanas": huerfanas,
+        "anomalias": anomalias,
         "negocio": {"faltantes": faltantes, "errores": errores},
         "total": total,
     }

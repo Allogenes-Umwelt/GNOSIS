@@ -34,8 +34,10 @@
     var colores = {};
     var niveles = null;          // conteo de nodos por peldaño
     var cache = {};              // nivel -> respuesta de /qualia/red
+    var espectralCache = {};     // nivel -> posiciones del embedding
     var nivel = 0;
-    var vista = { k: 1 };        // zoom semántico
+    var layoutModo = 'comunidades';   // comunidades | espectral
+    var vista = { k: 1 };        // zoom semántico (solo en comunidades)
     var insetBox = null;
     var reqSeq = 0;
 
@@ -126,9 +128,44 @@
       return pos;
     }
 
+    // posiciones desde el embedding espectral del motor (Fiedler)
+    function layoutEspectral(d, W, H) {
+      var esp = espectralCache[nivel];
+      var pos = {};
+      if (!esp) return pos;
+      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+      Object.keys(esp).forEach(function (id) {
+        var q = esp[id];
+        if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x;
+        if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y;
+      });
+      var k = 0.84 * Math.min(W / Math.max(maxX - minX, 1e-6),
+                              H / Math.max(maxY - minY, 1e-6));
+      var ox = W / 2 - (minX + maxX) / 2 * k, oy = H / 2 - (minY + maxY) / 2 * k;
+      // el concentrador de cada comunidad conserva su marca de hub
+      var mejorGrado = {};
+      d.red.nodos.forEach(function (n) {
+        var c = d.comunidad[n.id], g = d.grado[n.id] || 0;
+        if (!(c in mejorGrado) || g > mejorGrado[c].g) {
+          mejorGrado[c] = { id: n.id, g: g };
+        }
+      });
+      var esHub = {};
+      Object.keys(mejorGrado).forEach(function (c) { esHub[mejorGrado[c].id] = true; });
+      d.red.nodos.forEach(function (n) {
+        var q = esp[n.id];
+        if (!q) return;
+        pos[n.id] = { x: q.x * k + ox, y: q.y * k + oy,
+                      hub: !!esHub[n.id], com: d.comunidad[n.id] };
+      });
+      return pos;
+    }
+
     // ── vista desplegada ─────────────────────────────────────────────
     function pintarRed(d, X0, Y0, W, H, esInset) {
-      var pos = layout(d, W, H);
+      var pos = (!esInset && layoutModo === 'espectral')
+        ? layoutEspectral(d, W, H)
+        : layout(d, W, H);
       Object.keys(pos).forEach(function (k) { pos[k].x += X0; pos[k].y += Y0; });
       var puentes = {};
       d.resumen.puentes.forEach(function (p) { puentes[p.id] = true; });
@@ -297,7 +334,7 @@
     }
 
     function esAgregada(d) {
-      return vista.k < 0.72 && d.red.nodos.length > 40;
+      return layoutModo === 'comunidades' && vista.k < 0.72 && d.red.nodos.length > 40;
     }
 
     function dibujar() {
@@ -331,7 +368,8 @@
         ? 'VISTA AGREGADA · ' + r.n_comunidades + ' COMUNIDADES DE ' + r.n_nodos +
           ' NODOS · ACÉRCATE PARA DESPLEGAR'
         : r.n_nodos + ' NODOS · ' + r.n_enlaces + ' ENLACES · ESCALA ' + nivel +
-          ' DE ' + (niveles.length - 1);
+          ' DE ' + (niveles.length - 1) +
+          (layoutModo === 'espectral' ? ' · PROYECCIÓN ESPECTRAL (FIEDLER)' : '');
     }
     function pintarFicha(d) {
       var r = d.resumen;
@@ -424,6 +462,28 @@
       });
       elDial.children[nivel].className = 'activo';
     }
+    function cargarEspectral(n, alTerminar) {
+      if (espectralCache[n]) { if (alTerminar) alTerminar(); return; }
+      fetch('/api/v1/autogenes/qualia/red?espectral=1&nivel=' + n)
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error || !j.espectral) return;
+          espectralCache[n] = j.espectral;
+          if (alTerminar) alTerminar();
+        })
+        .catch(function () { /* el dial vuelve a comunidades sin drama */ });
+    }
+    var elLayout = document.getElementById('qa-layout');
+    if (elLayout) elLayout.querySelectorAll('button').forEach(function (b) {
+      b.addEventListener('click', function () {
+        layoutModo = b.getAttribute('data-l');
+        elLayout.querySelectorAll('button').forEach(function (x) { x.className = ''; });
+        b.className = 'activo';
+        if (layoutModo === 'espectral') cargarEspectral(nivel, dibujar);
+        dibujar();
+      });
+    });
+
     function cargarEstado() {
       fetch('/api/v1/autogenes/qualia/estado')
         .then(function (r) { return r.json(); })

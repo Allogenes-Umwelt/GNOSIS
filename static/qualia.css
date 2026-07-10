@@ -8,8 +8,11 @@
 .qa-marco { position: relative; grid-template-columns: 1fr 360px; }
 .qa-marco.der-off { grid-template-columns: 1fr 46px; }
 
-/* cabecera de designación (XMA-01 → QLA-01) */
-.qa-desig { display: flex; flex-direction: column; }
+/* cabecera de designación (XMA-01 → QLA-01). Con seis pestañas y dos
+   diales la cabecera envuelve en filas sin romper el título. */
+.qa-marco .ag-centro-head { flex-wrap: wrap; row-gap: 8px; }
+.qa-desig { display: flex; flex-direction: column; flex-shrink: 0; }
+.qa-desig .nom { white-space: nowrap; }
 .qa-desig .cod { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; color: var(--acc-text); }
 .qa-desig .nom { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; letter-spacing: .5px; color: var(--t1); text-transform: uppercase; }
 
