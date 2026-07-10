@@ -242,6 +242,7 @@ def redactar_informe(conn: sqlite3.Connection, session_id: int,
     return {
         "session_id": session_id,
         "informe": saneado.model_dump(),
+        "digesto": digesto,
         "fuentes": len(grafo["artefactos"]),
         "fragmentos": len(grafo["fragmentos"]),
         "entidades": len(grafo["entidades"]),

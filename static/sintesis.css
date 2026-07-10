@@ -1,0 +1,86 @@
+/* GNOSIS · Síntesis — split digesto ↔ informe.
+   Ley de marca: los trazos de cita se dibujan en canvas con la variante
+   AAA por modo (--acc-text); aquí solo layout y estados. Tokens de
+   styles.css únicamente; sin hex crudo. */
+
+/* Split de tres columnas: digesto ↔ informe ↔ cita. Sobrescribe el
+   grid base de .ag-landing; las variantes plegadas ganan por orden de
+   carga (sintesis.css va después de constelacion.css). */
+.sn-marco { position: relative; grid-template-columns: 300px 1fr 320px; }
+.sn-marco.izq-off { grid-template-columns: 46px 1fr 320px; }
+.sn-marco.der-off { grid-template-columns: 300px 1fr 46px; }
+.sn-marco.izq-off.der-off { grid-template-columns: 46px 1fr 46px; }
+
+/* Lienzo de trazas: capa conectiva sobre el split, sin capturar el ratón. */
+.sn-trazas {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 3;
+}
+
+.sn-hint {
+  color: var(--t3); font-size: .72rem; line-height: 1.4; margin: 0 0 4px;
+}
+
+/* Digesto: nodos que alimentan el informe. */
+.sn-nodos { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.sn-nodo {
+  display: flex; align-items: baseline; gap: 7px; padding: 5px 8px;
+  border: 1px solid var(--line-ghost); background: var(--surface);
+  font-size: .74rem; color: var(--t2); position: relative;
+  transition: border-color var(--e4u-rapido, .12s) linear, background var(--e4u-rapido, .12s) linear;
+}
+.sn-nodo .k { color: var(--acc-text); font-family: var(--font-mono); font-size: .7rem; }
+.sn-nodo .n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sn-nodo .t {
+  font-family: var(--font-mono); font-size: .58rem; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--t3);
+}
+.sn-nodo.activa {
+  border-color: var(--acc-text); background: var(--acc-subtle); color: var(--t1);
+}
+.sn-nodo.activa .n { color: var(--t1); }
+
+/* Informe: documento vivo, scrollable. */
+.sn-informe { flex: 1; overflow-y: auto; padding: 6px 2px 6px 0; }
+.sn-titulo {
+  font-family: var(--font-d); font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--t1); font-size: 1.05rem; margin: 4px 0 14px;
+  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+}
+.sn-seccion { margin-bottom: 16px; }
+.sn-enc {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--acc-text); margin-bottom: 6px;
+}
+.sn-punto {
+  padding: 8px 12px; margin: 4px 0; border-left: 2px solid var(--line-ghost);
+  cursor: pointer; position: relative;
+  transition: border-color var(--e4u-rapido, .12s) linear, background var(--e4u-rapido, .12s) linear;
+}
+.sn-punto:hover, .sn-punto:focus-visible { background: var(--surface); outline: none; }
+.sn-punto.activo { border-left-color: var(--acc-text); background: var(--acc-subtle); }
+.sn-punto .tx { display: block; color: var(--t1); font-size: .9rem; line-height: 1.5; }
+.sn-punto .ci { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.sn-chip {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px;
+  padding: 1px 6px; border: 1px solid var(--line); color: var(--t3);
+  max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sn-chip.ent { color: var(--acc-text); border-color: var(--acc-text); }
+.sn-punto.activo .sn-chip { border-color: var(--acc-text); color: var(--acc-text); }
+
+/* Cita: procedencia del punto activo. */
+.sn-cita-frag {
+  border: 1px solid var(--line-ghost); padding: 8px 10px; margin: 6px 0;
+  background: var(--surface);
+}
+.sn-cita-frag .fuente {
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: 1px;
+  color: var(--acc-text); text-transform: uppercase; display: block; margin-bottom: 4px;
+}
+.sn-cita-frag .cuerpo { color: var(--t2); font-size: .8rem; line-height: 1.45; }
+.sn-cita-ent {
+  display: inline-block; font-family: var(--font-mono); font-size: .66rem;
+  color: var(--acc-text); border: 1px solid var(--line); padding: 2px 7px;
+  margin: 3px 4px 0 0;
+}

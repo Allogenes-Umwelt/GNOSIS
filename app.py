@@ -1332,6 +1332,14 @@ def autogenes_radar():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/sintesis')
+def autogenes_sintesis():
+    """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe
+    con trazas de cita al nodo del grafo que sustenta cada punto."""
+    return render_template('autogenes_sintesis.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 def _etiqueta_sesion():
     from database import get_connection
     session_id = request.args.get('session_id', type=int) or _sesion_activa()
