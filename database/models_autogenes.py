@@ -115,4 +115,25 @@ CREATE TABLE IF NOT EXISTS ag_bitacora (
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );
 CREATE INDEX IF NOT EXISTS idx_ag_bitacora_session ON ag_bitacora(session_id);
+
+-- QUALIA's OWN store (F7b): derived telemetry, NOT the evidence graph.
+-- Mirrors KARELEN's separation (store/qualia.ts lived apart from the
+-- AUTOGENES store); autogenes/qualia.py is its sole writer. Snapshots
+-- are auto-sampled telemetry; the baseline is pinned ONLY by the
+-- operator and is what anomalies measure against.
+CREATE TABLE IF NOT EXISTS ag_qualia_snapshots (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  INTEGER NOT NULL,
+    ts          TEXT DEFAULT (datetime('now')),
+    snapshot    TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ag_qualia_snapshots ON ag_qualia_snapshots(session_id, id);
+
+CREATE TABLE IF NOT EXISTS ag_qualia_base (
+    session_id  INTEGER PRIMARY KEY,
+    ts          TEXT DEFAULT (datetime('now')),
+    snapshot    TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+);
 """

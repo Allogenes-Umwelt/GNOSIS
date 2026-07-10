@@ -1389,6 +1389,7 @@ def api_autogenes_ingestar():
             return jsonify({'error': 'Formato no soportado: usa PDF o TXT'}), 400
         if 'error' in r:
             return jsonify(r), 422
+        _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', **r})
     try:
         return _con_sesion(handler)
@@ -1435,6 +1436,7 @@ def api_autogenes_integrar():
 
     def handler(conn, session_id):
         resultado = Sustrato(conn, session_id).integrar_propuesta(propuesta)
+        _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', **resultado})
     try:
         return _con_sesion(handler)
@@ -1475,7 +1477,85 @@ def api_autogenes_sintesis_dockear():
         r = dockear_informe(conn, session_id, informe)
         if 'error' in r:
             return jsonify(r), 422
+        _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/estado', methods=['GET'])
+def api_qualia_estado():
+    """OBSERVAR: resumen estructural, referencia, anomalías medidas y
+    telemetría — una llamada para la ventana."""
+    from autogenes.qualia import estado_qualia
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id, **estado_qualia(conn, session_id)})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/base', methods=['POST'])
+def api_qualia_base():
+    """El operador fija SU referencia — nada más la mueve."""
+    from autogenes.qualia import fijar_base
+
+    def handler(conn, session_id):
+        snap = fijar_base(conn, session_id)
+        return jsonify({'status': 'ok', 'base': snap})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/drift', methods=['GET'])
+def api_qualia_drift():
+    """Drift topológico entre sesiones: ?referencia=<id> es la base."""
+    from autogenes.qualia import drift_sesiones
+    referencia = request.args.get('referencia', type=int)
+    if not referencia:
+        return jsonify({'error': 'Falta el parámetro referencia (sesión base)'}), 400
+
+    def handler(conn, session_id):
+        try:
+            return jsonify(drift_sesiones(conn, referencia, session_id))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 404
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/red', methods=['GET'])
+def api_qualia_red():
+    """La red del caso para el lienzo QUALIA: nivel N de la escalera de
+    renormalización con comunidades, grados, masas y resumen citable."""
+    from autogenes import topologia
+    from autogenes.qualia import red_de_sesion
+    nivel = request.args.get('nivel', default=0, type=int)
+
+    def handler(conn, session_id):
+        red = red_de_sesion(conn, session_id)
+        escalera = topologia.escalera_renorm(red)
+        if not 0 <= nivel < len(escalera):
+            return jsonify({'error': f'Nivel fuera de la escalera (0–{len(escalera) - 1})'}), 400
+        r = escalera[nivel]
+        return jsonify({
+            'session_id': session_id,
+            'nivel': nivel,
+            'niveles': [len(x['nodos']) for x in escalera],
+            'red': r,
+            'comunidad': topologia.detectar_comunidades(r),
+            'grado': topologia.grado_ponderado(r),
+            'masas': topologia.centralidad_vector_propio(r),
+            'resumen': topologia.resumen_red(r),
+        })
     try:
         return _con_sesion(handler)
     except Exception as e:
@@ -1523,6 +1603,16 @@ def autogenes_vinculos():
         if ses:
             etiqueta = f"{ses['month_processed']:02d}/{ses['year_processed']}"
     return render_template('autogenes_vinculos.html', sesion_etiqueta=etiqueta)
+
+
+def _snapshot_telemetria(conn, session_id):
+    """Telemetría QUALIA tras una mutación del grafo — best-effort: un
+    fallo de muestreo jamás debe tumbar la mutación que lo disparó."""
+    try:
+        from autogenes.qualia import registrar_snapshot
+        registrar_snapshot(conn, session_id)
+    except Exception:
+        pass
 
 
 def _con_sesion(handler):
@@ -1618,6 +1708,7 @@ def api_autogenes_camino_dockear():
         p = Sustrato(conn, session_id).dockear_producto(
             'camino', f"Camino: {cuerpo['desde']} → {cuerpo['hasta']}",
             'vinculos', cuerpo, entidades=anclas, evidencia=cam['evidencia'])
+        _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', 'producto_id': p.id, 'titulo': p.titulo})
     try:
         return _con_sesion(handler)
