@@ -145,9 +145,42 @@ def drift_sesiones(conn: sqlite3.Connection, session_id_a: int,
     return drift_topologico(resumen_a, resumen_b, et_a, et_b)
 
 
+def _n_registros(conn: sqlite3.Connection, session_id: int) -> int:
+    """How many source records feed the network: document fragments plus
+    the aduanal rows the projection rides on."""
+    total = 0
+    for t in ("ag_fragmentos", "importaciones", "extraccion_facturas"):
+        total += conn.execute(
+            f"SELECT COUNT(*) FROM {t} WHERE session_id = ?",  # noqa: S608 — fixed tuple
+            (session_id,),
+        ).fetchone()[0]
+    return total
+
+
+def horizonte_de_sesion(conn: sqlite3.Connection, session_id: int) -> Optional[dict]:
+    """ACTUAR: the telemetry waves + the operator's interventions from
+    the append-only bitácora, each with its measured before/after delta."""
+    from autogenes.horizonte import construir_horizonte
+
+    snapshots = leer_snapshots(conn, session_id, limite=200)
+    intervenciones = [
+        {"ts": r["ts"], "accion": r["accion"], "detalle": r["detalle"]}
+        for r in conn.execute(
+            "SELECT ts, accion, detalle FROM ag_bitacora WHERE session_id = ?"
+            " ORDER BY id", (session_id,),
+        )
+    ]
+    return construir_horizonte(snapshots, intervenciones)
+
+
 def estado_qualia(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     """The OBSERVAR window's full readout: current summary, baseline,
-    measured anomalies and the telemetry tail — one call for the UI."""
+    measured anomalies, the deterministic reading and the telemetry
+    tail — one call for the UI."""
+    from autogenes.qualia_narrativa import construir_lectura
+
     resultado = anomalias_de_sesion(conn, session_id)
     resultado["snapshots"] = leer_snapshots(conn, session_id, limite=50)
+    resultado["lectura"] = construir_lectura(
+        resultado["resumen"], _n_registros(conn, session_id))
     return resultado

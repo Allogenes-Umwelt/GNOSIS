@@ -1532,6 +1532,71 @@ def api_qualia_drift():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/qualia/cascada', methods=['GET'])
+def api_qualia_cascada():
+    """DECIDIR, what-if en memoria: ?caida=<id> simula quitar un nodo;
+    ?enlaza=<a>,<b> simula un vínculo nuevo. Jamás escribe."""
+    from autogenes.cascada import simular_caida, simular_enlace
+    from autogenes.qualia import red_de_sesion
+    caida = request.args.get('caida', '')
+    enlaza = request.args.get('enlaza', '')
+    if not caida and not enlaza:
+        return jsonify({'error': 'Indica caida=<id> o enlaza=<a>,<b>'}), 400
+
+    def handler(conn, session_id):
+        red = red_de_sesion(conn, session_id)
+        if caida:
+            return jsonify({'session_id': session_id, 'modo': 'caida',
+                            'nodo': caida, **simular_caida(red, caida)})
+        partes = enlaza.split(',')
+        if len(partes) != 2 or not partes[0] or not partes[1]:
+            return jsonify({'error': 'enlaza requiere dos ids: a,b'}), 400
+        return jsonify({'session_id': session_id, 'modo': 'enlace',
+                        'a': partes[0], 'b': partes[1],
+                        **simular_enlace(red, partes[0], partes[1])})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/horizonte', methods=['GET'])
+def api_qualia_horizonte():
+    """ACTUAR: telemetría muestreada + intervenciones de la bitácora con
+    su delta medido antes/después."""
+    from autogenes.qualia import horizonte_de_sesion
+
+    def handler(conn, session_id):
+        h = horizonte_de_sesion(conn, session_id)
+        if h is None:
+            return jsonify({'session_id': session_id, 'horizonte': None,
+                            'motivo': 'Sin telemetría aún — el horizonte '
+                                      'nace con la primera mutación'})
+        return jsonify({'session_id': session_id, 'horizonte': h})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/qualia/narrativa', methods=['POST'])
+def api_qualia_narrativa():
+    """La lectura SYNESIS de la red: el modelo interpreta el digesto ya
+    calculado; el saneador de claves corre en servidor."""
+    from database.config import get_all_config
+    from autogenes.qualia_narrativa import redactar_narrativa
+
+    def handler(conn, session_id):
+        r = redactar_narrativa(conn, session_id, get_all_config(conn))
+        if 'error' in r:
+            return jsonify(r), 502
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/qualia/red', methods=['GET'])
 def api_qualia_red():
     """La red del caso para el lienzo QUALIA: nivel N de la escalera de
