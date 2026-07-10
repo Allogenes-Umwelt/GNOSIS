@@ -288,3 +288,12 @@
 .gr-fila { display: flex; justify-content: space-between; gap: 10px; font-family: var(--font-mono); font-size: .72rem; border-bottom: 1px solid var(--line-ghost); padding: 5px 0; }
 .gr-fila span { color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
 .gr-fila b { color: var(--t2); overflow-wrap: anywhere; text-align: right; }
+
+/* ── Hero del home: escala monumental (portada centrada, ref. original) ── */
+.gd-hero .ver-terminal { max-width: 760px; filter: drop-shadow(0 0 26px rgba(0, 212, 255, .16)); }
+.gd-hero .ver-terminal-int { padding: 30px 34px 24px; }
+.gd-hero .ver-head { font-size: .72rem; margin-bottom: 18px; }
+.gd-hero .ver-tty { font-size: 2rem; min-height: 6rem; line-height: 1.4; }
+.gd-hero .ver-cmds { margin-top: 20px; }
+.gd-hero .ver-cmd { font-size: .74rem; padding: 11px 16px; min-height: 44px; }
+.gd-hero .gd-graphic .constelacion { max-width: 560px; margin-left: auto; }
