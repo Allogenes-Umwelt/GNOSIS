@@ -100,3 +100,11 @@ def test_home_monta_la_celda_primitiva():
     assert "constelacion.js" in html and "constelacion.css" in html
     assert "gd-glow" not in html  # el ojo ornamental ya no existe
     assert "Una sola fuente" in html  # el hero sobrevive (decisión de diseño)
+
+
+def test_lienzo_del_grafo_renderiza():
+    html = _flask_render("autogenes_grafo.html", sesion_etiqueta="07/2026")
+    assert "gr-lienzo" in html and "<canvas" in html
+    assert "fuerzas.js" in html and "grafo.js" in html
+    assert 'data-inspector="#gr-inspector"' in html
+    assert "SESIÓN 07/2026" in html

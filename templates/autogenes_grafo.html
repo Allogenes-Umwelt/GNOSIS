@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Grafo del caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco" id="ag-landing">
+
+    <!-- Lienzo -->
+    <section class="ag-centro gr-centro" aria-label="Grafo del caso">
+      <div class="ag-centro-head">
+        <span class="t">◆ Grafo del Caso</span>
+        <span class="gr-controles">
+          <input type="search" id="gr-buscar" class="gr-input" placeholder="buscar nodo…"
+                 aria-label="Buscar nodo">
+          <select id="gr-cap" class="gr-input" aria-label="Vehículos visibles">
+            <option value="150" selected>150 vehículos</option>
+            <option value="400">400 vehículos</option>
+            <option value="">todos</option>
+          </select>
+          <button type="button" id="gr-reset" class="ag-plegar" style="min-width:auto;padding:0 10px">reencuadrar</button>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="gr-lienzo" data-inspector="#gr-inspector" data-estado="#gr-estado"
+           data-buscar="#gr-buscar" data-reset="#gr-reset" data-cap="#gr-cap">
+        <canvas aria-label="Lienzo de fuerzas del grafo de la sesión" role="img"></canvas>
+      </div>
+      <div class="ag-leyenda" style="margin-top:8px">
+        <li><b>●</b> entidad <span>(vivo)</span></li>
+        <li><b>◇</b> pedimento</li>
+        <li><b>□</b> fuente/fragmento</li>
+        <li><b>○</b> vehículo · marca · país</li>
+        <li><span id="gr-estado" role="status">CARGANDO…</span></li>
+      </div>
+    </section>
+
+    <!-- Inspector -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Inspector de nodo">
+      <div class="ag-panel-head">
+        <h2>Inspector</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div id="gr-inspector" class="gr-inspector" aria-live="polite">
+        <p class="gr-vacio">Toca un nodo para abrir su expediente.</p>
+      </div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='fuerzas.js') }}"></script>
+<script src="{{ url_for('static', filename='grafo.js') }}"></script>
+<script>
+(function () {
+  const landing = document.getElementById('ag-landing');
+  const btn = document.querySelector('.ag-plegar[data-panel=der]');
+  const panel = document.getElementById('ag-panel-der');
+  const aplicar = (off) => {
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    try { localStorage.setItem('gr-panel-der', off ? '1' : '0'); } catch (e) {}
+    window.dispatchEvent(new Event('resize'));
+  };
+  btn.addEventListener('click', () => aplicar(!panel.classList.contains('plegado')));
+  try { if (localStorage.getItem('gr-panel-der') === '1') aplicar(true); } catch (e) {}
+})();
+</script>
+{% endblock %}

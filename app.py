@@ -1258,6 +1258,24 @@ def autogenes_landing():
     return render_template('autogenes.html', sesion_etiqueta=etiqueta)
 
 
+@app.route('/autogenes/grafo')
+def autogenes_grafo():
+    """El lienzo de fuerzas del caso (F3): canvas + inspector sobre
+    /api/v1/autogenes/grafo."""
+    from database import get_connection
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    etiqueta = '—'
+    if session_id:
+        conn = get_connection()
+        ses = conn.execute(
+            "SELECT month_processed, year_processed FROM processing_sessions WHERE id = ?",
+            (session_id,)).fetchone()
+        conn.close()
+        if ses:
+            etiqueta = f"{ses['month_processed']:02d}/{ses['year_processed']}"
+    return render_template('autogenes_grafo.html', sesion_etiqueta=etiqueta)
+
+
 @app.route('/autogenes/<seccion>')
 def autogenes_seccion(seccion):
     from database import get_connection

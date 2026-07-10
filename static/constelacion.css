@@ -267,3 +267,24 @@
 @media (prefers-reduced-motion: reduce) {
   .ver-mapa-svg, .ver-cursor { animation: none; }
 }
+
+/* ── Grafo del caso: lienzo + inspector ──────────────────────────── */
+.gr-marco { grid-template-columns: 1fr 300px; }
+.gr-marco.der-off { grid-template-columns: 1fr 46px; }
+.gr-centro { min-height: calc(100vh - 210px); }
+.gr-lienzo { flex: 1; position: relative; min-height: 420px; }
+.gr-lienzo canvas { width: 100%; display: block; cursor: grab; touch-action: none; }
+.gr-controles { display: flex; gap: 8px; align-items: center; }
+.gr-input {
+  background: var(--surface-2); border: 1px solid var(--line); color: var(--t1);
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px;
+  padding: 7px 10px; min-height: 34px;
+}
+.gr-input:focus-visible { border-color: var(--acc-text); outline: none; }
+.gr-inspector { display: flex; flex-direction: column; gap: 8px; }
+.gr-vacio { color: var(--t3); font-size: .8rem; margin: 0; }
+.gr-kind { font-family: var(--font-mono); font-size: .62rem; letter-spacing: 2.5px; color: var(--acc-text); }
+.gr-nombre { font-family: var(--font-d); font-weight: 700; color: var(--t1); font-size: 1.05rem; letter-spacing: .5px; overflow-wrap: anywhere; }
+.gr-fila { display: flex; justify-content: space-between; gap: 10px; font-family: var(--font-mono); font-size: .72rem; border-bottom: 1px solid var(--line-ghost); padding: 5px 0; }
+.gr-fila span { color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
+.gr-fila b { color: var(--t2); overflow-wrap: anywhere; text-align: right; }
