@@ -15,7 +15,6 @@
   var FUERZA_ANILLO = { nucleo: 0.5, producto: 0.28, pedimento: 0.3, marca: 0.3,
                         pais: 0.3, vehiculo: 0.12, artefacto: 0.14, fragmento: 0.1,
                         entidad: 0.14 };
-  var CIAN = '#00D4FF';
 
   function radioDe(n) {
     var base = { nucleo: 14, pedimento: 7, marca: 9, pais: 8, vehiculo: 3.2,
@@ -36,9 +35,18 @@
     var sel = null, hover = null;
     var colores = {};
 
+    // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
+    // por modo (--acc-text), nunca el cyan real fijo.
+    function conAlfa(hex, a) {
+      var h = hex.replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
+             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
+    }
     function leerColores() {
       var cs = getComputedStyle(document.documentElement);
       colores = {
+        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
         linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
         linea2: cs.getPropertyValue('--line-2').trim() || '#777',
         t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
@@ -131,7 +139,7 @@
         var toca = foco && (e.source === foco.id || e.target === foco.id);
         var apagado = foco && !toca;
         ctx.globalAlpha = apagado ? 0.05 : (e.kind === 'relacion' ? 0.55 : 0.16);
-        ctx.strokeStyle = e.kind === 'relacion' ? CIAN : colores.linea2;
+        ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
         ctx.lineWidth = e.kind === 'relacion' ? 0.6 + (e.peso || 0.5) * 1.6 : 0.6;
         ctx.setLineDash(e.kind === 'cita' ? [3, 5] : []);
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -145,9 +153,9 @@
         ctx.globalAlpha = apagado ? 0.13 : 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
         var esFrame = !vivo;
-        ctx.strokeStyle = vivo ? CIAN : (n.kind === 'nucleo' || n.kind === 'producto'
-                          ? CIAN : colores.linea2);
-        ctx.fillStyle = vivo ? 'rgba(0,212,255,.16)' : 'rgba(0,0,0,0)';
+        ctx.strokeStyle = vivo ? colores.acc : (n.kind === 'nucleo' || n.kind === 'producto'
+                          ? colores.acc : colores.linea2);
+        ctx.fillStyle = vivo ? conAlfa(colores.acc, 0.16) : 'rgba(0,0,0,0)';
         ctx.lineWidth = n === foco ? 2 : 1.1;
 
         ctx.beginPath();
@@ -163,12 +171,12 @@
         ctx.stroke();
         if (n.kind === 'nucleo') {
           ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.4, 0, 6.283);
-          ctx.fillStyle = CIAN; ctx.fill();
+          ctx.fillStyle = colores.acc; ctx.fill();
         }
         // selección: anillo punteado giratorio (quieto bajo reduced-motion)
         if (n === sel) {
           ctx.save();
-          ctx.strokeStyle = CIAN; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
+          ctx.strokeStyle = colores.acc; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
           ctx.lineDashOffset = reduce ? 0 : -(ts || 0) / 60;
           ctx.beginPath(); ctx.arc(n.x, n.y, r + 7, 0, 6.283); ctx.stroke();
           ctx.restore();
@@ -187,7 +195,7 @@
       ctx.restore();
 
       // brackets de esquina (chasis del instrumento)
-      ctx.globalAlpha = 0.6; ctx.strokeStyle = CIAN; ctx.lineWidth = 1.2;
+      ctx.globalAlpha = 0.6; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.2;
       [[8, 8, 22, 8, 8, 22], [w - 8, 8, w - 22, 8, w - 8, 22],
        [8, h - 8, 22, h - 8, 8, h - 22], [w - 8, h - 8, w - 22, h - 8, w - 8, h - 22]]
         .forEach(function (c) {
