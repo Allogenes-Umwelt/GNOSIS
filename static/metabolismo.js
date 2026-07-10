@@ -22,6 +22,17 @@
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     var colores = {}, datos = null, layout = null, sel = null, animando = false;
 
+    // Ítems pendientes traen nombres de origen documental: escapar SIEMPRE.
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    // Las acciones son rutas internas; nada de javascript: ni URLs externas.
+    function rutaSegura(u) {
+      return typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' ? u : null;
+    }
+
     function conAlfa(hex, a) {
       var h = hex.replace('#', '');
       if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
@@ -52,7 +63,7 @@
       var w = canvas.clientWidth, h = canvas.clientHeight;
       var margen = 96, spineY = h * 0.56;   // spine bajo: gauge arriba, fugas abajo
       var pools = datos.pools;
-      var gap = (w - margen * 2) / (pools.length - 1);
+      var gap = (w - margen * 2) / Math.max(1, pools.length - 1);
       var maxTotal = Math.max.apply(null, pools.map(function (p) { return p.total; }).concat([1]));
 
       var nodos = pools.map(function (p, i) {
@@ -61,12 +72,14 @@
           r: 16 + 30 * Math.sqrt(p.total / maxTotal)
         };
       });
-      // reacción i conecta pool i → pool i+1 (vía lineal, sin saltos)
-      var reacciones = datos.reacciones.map(function (r, i) {
-        var rend = r.potencial > 0 ? r.realizado / r.potencial : 1;
-        return { r: r, a: nodos[i], b: nodos[i + 1], rend: rend,
-                 fugaRel: r.potencial > 0 ? r.fuga / r.potencial : 0 };
-      });
+      // reacción i conecta pool i → pool i+1 (vía lineal, sin saltos);
+      // una reacción sin pool destino no se dibuja
+      var reacciones = datos.reacciones.slice(0, Math.max(0, nodos.length - 1))
+        .map(function (r, i) {
+          var rend = r.potencial > 0 ? r.realizado / r.potencial : 1;
+          return { r: r, a: nodos[i], b: nodos[i + 1], rend: rend,
+                   fugaRel: r.potencial > 0 ? r.fuga / r.potencial : 0 };
+        });
       layout = { nodos: nodos, reacciones: reacciones, spineY: spineY, w: w, h: h };
     }
 
@@ -75,8 +88,9 @@
       if (datos.salud == null) return;
       var cx = layout.w / 2, cy = layout.h * 0.22, R = 46;
       var frac = datos.salud / 100;
-      var color = datos.salud >= 66 ? colores.acc
-                : datos.salud >= 33 ? colores.acc : colores.danger;
+      // dos estados honestos: magenta SOLO cuando el avance es crítico;
+      // la granularidad la da el número, no un tercer color inventado
+      var color = datos.salud >= 33 ? colores.acc : colores.danger;
       ctx.beginPath();
       ctx.strokeStyle = conAlfa(colores.linea, 0.7);
       ctx.lineWidth = 6;
@@ -252,12 +266,23 @@
     }
 
     function animar() {
-      if (animando || reduce) { dibujar(0); return; }
+      // el rAF solo corre si hay partículas que animar y la pestaña se ve
+      var conFlux = layout && layout.reacciones.some(function (rc) { return rc.rend > 0; });
+      if (reduce || !conFlux) { dibujar(0); return; }
+      if (animando) return;
       animando = true;
-      (function paso(ts) { dibujar(ts); requestAnimationFrame(paso); })(0);
+      (function paso(ts) {
+        if (document.hidden) { animando = false; return; }
+        dibujar(ts);
+        requestAnimationFrame(paso);
+      })(0);
     }
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && datos) animar();
+    });
 
     canvas.addEventListener('click', function (ev) {
+      if (!layout) return;
       var caja = canvas.getBoundingClientRect();
       var mx = ev.clientX - caja.left, my = ev.clientY - caja.top;
       sel = null;
@@ -268,7 +293,7 @@
         }
       });
       pintarDetalle();
-      if (reduce) dibujar(0);
+      if (!animando) dibujar(0);
     });
 
     function pintarDetalle() {
@@ -279,20 +304,21 @@
         return;
       }
       var r = sel.rc.r;
-      var html = '<div class="gr-kind">PENDIENTE · ' + r.nombre.toUpperCase() +
-        ' · ' + r.fuga + ' ' + (r.senal || '') + '</div>';
+      var html = '<div class="gr-kind">PENDIENTE · ' + esc(r.nombre.toUpperCase()) +
+        ' · ' + esc(r.fuga) + ' ' + esc(r.senal || '') + '</div>';
       if (r.items && r.items.length) {
         r.items.slice(0, 12).forEach(function (it) {
           html += '<div class="gr-fila"><span>' +
-            (it.nombre || it.titulo || '—').slice(0, 22) + '</span><b>' +
-            (it.kind || it.tipo || '') + '</b></div>';
+            esc((it.nombre || it.titulo || '—').slice(0, 22)) + '</span><b>' +
+            esc(it.kind || it.tipo || '') + '</b></div>';
         });
       } else {
-        html += '<p class="gr-vacio">' + r.fuga + ' elementos sin pasar a la ' +
+        html += '<p class="gr-vacio">' + esc(r.fuga) + ' elementos sin pasar a la ' +
           'etapa siguiente.</p>';
       }
-      if (r.accion) {
-        html += '<a class="ag-volver" style="margin-top:10px" href="' + r.accion +
+      var ruta = rutaSegura(r.accion);
+      if (ruta) {
+        html += '<a class="ag-volver" style="margin-top:10px" href="' + esc(ruta) +
           '">Resolver ▸</a>';
       }
       detalle.innerHTML = html;
@@ -305,10 +331,11 @@
       (datos.urgencias || []).forEach(function (u) {
         var li = document.createElement('li');
         var a = document.createElement('a');
-        a.href = u.accion || '#';
-        if (!u.accion) a.style.pointerEvents = 'none';
+        var ruta = rutaSegura(u.accion);
+        a.href = ruta || '#';
+        if (!ruta) a.style.pointerEvents = 'none';
         a.innerHTML = '<span style="color:' + (u.critico ? 'var(--danger)' : 'var(--t2)') +
-          '">' + u.titulo.slice(0, 30) + '</span><span class="dato">' + u.sub + '</span>';
+          '">' + esc(u.titulo.slice(0, 30)) + '</span><span class="dato">' + esc(u.sub) + '</span>';
         li.appendChild(a);
         ul.appendChild(li);
       });
@@ -339,10 +366,10 @@
 
     leerColores();
     tamano();
-    window.addEventListener('resize', function () { tamano(); calcularLayout(); if (reduce) dibujar(0); });
+    window.addEventListener('resize', function () { tamano(); calcularLayout(); if (!animando) dibujar(0); });
     var alternador = document.getElementById('theme-toggle');
     if (alternador) alternador.addEventListener('click', function () {
-      setTimeout(function () { leerColores(); if (reduce) dibujar(0); }, 60);
+      setTimeout(function () { leerColores(); if (!animando) dibujar(0); }, 60);
     });
     cargar();
   }

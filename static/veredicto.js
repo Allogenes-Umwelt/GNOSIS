@@ -115,17 +115,28 @@
 
     var tty = term.querySelector('.ver-tty');
     if (!tty) return;
+    // El teletipo es teatro visual (aria-hidden); el lector de pantalla
+    // recibe cada frase COMPLETA una sola vez, en la región de estado.
+    var lector = term.querySelector('.u-oculto[role="status"]');
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function anunciar(texto) { if (lector) lector.textContent = texto; }
 
     fetch('/api/v1/autogenes/estado')
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (E) {
         if (!E || E.error) {
           tty.textContent = 'Una sola fuente de la verdad.';
+          anunciar('Una sola fuente de la verdad.');
           return;
         }
         var lista = frases(E);
-        if (reduce) { tty.textContent = lista[0]; return; }
+        anunciar(lista.join(' '));
+        if (reduce) {
+          // congelar sin quitar información: todas las frases, estáticas
+          tty.textContent = lista.join(' ');
+          return;
+        }
         var fIdx = 0, i = 0;
         (function tic() {
           var t = lista[fIdx];
@@ -134,7 +145,10 @@
           setTimeout(function () { i = 0; fIdx = (fIdx + 1) % lista.length; tic(); }, 3200);
         })();
       })
-      .catch(function () { tty.textContent = 'Una sola fuente de la verdad.'; });
+      .catch(function () {
+        tty.textContent = 'Una sola fuente de la verdad.';
+        anunciar('Una sola fuente de la verdad.');
+      });
   }
 
   document.addEventListener('DOMContentLoaded', function () {

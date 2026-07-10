@@ -159,6 +159,7 @@
       });
       pintarCita(p);
       redibujar();
+      animar();
     }
     function pintarCita(p) {
       elCita.innerHTML = '';
@@ -243,10 +244,13 @@
       objetivos().forEach(function (o) { trazar(anclaDer(o.el), B, o.kind); });
     }
     function animar() {
+      // el rAF vive solo mientras hay un punto activo con trazas que animar
       if (reduce || animando) return;
       animando = true;
       (function paso() {
-        if (activo) { fase = (fase + 0.5) % 4096; redibujar(); }
+        if (!activo) { animando = false; return; }
+        fase = (fase + 0.5) % 4096;
+        redibujar();
         requestAnimationFrame(paso);
       })();
     }
@@ -320,6 +324,5 @@
     if (alternador) alternador.addEventListener('click', function () {
       setTimeout(function () { leerColor(); redibujar(); }, 60);
     });
-    animar();
   });
 })();

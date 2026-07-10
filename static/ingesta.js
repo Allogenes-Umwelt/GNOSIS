@@ -19,6 +19,14 @@
     var quorumChk = document.getElementById('in-quorum');
     var dendro = document.querySelector('.dn-lienzo');
     var propuestaActual = null;
+    var extraccionEnVuelo = false;   // un doble clic no debe costar dos extracciones
+
+    // Nombres de archivo y salida del modelo: SIEMPRE escapados antes del DOM.
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
 
     function aviso(texto, clase) {
       msj.className = 'ag-msj ' + (clase || '');
@@ -39,9 +47,9 @@
             var li = document.createElement('li');
             var enlace = document.createElement('a');
             enlace.href = '#';
-            enlace.innerHTML = '<span>' + a.nombre.slice(0, 20) + '</span>' +
-              '<span class="dato">' + a.fragmentos + ' frag · ' +
-              a.entidades + ' ent · extraer ▸</span>';
+            enlace.innerHTML = '<span>' + esc(a.nombre.slice(0, 20)) + '</span>' +
+              '<span class="dato">' + esc(a.fragmentos) + ' frag · ' +
+              esc(a.entidades) + ' ent · extraer ▸</span>';
             enlace.addEventListener('click', function (ev) {
               ev.preventDefault();
               extraer(a.id, a.nombre);
@@ -73,6 +81,7 @@
     }
     file.addEventListener('change', function () {
       if (file.files.length) subir(file.files[0]);
+      file.value = '';   // re-elegir el mismo archivo vuelve a disparar change
     });
     ['dragover', 'dragenter'].forEach(function (ev) {
       drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('arrastrando'); });
@@ -86,6 +95,8 @@
 
     // ── extracción + revisión HITL ───────────────────────────────────
     function extraer(artefactoId, nombre) {
+      if (extraccionEnVuelo) return;   // no duplicar el costo del modelo
+      extraccionEnVuelo = true;
       aviso('Extrayendo de ' + nombre + '…');
       propCont.innerHTML = '';
       propTitulo.hidden = true; integrarBtn.hidden = true;
@@ -97,6 +108,7 @@
       })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
+          extraccionEnVuelo = false;
           if (!res.ok) { aviso(res.j.error || 'Falló la extracción', 'error'); return; }
           propuestaActual = res.j;
           aviso(res.j.entidades.length + ' entidades · ' +
@@ -104,7 +116,10 @@
                 (res.j.quorum ? 'QUÓRUM ✓' : 'un modelo'), 'ok');
           pintarPropuesta(res.j);
         })
-        .catch(function () { aviso('Sin conexión — reintenta', 'error'); });
+        .catch(function () {
+          extraccionEnVuelo = false;
+          aviso('Sin conexión — reintenta', 'error');
+        });
     }
 
     function pintarPropuesta(p) {
@@ -117,8 +132,8 @@
                   : e.acuerdo === true ? ' ✓✓' : '';
         fila.innerHTML = '<span><input type="checkbox" data-ent="' + i + '"' +
           (e.acuerdo === false ? '' : ' checked') + '> ' +
-          e.nombre.slice(0, 20) + '</span><b>' + e.tipo +
-          ' · ' + e.evidencia.length + '📎' + marca + '</b>';
+          esc(e.nombre.slice(0, 20)) + '</span><b>' + esc(e.tipo) +
+          ' · ' + e.evidencia.length + ' citas' + marca + '</b>';
         propCont.appendChild(fila);
       });
       p.relaciones.forEach(function (r, i) {
@@ -126,8 +141,8 @@
         fila.className = 'gr-fila';
         fila.style.cursor = 'pointer';
         fila.innerHTML = '<span><input type="checkbox" data-rel="' + i + '" checked> ' +
-          r.desde.slice(0, 12) + ' → ' + r.hasta.slice(0, 12) +
-          '</span><b>' + r.tipo + '</b>';
+          esc(r.desde.slice(0, 12)) + ' → ' + esc(r.hasta.slice(0, 12)) +
+          '</span><b>' + esc(r.tipo) + '</b>';
         propCont.appendChild(fila);
       });
       propTitulo.hidden = false;

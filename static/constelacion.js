@@ -297,8 +297,18 @@
           g.setAttribute('aria-expanded', String(abierta));
         };
         g.setAttribute('aria-expanded', 'false');
-        g.addEventListener('pointerenter', function () { alternar(true); });
-        cont.addEventListener('pointerleave', function () { alternar(false); });
+        // hover solo con ratón: en táctil pointerenter llega antes que el
+        // click del MISMO tap y navegaría sin mostrar jamás los subnodos
+        g.addEventListener('pointerenter', function (ev) {
+          if (ev.pointerType === 'mouse') alternar(true);
+        });
+        // render() corre dos veces (esqueleto → estado): un solo listener
+        // vigente en el contenedor, nunca acumulados
+        if (cont._cerrarSub) cont.removeEventListener('pointerleave', cont._cerrarSub);
+        cont._cerrarSub = function (ev) {
+          if (ev.pointerType === 'mouse') alternar(false);
+        };
+        cont.addEventListener('pointerleave', cont._cerrarSub);
         g.addEventListener('focusin', function () { alternar(true); });
         g.addEventListener('click', function (ev) {
           if (!abierta) { ev.preventDefault(); alternar(true); return; }

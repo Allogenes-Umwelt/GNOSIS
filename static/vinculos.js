@@ -22,6 +22,14 @@
 
     var porEtiqueta = {};
     var caminoActual = null;
+    var reqSeq = 0;   // una respuesta vieja nunca fija caminoActual
+
+    // Etiquetas de origen documental: SIEMPRE escapadas antes del DOM.
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
 
     lienzo.addEventListener('grafo:listo', function (ev) {
       lista.innerHTML = '';
@@ -50,10 +58,10 @@
       cam.saltos.forEach(function (s) {
         var fila = document.createElement('div');
         fila.className = 'gr-fila';
-        fila.innerHTML = '<span>' + (s.de.etiqueta || '').slice(0, 16) + ' → ' +
-          (s.a.etiqueta || '').slice(0, 16) + '</span><b>' +
-          (s.arista.tipo || s.arista.kind || '—') +
-          (s.evidencia.length ? ' · ' + s.evidencia.length + '📎' : '') + '</b>';
+        fila.innerHTML = '<span>' + esc((s.de.etiqueta || '').slice(0, 16)) + ' → ' +
+          esc((s.a.etiqueta || '').slice(0, 16)) + '</span><b>' +
+          esc(s.arista.tipo || s.arista.kind || '—') +
+          (s.evidencia.length ? ' · ' + s.evidencia.length + ' citas' : '') + '</b>';
         panel.appendChild(fila);
       });
     }
@@ -63,10 +71,12 @@
       msj.className = 'ag-msj';
       if (!a || !b) { msj.textContent = 'Elige ambos extremos de la lista.'; return; }
       msj.textContent = 'Trazando…';
+      var mia = ++reqSeq;
       fetch('/api/v1/autogenes/camino?desde=' + encodeURIComponent(a) +
             '&hasta=' + encodeURIComponent(b))
         .then(function (r) { return r.json(); })
         .then(function (j) {
+          if (mia !== reqSeq) return;
           if (!j.camino) {
             msj.textContent = j.mensaje || j.error || 'Sin camino.';
             caminoActual = null; dockear.disabled = true;
@@ -88,7 +98,10 @@
             lienzo.grafoAPI.resaltar(nodos, enlaces);
           }
         })
-        .catch(function () { msj.textContent = 'Sin conexión con el sustrato.'; });
+        .catch(function () {
+          if (mia !== reqSeq) return;
+          msj.textContent = 'Sin conexión con el sustrato.';
+        });
     }
 
     document.getElementById('vn-trazar').addEventListener('click', trazar);
@@ -117,7 +130,8 @@
           msj.className = 'ag-msj ' + (res.ok ? 'ok' : 'error');
           msj.textContent = res.ok ? 'Dockeado: ' + res.j.titulo
                                    : (res.j.error || 'No se pudo dockear');
-          dockear.disabled = !res.ok ? false : true;
+          dockear.disabled = res.ok;
+          if (res.ok) caminoActual = null;   // evita doble-dock del mismo camino
         })
         .catch(function () {
           msj.className = 'ag-msj error';
@@ -134,8 +148,8 @@
           var li = document.createElement('li');
           var a = document.createElement('a');
           a.href = '#';
-          a.innerHTML = '<span>' + h.etiqueta.slice(0, 22) + '</span><span class="dato">' +
-                        h.kind + ' · ' + h.grado + '</span>';
+          a.innerHTML = '<span>' + esc(h.etiqueta.slice(0, 22)) + '</span><span class="dato">' +
+                        esc(h.kind) + ' · ' + esc(h.grado) + '</span>';
           a.addEventListener('click', function (ev) {
             ev.preventDefault();
             if (lienzo.grafoAPI) lienzo.grafoAPI.enfocar(h.id);

@@ -24,6 +24,14 @@
 
   function q(sel) { return sel ? document.querySelector(sel) : null; }
 
+  // Las etiquetas de entidad vienen de extracción sobre documentos: se
+  // escapan SIEMPRE antes de entrar al DOM.
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
   function montar(cont) {
     var canvas = cont.querySelector('canvas');
     var ctx = canvas.getContext('2d');
@@ -68,10 +76,13 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
+    var reqSeq = 0;   // token de secuencia: una respuesta vieja nunca pisa a la nueva
     function cargar(limite) {
       var url = '/api/v1/autogenes/grafo' + (limite ? '?limite_vehiculos=' + limite : '');
+      var mia = ++reqSeq;
       if (estadoLinea) estadoLinea.textContent = 'CARGANDO EL CASO…';
       fetch(url).then(function (r) { return r.json(); }).then(function (g) {
+        if (mia !== reqSeq) return;
         if (!g || g.error) {
           if (estadoLinea) estadoLinea.textContent = g && g.error ? g.error.toUpperCase() : 'SIN DATOS';
           return;
@@ -95,6 +106,7 @@
         else { sim.correr(60); encuadrar(); animar(); }
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
       }).catch(function () {
+        if (mia !== reqSeq) return;
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
       });
     }
@@ -193,14 +205,17 @@
           ctx.restore();
         }
         // etiquetas con LOD: siempre las estructurales, el resto al acercarse
+        // los hubs solo se etiquetan con zoom suficiente: alejados se enciman
         var conEtiqueta = ['nucleo', 'pedimento', 'marca', 'pais', 'producto'].indexOf(n.kind) >= 0
           || n === foco || (visibles && visibles[n.id]) || (resalte && resalte.nodos[n.id])
-          || (vista.k > 1.6 && n.kind !== 'fragmento') || (n.grado || 0) >= 6;
+          || (vista.k > 1.6 && n.kind !== 'fragmento')
+          || ((n.grado || 0) >= 6 && vista.k >= 0.8);
         if (conEtiqueta && !apagado) {
-          ctx.font = (10 / Math.max(vista.k, 1)) + 'px "JetBrains Mono", monospace';
+          // piso de legibilidad: la etiqueta nunca baja de 10px en pantalla
+          ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
           ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
           ctx.textAlign = 'center';
-          ctx.fillText(n.etiqueta.slice(0, 26), n.x, n.y + r + 11 / Math.max(vista.k, 1));
+          ctx.fillText(n.etiqueta.slice(0, 26), n.x, n.y + r + 11 / vista.k);
         }
       });
       ctx.restore();
@@ -254,12 +269,21 @@
       if (ids.length === 2) {                          // pinch
         var a = punteros[ids[0]], b = punteros[ids[1]];
         var d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+        var mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        // un pinch nunca es tap ni arrastre de nodo
+        if (arrastre.nodo) { arrastre.nodo.fx = null; arrastre.nodo.fy = null; }
+        arrastre.activo = false; arrastre.nodo = null; arrastre.movido = true;
         if (arrastre.pinchD) {
           var factor = d / arrastre.pinchD;
+          var antes = aMundo(mx, my);
           vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
+          var despues = aMundo(mx, my);
+          // ancla el zoom al punto medio de los dedos y pan de dos dedos
+          vista.x += (despues[0] - antes[0]) * vista.k + (mx - arrastre.pinchMX);
+          vista.y += (despues[1] - antes[1]) * vista.k + (my - arrastre.pinchMY);
           vistaManual = true;
         }
-        arrastre.pinchD = d;
+        arrastre.pinchD = d; arrastre.pinchMX = mx; arrastre.pinchMY = my;
         if (!animando) dibujar(0);
         return;
       }
@@ -285,7 +309,7 @@
     });
     function soltar(ev) {
       delete punteros[ev.pointerId];
-      arrastre.pinchD = null;
+      arrastre.pinchD = null; arrastre.pinchMX = 0; arrastre.pinchMY = 0;
       if (!arrastre.activo) return;
       if (!arrastre.movido) {                          // tap: seleccionar
         var p = xy(ev);
@@ -325,12 +349,14 @@
       var extra = n.extra || {};
       var filas = Object.keys(extra)
         .filter(function (k) { return extra[k] != null && extra[k] !== '' && k !== 'virtual'; })
-        .map(function (k) { return '<div class="gr-fila"><span>' + k + '</span><b>' + extra[k] + '</b></div>'; })
+        .map(function (k) {
+          return '<div class="gr-fila"><span>' + esc(k) + '</span><b>' + esc(extra[k]) + '</b></div>';
+        })
         .join('');
       inspector.innerHTML =
-        '<div class="gr-kind">' + n.kind.toUpperCase() + (n.tipo ? ' · ' + n.tipo : '') +
+        '<div class="gr-kind">' + esc(n.kind.toUpperCase()) + (n.tipo ? ' · ' + esc(n.tipo) : '') +
         (extra.virtual ? ' · VIRTUAL' : '') + '</div>' +
-        '<div class="gr-nombre">' + n.etiqueta + '</div>' +
+        '<div class="gr-nombre">' + esc(n.etiqueta) + '</div>' +
         '<div class="gr-fila"><span>conexiones</span><b>' + (n.grado || 0) + '</b></div>' + filas;
     }
 

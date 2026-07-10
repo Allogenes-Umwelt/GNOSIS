@@ -11,7 +11,7 @@
   <svg class="cst-svg" viewBox="0 0 120 110" role="img" aria-label="{{ s.nombre }}">
     {% if s.forma == 'triangulo' %}
     <path class="cst-forma" d="M60,18 L18,90 L102,90 Z"
-          style="fill:rgba(0,212,255,.07);stroke:var(--acc-solid);stroke-width:2"/>
+          style="fill:rgba(var(--acc-rgb),.07);stroke:var(--acc-text);stroke-width:2"/>
     {% else %}
     <circle class="cst-forma" cx="60" cy="55" r="36"
             style="fill:none;stroke:var(--acc-solid);stroke-width:2"/>
