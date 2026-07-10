@@ -48,13 +48,19 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 10000 * 1024 * 1024 *1024
-app.config['SECRET_KEY'] = 'Gestel2025'  # Set a strong, secret key
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'Gestel2025')
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
 # Inicializar base de datos SQLite al arrancar
 init_db()
 migrate_add_error_message()
+
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
 
 def clean_directory(directory_path):
     if not os.path.exists(directory_path):

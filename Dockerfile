@@ -41,8 +41,8 @@ COPY . /ara
 ENV PATH="/opt/venv/bin:$PATH"
 ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
 
-VOLUME /ara/API_Aduanas/data
+VOLUME /ara/data
 
 EXPOSE 5001
 
-CMD ["sh", "-c", "java -version && python /ara/API_Aduanas/app.py"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "600", "--access-logfile", "-", "app:app"]

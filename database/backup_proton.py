@@ -3,7 +3,7 @@ from pathlib import Path
 
 RCLONE_REMOTE  = "proton"
 LOCAL_DATA_DIR = "/Users/jorgevilchis/Documents/Cosas Gestell/Aduanas1/P1 - PDFs"
-LOCAL_DB_PATH  = os.path.join(os.path.dirname(__file__), "data/aduanas.db")
+LOCAL_DB_PATH  = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data/aduanas.db")
 REMOTE_BASE    = f"{RCLONE_REMOTE}:Aduanas"
 HOSTNAME       = socket.gethostname()
 

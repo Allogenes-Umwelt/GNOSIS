@@ -5,10 +5,12 @@ services:
     ports:
       - "5001:5001"
     volumes:
-      - aduanas_data:/ara/API_Aduanas/data
+      - aduanas_data:/ara/data
     environment:
-      - JARVIS_DB_PATH=/ara/API_Aduanas/data/aduanas.db
+      - JARVIS_DB_PATH=/ara/data/aduanas.db
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
     restart: unless-stopped
 
 volumes:

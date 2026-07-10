@@ -13,4 +13,5 @@ pywaffle
 bokeh
 plotly
 anthropic>=0.39.0
-python-dotenv
+python-dotenvpydantic>=2.7
+gunicorn>=22.0
