@@ -1353,6 +1353,14 @@ def autogenes_qualia_terreno():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/qualia/cascada')
+def autogenes_qualia_cascada():
+    """Qualia · Cascada (F7): el what-if como fibra óptica — caída de un
+    nodo o enlace simulado, con el frente BFS del motor como pulso."""
+    return render_template('autogenes_qualia_cascada.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/autogenes/sintesis')
 def autogenes_sintesis():
     """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe
@@ -1568,9 +1576,17 @@ def api_qualia_cascada():
         partes = enlaza.split(',')
         if len(partes) != 2 or not partes[0] or not partes[1]:
             return jsonify({'error': 'enlaza requiere dos ids: a,b'}), 400
+        impacto = simular_enlace(red, partes[0], partes[1])
+        # el pulso del lienzo: la onda que nace del enlace simulado
+        from autogenes.cascada import onda_desde
+        con_enlace = {'nodos': red['nodos'],
+                      'enlaces': [*red['enlaces'],
+                                  {'origen': partes[0], 'destino': partes[1],
+                                   'peso': 1}]}
         return jsonify({'session_id': session_id, 'modo': 'enlace',
                         'a': partes[0], 'b': partes[1],
-                        **simular_enlace(red, partes[0], partes[1])})
+                        'ondas': onda_desde(con_enlace, partes[0], 4),
+                        **impacto})
     try:
         return _con_sesion(handler)
     except Exception as e:
@@ -1621,6 +1637,7 @@ def api_qualia_red():
     from autogenes import topologia
     from autogenes.qualia import red_de_sesion
     nivel = request.args.get('nivel', default=0, type=int)
+    con_espectral = request.args.get('espectral', default=0, type=int)
 
     def handler(conn, session_id):
         red = red_de_sesion(conn, session_id)
@@ -1628,7 +1645,7 @@ def api_qualia_red():
         if not 0 <= nivel < len(escalera):
             return jsonify({'error': f'Nivel fuera de la escalera (0–{len(escalera) - 1})'}), 400
         r = escalera[nivel]
-        return jsonify({
+        cuerpo = {
             'session_id': session_id,
             'nivel': nivel,
             'niveles': [len(x['nodos']) for x in escalera],
@@ -1637,7 +1654,10 @@ def api_qualia_red():
             'grado': topologia.grado_ponderado(r),
             'masas': topologia.centralidad_vector_propio(r),
             'resumen': topologia.resumen_red(r),
-        })
+        }
+        if con_espectral:
+            cuerpo['espectral'] = topologia.embedding_espectral(r)
+        return jsonify(cuerpo)
     try:
         return _con_sesion(handler)
     except Exception as e:

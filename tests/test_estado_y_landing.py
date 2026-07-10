@@ -173,3 +173,10 @@ def test_qualia_terreno_renderiza():
     assert "QLA-02" in html
     assert "qt-lienzo" in html and "qualia_terreno.js" in html
     assert "Terreno de anomalías" in html
+
+
+def test_qualia_cascada_renderiza():
+    html = _flask_render("autogenes_qualia_cascada.html", sesion_etiqueta="07/2026")
+    assert "QLA-03" in html
+    assert "qc-lienzo" in html and "qualia_cascada.js" in html
+    assert 'data-modo="caida"' in html and 'data-modo="enlace"' in html
