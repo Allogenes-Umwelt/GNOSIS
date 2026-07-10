@@ -13,6 +13,24 @@
 .qa-desig .cod { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; color: var(--acc-text); }
 .qa-desig .nom { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; letter-spacing: .5px; color: var(--t1); text-transform: uppercase; }
 
+/* pestañas de instrumento: red · terreno · cascada · horizonte */
+.qa-tabs { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); }
+.qa-tabs a, .qa-tabs .lat {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 8px 12px; min-height: 40px;
+  display: inline-flex; align-items: center; text-decoration: none;
+  color: var(--t3); border-right: 1px solid var(--line);
+}
+.qa-tabs a:last-child, .qa-tabs .lat:last-child { border-right: 0; }
+.qa-tabs a:hover { color: var(--t1); }
+.qa-tabs a.activo { color: var(--acc-text); background: var(--acc-subtle); }
+.qa-tabs .lat { color: var(--line-2); cursor: default; }
+
+/* item clicable de la lista de anomalías (botón nativo, look de caja) */
+.qa-item { width: 100%; background: transparent; cursor: pointer; text-align: left; }
+.qa-item.activo { background: var(--acc-subtle); border-color: var(--danger); }
+.qa-item:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+
 /* dial de escala: la escalera de renormalización */
 .qa-dial { display: flex; border: 1px solid var(--line); margin-left: auto; }
 .qa-dial button {

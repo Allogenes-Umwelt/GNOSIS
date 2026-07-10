@@ -166,3 +166,10 @@ def test_estado_cuenta_anomalias_con_base(conn):
     conn.executescript(models_autogenes.AG_SCHEMA_SQL)
     q.fijar_base(conn, 1)
     assert estado_de_sesion(conn, 1)["anomalias"] == 0
+
+
+def test_qualia_terreno_renderiza():
+    html = _flask_render("autogenes_qualia_terreno.html", sesion_etiqueta="07/2026")
+    assert "QLA-02" in html
+    assert "qt-lienzo" in html and "qualia_terreno.js" in html
+    assert "Terreno de anomalías" in html

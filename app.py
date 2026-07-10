@@ -1345,6 +1345,14 @@ def autogenes_qualia():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/qualia/terreno')
+def autogenes_qualia_terreno():
+    """Qualia · Terreno (F7): la malla isométrica que se abomba donde un
+    detector midió una desviación — la altura es la severidad."""
+    return render_template('autogenes_qualia_terreno.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/autogenes/sintesis')
 def autogenes_sintesis():
     """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe

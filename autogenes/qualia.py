@@ -113,18 +113,58 @@ def leer_base(conn: sqlite3.Connection, session_id: int) -> Optional[dict]:
     return json.loads(r["snapshot"]) if r else None
 
 
+def anomalias_actividad(conn: sqlite3.Connection, session_id: int) -> list[dict]:
+    """RÁFAGA y RITMO sobre la serie de actividad de la bitácora
+    (mutaciones por día). Miden contra su PROPIA historia, así que no
+    requieren base — estadística clásica, nunca opinión."""
+    from autogenes.anomalias import quiebre_ritmo, rafaga_actividad
+
+    filas = conn.execute(
+        "SELECT substr(ts, 1, 10) AS dia, COUNT(*) AS n FROM ag_bitacora"
+        " WHERE session_id = ? GROUP BY dia ORDER BY dia",
+        (session_id,),
+    ).fetchall()
+    serie = [float(r["n"]) for r in filas]
+    hallazgos: list[dict] = []
+    r = rafaga_actividad(serie)
+    if r["es_rafaga"]:
+        hallazgos.append({
+            "detector": "rafaga",
+            "titulo": "Ráfaga de actividad",
+            "detalle": (f"El último día registró {serie[-1]:g} mutaciones, a "
+                        f"{r['z']:.1f} desviaciones de tu cadencia previa."),
+            "severidad": max(0.0, min(1.0, r["z"] / 4)),
+            "clave": "anom-rafaga",
+        })
+    q = quiebre_ritmo(serie)
+    if q["es_quiebre"]:
+        hallazgos.append({
+            "detector": "ritmo",
+            "titulo": "Tu cadencia se quebró",
+            "detalle": (f"La actividad tenía periodo {q['lag']} días "
+                        f"(autocorrelación {q['antes']:.2f}) y en la ventana "
+                        f"reciente cayó a {q['ahora']:.2f}."),
+            "severidad": max(0.0, min(1.0, q["antes"] - q["ahora"])),
+            "clave": "anom-ritmo",
+        })
+    return hallazgos
+
+
 def anomalias_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
-    """OBSERVAR: the network NOW measured against the operator's baseline.
-    Without a baseline there are no findings — the surface says why,
-    honestly, instead of inventing a reference."""
+    """OBSERVAR: the network NOW measured against the operator's baseline,
+    plus the self-referential activity detectors (ráfaga/ritmo, which
+    need no base). Without a baseline the structural findings are empty
+    and the surface says why — never an invented reference."""
     red = red_de_sesion(conn, session_id)
     resumen = topologia.resumen_red(red)
     base = leer_base(conn, session_id)
+    actividad = anomalias_actividad(conn, session_id)
     if base is None:
-        return {"resumen": resumen, "base": None, "hallazgos": [],
+        return {"resumen": resumen, "base": None, "hallazgos": actividad,
                 "motivo": "Sin referencia fijada — fija la base para medir desviaciones"}
-    return {"resumen": resumen, "base": base,
-            "hallazgos": detectar_anomalias(resumen, base)}
+    hallazgos = detectar_anomalias(resumen, base) + actividad
+    hallazgos.sort(key=lambda h: -h["severidad"])
+    return {"resumen": resumen, "base": base, "hallazgos": hallazgos}
 
 
 def drift_sesiones(conn: sqlite3.Connection, session_id_a: int,

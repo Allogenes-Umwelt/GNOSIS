@@ -118,3 +118,38 @@ def test_estado_qualia_entrega_todo_en_una_llamada(conn):
     r = qualia.estado_qualia(conn, SID)
     assert {"resumen", "base", "hallazgos", "snapshots"} <= set(r)
     assert len(r["snapshots"]) >= 1
+
+
+def _bitacora_dia(conn, dia: str, n: int):
+    for _ in range(n):
+        conn.execute(
+            "INSERT INTO ag_bitacora (session_id, ts, accion, detalle)"
+            " VALUES (1, ? || ' 12:00:00', 'op', 'x')", (dia,),
+        )
+    conn.commit()
+
+
+def test_rafaga_de_actividad_sobre_bitacora(conn):
+    """Un día con mucha más mutación que la cadencia previa dispara
+    RÁFAGA — sin necesitar base (mide contra su propia historia)."""
+    conn.execute("DELETE FROM ag_bitacora")
+    for k, dia in enumerate(["2026-07-01", "2026-07-02", "2026-07-03",
+                             "2026-07-04", "2026-07-05", "2026-07-06",
+                             "2026-07-07"]):
+        _bitacora_dia(conn, dia, 2 + (k % 2))
+    _bitacora_dia(conn, "2026-07-08", 14)
+    r = qualia.anomalias_de_sesion(conn, SID)
+    assert r["base"] is None                       # sin base
+    detectores = [h["detector"] for h in r["hallazgos"]]
+    assert "rafaga" in detectores                  # pero la ráfaga es real
+    rafaga = next(h for h in r["hallazgos"] if h["detector"] == "rafaga")
+    assert 0 < rafaga["severidad"] <= 1
+    assert rafaga["clave"] == "anom-rafaga"
+
+
+def test_cadencia_estable_no_dispara_rafaga(conn):
+    conn.execute("DELETE FROM ag_bitacora")
+    for k in range(8):
+        _bitacora_dia(conn, f"2026-07-{k + 1:02d}", 3)
+    r = qualia.anomalias_de_sesion(conn, SID)
+    assert all(h["detector"] not in ("rafaga", "ritmo") for h in r["hallazgos"])
