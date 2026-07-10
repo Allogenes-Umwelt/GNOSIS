@@ -28,7 +28,9 @@
 
 /* item clicable de la lista de anomalías (botón nativo, look de caja) */
 .qa-item { width: 100%; background: transparent; cursor: pointer; text-align: left; }
-.qa-item.activo { background: var(--acc-subtle); border-color: var(--danger); }
+.qa-item.activo { background: var(--acc-subtle); border-color: var(--acc-text); }
+/* solo una anomalía activa enciende magenta: alerta real, no selección */
+.qa-caja.anomalia.qa-item.activo { border-color: var(--danger); }
 .qa-item:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
 
 /* dial de escala: la escalera de renormalización */

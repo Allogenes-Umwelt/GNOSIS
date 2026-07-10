@@ -1361,6 +1361,14 @@ def autogenes_qualia_cascada():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/qualia/horizonte')
+def autogenes_qualia_horizonte():
+    """Qualia · Horizonte (F7): osciloscopio de la telemetría propia con
+    las intervenciones de la bitácora y su delta medido."""
+    return render_template('autogenes_qualia_horizonte.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/autogenes/sintesis')
 def autogenes_sintesis():
     """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe

@@ -180,3 +180,10 @@ def test_qualia_cascada_renderiza():
     assert "QLA-03" in html
     assert "qc-lienzo" in html and "qualia_cascada.js" in html
     assert 'data-modo="caida"' in html and 'data-modo="enlace"' in html
+
+
+def test_qualia_horizonte_renderiza():
+    html = _flask_render("autogenes_qualia_horizonte.html", sesion_etiqueta="07/2026")
+    assert "QLA-04" in html
+    assert "qh-lienzo" in html and "qualia_horizonte.js" in html
+    assert "Horizonte de eventos" in html
