@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}GNOSIS · Radar — Metabolismo{% endblock %}
+{% block title %}GNOSIS · Radar — Avance del Caso{% endblock %}
 {% block nav_autogenes %}active{% endblock %}
 
 {% block extra_css %}
@@ -10,37 +10,37 @@
 <div class="ag-wrap">
   <div class="ag-landing gr-marco" id="ag-landing">
 
-    <!-- Vía metabólica -->
-    <section class="ag-centro gr-centro" aria-label="Metabolismo del caso">
+    <!-- Avance por etapas -->
+    <section class="ag-centro gr-centro" aria-label="Avance del caso por etapas">
       <div class="ag-centro-head">
-        <span class="t">◆ Radar · Metabolismo del Caso</span>
-        <span class="s">SESIÓN {{ sesion_etiqueta }} · BALANCE PRE / POST DE LA VÍA</span>
+        <span class="t">◆ Radar · Avance del Caso</span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }} · QUÉ SE PROCESÓ Y QUÉ QUEDA PENDIENTE</span>
       </div>
       <div class="mt-lienzo gr-lienzo" data-detalle="#mt-detalle" data-info="#mt-info"
            data-urgencias="#mt-urgencias">
-        <canvas aria-label="Vía metabólica de producción de conocimiento" role="img"></canvas>
+        <canvas aria-label="Avance del caso por etapas de procesamiento" role="img"></canvas>
       </div>
       <div class="ag-leyenda" style="margin-top:8px">
-        <li><b style="opacity:.4">▭</b> potencial (pre)</li>
-        <li><b>▬</b> realizado (post)</li>
-        <li><b style="color:var(--danger)">▼</b> fuga · señal accionable</li>
+        <li><b style="opacity:.4">▭</b> recibido</li>
+        <li><b>▬</b> procesado</li>
+        <li><b style="color:var(--danger)">▼</b> pendiente · tócalo para resolver</li>
         <li><span id="mt-info" role="status">CARGANDO…</span></li>
       </div>
     </section>
 
-    <!-- Riel de urgencias + detalle de fuga -->
-    <aside class="ag-panel" id="ag-panel-der" aria-label="Urgencias y fugas">
+    <!-- Riel de urgencias + detalle -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Urgencias y pendientes">
       <div class="ag-panel-head">
         <h2>Urgencias</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
       <p style="color:var(--t3);font-size:.75rem;margin:0">
-        Alertas temporales y de negocio — fuera de la vía metabólica.
+        Alertas de tiempo y de negocio, aparte del avance por etapas.
       </p>
       <ul class="ag-nav" id="mt-urgencias"></ul>
-      <div class="ag-grupo">Detalle de fuga</div>
+      <div class="ag-grupo">Detalle</div>
       <div id="mt-detalle" class="gr-inspector" aria-live="polite">
-        <p class="gr-vacio">Toca una fuga (rama roja) para ver qué sustrato quedó sin metabolizar.</p>
+        <p class="gr-vacio">Toca lo que aparece en rojo para ver qué quedó pendiente y cómo resolverlo.</p>
       </div>
       <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
     </aside>

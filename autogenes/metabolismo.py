@@ -1,25 +1,24 @@
-"""Metabolismo del caso — la vía de producción de conocimiento del
-sustrato vista como una red metabólica con análisis de balance (FBA).
+"""Avance del caso — cuánto de lo que entra a cada etapa del
+procesamiento se aprovecha y cuánto queda pendiente.
 
-La vía real, no metafórica:
+Las etapas, en orden:
 
     Fuente → Fragmento → Entidad → Relación → Producto
 
-Cada unión es una reacción con dos estados (el pre/post de un FBA):
-- **potencial** (pre): el sustrato que ENTRÓ al pool (capacidad de metabolizar).
-- **realizado** (post): el que efectivamente FLUYÓ a la etapa siguiente.
-- **fuga** = potencial − realizado: el sustrato sin metabolizar, que es
-  exactamente una señal accionable del negocio:
-    · Extracción (Fragmento→Entidad): fuga = fuentes frías (documentos
-      cargados que nadie convirtió en conocimiento).
-    · Vinculación (Entidad→Relación): fuga = entidades huérfanas.
-    · Síntesis (Entidad→Producto): fuga = conocimiento sin destilar.
+Cada etapa reporta:
+- **recibido**: lo que entró a la etapa.
+- **procesado**: lo que pasó a la etapa siguiente.
+- **pendiente** = recibido − procesado: lo que falta por resolver, que
+  es una tarea accionable:
+    · Extracción (Fragmento→Entidad): documentos sin leer.
+    · Vinculación (Entidad→Relación): entidades sin conectar.
+    · Síntesis (Entidad→Producto): entidades sin informe.
 
-`salud` = flujo realizado / potencial, promediado sobre las uniones con
-sustrato — el rendimiento metabólico del caso (0–100).
+`salud` = procesado / recibido, promediado sobre las etapas con trabajo
+= el avance global del caso (0–100).
 
-Las alertas temporales/de negocio (vencimientos, faltantes, errores) NO
-viven en esta vía: se devuelven aparte, para el riel de urgencia lateral.
+Las alertas de tiempo y de negocio (vencimientos, faltantes, errores) no
+son parte del avance por etapas: se devuelven aparte, para el riel lateral.
 """
 import json
 import sqlite3
@@ -78,26 +77,26 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
     # uniones (reacciones). Las mecánicas (ingesta, fragmentación) no fugan;
     # las de conocimiento sí, y su fuga ES la señal.
     reacciones = [
-        {"clave": "fragmentacion", "nombre": "Fragmentación",
+        {"clave": "fragmentacion", "nombre": "Lectura",
          "de": "fuente", "a": "fragmento",
          "potencial": fragmentos, "realizado": fragmentos, "fuga": 0, "items": []},
         {"clave": "extraccion", "nombre": "Extracción",
          "de": "fragmento", "a": "entidad",
          "potencial": fragmentos, "realizado": len(frag_citados),
          "fuga": fragmentos - len(frag_citados),
-         "items": sen["fuentes_frias"], "senal": "fuentes frías",
+         "items": sen["fuentes_frias"], "senal": "sin leer",
          "accion": "/autogenes/ingesta"},
         {"clave": "vinculacion", "nombre": "Vinculación",
          "de": "entidad", "a": "relacion",
          "potencial": entidades, "realizado": len(ent_conectadas),
          "fuga": entidades - len(ent_conectadas),
-         "items": sen["huerfanas"], "senal": "huérfanas",
+         "items": sen["huerfanas"], "senal": "sin conectar",
          "accion": "/autogenes/vinculos"},
         {"clave": "sintesis", "nombre": "Síntesis",
          "de": "entidad", "a": "producto",
          "potencial": entidades, "realizado": len(ent_en_producto),
          "fuga": entidades - len(ent_en_producto),
-         "items": [], "senal": "sin destilar",
+         "items": [], "senal": "sin informe",
          "accion": "/autogenes/sintesis"},
     ]
 

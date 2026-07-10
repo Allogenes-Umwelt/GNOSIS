@@ -1,13 +1,13 @@
-/* GNOSIS · Metabolismo — la vía de producción de conocimiento del caso
-   como red metabólica con balance pre/post (FBA). Spine horizontal:
-   FUENTES → FRAGMENTOS → ENTIDADES → RELACIONES → PRODUCTOS. Cada
-   reacción muestra dos bandas: POTENCIAL (pre, tenue) y REALIZADO (post,
-   sólida cyan); la diferencia se desprende hacia abajo como FUGA (rama
-   magenta) — que es una señal accionable real (fuentes frías, huérfanas).
-   Partículas de flux corren por la banda realizada (pirotecnia con
-   sentido); tap en una fuga abre sus items. SALUD = rendimiento
-   metabólico. prefers-reduced-motion: sin flux, bandas plenas y quietas.
-   Datos: /api/v1/autogenes/metabolismo. Determinista: sin Math.random. */
+/* GNOSIS · Avance del caso — muestra cuánto de lo que entra a cada
+   etapa (Fuentes → Fragmentos → Entidades → Relaciones → Productos) ya
+   se procesó y cuánto queda pendiente. Cada etapa dibuja dos bandas:
+   RECIBIDO (tenue) y PROCESADO (sólida); la diferencia se desprende en
+   rojo como PENDIENTE — una tarea accionable (documentos sin leer,
+   entidades sin conectar o sin informe). El medidor central = avance
+   global del caso; la tabla inferior = hecho | pendiente por etapa; el
+   riel lateral = alertas de tiempo y de negocio. Tap en lo rojo abre
+   qué quedó pendiente y cómo resolverlo. Animación congelada con
+   prefers-reduced-motion; acento AAA por modo. Determinista. */
 (function () {
   'use strict';
 
@@ -94,8 +94,8 @@
       ctx.fillText(datos.salud + '%', cx, cy + 6);
       ctx.font = '10px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t3;
-      ctx.fillText('SALUD METABÓLICA', cx, cy + R + 4);
-      ctx.fillText(datos.total_fugas + ' UNIDADES EN FUGA', cx, cy + R + 18);
+      ctx.fillText('AVANCE DEL CASO', cx, cy + R + 4);
+      ctx.fillText(datos.total_fugas + ' PENDIENTES', cx, cy + R + 18);
     }
 
     function dibujar(ts) {
@@ -225,7 +225,7 @@
       ctx.textAlign = 'left';
       ctx.font = '10px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t3;
-      ctx.fillText('BALANCE POR REACCIÓN · REALIZADO | FUGA', x0, y0 - 14);
+      ctx.fillText('POR ETAPA · HECHO | PENDIENTE', x0, y0 - 14);
       conocimiento.forEach(function (rc, i) {
         var y = y0 + i * paso;
         var rendW = barW * rc.rend;
@@ -274,12 +274,12 @@
     function pintarDetalle() {
       if (!detalle) return;
       if (!sel) {
-        detalle.innerHTML = '<p class="gr-vacio">Toca una fuga (rama roja) para ver ' +
-          'qué sustrato quedó sin metabolizar.</p>';
+        detalle.innerHTML = '<p class="gr-vacio">Toca lo que aparece en rojo para ' +
+          'ver qué quedó pendiente y cómo resolverlo.</p>';
         return;
       }
       var r = sel.rc.r;
-      var html = '<div class="gr-kind">FUGA · ' + r.nombre.toUpperCase() +
+      var html = '<div class="gr-kind">PENDIENTE · ' + r.nombre.toUpperCase() +
         ' · ' + r.fuga + ' ' + (r.senal || '') + '</div>';
       if (r.items && r.items.length) {
         r.items.slice(0, 12).forEach(function (it) {
@@ -288,12 +288,12 @@
             (it.kind || it.tipo || '') + '</b></div>';
         });
       } else {
-        html += '<p class="gr-vacio">' + r.fuga + ' unidades de sustrato sin fluir ' +
-          'a la etapa siguiente.</p>';
+        html += '<p class="gr-vacio">' + r.fuga + ' elementos sin pasar a la ' +
+          'etapa siguiente.</p>';
       }
       if (r.accion) {
         html += '<a class="ag-volver" style="margin-top:10px" href="' + r.accion +
-          '">Metabolizar ▸</a>';
+          '">Resolver ▸</a>';
       }
       detalle.innerHTML = html;
     }
@@ -328,9 +328,9 @@
           pintarDetalle();
           pintarUrgencias();
           if (info) {
-            info.textContent = 'SALUD METABÓLICA ' +
+            info.textContent = 'AVANCE DEL CASO ' +
               (m.salud == null ? '—' : m.salud + '%') + ' · ' + m.total_fugas +
-              ' EN FUGA · HOY ' + m.hoy;
+              ' PENDIENTES · HOY ' + m.hoy;
           }
           animar();
         })

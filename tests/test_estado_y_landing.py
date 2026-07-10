@@ -123,4 +123,6 @@ def test_ingesta_y_radar_renderizan():
     assert "dn-lienzo" in html and "dendro.js" in html and "in-quorum" in html
     html2 = _flask_render("autogenes_radar.html", sesion_etiqueta="07/2026")
     assert "mt-lienzo" in html2 and "metabolismo.js" in html2
-    assert "mt-urgencias" in html2 and "BALANCE PRE / POST" in html2
+    assert "mt-urgencias" in html2 and "QUÉ SE PROCESÓ" in html2
+    # sin jerga metabólica/técnica en la copia visible
+    assert "metabólic" not in html2.lower() and "fuga" not in html2.lower()
