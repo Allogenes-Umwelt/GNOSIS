@@ -1150,6 +1150,48 @@ def api_status():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/grafo', methods=['GET'])
+def api_autogenes_grafo():
+    """La ontologia de una sesion como {nodos, enlaces} (solo lectura).
+
+    Query params: session_id (default: la sesion mas reciente),
+    limite_vehiculos (opcional, acota los nodos vehiculo)."""
+    from database import get_connection
+    from database.persistence import get_latest_session_id
+    from autogenes.proyeccion import construir_grafo
+    try:
+        conn = get_connection()
+        session_id = request.args.get('session_id', type=int) or get_latest_session_id()
+        if not session_id:
+            conn.close()
+            return jsonify({'error': 'No hay sesiones procesadas'}), 404
+        limite = request.args.get('limite_vehiculos', type=int)
+        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
+        conn.close()
+        return jsonify({'session_id': session_id, **grafo})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/arbol', methods=['GET'])
+def api_autogenes_arbol():
+    """La ontologia de una sesion como arbol jerarquico (mapa de ingesta)."""
+    from database import get_connection
+    from database.persistence import get_latest_session_id
+    from autogenes.proyeccion import arbol_ontologia
+    try:
+        conn = get_connection()
+        session_id = request.args.get('session_id', type=int) or get_latest_session_id()
+        if not session_id:
+            conn.close()
+            return jsonify({'error': 'No hay sesiones procesadas'}), 404
+        arbol = arbol_ontologia(conn, session_id)
+        conn.close()
+        return jsonify({'session_id': session_id, 'arbol': arbol})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/sessions', methods=['GET'])
 def api_sessions():
     """Lista todas las sesiones de procesamiento."""

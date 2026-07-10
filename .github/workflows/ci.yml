@@ -15,7 +15,7 @@ jobs:
           python-version: "3.11"
       # Substrate tests need only the light deps; the PDF stack
       # (camelot/tabula/Java) is exercised in Docker, not here.
-      - run: pip install pydantic pytest ruff pandas numpy
+      - run: pip install pydantic pytest ruff pandas numpy networkx
       - name: Lint (new code only — legacy modules are exempt until refactored)
         run: >
           ruff check autogenes/*.py tests/
