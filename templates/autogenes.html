@@ -7,12 +7,15 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid" style="max-width:1400px">
-  <div class="ag-landing">
+<div class="ag-wrap">
+  <div class="ag-landing" id="ag-landing">
 
     <!-- Selector (fallback accesible de la constelación) -->
-    <aside class="ag-panel" aria-label="Selector de análisis">
-      <h2>Dashboards · Selector</h2>
+    <aside class="ag-panel" id="ag-panel-izq" aria-label="Selector de análisis">
+      <div class="ag-panel-head">
+        <h2>Dashboards · Selector</h2>
+        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
+      </div>
       <ul class="ag-nav">
         <li><a href="/autogenes/concilia"><span><span class="num">I</span>CONCILIA</span><span class="dato" id="nav-concilia"></span></a></li>
         <li><a href="/autogenes/validacion"><span><span class="num">II</span>VALIDACIÓN</span><span class="dato" id="nav-validacion"></span></a></li>
@@ -41,8 +44,11 @@
     </section>
 
     <!-- Carga de documentos -->
-    <aside class="ag-panel" aria-label="Carga de documentos">
-      <h2>Carga de Documentos</h2>
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Carga de documentos">
+      <div class="ag-panel-head">
+        <h2>Carga de Documentos</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
       <p style="color:var(--t3);font-size:.8rem;margin:0">
         Arrastra el ZIP de facturas de la sesión. Se extraen y concilian al
         expediente; la extracción por documento llega con la fase de ingesta.
@@ -77,6 +83,23 @@
 <script src="{{ url_for('static', filename='constelacion.js') }}"></script>
 <script>
 (function () {
+  // paneles plegables con memoria
+  const landing = document.getElementById('ag-landing');
+  const flechas = { izq: ['‹', '›'], der: ['›', '‹'] };
+  document.querySelectorAll('.ag-plegar').forEach(btn => {
+    const lado = btn.dataset.panel;
+    const panel = document.getElementById('ag-panel-' + lado);
+    const aplicar = (off) => {
+      landing.classList.toggle(lado + '-off', off);
+      panel.classList.toggle('plegado', off);
+      btn.textContent = flechas[lado][off ? 1 : 0];
+      btn.setAttribute('aria-label', (off ? 'Desplegar' : 'Plegar') + ' panel');
+      try { localStorage.setItem('ag-panel-' + lado, off ? '1' : '0'); } catch (e) {}
+    };
+    btn.addEventListener('click', () => aplicar(!panel.classList.contains('plegado')));
+    try { if (localStorage.getItem('ag-panel-' + lado) === '1') aplicar(true); } catch (e) {}
+  });
+
   // estado vivo → rail + barra (la constelación se alimenta sola)
   fetch('/api/v1/autogenes/estado').then(r => r.ok ? r.json() : null).then(e => {
     if (!e || e.error) return;
