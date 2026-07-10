@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · {{ s.nombre }}{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-seccion">
+  <svg class="cst-svg" viewBox="0 0 120 110" role="img" aria-label="{{ s.nombre }}">
+    {% if s.forma == 'triangulo' %}
+    <path class="cst-forma" d="M60,18 L18,90 L102,90 Z"
+          style="fill:rgba(0,212,255,.07);stroke:var(--acc-solid);stroke-width:2"/>
+    {% else %}
+    <circle class="cst-forma" cx="60" cy="55" r="36"
+            style="fill:none;stroke:var(--acc-solid);stroke-width:2"/>
+    {% endif %}
+    <text x="60" y="62" text-anchor="middle"
+          style="fill:var(--acc-text);font-family:var(--font-mono);font-size:15px;font-weight:700">{{ s.numero }}</text>
+  </svg>
+  <div>
+    <div class="fase">{{ s.tipo }} · {{ s.fase }}</div>
+    <h1>{{ s.nombre }}</h1>
+  </div>
+  <p>{{ s.descripcion }}</p>
+  {% if metricas %}
+  <div class="metricas">
+    {% for m in metricas %}
+    <div><span class="v">{{ m.valor }}</span><span class="k">{{ m.etiqueta }}</span></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <p class="fase">{{ s.estado }}</p>
+  <a class="ag-volver" href="/autogenes">← Volver al Navegador del Sustrato</a>
+</div>
+{% endblock %}

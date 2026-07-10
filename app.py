@@ -1150,6 +1150,155 @@ def api_status():
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# ── AUTOGENES: landing + secciones ──────────────────────────────────
+
+AUTOGENES_SECCIONES = {
+    'concilia': {
+        'nombre': 'CONCILIA', 'numero': 'I', 'forma': 'triangulo',
+        'tipo': 'Dashboard', 'fase': 'Fase F9',
+        'descripcion': 'Coherencia entre fuentes: DWH (vendido), facturas '
+                       '(llegado) y pedimentos (declarado). Estado vivo por VIN, '
+                       'afirmaciones en competencia y hallazgos monetizados.',
+        'metricas': [('conciliado_pct', 'Conciliado %'), ('faltantes', 'Faltantes'),
+                     ('vehiculos', 'Vehículos')],
+        'estado': 'El motor de hallazgos se construye en F9 — la conciliación '
+                  'tri-fuente ya corre en el pipeline y se lee aquí.'},
+    'validacion': {
+        'nombre': 'VALIDACIÓN', 'numero': 'II', 'forma': 'triangulo',
+        'tipo': 'Dashboard', 'fase': 'Fase F10',
+        'descripcion': 'La glosa preventiva: conformidad de cada documento contra '
+                       'la norma — estructura, catálogo y reglas de negocio. '
+                       'Expediente certificado por sesión.',
+        'metricas': [('errores', 'Registros con error'), ('facturas', 'Facturas')],
+        'estado': 'Los validadores declarativos llegan en F10 — los errores de '
+                  'captura ya se leen aquí.'},
+    'sinapsis': {
+        'nombre': 'SINAPSIS', 'numero': 'III', 'forma': 'triangulo',
+        'tipo': 'Dashboard', 'fase': 'Fase F11',
+        'descripcion': 'Conocimiento nuevo por recombinación: el modelo propone '
+                       'hipótesis, el servidor las recomputa, y solo lo confirmado '
+                       'se muestra — en un grafo que se reconfigura para demostrarlo.',
+        'metricas': [('entidades', 'Entidades'), ('relaciones', 'Relaciones')],
+        'estado': 'El motor de recombinación llega en F11, sobre Qualia (F7) y '
+                  'el motor de hallazgos (F9).'},
+    'nomos': {
+        'nombre': 'NOMOS', 'numero': 'IV', 'forma': 'triangulo',
+        'tipo': 'Dashboard', 'fase': 'Fase F12',
+        'descripcion': 'La ley del sistema: reglas de negocio como ciudadanos del '
+                       'grafo — P&L por regla, backtesting, base normativa citada '
+                       'y mapa de cobertura.',
+        'metricas': [],
+        'estado': 'Latente — legisla sobre un sistema que ya detecta, valida y '
+                  'descubre. Cierra la ruta crítica.'},
+    'grafo': {
+        'nombre': 'Grafo', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F3',
+        'descripcion': 'El lienzo de fuerzas del caso: núcleo → pedimentos → '
+                       'vehículos → facturas → fuentes, con la capa de entidades '
+                       'extraídas encima.',
+        'metricas': [('entidades', 'Entidades'), ('relaciones', 'Relaciones'),
+                     ('fragmentos', 'Fragmentos')],
+        'estado': 'El lienzo d3-force es el siguiente entregable de F3; la '
+                  'proyección ya sirve en /api/v1/autogenes/grafo.'},
+    'ingesta': {
+        'nombre': 'Ingesta', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F4',
+        'descripcion': 'El mapa de ingesta: dendrograma circular de la ontología '
+                       'completa + extracción citada por documento con revisión HITL.',
+        'metricas': [('artefactos', 'Artefactos'), ('facturas', 'Facturas')],
+        'estado': 'La carga por ZIP ya opera desde el landing; la extracción por '
+                  'documento llega en F4.'},
+    'radar': {
+        'nombre': 'Radar', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F5',
+        'descripcion': 'El instrumento de atención: vencimientos, fuentes frías, '
+                       'colas de adjudicación y salud del grafo.',
+        'metricas': [], 'estado': 'Latente hasta F5.'},
+    'vinculos': {
+        'nombre': 'Vínculos', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F3',
+        'descripcion': 'Caminos citados entre entidades: ruta más corta, '
+                       'vecindario por grados y hubs del caso.',
+        'metricas': [('productos_camino', 'Caminos guardados')],
+        'estado': 'Llega con el lienzo del grafo (F3).'},
+    'sintesis': {
+        'nombre': 'Síntesis', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F6',
+        'descripcion': 'El informe ejecutivo citado: digesto del grafo → informe '
+                       'con cada afirmación anclada a su fragmento.',
+        'metricas': [('productos_informe', 'Informes dockeados')],
+        'estado': 'Latente hasta F6.'},
+    'qualia': {
+        'nombre': 'Qualia', 'numero': '◉', 'forma': 'circulo',
+        'tipo': 'Instrumento', 'fase': 'Fase F7',
+        'descripcion': 'La máquina de inteligencia: topología de red, comunidades, '
+                       'puentes, anomalías y drift entre sesiones.',
+        'metricas': [], 'estado': 'Latente hasta F7 — port completo aprobado.'},
+}
+
+
+def _sesion_activa():
+    from database.persistence import get_latest_session_id
+    return get_latest_session_id()
+
+
+@app.route('/autogenes')
+def autogenes_landing():
+    from database import get_connection
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    etiqueta = '—'
+    if session_id:
+        conn = get_connection()
+        ses = conn.execute(
+            "SELECT month_processed, year_processed FROM processing_sessions WHERE id = ?",
+            (session_id,)).fetchone()
+        conn.close()
+        if ses:
+            etiqueta = f"{ses['month_processed']:02d}/{ses['year_processed']}"
+    return render_template('autogenes.html', sesion_etiqueta=etiqueta)
+
+
+@app.route('/autogenes/<seccion>')
+def autogenes_seccion(seccion):
+    from database import get_connection
+    from autogenes.estado import estado_de_sesion
+    s = AUTOGENES_SECCIONES.get(seccion)
+    if not s:
+        return render_template('error.html', error_message='Sección desconocida'), 404
+    metricas = []
+    session_id = _sesion_activa()
+    if session_id and s['metricas']:
+        try:
+            conn = get_connection()
+            est = estado_de_sesion(conn, session_id)
+            conn.close()
+            for clave, etiqueta in s['metricas']:
+                v = est.get(clave)
+                if clave == 'conciliado_pct' and v is not None:
+                    v = f"{v}%"
+                metricas.append({'etiqueta': etiqueta, 'valor': v if v is not None else '—'})
+        except Exception:
+            metricas = []
+    return render_template('autogenes_seccion.html', s=s, metricas=metricas)
+
+
+@app.route('/api/v1/autogenes/estado', methods=['GET'])
+def api_autogenes_estado():
+    """Metricas vivas para las constelaciones y la barra de estado."""
+    from database import get_connection
+    from autogenes.estado import estado_de_sesion
+    try:
+        session_id = request.args.get('session_id', type=int) or _sesion_activa()
+        if not session_id:
+            return jsonify({'error': 'No hay sesiones procesadas'}), 404
+        conn = get_connection()
+        est = estado_de_sesion(conn, session_id)
+        conn.close()
+        return jsonify(est)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/grafo', methods=['GET'])
 def api_autogenes_grafo():
     """La ontologia de una sesion como {nodos, enlaces} (solo lectura).

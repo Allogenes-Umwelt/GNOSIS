@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · AUTOGENES{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width:1400px">
+  <div class="ag-landing">
+
+    <!-- Selector (fallback accesible de la constelación) -->
+    <aside class="ag-panel" aria-label="Selector de análisis">
+      <h2>Dashboards · Selector</h2>
+      <ul class="ag-nav">
+        <li><a href="/autogenes/concilia"><span><span class="num">I</span>CONCILIA</span><span class="dato" id="nav-concilia"></span></a></li>
+        <li><a href="/autogenes/validacion"><span><span class="num">II</span>VALIDACIÓN</span><span class="dato" id="nav-validacion"></span></a></li>
+        <li><a href="/autogenes/sinapsis"><span><span class="num">III</span>SINAPSIS</span><span class="dato" id="nav-sinapsis"></span></a></li>
+        <li><a href="/autogenes/nomos" class="latente"><span><span class="num">IV</span>NOMOS</span><span class="dato">F12</span></a></li>
+      </ul>
+      <div class="ag-grupo">Instrumentos del sustrato</div>
+      <ul class="ag-nav">
+        <li><a href="/autogenes/grafo">Grafo<span class="dato" id="nav-grafo"></span></a></li>
+        <li><a href="/autogenes/ingesta">Ingesta<span class="dato" id="nav-ingesta"></span></a></li>
+        <li><a href="/autogenes/vinculos">Vínculos<span class="dato"></span></a></li>
+        <li><a href="/autogenes/sintesis">Síntesis<span class="dato"></span></a></li>
+        <li><a href="/autogenes/radar" class="latente">Radar<span class="dato">F5</span></a></li>
+        <li><a href="/autogenes/qualia" class="latente">Qualia<span class="dato">F7</span></a></li>
+      </ul>
+    </aside>
+
+    <!-- Navegador: la celda completa -->
+    <section class="ag-centro" aria-label="Navegador del sustrato">
+      <div class="ag-centro-head">
+        <span class="t">◆ Navegador del Sustrato</span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }} · CONSTELACIÓN DE ANÁLISIS</span>
+      </div>
+      <div class="constelacion" data-scope="autogenes" data-legend="#ag-leyenda"></div>
+      <ul class="ag-leyenda" id="ag-leyenda" aria-label="Coordenadas de los dashboards"></ul>
+    </section>
+
+    <!-- Carga de documentos -->
+    <aside class="ag-panel" aria-label="Carga de documentos">
+      <h2>Carga de Documentos</h2>
+      <p style="color:var(--t3);font-size:.8rem;margin:0">
+        Arrastra el ZIP de facturas de la sesión. Se extraen y concilian al
+        expediente; la extracción por documento llega con la fase de ingesta.
+      </p>
+      <form id="ag-form" action="/procesar/fase1" method="post" enctype="multipart/form-data">
+        <label class="ag-drop" id="ag-drop" for="ag-file">
+          <span class="mas">[ + ]</span>
+          <span>CLIC PARA SELECCIONAR O ARRASTRA AQUÍ</span>
+          <input type="file" id="ag-file" name="facturas" accept=".zip" hidden>
+        </label>
+        <div id="ag-lista" style="display:flex;flex-direction:column;gap:6px;margin:10px 0"></div>
+        <button type="submit" class="ag-subir" id="ag-submit" disabled>Subir y extraer</button>
+        <div class="ag-msj" id="ag-msj" role="status"></div>
+      </form>
+      <a class="ag-volver" href="/procesar" style="margin-top:auto">Pipeline completo → Áreas</a>
+    </aside>
+  </div>
+
+  <!-- Barra de estado -->
+  <div class="ag-status" id="ag-status" aria-label="Estado de la sesión">
+    <span>SUSTRATO ACTIVO</span><span class="sep">·</span>
+    <span>SESIÓN <b>{{ sesion_etiqueta }}</b></span><span class="sep">·</span>
+    <span id="st-conciliado">CONCILIADO <b>—</b></span><span class="sep">·</span>
+    <span id="st-errores">ERRORES <b>—</b></span><span class="sep">·</span>
+    <span id="st-entidades">ENTIDADES <b>—</b></span><span class="sep">·</span>
+    <span>PROVENANCE LAW · BITÁCORA WORM</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='constelacion.js') }}"></script>
+<script>
+(function () {
+  // estado vivo → rail + barra (la constelación se alimenta sola)
+  fetch('/api/v1/autogenes/estado').then(r => r.ok ? r.json() : null).then(e => {
+    if (!e || e.error) return;
+    const set = (id, v) => { const n = document.getElementById(id); if (n) n.textContent = v; };
+    set('nav-concilia', e.conciliado_pct != null ? e.conciliado_pct + '%' : '—');
+    set('nav-validacion', e.errores);
+    set('nav-sinapsis', e.relaciones);
+    set('nav-grafo', e.entidades);
+    set('nav-ingesta', e.artefactos);
+    const b = (id, v) => { const n = document.querySelector('#' + id + ' b'); if (n) n.textContent = v; };
+    b('st-conciliado', e.conciliado_pct != null ? e.conciliado_pct + '%' : '—');
+    b('st-errores', e.errores);
+    b('st-entidades', e.entidades);
+  }).catch(() => {});
+
+  // drop zone
+  const drop = document.getElementById('ag-drop'),
+        file = document.getElementById('ag-file'),
+        lista = document.getElementById('ag-lista'),
+        btn = document.getElementById('ag-submit'),
+        msj = document.getElementById('ag-msj'),
+        form = document.getElementById('ag-form');
+  const pinta = () => {
+    lista.innerHTML = '';
+    if (file.files.length) {
+      const d = document.createElement('div');
+      d.className = 'ag-archivo';
+      d.innerHTML = '<span class="tipo">ZIP</span><span>' + file.files[0].name + '</span>';
+      lista.appendChild(d);
+    }
+    btn.disabled = !file.files.length;
+  };
+  file.addEventListener('change', pinta);
+  ['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('arrastrando'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('arrastrando'); }));
+  drop.addEventListener('drop', e => {
+    if (e.dataTransfer.files.length) { file.files = e.dataTransfer.files; pinta(); }
+  });
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    btn.disabled = true;
+    msj.className = 'ag-msj'; msj.textContent = 'Procesando facturas…';
+    fetch('/procesar/fase1', { method: 'POST', body: new FormData(form) })
+      .then(r => r.json().then(j => ({ ok: r.ok, j })))
+      .then(({ ok, j }) => {
+        msj.className = 'ag-msj ' + (ok ? 'ok' : 'error');
+        msj.textContent = ok
+          ? 'Extraídos ' + (j.nuevos_exitosos ?? 0) + ' PDFs nuevos · ' + (j.total_registros ?? 0) + ' registros en sesión'
+          : (j.error || 'Falló la extracción — revisa el archivo');
+        if (ok) setTimeout(() => window.location.reload(), 1800);
+      })
+      .catch(() => { msj.className = 'ag-msj error'; msj.textContent = 'Sin conexión con el servidor — reintenta'; })
+      .finally(() => { btn.disabled = !file.files.length; });
+  });
+})();
+</script>
+{% endblock %}
