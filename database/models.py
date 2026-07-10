@@ -271,4 +271,15 @@ CREATE TABLE IF NOT EXISTS chat_conversations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_conversations(chat_session_id);
+
+
+-- ============================================================
+-- CONFIGURACION (key-value; selector LLM y ajustes de admin)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS config (
+    clave       TEXT PRIMARY KEY,
+    valor       TEXT NOT NULL,
+    updated_at  TEXT DEFAULT (datetime('now'))
+);
 """

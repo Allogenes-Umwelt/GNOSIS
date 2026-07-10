@@ -1351,19 +1351,79 @@ def procesar_historico():
 
 # Instancia global del chat handler (una por proceso)
 _chat_handler = None
+_chat_proveedor = None
 
 def _get_chat_handler():
-    global _chat_handler
+    global _chat_handler, _chat_proveedor
     if _chat_handler is None:
         try:
-            from jarvis.llm_interface import AnthropicProvider
+            from database import get_connection
+            from database.config import get_all_config
+            from jarvis.llm_interface import seleccionar_proveedor
             from jarvis.chat_handler import ChatHandler
-            provider = AnthropicProvider()
+            conn = get_connection()
+            config = get_all_config(conn)
+            conn.close()
+            nombre, provider = seleccionar_proveedor(config)
+            _chat_proveedor = nombre
+            print(f"[Gnosis AI] Proveedor LLM activo: {nombre}")
             _chat_handler = ChatHandler(provider)
         except Exception as e:
             print(f"[Gnosis AI] Error inicializando chat: {e}")
             raise
     return _chat_handler
+
+
+@app.route('/api/v1/admin/llm', methods=['GET'])
+def api_admin_llm_estado():
+    """Estado de la capa LLM: proveedores disponibles, default y fallbacks."""
+    from database import get_connection
+    from database.config import get_all_config
+    from jarvis.llm_interface import proveedores_disponibles
+    try:
+        conn = get_connection()
+        config = get_all_config(conn)
+        conn.close()
+        return jsonify({
+            'default': config.get('llm_default', 'deepseek'),
+            'fallback_claude': config.get('llm_fallback_claude', 'off'),
+            'ollama': config.get('llm_ollama', 'off'),
+            'disponibles': proveedores_disponibles(config),
+            'activo': _chat_proveedor,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/admin/llm', methods=['POST'])
+def api_admin_llm_configurar():
+    """Configura el selector LLM. Claves permitidas: llm_default,
+    llm_fallback_claude (on/off), llm_ollama (on/off), deepseek_model,
+    claude_model. Reinicia el handler para aplicar de inmediato."""
+    global _chat_handler, _chat_proveedor
+    from database import get_connection
+    from database.config import set_config
+    permitidas = {'llm_default', 'llm_fallback_claude', 'llm_ollama',
+                  'deepseek_model', 'claude_model'}
+    data = request.get_json(silent=True) or {}
+    cambios = {k: str(v) for k, v in data.items() if k in permitidas}
+    if not cambios:
+        return jsonify({'error': f'Nada que configurar; claves: {sorted(permitidas)}'}), 400
+    if 'llm_default' in cambios and cambios['llm_default'] not in ('deepseek', 'claude', 'ollama'):
+        return jsonify({'error': 'llm_default debe ser deepseek, claude u ollama'}), 400
+    for k in ('llm_fallback_claude', 'llm_ollama'):
+        if k in cambios and cambios[k] not in ('on', 'off'):
+            return jsonify({'error': f'{k} debe ser on u off'}), 400
+    try:
+        conn = get_connection()
+        for k, v in cambios.items():
+            set_config(conn, k, v)
+        conn.close()
+        _chat_handler = None
+        _chat_proveedor = None
+        return jsonify({'status': 'ok', 'aplicado': cambios})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/gnosisia', methods=['GET'])
