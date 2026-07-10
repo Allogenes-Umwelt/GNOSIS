@@ -1430,6 +1430,46 @@ def api_autogenes_integrar():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/sintetizar', methods=['POST'])
+def api_autogenes_sintetizar():
+    """Genera el informe ejecutivo citado del caso (NO dockea — HITL).
+    El saneamiento contra ids/nombres reales corre en servidor."""
+    from database.config import get_all_config
+    from autogenes.informe import redactar_informe
+
+    def handler(conn, session_id):
+        config = get_all_config(conn)
+        r = redactar_informe(conn, session_id, config=config)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/sintesis/dockear', methods=['POST'])
+def api_autogenes_sintesis_dockear():
+    """Dockea el informe revisado como Producto{clase:"informe"}. Vuelve
+    a sanear contra el grafo real — cinturón y tirantes."""
+    from autogenes.informe import dockear_informe
+    data = request.get_json(silent=True) or {}
+    informe = data.get('informe')
+    if not isinstance(informe, dict):
+        return jsonify({'error': 'Falta el informe a dockear'}), 400
+
+    def handler(conn, session_id):
+        r = dockear_informe(conn, session_id, informe)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/radar', methods=['GET'])
 def api_autogenes_radar():
     from autogenes.senales import senales_de_sesion
