@@ -1442,6 +1442,20 @@ def api_autogenes_radar():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/metabolismo', methods=['GET'])
+def api_autogenes_metabolismo():
+    """Radar reframeado: la vía de producción de conocimiento del caso
+    como red metabólica con balance pre/post."""
+    from autogenes.metabolismo import metabolismo_de_sesion
+
+    def handler(conn, session_id):
+        return jsonify(metabolismo_de_sesion(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/autogenes/vinculos')
 def autogenes_vinculos():
     """Vínculos (F3): camino más corto citado, vecindario y hubs."""

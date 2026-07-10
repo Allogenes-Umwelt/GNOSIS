@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}GNOSIS · Radar{% endblock %}
+{% block title %}GNOSIS · Radar — Metabolismo{% endblock %}
 {% block nav_autogenes %}active{% endblock %}
 
 {% block extra_css %}
@@ -7,86 +7,60 @@
 {% endblock %}
 
 {% block content %}
-<div class="ag-wrap" style="max-width:1100px;margin:0 auto">
-  <section class="ag-centro" style="margin-top:22px" aria-label="Radar del caso">
-    <div class="ag-centro-head">
-      <span class="t">◆ Radar</span>
-      <span class="s">SESIÓN {{ sesion_etiqueta }} · <span id="rd-total">—</span> SEÑALES ·
-        VENTANA <span id="rd-ventana">30</span> DÍAS</span>
-    </div>
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco" id="ag-landing">
 
-    <div class="ag-grupo">Vencimientos próximos</div>
-    <ul class="ag-nav" id="rd-vencimientos"></ul>
+    <!-- Vía metabólica -->
+    <section class="ag-centro gr-centro" aria-label="Metabolismo del caso">
+      <div class="ag-centro-head">
+        <span class="t">◆ Radar · Metabolismo del Caso</span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }} · BALANCE PRE / POST DE LA VÍA</span>
+      </div>
+      <div class="mt-lienzo gr-lienzo" data-detalle="#mt-detalle" data-info="#mt-info"
+           data-urgencias="#mt-urgencias">
+        <canvas aria-label="Vía metabólica de producción de conocimiento" role="img"></canvas>
+      </div>
+      <div class="ag-leyenda" style="margin-top:8px">
+        <li><b style="opacity:.4">▭</b> potencial (pre)</li>
+        <li><b>▬</b> realizado (post)</li>
+        <li><b style="color:var(--danger)">▼</b> fuga · señal accionable</li>
+        <li><span id="mt-info" role="status">CARGANDO…</span></li>
+      </div>
+    </section>
 
-    <div class="ag-grupo">Fuentes frías — nadie las ha leído</div>
-    <ul class="ag-nav" id="rd-frias"></ul>
-
-    <div class="ag-grupo">Entidades huérfanas — islas sin relación</div>
-    <ul class="ag-nav" id="rd-huerfanas"></ul>
-
-    <div class="ag-grupo">Pendientes del negocio</div>
-    <ul class="ag-nav" id="rd-negocio"></ul>
-
-    <div class="ag-leyenda" style="margin-top:14px">
-      <li><span id="rd-info" role="status">CARGANDO…</span></li>
-    </div>
-  </section>
-  <div style="padding:16px 0">
-    <a class="ag-volver" href="/autogenes">← Navegador del Sustrato</a>
+    <!-- Riel de urgencias + detalle de fuga -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Urgencias y fugas">
+      <div class="ag-panel-head">
+        <h2>Urgencias</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <p style="color:var(--t3);font-size:.75rem;margin:0">
+        Alertas temporales y de negocio — fuera de la vía metabólica.
+      </p>
+      <ul class="ag-nav" id="mt-urgencias"></ul>
+      <div class="ag-grupo">Detalle de fuga</div>
+      <div id="mt-detalle" class="gr-inspector" aria-live="polite">
+        <p class="gr-vacio">Toca una fuga (rama roja) para ver qué sustrato quedó sin metabolizar.</p>
+      </div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='metabolismo.js') }}"></script>
 <script>
 (function () {
-  const fila = (ul, izq, der, href) => {
-    const li = document.createElement('li');
-    const a = document.createElement('a');
-    a.href = href || '#';
-    if (!href) a.style.pointerEvents = 'none';
-    a.innerHTML = '<span>' + izq + '</span><span class="dato">' + der + '</span>';
-    li.appendChild(a);
-    document.getElementById(ul).appendChild(li);
-  };
-  const vacio = (ul, texto) => {
-    const li = document.createElement('li');
-    li.innerHTML = '<span class="gr-vacio" style="display:block;padding:8px">' + texto + '</span>';
-    document.getElementById(ul).appendChild(li);
-  };
-  fetch('/api/v1/autogenes/radar').then(r => r.json()).then(s => {
-    if (!s || s.error) {
-      document.getElementById('rd-info').textContent = (s && s.error) || 'SIN DATOS';
-      return;
-    }
-    document.getElementById('rd-total').textContent = s.total;
-    document.getElementById('rd-ventana').textContent = s.ventana_dias;
-    document.getElementById('rd-info').textContent =
-      'RADAR ACTIVO · HOY ' + s.hoy.toUpperCase();
-
-    if (s.vencimientos.length) s.vencimientos.forEach(v =>
-      fila('rd-vencimientos', v.titulo.slice(0, 40),
-           v.fecha + ' · en ' + v.dias + ' días'));
-    else vacio('rd-vencimientos', 'Nada vence en la ventana.');
-
-    if (s.fuentes_frias.length) s.fuentes_frias.forEach(f =>
-      fila('rd-frias', f.nombre.slice(0, 40), f.kind + ' · extraer ▸',
-           '/autogenes/ingesta'));
-    else vacio('rd-frias', 'Toda fuente tiene conocimiento extraído.');
-
-    if (s.huerfanas.length) s.huerfanas.forEach(h =>
-      fila('rd-huerfanas', h.nombre.slice(0, 40), h.tipo + ' · ' + h.origen,
-           '/autogenes/vinculos'));
-    else vacio('rd-huerfanas', 'Ninguna entidad está aislada.');
-
-    if (s.negocio.faltantes) fila('rd-negocio',
-      s.negocio.faltantes + ' facturas faltantes', 'CONCILIA ▸', '/autogenes/concilia');
-    if (s.negocio.errores) fila('rd-negocio',
-      s.negocio.errores + ' registros con error', 'errores ▸', '/errores');
-    if (!s.negocio.faltantes && !s.negocio.errores)
-      vacio('rd-negocio', 'Sin pendientes del pipeline.');
-  }).catch(() => {
-    document.getElementById('rd-info').textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
+  const landing = document.getElementById('ag-landing');
+  const btn = document.querySelector('.ag-plegar[data-panel=der]');
+  const panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', () => {
+    const off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
   });
 })();
 </script>
