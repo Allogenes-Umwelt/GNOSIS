@@ -44,8 +44,10 @@ def test_estado_reporta_metricas_reales(conn):
     assert est["faltantes"] == 1 and est["errores"] == 1
     assert est["conciliado_pct"] == 75  # (4-1)/4
     assert est["artefactos"] == 1 and est["entidades"] == 1
+    # Radar (F5) vive: Audi huérfana + faltantes + errores = 3 señales
+    assert est["senales"] == 3
     # latentes: fases no construidas se reportan None, jamás inventadas
-    assert est["senales"] is None and est["hallazgos"] is None and est["reglas"] is None
+    assert est["hallazgos"] is None and est["reglas"] is None
 
 
 def test_estado_sesion_inexistente(conn):
@@ -114,3 +116,10 @@ def test_vinculos_renderiza():
     html = _flask_render("autogenes_vinculos.html", sesion_etiqueta="07/2026")
     assert "vn-desde" in html and "vn-hasta" in html and "vn-dockear" in html
     assert "vinculos.js" in html and "grafo.js" in html and "<canvas" in html
+
+
+def test_ingesta_y_radar_renderizan():
+    html = _flask_render("autogenes_ingesta.html", sesion_etiqueta="07/2026")
+    assert "dn-lienzo" in html and "dendro.js" in html and "in-quorum" in html
+    html2 = _flask_render("autogenes_radar.html", sesion_etiqueta="07/2026")
+    assert "rd-vencimientos" in html2 and "/api/v1/autogenes/radar" in html2

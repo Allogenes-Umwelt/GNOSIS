@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Radar{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap" style="max-width:1100px;margin:0 auto">
+  <section class="ag-centro" style="margin-top:22px" aria-label="Radar del caso">
+    <div class="ag-centro-head">
+      <span class="t">◆ Radar</span>
+      <span class="s">SESIÓN {{ sesion_etiqueta }} · <span id="rd-total">—</span> SEÑALES ·
+        VENTANA <span id="rd-ventana">30</span> DÍAS</span>
+    </div>
+
+    <div class="ag-grupo">Vencimientos próximos</div>
+    <ul class="ag-nav" id="rd-vencimientos"></ul>
+
+    <div class="ag-grupo">Fuentes frías — nadie las ha leído</div>
+    <ul class="ag-nav" id="rd-frias"></ul>
+
+    <div class="ag-grupo">Entidades huérfanas — islas sin relación</div>
+    <ul class="ag-nav" id="rd-huerfanas"></ul>
+
+    <div class="ag-grupo">Pendientes del negocio</div>
+    <ul class="ag-nav" id="rd-negocio"></ul>
+
+    <div class="ag-leyenda" style="margin-top:14px">
+      <li><span id="rd-info" role="status">CARGANDO…</span></li>
+    </div>
+  </section>
+  <div style="padding:16px 0">
+    <a class="ag-volver" href="/autogenes">← Navegador del Sustrato</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const fila = (ul, izq, der, href) => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = href || '#';
+    if (!href) a.style.pointerEvents = 'none';
+    a.innerHTML = '<span>' + izq + '</span><span class="dato">' + der + '</span>';
+    li.appendChild(a);
+    document.getElementById(ul).appendChild(li);
+  };
+  const vacio = (ul, texto) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="gr-vacio" style="display:block;padding:8px">' + texto + '</span>';
+    document.getElementById(ul).appendChild(li);
+  };
+  fetch('/api/v1/autogenes/radar').then(r => r.json()).then(s => {
+    if (!s || s.error) {
+      document.getElementById('rd-info').textContent = (s && s.error) || 'SIN DATOS';
+      return;
+    }
+    document.getElementById('rd-total').textContent = s.total;
+    document.getElementById('rd-ventana').textContent = s.ventana_dias;
+    document.getElementById('rd-info').textContent =
+      'RADAR ACTIVO · HOY ' + s.hoy.toUpperCase();
+
+    if (s.vencimientos.length) s.vencimientos.forEach(v =>
+      fila('rd-vencimientos', v.titulo.slice(0, 40),
+           v.fecha + ' · en ' + v.dias + ' días'));
+    else vacio('rd-vencimientos', 'Nada vence en la ventana.');
+
+    if (s.fuentes_frias.length) s.fuentes_frias.forEach(f =>
+      fila('rd-frias', f.nombre.slice(0, 40), f.kind + ' · extraer ▸',
+           '/autogenes/ingesta'));
+    else vacio('rd-frias', 'Toda fuente tiene conocimiento extraído.');
+
+    if (s.huerfanas.length) s.huerfanas.forEach(h =>
+      fila('rd-huerfanas', h.nombre.slice(0, 40), h.tipo + ' · ' + h.origen,
+           '/autogenes/vinculos'));
+    else vacio('rd-huerfanas', 'Ninguna entidad está aislada.');
+
+    if (s.negocio.faltantes) fila('rd-negocio',
+      s.negocio.faltantes + ' facturas faltantes', 'CONCILIA ▸', '/autogenes/concilia');
+    if (s.negocio.errores) fila('rd-negocio',
+      s.negocio.errores + ' registros con error', 'errores ▸', '/errores');
+    if (!s.negocio.faltantes && !s.negocio.errores)
+      vacio('rd-negocio', 'Sin pendientes del pipeline.');
+  }).catch(() => {
+    document.getElementById('rd-info').textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
+  });
+})();
+</script>
+{% endblock %}

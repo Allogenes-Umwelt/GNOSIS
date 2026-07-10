@@ -1317,6 +1317,131 @@ def api_autogenes_estado():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/autogenes/ingesta')
+def autogenes_ingesta():
+    """Ingesta (F4): mapa dendrograma + bandeja de documentos +
+    extracción citada con revisión HITL."""
+    return render_template('autogenes_ingesta.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/radar')
+def autogenes_radar():
+    """Radar (F5): vencimientos, fuentes frías, huérfanas y pendientes."""
+    return render_template('autogenes_radar.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+def _etiqueta_sesion():
+    from database import get_connection
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    if not session_id:
+        return '—'
+    conn = get_connection()
+    ses = conn.execute(
+        "SELECT month_processed, year_processed FROM processing_sessions WHERE id = ?",
+        (session_id,)).fetchone()
+    conn.close()
+    return f"{ses['month_processed']:02d}/{ses['year_processed']}" if ses else '—'
+
+
+@app.route('/api/v1/autogenes/artefactos', methods=['GET'])
+def api_autogenes_artefactos():
+    from autogenes.ingesta import listar_artefactos
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id,
+                        'artefactos': listar_artefactos(conn, session_id)})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/ingestar', methods=['POST'])
+def api_autogenes_ingestar():
+    """Un documento entra al sustrato: PDF por páginas, texto por bloques."""
+    from autogenes.ingesta import ingestar_pdf, ingestar_texto
+    archivo = request.files.get('documento')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'Falta el archivo (campo documento)'}), 400
+    nombre = secure_filename(archivo.filename)
+
+    def handler(conn, session_id):
+        if nombre.lower().endswith('.pdf'):
+            r = ingestar_pdf(conn, session_id, nombre, archivo.read())
+        elif nombre.lower().endswith(('.txt', '.md')):
+            r = ingestar_texto(conn, session_id, nombre,
+                               archivo.read().decode('utf-8', errors='replace'))
+        else:
+            return jsonify({'error': 'Formato no soportado: usa PDF o TXT'}), 400
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/extraer', methods=['POST'])
+def api_autogenes_extraer():
+    """Propuesta de grafo citada para un artefacto (NO escribe — HITL)."""
+    from database.config import get_all_config
+    from autogenes.extraccion import extraer_de_artefacto
+    data = request.get_json(silent=True) or {}
+    artefacto_id = data.get('artefacto_id', '')
+    if not artefacto_id:
+        return jsonify({'error': 'Falta artefacto_id'}), 400
+
+    def handler(conn, session_id):
+        config = get_all_config(conn)
+        r = extraer_de_artefacto(conn, session_id, artefacto_id, config=config,
+                                 con_quorum=bool(data.get('quorum')))
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify({'session_id': session_id, **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/integrar', methods=['POST'])
+def api_autogenes_integrar():
+    """Integra la propuesta revisada por el operador. El saneamiento
+    final vive en Sustrato.integrar_propuesta — cinturón y tirantes."""
+    from autogenes.sustrato import Sustrato
+    from autogenes.tipos import PropuestaGrafo
+    data = request.get_json(silent=True) or {}
+    try:
+        propuesta = PropuestaGrafo.model_validate(
+            {'entidades': data.get('entidades', []),
+             'relaciones': data.get('relaciones', [])})
+    except Exception:
+        return jsonify({'error': 'Propuesta malformada'}), 400
+
+    def handler(conn, session_id):
+        resultado = Sustrato(conn, session_id).integrar_propuesta(propuesta)
+        return jsonify({'status': 'ok', **resultado})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/radar', methods=['GET'])
+def api_autogenes_radar():
+    from autogenes.senales import senales_de_sesion
+
+    def handler(conn, session_id):
+        return jsonify(senales_de_sesion(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/autogenes/vinculos')
 def autogenes_vinculos():
     """Vínculos (F3): camino más corto citado, vecindario y hubs."""

@@ -28,7 +28,7 @@
         <li><a href="/autogenes/ingesta">Ingesta<span class="dato" id="nav-ingesta"></span></a></li>
         <li><a href="/autogenes/vinculos">Vínculos<span class="dato"></span></a></li>
         <li><a href="/autogenes/sintesis">Síntesis<span class="dato"></span></a></li>
-        <li><a href="/autogenes/radar" class="latente">Radar<span class="dato">F5</span></a></li>
+        <li><a href="/autogenes/radar">Radar<span class="dato" id="nav-radar"></span></a></li>
         <li><a href="/autogenes/qualia" class="latente">Qualia<span class="dato">F7</span></a></li>
       </ul>
     </aside>
@@ -109,6 +109,7 @@
     set('nav-sinapsis', e.relaciones);
     set('nav-grafo', e.entidades);
     set('nav-ingesta', e.artefactos);
+    set('nav-radar', e.senales);
     const b = (id, v) => { const n = document.querySelector('#' + id + ' b'); if (n) n.textContent = v; };
     b('st-conciliado', e.conciliado_pct != null ? e.conciliado_pct + '%' : '—');
     b('st-errores', e.errores);

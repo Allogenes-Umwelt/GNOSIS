@@ -16,6 +16,12 @@ def _count(conn: sqlite3.Connection, tabla: str, session_id: int) -> int:
     ).fetchone()[0]
 
 
+def _total_senales(conn: sqlite3.Connection, session_id: int) -> int:
+    from autogenes.senales import senales_de_sesion
+
+    return senales_de_sesion(conn, session_id)["total"]
+
+
 def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     ses = conn.execute(
         "SELECT id, month_processed, year_processed, status FROM processing_sessions"
@@ -63,8 +69,8 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         "relaciones": _count(conn, "ag_relaciones", session_id),
         "productos_informe": productos_informe,
         "productos_camino": productos_camino,
-        # latentes: fases aún no construidas — None, jamás inventado
-        "senales": None,      # F5 Radar
+        # señales del Radar (F5): total real
+        "senales": _total_senales(conn, session_id),
         "anomalias": None,    # F7 Qualia
         "hallazgos": None,    # F9 motor de hallazgos
         "reglas": None,       # F12 NOMOS
