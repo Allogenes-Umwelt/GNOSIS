@@ -33,6 +33,11 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
     if vehiculos:
         conciliado_pct = round(100 * (vehiculos - faltantes) / vehiculos)
 
+    valor_total = conn.execute(
+        "SELECT COALESCE(SUM(precio), 0) FROM importaciones WHERE session_id = ?",
+        (session_id,),
+    ).fetchone()[0]
+
     productos_informe = conn.execute(
         "SELECT COUNT(*) FROM ag_productos WHERE session_id = ? AND clase = 'informe'",
         (session_id,),
@@ -51,6 +56,7 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         "faltantes": faltantes,
         "errores": errores,
         "conciliado_pct": conciliado_pct,
+        "valor_total": valor_total,
         "artefactos": _count(conn, "ag_artefactos", session_id),
         "fragmentos": _count(conn, "ag_fragmentos", session_id),
         "entidades": _count(conn, "ag_entidades", session_id),

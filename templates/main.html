@@ -348,12 +348,25 @@
   <div class="gd">
     <!-- HERO (colapsa al hacer scroll) -->
     <div class="gd-hero" id="gd-hero">
-      <div class="gd-eyebrow">GNOSIS · Importaciones · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
+      <div class="gd-eyebrow">GNOSIS · Una sola fuente de la verdad · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
       <div class="gd-hero-row">
-        <div>
-          <h1 class="gd-title">Una sola fuente<br>de la verdad.</h1>
-          <p class="gd-sub">{{ "{:,}".format(stats.total_importaciones) }} vehículos conciliados contra facturas y cupos — validados, sin fragmentación, en un solo sistema.</p>
-          <div class="gd-meta">
+        <div class="ver-zona">
+          <div class="ver-mapa" id="ver-mapa" aria-hidden="true"></div>
+          <div class="ver-terminal" data-mapa="#ver-mapa">
+            <div class="ver-terminal-int">
+              <div class="ver-head">GNOSIS·IA <span class="led">●</span> Veredicto de sesión #{{ current_session.id }}
+                <span class="ver-circuito-slot" style="margin-left:auto;display:flex"></span>
+              </div>
+              <div class="ver-tty" aria-live="polite">Una sola fuente de la verdad.</div>
+              <div class="ver-cmds">
+                <span class="prompt">gnosis&nbsp;▸</span>
+                <a class="ver-cmd" href="/autogenes/concilia">Ver conciliación</a>
+                <a class="ver-cmd" href="/autogenes/validacion">Abrir validación</a>
+                <a class="ver-cmd" href="/autogenes">Navegador</a>
+              </div>
+            </div>
+          </div>
+          <div class="gd-meta" style="position:relative;z-index:1">
             <div class="m"><span class="mk">Sesión</span>
               <select class="gd-sel" onchange="window.location='/?session_id='+this.value">{% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}</select>
             </div>
@@ -798,6 +811,7 @@
 </script>
 <script src="{{ url_for('static', filename='chat.js') }}"></script>
 <script src="{{ url_for('static', filename='constelacion.js') }}"></script>
+<script src="{{ url_for('static', filename='veredicto.js') }}"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ===== Panel navigation =====
