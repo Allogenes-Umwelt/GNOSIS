@@ -86,7 +86,7 @@ def test_cascada_de_procedencia_al_quitar_artefacto(sustrato: Sustrato):
         "titulo": "Arribo", "fecha": "2026-05-01", "precision": "dia",
         "entidades": ["BMW"], "evidencia": [frags[0].id], "origen": "synesis",
     }])
-    producto = sustrato.dockear_producto(
+    sustrato.dockear_producto(
         "informe", "Informe mayo", "sintesis", {"puntos": []},
         entidades=[extraida.id, curada.id], evidencia=[frags[0].id],
     )

@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: ["claude/gnosis-autogenes-i-85bwsd", "main"]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Substrate tests need only the light deps; the PDF stack
+      # (camelot/tabula/Java) is exercised in Docker, not here.
+      - run: pip install pydantic pytest ruff pandas numpy
+      - name: Lint (new code only — legacy modules are exempt until refactored)
+        run: >
+          ruff check autogenes/*.py tests/
+          database/__init__.py database/migrations.py database/models_autogenes.py
+      - name: Tests
+        run: python -m pytest tests/ -q

@@ -33,7 +33,6 @@ from autogenes.tipos import (
     GeoPunto,
     KindArtefacto,
     Origen,
-    PrecisionFecha,
     Producto,
     PropuestaGrafo,
     Relacion,
