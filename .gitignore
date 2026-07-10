@@ -6,3 +6,7 @@ __pycache__/
 *.db
 downloads/
 uploads/
+
+# Secretos locales (nunca commitear)
+.env
+.env.*
