@@ -36,6 +36,7 @@
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
+    var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
 
     // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
@@ -105,13 +106,16 @@
         var alfa = sim ? sim.tick() : 0;
         dibujar(ts);
         if (alfa > 0.004 || arrastre.nodo) requestAnimationFrame(paso);
-        else { animando = false; encuadrar(); dibujar(ts); }
+        else { animando = false; if (!vistaManual) encuadrar(); dibujar(ts); }
       })(0);
     }
 
-    // encuadre automático: la caja del grafo llena el 84% del lienzo
+    // encuadre: la caja del grafo llena el 84% del lienzo, al tamaño
+    // que tenga el caso. Automático al cargar/asentar/redimensionar;
+    // manual siempre (botón reencuadrar y doble-tap en el fondo).
     function encuadrar() {
       if (!nodos.length) return;
+      vistaManual = false;
       var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
       nodos.forEach(function (n) {
         if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
@@ -253,6 +257,7 @@
         if (arrastre.pinchD) {
           var factor = d / arrastre.pinchD;
           vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
+          vistaManual = true;
         }
         arrastre.pinchD = d;
         if (!animando) dibujar(0);
@@ -273,6 +278,7 @@
         if (reduce) { sim && sim.correr(2); dibujar(0); }
       } else {
         vista.x += dx; vista.y += dy;
+        vistaManual = true;
         arrastre.panX = p[0]; arrastre.panY = p[1];
         if (!animando) dibujar(0);
       }
@@ -292,12 +298,17 @@
     }
     canvas.addEventListener('pointerup', soltar);
     canvas.addEventListener('pointercancel', soltar);
+    canvas.addEventListener('dblclick', function (ev) {
+      var p = xy(ev);
+      if (!nodoEn(p[0], p[1])) { encuadrar(); if (!animando) dibujar(0); }
+    });
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
       var factor = Math.pow(1.0015, -ev.deltaY);
       var p = xy(ev);
       var antes = aMundo(p[0], p[1]);
       vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
+      vistaManual = true;
       var despues = aMundo(p[0], p[1]);
       vista.x += (despues[0] - antes[0]) * vista.k;
       vista.y += (despues[1] - antes[1]) * vista.k;
@@ -340,7 +351,8 @@
     var reset = q(cont.getAttribute('data-reset'));
     if (reset) {
       reset.addEventListener('click', function () {
-        vista = { x: 0, y: 0, k: 1 }; sel = null; pintarInspector(null);
+        sel = null; pintarInspector(null);
+        encuadrar();
         if (!animando) dibujar(0);
       });
     }
@@ -358,10 +370,12 @@
         if (!animando) dibujar(0);
       },
       limpiar: function () { resalte = null; sel = null; pintarInspector(null); if (!animando) dibujar(0); },
+      encuadrar: function () { encuadrar(); if (!animando) dibujar(0); },
       enfocar: function (id) {
         var n = porId[id];
         if (!n) return;
         sel = n; pintarInspector(n);
+        vistaManual = true;
         vista.k = Math.max(vista.k, 1.4);
         vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
         if (!animando) dibujar(0);
@@ -370,7 +384,11 @@
 
     leerColores();
     tamano();
-    window.addEventListener('resize', function () { tamano(); if (!animando) dibujar(0); });
+    window.addEventListener('resize', function () {
+      tamano();
+      if (!vistaManual) encuadrar();
+      if (!animando) dibujar(0);
+    });
     var alternador = document.getElementById('theme-toggle');
     if (alternador) alternador.addEventListener('click', function () {
       setTimeout(function () { leerColores(); if (!animando) dibujar(0); }, 60);

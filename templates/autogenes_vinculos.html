@@ -25,10 +25,12 @@
                   style="min-width:auto;padding:0 12px">trazar</button>
           <button type="button" id="vn-limpiar" class="ag-plegar"
                   style="min-width:auto;padding:0 12px">limpiar</button>
+          <button type="button" id="vn-reencuadrar" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px">reencuadrar</button>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
-      <div class="gr-lienzo" data-inspector="#vn-detalle" data-estado="#gr-estado">
+      <div class="gr-lienzo" data-inspector="#vn-detalle" data-estado="#gr-estado" data-reset="#vn-reencuadrar">
         <canvas aria-label="Lienzo de vínculos de la sesión" role="img"></canvas>
       </div>
       <div class="ag-leyenda" style="margin-top:8px">

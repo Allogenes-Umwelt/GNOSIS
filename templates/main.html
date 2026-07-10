@@ -114,7 +114,8 @@
   /* ── Dashboard deck-style (portada + KPIs + exhibits) ── */
   .gd { width: 100%; max-width: 1320px; margin: 0 auto; padding: 28px 40px 64px; }
   .gd-eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); }
-  .gd-hero { padding: 40px 0 30px; overflow: hidden; transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .35s ease, padding .5s ease; max-height: 640px; opacity: 1; }
+  .gd-hero { padding: 40px 0 30px; overflow: visible; transition: max-height .5s cubic-bezier(.4,0,.2,1), opacity .35s ease, padding .5s ease; max-height: 640px; opacity: 1; }
+  .gd-hero.collapsed { overflow: hidden; }
   .gd-hero.collapsed { max-height: 0; opacity: 0; padding: 0; pointer-events: none; }
   .gd-hero-row { display: grid; grid-template-columns: 1.05fr .95fr; gap: 40px; align-items: center; margin-top: 22px; }
   @keyframes gd-bob { 0%,100%{transform:translateY(0);opacity:.55} 50%{transform:translateY(-4px);opacity:1} }
