@@ -27,13 +27,14 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     """Apply the idempotent schema, WAL mode, and pending migrations."""
-    from . import models
+    from . import models, models_autogenes
     from .migrations import apply_migrations
 
     conn = get_connection()
     try:
         conn.execute("PRAGMA journal_mode = WAL")
         conn.executescript(models.SCHEMA_SQL)
+        conn.executescript(models_autogenes.AG_SCHEMA_SQL)
         apply_migrations(conn)
         conn.commit()
     finally:
