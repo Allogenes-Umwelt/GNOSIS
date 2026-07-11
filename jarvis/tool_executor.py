@@ -6,10 +6,15 @@ aplica ofuscacion cuando es necesario, y retorna resultados.
 import json
 from . import tools as t
 from .ofuscation import ObfuscationLayer
+from .tools_grafo import GRAFO_TOOL_FUNCTIONS
 
 
 # Tools que retornan datos individuales (necesitan ofuscacion)
 DETAIL_TOOLS = {'buscar_por_vin', 'buscar_por_factura', 'buscar_en_extraccion', 'detectar_datos_faltantes', 'consulta_sql'}
+
+# Tools de grafo cuyos resultados pueden arrastrar chasis/facturas
+# (etiquetas de nodos vehiculo, campos anidados): ofuscacion recursiva.
+GRAFO_DETAIL_TOOLS = {'expediente_entidad', 'camino_entre', 'vecindario'}
 
 # Mapeo nombre -> funcion
 TOOL_FUNCTIONS = {
@@ -31,6 +36,7 @@ TOOL_FUNCTIONS = {
     'resumen_extraccion': t.resumen_extraccion,
     'buscar_en_extraccion': t.buscar_en_extraccion,
     'consulta_sql': t.consulta_sql,
+    **GRAFO_TOOL_FUNCTIONS,
 }
 
 
@@ -56,6 +62,8 @@ class ToolExecutor:
         # Aplicar ofuscacion a tools de detalle
         if tool_name in DETAIL_TOOLS:
             result = self._obfuscate_result(result)
+        elif tool_name in GRAFO_DETAIL_TOOLS:
+            result = self._obfuscate_grafo(result)
 
         result_str = json.dumps(result, ensure_ascii=False, default=str)
 
@@ -85,3 +93,22 @@ class ToolExecutor:
                     obfuscated[key] = value
             return obfuscated
         return result
+
+    def _obfuscate_grafo(self, obj):
+        """Ofuscacion recursiva para resultados de grafo: la etiqueta de
+        un nodo vehiculo ES su chasis, y los campos chasis/factura pueden
+        aparecer anidados a cualquier profundidad."""
+        if isinstance(obj, list):
+            return [self._obfuscate_grafo(x) for x in obj]
+        if isinstance(obj, dict):
+            es_vehiculo = obj.get('kind') == 'vehiculo'
+            salida = {}
+            for key, value in obj.items():
+                if es_vehiculo and key == 'etiqueta' and value:
+                    salida[key] = self.obfuscation.mask_value(value, 'chasis')
+                elif key in ('chasis', 'factura') and isinstance(value, str) and value:
+                    salida[key] = self.obfuscation.mask_value(value, key)
+                else:
+                    salida[key] = self._obfuscate_grafo(value)
+            return salida
+        return obj

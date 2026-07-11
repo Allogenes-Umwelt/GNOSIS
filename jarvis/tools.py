@@ -1,5 +1,5 @@
 """
-18 herramientas SQL para Gnosis AI.
+18 herramientas SQL para Gnosis AI (+ 6 tools de grafo en tools_grafo.py).
 Cada funcion recibe parametros y retorna lista de dicts.
 TOOL_DEFINITIONS contiene los schemas JSON para Anthropic tool_use.
 """
@@ -7,6 +7,7 @@ TOOL_DEFINITIONS contiene los schemas JSON para Anthropic tool_use.
 import re
 from database import get_connection
 from database.persistence import get_latest_session_id
+from .tools_grafo import GRAFO_TOOL_DEFINITIONS
 
 
 def _get_session(session_id=None):
@@ -716,4 +717,4 @@ TOOL_DEFINITIONS = [
             "required": ["query"]
         }
     }
-]
+] + GRAFO_TOOL_DEFINITIONS  # F8: las tools de grafo del sustrato AUTOGENES

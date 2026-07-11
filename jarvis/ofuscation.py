@@ -4,7 +4,6 @@ Ofusca: factura, chasis (VIN), pedimento, patente (identificadores transaccional
 NO ofusca: marca, tipo, pais, precio, j_y_n, fechas, totales.
 """
 
-import re
 import uuid
 
 
