@@ -79,7 +79,9 @@
           '<div class="nivel" style="width:' + (ins.gravedad * 100).toFixed(0) +
           '%"></div></div>' +
           '<span class="valor">' + Math.round(ins.gravedad * 100) + '%</span>' +
-          '<a href="' + esc(ins.accion) + '">actuar →</a></div>';
+          '<a href="' + esc(ins.accion) + '">actuar →</a>' +
+          '<button type="button" class="sn-dockear" data-clave="' +
+          esc(ins.clave) + '">dockear</button></div>';
         if ((ins.refs || []).length) {
           html += '<div class="sn-refs">' +
             ins.refs.map(refTexto).join('  ·  ') + '</div>';
@@ -91,6 +93,33 @@
         var el = elLista.querySelector('[data-clave="' + resaltar + '"]');
         if (el) el.scrollIntoView({ block: 'nearest' });
       }
+      // dockeo re-anclador: el servidor re-ejecuta el motor y solo ancla
+      // entidades reales; una conjunción deshecha se niega a dockear
+      elLista.querySelectorAll('.sn-dockear').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          btn.disabled = true;
+          btn.textContent = 'dockeando…';
+          fetch('/api/v1/autogenes/sinapsis/dockear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clave: btn.dataset.clave })
+          })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) {
+                btn.disabled = false;
+                btn.textContent = res.j.error ? 'reintenta' : 'dockear';
+                return;
+              }
+              btn.textContent = 'dockeado · ' +
+                (res.j.producto.entidades.length) + ' anclas';
+            })
+            .catch(function () {
+              btn.disabled = false;
+              btn.textContent = 'sin conexión';
+            });
+        });
+      });
     }
 
     // ── derecha: el diamante del lattice ─────────────────────────────

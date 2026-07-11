@@ -1752,6 +1752,28 @@ def api_sinapsis():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/sinapsis/dockear', methods=['POST'])
+def api_sinapsis_dockear():
+    """HITL: dockea un insight como producto re-anclador — el motor se
+    re-ejecuta y solo se anclan entidades reales del sustrato."""
+    from autogenes.sinapsis import dockear_insight
+
+    cuerpo = request.get_json(silent=True) or {}
+    clave = cuerpo.get('clave')
+    if not clave or not isinstance(clave, str):
+        return jsonify({'error': 'Falta la clave del insight'}), 400
+
+    def handler(conn, session_id):
+        r = dockear_insight(conn, session_id, clave)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/validacion/certificado', methods=['POST'])
 def api_validacion_certificado():
     """HITL: dockea el expediente certificado — el estado de conformidad

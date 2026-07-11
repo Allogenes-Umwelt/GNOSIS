@@ -295,3 +295,48 @@ def componer_reticula(veredictos: dict[str, list[int]],
         "refinamiento": {"nombre": "P·CONCILIA ∧ P·VALIDACIÓN",
                          "celdas": celdas},
     }
+
+
+# ── ola 2: el dockeo re-anclador ─────────────────────────────────────
+
+
+def dockear_insight(conn: sqlite3.Connection, session_id: int,
+                    clave: str) -> dict[str, Any]:
+    """Dockea UN insight como Producto{informe, unidad sinapsis} — y el
+    grafo se reconfigura: el producto ANCLA por id las entidades reales
+    del sustrato cuyo nombre coincide con las etiquetas del insight
+    (solo coincidencias exactas contra ag_entidades; jamás se inventa un
+    ancla). El motor se re-ejecuta: si la conjunción ya no existe, no
+    hay nada que dockear."""
+    from autogenes.sustrato import Sustrato
+
+    r = insights_de_sesion(conn, session_id)
+    insight = next((i for i in r["insights"] if i["clave"] == clave), None)
+    if insight is None:
+        return {"error": f"El insight «{clave}» ya no existe — la "
+                         "conjunción se deshizo; recarga el tablero."}
+
+    # nombres candidatos: etiquetas y chasis citados en las refs
+    nombres: set[str] = set()
+    for ref in insight["refs"]:
+        for campo in ("etiqueta", "chasis", "cupo"):
+            v = ref.get(campo)
+            if v:
+                nombres.add(str(v))
+    ent_ids = []
+    if nombres:
+        marcadores = ",".join("?" * len(nombres))
+        ent_ids = [row["id"] for row in conn.execute(
+            f"SELECT id FROM ag_entidades WHERE session_id = ? AND nombre IN"
+            f" ({marcadores}) ORDER BY created_at",  # noqa: S608
+            (session_id, *sorted(nombres)))]
+
+    producto = Sustrato(conn, session_id).dockear_producto(
+        clase="informe",
+        titulo=f"Insight SINAPSIS — {insight['titulo']}"[:120],
+        unidad="sinapsis",
+        cuerpo=insight,
+        entidades=ent_ids,
+        evidencia=[],
+    )
+    return {"session_id": session_id, "producto": producto.model_dump()}

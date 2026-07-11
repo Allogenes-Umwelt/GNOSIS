@@ -168,3 +168,39 @@ def test_orquestador_incluye_reticula_coherente():
     assert (celda["concilia"], celda["validacion"]) == ("en_disputa",
                                                         "contra_norma")
     assert celda["insight"] == "sin-error-confirmado"
+
+
+def test_dockear_insight_ancla_entidades_reales(conn=None):
+    import sqlite3
+    from autogenes.sinapsis import dockear_insight
+    from autogenes.sustrato import Sustrato
+    from database import models, models_autogenes
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed,"
+        " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    c.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " j_y_n, pais_code) VALUES (1, 'WVWBRA00000090002', 'F2700-BR1',"
+        " 298000, 'J', 'BRA')")
+    c.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura,"
+        " amount, moneda, j_y_n, pais_code, filename) VALUES (1,"
+        " 'WVWBRA00000090002', 'F2700-BR', '12,000.00', 'EUR', 'N', 'BRA',"
+        " 'tiguan.pdf')")
+    # una entidad del sustrato cuyo nombre ES el chasis citado: se ancla
+    s = Sustrato(c, 1)
+    e = s.upsert_entidad("WVWBRA00000090002", "termino", "operador")
+    r = dockear_insight(c, 1, "sin-error-confirmado")
+    assert "error" not in r
+    p = r["producto"]
+    assert p["unidad"] == "sinapsis" and p["clase"] == "informe"
+    assert p["entidades"] == [e.id]            # re-ancla la entidad REAL
+    assert p["cuerpo"]["clave"] == "sin-error-confirmado"
+    # clave inexistente: honesto y sin escritura
+    r2 = dockear_insight(c, 1, "sin-fantasma")
+    assert "error" in r2
+    assert c.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 1

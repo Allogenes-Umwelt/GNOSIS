@@ -45,6 +45,14 @@
   color: var(--acc-text); text-decoration: none; text-transform: uppercase;
 }
 .sn-pie a:hover { text-decoration: underline; }
+.sn-dockear {
+  font-family: var(--font-mono); font-size: .68rem; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--acc-text);
+  background: transparent; border: 1px solid var(--linea);
+  padding: 4px 10px; cursor: pointer;
+}
+.sn-dockear:hover { border-color: var(--acc-text); }
+.sn-dockear:disabled { color: var(--t3); cursor: default; }
 .sn-refs {
   margin-top: 6px; font-family: var(--font-mono); font-size: .72rem;
   color: var(--t3); overflow-wrap: anywhere;
