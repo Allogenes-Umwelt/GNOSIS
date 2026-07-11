@@ -183,8 +183,10 @@
       var M = 14, bw = w - M * 2, alto = 22;
       var yTop = 26, yMed = h * 0.42, yMeet = h - 58;
 
-      // aristas del diagrama de Hasse: ⊤→P1, ⊤→P2, P1→⊥, P2→⊥
-      ctx.strokeStyle = alfa(colores.linea, 0.7);
+      // aristas del diagrama de Hasse: ⊤→P1, ⊤→P2, P1→⊥, P2→⊥ —
+      // en acento y gruesas: el refinamiento ES la estructura del lienzo
+      ctx.strokeStyle = alfa(colores.acc, 0.85);
+      ctx.lineWidth = 2;
       var xq = { c: M + bw * 0.25, v: M + bw * 0.75, top: w / 2 };
       [[xq.top, yTop + alto, xq.c, yMed], [xq.top, yTop + alto, xq.v, yMed],
        [xq.c, yMed + alto, xq.top, yMeet], [xq.v, yMed + alto, xq.top, yMeet]]
@@ -192,6 +194,7 @@
           ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(a[2], a[3]);
           ctx.stroke();
         });
+      ctx.lineWidth = 1;
 
       // ⊤: el universo (partición trivial, un solo bloque)
       rotulo('⊤ · universo DWH', w / 2, yTop - 8);

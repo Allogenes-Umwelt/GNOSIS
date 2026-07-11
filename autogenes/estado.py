@@ -86,8 +86,18 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         # hallazgos CONCILIA (F9): conteo real con datos aduanales; una
         # sesión puramente de sustrato queda latente, no en cero falso
         "hallazgos": _hallazgos_concilia(conn, session_id, vehiculos, facturas),
-        "reglas": None,       # F12 NOMOS
+        # reglas NOMOS (F12): conteo real; sin tabla migrada queda latente
+        "reglas": _reglas_nomos(conn, session_id),
     }
+
+
+def _reglas_nomos(conn: sqlite3.Connection, session_id: int) -> Optional[int]:
+    try:
+        return conn.execute(
+            "SELECT COUNT(*) FROM ag_reglas WHERE session_id = ?",
+            (session_id,)).fetchone()[0]
+    except sqlite3.OperationalError:
+        return None
 
 
 def _hallazgos_concilia(conn: sqlite3.Connection, session_id: int,

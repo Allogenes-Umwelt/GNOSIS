@@ -46,10 +46,9 @@ def test_estado_reporta_metricas_reales(conn):
     assert est["artefactos"] == 1 and est["entidades"] == 1
     # Radar (F5) vive: Audi huérfana + faltantes + errores = 3 señales
     assert est["senales"] == 3
-    # CONCILIA (F9) vive: hallazgos es conteo real del motor con datos
-    # aduanales presentes; NOMOS sigue latente (None, jamás inventado)
+    # CONCILIA (F9) y NOMOS (F12) viven: conteos reales del motor
     assert isinstance(est["hallazgos"], int) and est["hallazgos"] >= 1
-    assert est["reglas"] is None
+    assert est["reglas"] == 0    # tabla viva, sin reglas aún — cero honesto
 
 
 def test_estado_sesion_inexistente(conn):

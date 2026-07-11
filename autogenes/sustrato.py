@@ -422,6 +422,67 @@ class Sustrato:
         self._registrar("quitar-producto", "Producto eliminado")
         self._commit()
 
+    # ── NOMOS rules (F12): additive law — create + toggle, never delete ──
+
+    def crear_regla(self, nombre: str, condiciones: list[dict],
+                    entonces: dict, origen: str = "operador") -> dict:
+        """A rule is a McCulloch-Pitts AND unit: `condiciones` are its
+        inputs (campo=valor literals over importaciones), threshold =
+        len(condiciones); `entonces` is the expected campo=valor when it
+        fires. Fields are validated against a fixed allowlist — a rule
+        cannot reference a column that does not exist."""
+        permitidos = {"pais_code", "j_y_n", "auto_code", "factura", "chasis"}
+        for c in [*condiciones, entonces]:
+            if not isinstance(c, dict) or c.get("campo") not in permitidos \
+                    or not str(c.get("valor", "")).strip():
+                raise ValueError(f"Condición inválida: {c!r} — campos: "
+                                 f"{sorted(permitidos)}")
+        if not condiciones:
+            raise ValueError("Una regla necesita al menos una condición")
+        if origen not in ("operador", "insight"):
+            raise ValueError(f"Origen inválido: {origen!r}")
+        rid = _uuid()
+        self.conn.execute(
+            "INSERT INTO ag_reglas (id, session_id, nombre, condiciones,"
+            " entonces, origen) VALUES (?, ?, ?, ?, ?, ?)",
+            (rid, self.session_id, nombre.strip(), _js(condiciones),
+             _js(entonces), origen),
+        )
+        self._registrar("regla", f"Regla creada: {nombre.strip()} ({origen})")
+        self._commit()
+        return self.regla_por_id(rid)  # type: ignore[return-value]
+
+    def alternar_regla(self, regla_id: str, activa: bool) -> None:
+        cambiado = self.conn.execute(
+            "UPDATE ag_reglas SET activa = ? WHERE id = ? AND session_id = ?",
+            (1 if activa else 0, regla_id, self.session_id),
+        ).rowcount
+        if not cambiado:
+            return
+        self._registrar("regla",
+                        f"Regla {'activada' if activa else 'desactivada'}")
+        self._commit()
+
+    def regla_por_id(self, regla_id: str) -> Optional[dict]:
+        r = self.conn.execute(
+            "SELECT * FROM ag_reglas WHERE id = ? AND session_id = ?",
+            (regla_id, self.session_id),
+        ).fetchone()
+        if r is None:
+            return None
+        return {**dict(r), "condiciones": json.loads(r["condiciones"]),
+                "entonces": json.loads(r["entonces"]),
+                "activa": bool(r["activa"])}
+
+    def leer_reglas(self) -> list[dict]:
+        return [
+            {**dict(r), "condiciones": json.loads(r["condiciones"]),
+             "entonces": json.loads(r["entonces"]), "activa": bool(r["activa"])}
+            for r in self.conn.execute(
+                "SELECT * FROM ag_reglas WHERE session_id = ?"
+                " ORDER BY created_at, id", (self.session_id,))
+        ]
+
     # ── the provenance cascade ───────────────────────────────────────
 
     def quitar_artefacto(self, artefacto_id: str) -> None:

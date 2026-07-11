@@ -136,4 +136,22 @@ CREATE TABLE IF NOT EXISTS ag_qualia_base (
     snapshot    TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );
+
+-- NOMOS (F12): reglas de negocio como ciudadanos del grafo. Escritura
+-- SOLO via Sustrato (ley aditiva: crear + activar/desactivar, jamas
+-- borrar). Una regla es una neurona McCulloch-Pitts AND: condiciones
+-- (campo=valor sobre importaciones) con pesos unitarios y umbral = n
+-- condiciones; 'entonces' es el campo/valor esperado cuando dispara.
+CREATE TABLE IF NOT EXISTS ag_reglas (
+    id          TEXT PRIMARY KEY,
+    session_id  INTEGER NOT NULL,
+    nombre      TEXT NOT NULL,
+    condiciones TEXT NOT NULL,          -- JSON [{campo, valor}]
+    entonces    TEXT NOT NULL,          -- JSON {campo, valor}
+    origen      TEXT NOT NULL CHECK (origen IN ('operador', 'insight')),
+    activa      INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ag_reglas_session ON ag_reglas(session_id);
 """
