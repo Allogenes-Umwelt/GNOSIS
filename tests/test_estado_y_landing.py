@@ -262,4 +262,8 @@ def test_tableros_renderizan():
     html5 = _flask_render("tableros_cupo.html", sesion_etiqueta="07/2026")
     assert "TBV-05" in html5 and "tc-lienzo" in html5 and "tc-dial" in html5
     assert "tbv_cupo.js" in html5
+    html6 = _flask_render("tableros_rutas.html", sesion_etiqueta="07/2026")
+    assert "TBV-03" in html6 and "tu-lienzo" in html6 and "tu-lista" in html6
+    assert "tbv_rutas.js" in html6 and "OpenStreetMap" in html6
     assert "/tableros/rechazos" in html and "/tableros/cupo" in html
+    assert "/tableros/rutas" in html

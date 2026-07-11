@@ -1846,6 +1846,26 @@ def api_tableros_cupo():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/tableros/rutas')
+def tableros_rutas():
+    """TBV-03 · RUTAS: flujo país → aduana sobre mapa OSM con arcos
+    por volumen; lo no ubicable se declara, no se dibuja."""
+    return render_template('tableros_rutas.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/tableros/rutas', methods=['GET'])
+def api_tableros_rutas():
+    from tableros.rutas import rutas
+
+    def handler(conn, session_id):
+        return jsonify(rutas(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/tableros/dominio', methods=['GET'])
 def api_tableros_dominio():
     from tableros.dominio import dominio

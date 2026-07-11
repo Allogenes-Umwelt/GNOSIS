@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · TBV-03 — Rutas{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
+
+    <section class="ag-centro gr-centro" aria-label="Flujos país a aduana">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">TBV-03 · TABLEROS VW</span>
+          <span class="nom">◆ Rutas · País → Aduana</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Flujo</div>
+      <div class="cn-flujo">
+        <div class="qa-bar"><span class="l">Unidades</span><span class="v" id="tu-total">—</span></div>
+        <div class="qa-bar"><span class="l">Rutas</span><span class="v" id="tu-rutas">—</span></div>
+        <div class="qa-bar"><span class="l">Ubicadas en mapa</span><span class="v" id="tu-geo">—</span></div>
+        <div class="qa-bar"><span class="l">Sin ubicar</span><span class="v" id="tu-singeo">—</span></div>
+      </div>
+
+      <div class="qa-sec">Rutas · por volumen</div>
+      <p class="qa-base-hint" style="margin:0 0 8px" id="tu-nota">El origen se
+      ancla en el centroide del país — el puerto de salida no está en los
+      datos. Lo que no se puede ubicar se declara, no se dibuja.</p>
+      <div class="qa-lista" id="tu-lista" aria-live="polite">
+        <p class="qa-base-hint">Cargando…</p>
+      </div>
+      <div id="tu-declaraciones"></div>
+    </section>
+
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Mapa de flujos">
+      <div class="ag-panel-head">
+        <h2>Mapa</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Arcos de flujo</div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Teselas OpenStreetMap;
+      cada arco une el centroide del país de origen con la aduana de entrada
+      y su grosor es proporcional a las unidades reales del flujo.</p>
+      <div class="qa-lienzo tu-lienzo" id="tu-lienzo"
+           aria-label="Mapa de flujos país a aduana sobre OpenStreetMap">
+        <canvas></canvas>
+      </div>
+      <div id="tu-detalle" class="gr-inspector" aria-live="polite"></div>
+      <a class="ag-volver" href="/tableros" style="margin-top:auto">← Tableros</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tbv_rutas.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

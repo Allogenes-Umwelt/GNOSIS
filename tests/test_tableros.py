@@ -182,3 +182,50 @@ def test_libro_cupo_corta_el_futuro_y_lo_declara(conn):
     assert prod["meses"][-1]["agotado"] is True     # llegar a 0 es un hecho
     assert prod["meses"][0]["agotado"] is False
     assert "sin proyecciones" in r["nota"]
+
+
+# ── TBV-03 · Rutas (país → aduana) ───────────────────────────────────
+
+
+def _importar_por(c, aduana, pais_code, n=1):
+    if aduana is None:
+        ped = None
+    else:
+        consecutivo = c.execute(
+            "SELECT COUNT(*) FROM pedimentos").fetchone()[0]
+        c.execute("INSERT INTO pedimentos (session_id, numero_pedimento,"
+                  " aduana) VALUES (1, ?, ?)",
+                  (f"P-{consecutivo}-{aduana}", aduana))
+        ped = c.execute("SELECT MAX(id) FROM pedimentos").fetchone()[0]
+    for _ in range(n):
+        c.execute(
+            "INSERT INTO importaciones (session_id, catalogo_id, pedimento_id,"
+            " chasis, factura, pais_code) VALUES (1, 1, ?, 'V', 'F', ?)",
+            (ped, pais_code))
+
+
+def test_rutas_agrupa_y_geolocaliza_solo_lo_conocido(conn):
+    from tableros.rutas import rutas
+    _importar_por(conn, "Veracruz", "DEU", n=5)
+    _importar_por(conn, "ADUANA DE ALTAMIRA", "ESP", n=2)   # contiene la clave
+    _importar_por(conn, "Puerto Fantasma", "DEU", n=3)      # aduana desconocida
+    _importar_por(conn, "Veracruz", "XXX", n=1)             # país fuera de catálogo
+    _importar_por(conn, None, "DEU", n=1)                   # sin pedimento/aduana
+    r = rutas(conn, 1)
+    assert r["total"] == 12 and r["geolocalizado"] == 7
+    assert [f["n"] for f in r["flujos"]] == [5, 2]
+    top = r["flujos"][0]
+    assert top["pais_code"] == "DEU" and top["aduana"] == "Veracruz"
+    assert top["destino"] == {"lat": 19.1738, "lon": -96.1342}
+    assert top["origen"] == {"lat": 51.16, "lon": 10.45}    # centroide declarado
+    motivos = {s["motivo"] for s in r["sin_geo"]}
+    assert any("Puerto Fantasma" in m for m in motivos)
+    assert any("XXX" in m for m in motivos)
+    assert any("sin aduana" in m for m in motivos)
+    assert sum(s["n"] for s in r["sin_geo"]) == 5
+
+
+def test_rutas_sin_datos_es_honesto(conn):
+    from tableros.rutas import rutas
+    r = rutas(conn, 1)
+    assert r["total"] == 0 and r["flujos"] == [] and r["sin_geo"] == []

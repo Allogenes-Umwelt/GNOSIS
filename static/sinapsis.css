@@ -112,3 +112,5 @@
 .tr-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
 .tc-lienzo { height: 400px; }
 .tc-lienzo canvas { width: 100%; height: 100%; display: block; }
+.tu-lienzo { height: 460px; }
+.tu-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
