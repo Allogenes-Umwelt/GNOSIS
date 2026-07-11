@@ -163,3 +163,47 @@ def test_redactar_narrativa_reporta_modelo_ilegible(conn, monkeypatch):
                         lambda cfg=None: ("guion", _ProveedorGuion("no soy json")))
     r = redactar_narrativa(conn, 1)
     assert "error" in r
+
+
+# ── dockear el parte (F8): narrativa -> Producto ─────────────────────
+
+def test_dockear_parte_ancla_entidades_citadas_y_poda_fabricadas(conn):
+    from autogenes.qualia_narrativa import dockear_parte
+    vw = conn.execute(
+        "SELECT id FROM ag_entidades WHERE nombre = 'VW'").fetchone()["id"]
+    r = dockear_parte(conn, 1, {
+        "panorama": "Red compacta centrada en VW.",
+        "lecturas": [
+            {"concepto": "nodos", "lectura": "El caso es pequeño."},
+            {"concepto": vw, "lectura": "VW concentra la estructura."},
+            {"concepto": "clave-fabricada", "lectura": "Debe morir."},
+        ],
+        "observaciones": ["Fija la base."],
+    })
+    assert "error" not in r
+    p = r["producto"]
+    assert p["clase"] == "informe" and p["unidad"] == "qualia"
+    assert p["entidades"] == [vw]          # solo la clave que ES entidad real
+    assert p["evidencia"] == []            # el parte lee estructura, no inventa citas
+    claves = [ln["clave"] for ln in p["cuerpo"]["lecturas"]]
+    assert claves == ["nodos", vw]         # la fabricada murió en el re-saneo
+    assert p["cuerpo"]["lecturas"][1]["etiqueta"] == "VW"
+    fila = conn.execute("SELECT clase, unidad FROM ag_productos").fetchone()
+    assert (fila["clase"], fila["unidad"]) == ("informe", "qualia")
+
+
+def test_dockear_parte_sin_clave_vigente_no_escribe(conn):
+    from autogenes.qualia_narrativa import dockear_parte
+    r = dockear_parte(conn, 1, {
+        "panorama": "x",
+        "lecturas": [{"concepto": "inventada", "lectura": "y"}],
+        "observaciones": [],
+    })
+    assert "error" in r and "nada que dockear" in r["error"]
+    assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0
+
+
+def test_dockear_parte_rechaza_narrativa_malformada(conn):
+    from autogenes.qualia_narrativa import dockear_parte
+    assert "error" in dockear_parte(conn, 1, {"lecturas": "no-es-lista"})
+    assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0

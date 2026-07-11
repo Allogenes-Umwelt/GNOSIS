@@ -246,20 +246,17 @@ PROMPT_NARRATIVA = (
 )
 
 
-def redactar_narrativa(conn: sqlite3.Connection, session_id: int,
-                       config: Optional[dict] = None) -> dict[str, Any]:
-    """One shot, no tools, never writes. The digest goes in; a qualitative
-    reading comes out; the provenance law runs HERE, in server."""
-    import json
-
+def digesto_de_sesion(conn: sqlite3.Connection,
+                      session_id: int) -> Optional[Digesto]:
+    """The machine digest computed NOW from the live graph — the single
+    source for redactar_narrativa and for dockear_parte's re-sanitize.
+    None when the case has no network."""
     from autogenes import topologia
-    from autogenes.extraccion import extraer_json
     from autogenes.qualia import anomalias_de_sesion, leer_snapshots, red_de_sesion
-    from jarvis.llm_interface import seleccionar_proveedor
 
     red = red_de_sesion(conn, session_id)
     if not red["nodos"]:
-        return {"error": "El caso no tiene red que interpretar"}
+        return None
     estado = anomalias_de_sesion(conn, session_id)
     resumen = estado["resumen"]
     masas = topologia.centralidad_vector_propio(red)
@@ -273,8 +270,22 @@ def redactar_narrativa(conn: sqlite3.Connection, session_id: int,
     if len(snaps) >= 2:
         delta = {"nodos": snaps[-1]["n_nodos"] - snaps[0]["n_nodos"],
                  "enlaces": snaps[-1]["n_enlaces"] - snaps[0]["n_enlaces"]}
-    digesto = construir_digesto_maquina(resumen, estado["hallazgos"],
-                                        monolitos, len(snaps), delta)
+    return construir_digesto_maquina(resumen, estado["hallazgos"],
+                                     monolitos, len(snaps), delta)
+
+
+def redactar_narrativa(conn: sqlite3.Connection, session_id: int,
+                       config: Optional[dict] = None) -> dict[str, Any]:
+    """One shot, no tools, never writes. The digest goes in; a qualitative
+    reading comes out; the provenance law runs HERE, in server."""
+    import json
+
+    from autogenes.extraccion import extraer_json
+    from jarvis.llm_interface import seleccionar_proveedor
+
+    digesto = digesto_de_sesion(conn, session_id)
+    if digesto is None:
+        return {"error": "El caso no tiene red que interpretar"}
 
     config = config or {}
     _, proveedor = seleccionar_proveedor(config)
@@ -294,3 +305,62 @@ def redactar_narrativa(conn: sqlite3.Connection, session_id: int,
     saneada = sanear_narrativa(narrativa, claves_digesto(digesto))
     return {"session_id": session_id, "narrativa": saneada.model_dump(),
             "digesto": digesto}
+
+
+def dockear_parte(conn: sqlite3.Connection, session_id: int,
+                  narrativa_cruda: dict) -> dict[str, Any]:
+    """Dockea el parte del sistema como Producto{clase:"informe",
+    unidad:"qualia"} — el segundo paso HITL, como dockear_informe.
+
+    Cinturón y tirantes: el digesto se RECALCULA aquí desde el grafo vivo
+    y la narrativa se vuelve a sanear contra él — una lectura que cite
+    una clave ya no vigente muere antes de dockear. Se anclan por id las
+    claves citadas que son entidades reales del sustrato; el parte lee
+    ESTRUCTURA, no documentos, así que su evidencia queda vacía en vez de
+    fabricar citas a fragmentos."""
+    from autogenes.sustrato import Sustrato
+
+    try:
+        narrativa = Narrativa.model_validate(narrativa_cruda)
+    except Exception:
+        return {"error": "El parte está malformado"}
+
+    digesto = digesto_de_sesion(conn, session_id)
+    if digesto is None:
+        return {"error": "El caso ya no tiene red — nada que dockear"}
+    saneada = sanear_narrativa(narrativa, claves_digesto(digesto))
+    if not saneada.lecturas:
+        return {"error": "El parte no cita una sola clave vigente del "
+                         "digesto — nada que dockear"}
+
+    etiqueta_de = {c["clave"]: c["etiqueta"] for c in digesto["conceptos"]}
+    etiqueta_de.update({m["clave"]: m["etiqueta"] for m in digesto["metricas"]})
+    claves_citadas = list(dict.fromkeys(
+        lec.concepto for lec in saneada.lecturas))
+    marcadores = ",".join("?" * len(claves_citadas))
+    ent_ids = [r["id"] for r in conn.execute(
+        f"SELECT id FROM ag_entidades WHERE session_id = ? AND id IN"
+        f" ({marcadores}) ORDER BY created_at",  # noqa: S608
+        (session_id, *claves_citadas),
+    )]
+
+    cuerpo = {
+        "panorama": saneada.panorama,
+        "lecturas": [
+            {"clave": lec.concepto,
+             "etiqueta": etiqueta_de.get(lec.concepto, lec.concepto),
+             "lectura": lec.lectura}
+            for lec in saneada.lecturas
+        ],
+        "observaciones": saneada.observaciones,
+        "metricas": digesto["metricas"],
+    }
+    producto = Sustrato(conn, session_id).dockear_producto(
+        clase="informe",
+        titulo="Parte del sistema QUALIA",
+        unidad="qualia",
+        cuerpo=cuerpo,
+        entidades=ent_ids,
+        evidencia=[],
+    )
+    return {"session_id": session_id, "producto": producto.model_dump()}

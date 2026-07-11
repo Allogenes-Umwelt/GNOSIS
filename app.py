@@ -1662,6 +1662,29 @@ def api_qualia_narrativa():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/qualia/parte/dockear', methods=['POST'])
+def api_qualia_parte_dockear():
+    """HITL: dockea el parte del sistema como Producto{informe} de la
+    unidad qualia. El digesto se recalcula del grafo vivo y la narrativa
+    se vuelve a sanear en servidor antes de escribir."""
+    from autogenes.qualia_narrativa import dockear_parte
+
+    cuerpo = request.get_json(silent=True) or {}
+    narrativa = cuerpo.get('narrativa')
+    if not isinstance(narrativa, dict):
+        return jsonify({'error': 'Falta la narrativa a dockear'}), 400
+
+    def handler(conn, session_id):
+        r = dockear_parte(conn, session_id, narrativa)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/qualia/red', methods=['GET'])
 def api_qualia_red():
     """La red del caso para el lienzo QUALIA: nivel N de la escalera de

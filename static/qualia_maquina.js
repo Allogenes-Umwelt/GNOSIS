@@ -21,7 +21,9 @@
     var elActD = document.getElementById('qm-act-dato');
     var elParte = document.getElementById('qm-parte-cuerpo');
     var btnLeer = document.getElementById('qm-leer');
+    var btnDockear = document.getElementById('qm-dockear');
     var elMsj = document.getElementById('qm-msj');
+    var ultimaNarrativa = null;
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -123,6 +125,8 @@
     // ── LEER EL SISTEMA: la narrativa saneada ────────────────────────
     btnLeer.addEventListener('click', function () {
       btnLeer.disabled = true;
+      ultimaNarrativa = null;
+      btnDockear.style.display = 'none';
       elMsj.className = 'ag-msj';
       elMsj.textContent = 'El modelo interpreta el digesto…';
       elParte.innerHTML = '<div class="sp-scan" aria-hidden="true" ' +
@@ -162,6 +166,12 @@
             'cita una clave del digesto; lo que citó claves inventadas murió en ' +
             'el saneador antes de llegar aquí.</p>';
           elParte.innerHTML = html;
+          ultimaNarrativa = n;
+          if ((n.lecturas || []).length) {
+            btnDockear.style.display = '';
+            btnDockear.disabled = false;
+            btnDockear.textContent = 'dockear el parte';
+          }
         })
         .catch(function () {
           btnLeer.disabled = false;
@@ -169,6 +179,39 @@
           elMsj.textContent = 'Sin conexión — reintenta';
           elParte.innerHTML = '<p class="qa-base-hint">No se pudo contactar al ' +
             'modelo. Revisa el proveedor en admin.</p>';
+        });
+    });
+
+    // ── DOCKEAR EL PARTE: narrativa -> Producto{informe, qualia} ─────
+    // El servidor recalcula el digesto y vuelve a sanear antes de
+    // escribir; aquí solo se envía la narrativa ya mostrada.
+    btnDockear.addEventListener('click', function () {
+      if (!ultimaNarrativa) return;
+      btnDockear.disabled = true;
+      elMsj.className = 'ag-msj';
+      elMsj.textContent = 'Dockeando el parte…';
+      fetch('/api/v1/autogenes/qualia/parte/dockear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ narrativa: ultimaNarrativa })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            btnDockear.disabled = false;
+            elMsj.className = 'ag-msj error';
+            elMsj.textContent = res.j.error || 'No se pudo dockear — reintenta';
+            return;
+          }
+          btnDockear.textContent = 'parte dockeado';
+          elMsj.className = 'ag-msj';
+          elMsj.textContent = '«' + res.j.producto.titulo +
+            '» ya es un producto del grafo';
+        })
+        .catch(function () {
+          btnDockear.disabled = false;
+          elMsj.className = 'ag-msj error';
+          elMsj.textContent = 'Sin conexión — reintenta';
         });
     });
   });
