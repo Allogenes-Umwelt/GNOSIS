@@ -253,3 +253,6 @@ def test_tableros_renderizan():
     html2 = _flask_render("tableros_dominio.html", sesion_etiqueta="07/2026")
     assert "TBV-02" in html2 and "td-lienzo" in html2 and "td-dial" in html2
     assert "tbv_dominio.js" in html2
+    html3 = _flask_render("tableros_maduracion.html", sesion_etiqueta="07/2026")
+    assert "TBV-01" in html3 and "tm-lienzo" in html3 and "tm-toggle" in html3
+    assert "tbv_maduracion.js" in html3

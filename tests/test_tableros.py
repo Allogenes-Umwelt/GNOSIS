@@ -81,3 +81,49 @@ def test_dominio_ranking_escalonado_por_marca_con_desglose(conn):
     seat = r["ranking_marcas"][0]
     assert seat["top_modelo"] == "LEON" and seat["top_n"] == 7
     assert r["periodos"] == ["2026"]
+
+
+# ── TBV-01 · Maduración ──────────────────────────────────────────────
+
+
+def _pedimento_con_fecha(c, fecha):
+    c.execute("INSERT INTO pedimentos (session_id, numero_pedimento,"
+              " fecha_pedimento) VALUES (1, ?, ?)", (f"P-{fecha}", fecha))
+    return c.execute("SELECT MAX(id) FROM pedimentos").fetchone()[0]
+
+
+def test_maduracion_mide_dias_reales_por_marca(conn):
+    from tableros.maduracion import maduracion
+    ped = _pedimento_con_fecha(conn, "2026-01-01")
+    for chasis, venta in (("VA", "2026-01-11"), ("VB", "2026-01-31"),
+                          ("VC", "2026-02-20")):
+        conn.execute(
+            "INSERT INTO importaciones (session_id, catalogo_id, pedimento_id,"
+            " chasis, factura, fecha_factura) VALUES (1, 1, ?, ?, 'F', ?)",
+            (ped, chasis, venta))
+    # sin fecha de venta: se declara, no se adivina
+    conn.execute(
+        "INSERT INTO importaciones (session_id, catalogo_id, pedimento_id,"
+        " chasis, factura, fecha_factura) VALUES (1, 1, ?, 'VD', 'F', NULL)",
+        (ped,))
+    # vendido ANTES de importarse: anomalía declarada aparte
+    conn.execute(
+        "INSERT INTO importaciones (session_id, catalogo_id, pedimento_id,"
+        " chasis, factura, fecha_factura) VALUES (1, 1, ?, 'VE', 'F',"
+        " '2025-12-25')", (ped,))
+    r = maduracion(conn, 1)
+    audi = next(m for m in r["marcas"] if m["marca"] == "AUDI")
+    assert audi["n"] == 3
+    assert audi["deltas"] == [10, 30, 50]
+    assert audi["mediana"] == 30 and audi["min"] == 10 and audi["max"] == 50
+    assert audi["extremos"][0]["chasis"] == "VC"      # la más lenta, citada
+    assert r["sin_fechas"] == 1 and r["negativos"] == 1
+    assert r["max_dias"] == 50
+
+
+def test_maduracion_percentiles_rango_mas_cercano(conn):
+    from tableros.maduracion import _percentil
+    assert _percentil([10, 20, 30, 40, 50], 0.5) == 30
+    assert _percentil([10, 20, 30, 40, 50], 0.9) == 50
+    assert _percentil([10], 0.25) == 10
+    assert _percentil([], 0.5) == 0

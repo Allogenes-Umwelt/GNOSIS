@@ -1788,6 +1788,26 @@ def tableros_dominio():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/tableros/maduracion')
+def tableros_maduracion():
+    """TBV-01 · MADURACIÓN: días de importación a venta por marca —
+    espectro de densidad con percentiles y toggle de marca."""
+    return render_template('tableros_maduracion.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/tableros/maduracion', methods=['GET'])
+def api_tableros_maduracion():
+    from tableros.maduracion import maduracion
+
+    def handler(conn, session_id):
+        return jsonify(maduracion(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/tableros/dominio', methods=['GET'])
 def api_tableros_dominio():
     from tableros.dominio import dominio
