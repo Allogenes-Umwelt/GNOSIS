@@ -46,8 +46,10 @@ def test_estado_reporta_metricas_reales(conn):
     assert est["artefactos"] == 1 and est["entidades"] == 1
     # Radar (F5) vive: Audi huérfana + faltantes + errores = 3 señales
     assert est["senales"] == 3
-    # latentes: fases no construidas se reportan None, jamás inventadas
-    assert est["hallazgos"] is None and est["reglas"] is None
+    # CONCILIA (F9) vive: hallazgos es conteo real del motor con datos
+    # aduanales presentes; NOMOS sigue latente (None, jamás inventado)
+    assert isinstance(est["hallazgos"], int) and est["hallazgos"] >= 1
+    assert est["reglas"] is None
 
 
 def test_estado_sesion_inexistente(conn):
@@ -207,3 +209,11 @@ def test_qualia_maquina_renderiza():
     assert "qm-observar" in html and "qm-orientar" in html
     assert "qm-decidir" in html and "qm-actuar" in html
     assert "qualia_maquina.js" in html
+
+
+def test_concilia_renderiza():
+    html = _flask_render("autogenes_concilia.html", sesion_etiqueta="07/2026")
+    assert "CNC-01" in html
+    assert "cn-flujo" in html and "cn-hallazgos" in html
+    assert "cn-banda-dwh" in html and "cn-banda-pdf" in html
+    assert "concilia.js" in html

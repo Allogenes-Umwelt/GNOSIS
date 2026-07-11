@@ -83,6 +83,16 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         "anomalias": (len(sen["anomalias"])
                       if sen["anomalias"] or _tiene_base_qualia(conn, session_id)
                       else None),
-        "hallazgos": None,    # F9 motor de hallazgos
+        # hallazgos CONCILIA (F9): conteo real con datos aduanales; una
+        # sesión puramente de sustrato queda latente, no en cero falso
+        "hallazgos": _hallazgos_concilia(conn, session_id, vehiculos, facturas),
         "reglas": None,       # F12 NOMOS
     }
+
+
+def _hallazgos_concilia(conn: sqlite3.Connection, session_id: int,
+                        vehiculos: int, facturas: int) -> Optional[int]:
+    if not vehiculos and not facturas:
+        return None
+    from autogenes.concilia import conciliar
+    return conciliar(conn, session_id)["total"]

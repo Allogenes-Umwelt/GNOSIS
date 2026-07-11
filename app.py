@@ -1159,10 +1159,10 @@ AUTOGENES_SECCIONES = {
         'descripcion': 'Coherencia entre fuentes: DWH (vendido), facturas '
                        '(llegado) y pedimentos (declarado). Estado vivo por VIN, '
                        'afirmaciones en competencia y hallazgos monetizados.',
-        'metricas': [('conciliado_pct', 'Conciliado %'), ('faltantes', 'Faltantes'),
+        'metricas': [('conciliado_pct', 'Conciliado %'), ('hallazgos', 'Hallazgos'),
                      ('vehiculos', 'Vehículos')],
-        'estado': 'El motor de hallazgos se construye en F9 — la conciliación '
-                  'tri-fuente ya corre en el pipeline y se lee aquí.'},
+        'estado': 'Activo — flujo tri-fuente y hallazgos monetizados del motor '
+                  'CONCILIA.'},
     'validacion': {
         'nombre': 'VALIDACIÓN', 'numero': 'II', 'forma': 'triangulo',
         'tipo': 'Dashboard', 'fase': 'Fase F10',
@@ -1390,6 +1390,14 @@ def autogenes_qualia_maquina():
     """Qualia · Máquina C2 (F7): las cuatro ventanas OODA con titulares
     del motor y la lectura SYNESIS del sistema."""
     return render_template('autogenes_qualia_maquina.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/concilia')
+def autogenes_concilia():
+    """CONCILIA (F9): dashboard propio de la conciliación tri-fuente —
+    flujo vendido/conciliado/llegado y hallazgos monetizados del motor."""
+    return render_template('autogenes_concilia.html',
                            sesion_etiqueta=_etiqueta_sesion())
 
 
@@ -1679,6 +1687,20 @@ def api_qualia_parte_dockear():
         if 'error' in r:
             return jsonify(r), 422
         return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/concilia', methods=['GET'])
+def api_concilia():
+    """CONCILIA (F9): flujo tri-fuente + hallazgos tipados, monetizados
+    y referenciados — todo salida determinista del motor."""
+    from autogenes.concilia import conciliar
+
+    def handler(conn, session_id):
+        return jsonify(conciliar(conn, session_id))
     try:
         return _con_sesion(handler)
     except Exception as e:

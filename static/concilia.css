@@ -1,0 +1,81 @@
+/* GNOSIS · CONCILIA (CNC-01) — dashboard de conciliación tri-fuente.
+   Extiende las primitivas databook de qualia.css; todo valor viene de
+   tokens. Magenta SOLO en hallazgos y huecos de conciliación (alertas
+   reales); lo conciliado es acento. */
+
+.cn-flujo {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.cn-flujo .v small { font-size: .6em; color: var(--t3); }
+.cn-flujo .v.riesgo { color: var(--danger); }
+
+/* bandas de balance: pista con tramo conciliado (acento) y hueco (magenta) */
+.cn-bandas { display: flex; flex-direction: column; gap: 6px; margin-bottom: 4px; }
+.cn-banda { display: flex; align-items: center; gap: 8px; }
+.cn-banda .tag {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px;
+  color: var(--t3); width: 34px; flex-shrink: 0; text-align: right;
+}
+.cn-banda .pista {
+  flex: 1; height: 8px; display: flex; overflow: hidden;
+  background: var(--s2); border: 1px solid var(--linea);
+}
+.cn-banda .pista .ok { background: var(--acc-solid); height: 100%; }
+.cn-banda .pista .hueco { background: var(--danger); height: 100%; opacity: .75; }
+.cn-banda .pct {
+  font-family: var(--font-mono); font-size: .68rem; color: var(--t2);
+  width: 88px; flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
+
+/* hallazgo: caja de dos líneas — título + monto, luego el detalle */
+.cn-caja {
+  display: block; padding: 9px 12px;
+  background: var(--s1); border: 1px solid var(--linea);
+  border-left: 2px solid var(--danger);
+  text-transform: none;      /* el botón global va en caps; el detalle no */
+  letter-spacing: normal;
+}
+.cn-caja .fila {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+}
+.cn-caja .titulo {
+  font-family: var(--font-d); font-weight: 700; font-size: .78rem;
+  letter-spacing: .4px; color: var(--t1); text-transform: uppercase;
+}
+.cn-caja .monto {
+  font-family: var(--font-mono); font-size: .82rem; color: var(--danger);
+  font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0;
+}
+.cn-caja .monto.neutro { color: var(--t3); }
+.cn-caja .clase {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px;
+  color: var(--danger); text-transform: uppercase;
+}
+.cn-caja .detalle {
+  margin: 4px 0 0; font-size: .74rem; line-height: 1.45; color: var(--t2);
+}
+.cn-caja.qa-item.activo { border-color: var(--danger); background: var(--acc-subtle); }
+
+/* ficha */
+.cn-ficha-clase {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px;
+  color: var(--danger); text-transform: uppercase;
+}
+.cn-ficha-monto {
+  font-family: var(--font-mono); font-size: 1.5rem; color: var(--danger);
+  font-variant-numeric: tabular-nums; margin: 2px 0 8px;
+}
+.cn-ficha-monto.neutro { color: var(--t2); }
+.cn-ref {
+  display: flex; flex-direction: column; gap: 1px; padding: 6px 8px;
+  background: var(--s1); border: 1px solid var(--linea);
+  font-family: var(--font-mono); font-size: .66rem; color: var(--t2);
+}
+.cn-ref b { color: var(--t1); font-weight: 400; }
+
+@media (max-width: 860px) {
+  .cn-flujo { grid-template-columns: repeat(2, 1fr); }
+}
