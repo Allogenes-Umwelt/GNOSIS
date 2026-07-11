@@ -21,23 +21,28 @@ PAISES_GEO = {
     "POL": (51.92, 19.15), "TUR": (38.96, 35.24),
 }
 
-# aduanas mexicanas conocidas (lat, lon), clave normalizada sin acentos
+# aduanas mexicanas conocidas (lat, lon), clave normalizada sin acentos.
+# Puertos marítimos: coordenadas OFICIALES de SEMAR (derroteros «Datos
+# Generales del Puerto» en diredimoat.semar.gob.mx y estaciones
+# mareográficas en oceanografia.semar.gob.mx), convertidas de GMS a
+# decimal. Cruces terrestres e interiores: ancla de ciudad de referencia
+# — ANAM/DOF/CILA publican domicilio, no coordenadas accesibles.
 ADUANAS_GEO = {
-    "VERACRUZ": (19.1738, -96.1342),
-    "ALTAMIRA": (22.3922, -97.9309),
-    "LAZARO CARDENAS": (17.9583, -102.1994),
-    "MANZANILLO": (19.0522, -104.3158),
-    "TAMPICO": (22.2553, -97.8686),
-    "MAZATLAN": (23.2494, -106.4111),
-    "ENSENADA": (31.8667, -116.5964),
-    "GUAYMAS": (27.9183, -110.8989),
-    "PROGRESO": (21.2833, -89.6636),
-    "NUEVO LAREDO": (27.4861, -99.5069),
-    "COLOMBIA": (27.7017, -99.7581),
-    "CIUDAD JUAREZ": (31.7386, -106.4870),
-    "TIJUANA": (32.5149, -117.0382),
-    "MEXICO": (19.4361, -99.0719),
-    "TOLUCA": (19.3371, -99.5660),
+    "VERACRUZ": (19.2006, -96.1375),          # SEMAR 19°12'02"N 96°08'15"W
+    "ALTAMIRA": (22.4844, -97.8606),          # SEMAR 22°29'04"N 97°51'38"W
+    "LAZARO CARDENAS": (17.9162, -102.1729),  # SEMAR 17°54'58"N 102°10'22"W
+    "MANZANILLO": (19.0453, -104.3147),       # SEMAR 19°02'43"N 104°18'53"W
+    "TAMPICO": (22.2553, -97.8686),           # SEMAR 22°15'19"N 97°52'07"W
+    "MAZATLAN": (23.2028, -106.4111),         # SEMAR 23°12'10"N 106°24'40"W
+    "ENSENADA": (31.8483, -116.6181),         # SEMAR 31°50'54"N 116°37'05"W
+    "GUAYMAS": (27.9211, -110.8819),          # SEMAR 27°55'16"N 110°52'55"W
+    "PROGRESO": (21.3050, -89.6661),          # SEMAR 21°18'18"N 89°39'58"W
+    "NUEVO LAREDO": (27.4861, -99.5069),      # ciudad (Puente Comercio Mundial)
+    "COLOMBIA": (27.7017, -99.7581),          # ciudad (Puente Solidaridad)
+    "CIUDAD JUAREZ": (31.7386, -106.4870),    # ciudad
+    "TIJUANA": (32.5149, -117.0382),          # ciudad (Mesa de Otay)
+    "MEXICO": (19.4361, -99.0719),            # AICM
+    "TOLUCA": (19.3371, -99.5660),            # ciudad
 }
 
 

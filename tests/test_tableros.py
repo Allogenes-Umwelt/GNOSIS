@@ -216,7 +216,7 @@ def test_rutas_agrupa_y_geolocaliza_solo_lo_conocido(conn):
     assert [f["n"] for f in r["flujos"]] == [5, 2]
     top = r["flujos"][0]
     assert top["pais_code"] == "DEU" and top["aduana"] == "Veracruz"
-    assert top["destino"] == {"lat": 19.1738, "lon": -96.1342}
+    assert top["destino"] == {"lat": 19.2006, "lon": -96.1375}  # SEMAR
     assert top["origen"] == {"lat": 51.16, "lon": 10.45}    # centroide declarado
     motivos = {s["motivo"] for s in r["sin_geo"]}
     assert any("Puerto Fantasma" in m for m in motivos)
