@@ -15,6 +15,7 @@ from Estadistico import estadistico_v4
 import PDFs_v2
 import zipfile
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 import datetime
 import shutil
 import tempfile
@@ -206,11 +207,25 @@ def handle_estadistico_error(e):
                          error_message="Error creando Estadistico: " + str(e),
                          log_file=log_filename), 500
 
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """HTTP status exceptions (404, 405, 413…) keep their true code — the
+    generic handler below must not bury them as 500. API paths answer in
+    JSON so clients get a machine-readable status, not an HTML page."""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': e.description, 'status': e.code}), e.code
+    return render_template('error.html',
+                           error_message=f"{e.code} · {e.name}",
+                           log_file=None), e.code
+
+
 @app.errorhandler(Exception)
 def handle_generic_error(e):
     error_traceback = traceback.format_exc()
     log_filename = log_error_to_file(type(e), str(e), error_traceback)
-    return render_template('error.html', 
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Error inesperado', 'status': 500}), 500
+    return render_template('error.html',
                          error_message="Error inesperado: " + str(e),
                          log_file=log_filename), 500
 
