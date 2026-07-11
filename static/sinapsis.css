@@ -73,3 +73,22 @@
 .sn-celda.insight b { color: var(--danger); }
 .sn-celda.activo { border-color: var(--acc-text); background: var(--acc-subtle); }
 .sn-celda.insight.activo { border-color: var(--danger); }
+
+/* NOMOS: lienzo de la neurona + formulario de regla */
+.nm-lienzo { height: 260px; }
+.nm-lienzo canvas { width: 100%; height: 100%; display: block; }
+.nm-form { display: flex; flex-direction: column; gap: 8px; }
+.nm-form input, .nm-form select {
+  padding: 8px 10px; background: var(--s1); border: 1px solid var(--linea);
+  color: var(--t1); font-family: var(--font-mono); font-size: .8rem;
+}
+.nm-form input:focus, .nm-form select:focus {
+  outline: 1px dashed var(--acc-text); outline-offset: 2px;
+}
+.nm-form .fila { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.nm-form .fila input, .nm-form .fila select { flex: 1; min-width: 90px; }
+.nm-form .op {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--acc-text);
+  flex-shrink: 0;
+}
+.nm-form button { align-self: flex-start; }

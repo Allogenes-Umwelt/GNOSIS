@@ -1752,6 +1752,56 @@ def api_sinapsis():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/nomos', methods=['GET'])
+def api_nomos():
+    """NOMOS (F12): todas las reglas evaluadas como neuronas M-P, con
+    anatomía por condición, disparos, violaciones y P&L en MXN."""
+    from autogenes.nomos import evaluar_reglas
+
+    def handler(conn, session_id):
+        return jsonify(evaluar_reglas(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/nomos/regla', methods=['POST'])
+def api_nomos_regla():
+    """HITL: crea una regla (Sustrato valida campos en la puerta) o
+    alterna activa/inactiva con {id, activa}."""
+    from autogenes.sustrato import Sustrato
+
+    cuerpo = request.get_json(silent=True) or {}
+
+    def handler(conn, session_id):
+        s = Sustrato(conn, session_id)
+        if 'id' in cuerpo:                    # alternar
+            s.alternar_regla(cuerpo['id'], bool(cuerpo.get('activa')))
+            return jsonify({'status': 'ok'})
+        try:
+            regla = s.crear_regla(
+                cuerpo.get('nombre', ''),
+                cuerpo.get('condiciones', []),
+                cuerpo.get('entonces', {}),
+                cuerpo.get('origen', 'operador'))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 422
+        return jsonify({'regla': regla})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/autogenes/nomos')
+def autogenes_nomos():
+    """NOMOS (F12): reglas como ciudadanos del grafo — neuronas M-P con
+    P&L por regla; dashboard propio bipartito."""
+    return render_template('autogenes_nomos.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/api/v1/autogenes/sinapsis/dockear', methods=['POST'])
 def api_sinapsis_dockear():
     """HITL: dockea un insight como producto re-anclador — el motor se

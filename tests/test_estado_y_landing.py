@@ -231,3 +231,10 @@ def test_sinapsis_renderiza():
     assert "SNP-03" in html
     assert "sn-insights" in html
     assert "sinapsis.js" in html
+
+
+def test_nomos_renderiza():
+    html = _flask_render("autogenes_nomos.html", sesion_etiqueta="07/2026")
+    assert "NMS-04" in html
+    assert "nm-reglas" in html and "nm-lienzo" in html and "nm-form" in html
+    assert "nomos.js" in html

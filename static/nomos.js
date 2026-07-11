@@ -1,0 +1,283 @@
+/* GNOSIS · NOMOS (F12, NMS-04) — reglas como neuronas McCulloch-Pitts.
+   Izquierda: reglas con P&L real (violaciones monetizadas con precios
+   presentes; lo sin precio se declara). Derecha: la anatomía M-P de la
+   regla seleccionada — entradas con conteo vivo, pesos unitarios FIJOS
+   (parte del cálculo original de 1943, no decoración), Σ, umbral θ = n
+   condiciones y salida con conformes/violaciones. CERO snake oil: cada
+   número es |conjunto| del motor. Datos: /api/v1/autogenes/nomos. */
+(function () {
+  'use strict';
+
+  var CAMPOS = ['pais_code', 'j_y_n', 'auto_code', 'factura', 'chasis'];
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var elReglas = document.getElementById('nm-reglas');
+    var elRefs = document.getElementById('nm-refs');
+    var lienzo = document.getElementById('nm-lienzo');
+    var canvas = lienzo && lienzo.querySelector('canvas');
+    var ctx = canvas && canvas.getContext('2d');
+    var datos = null;
+    var activo = -1;
+    var colores = {};
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function num(n) { return n == null ? '—' : Number(n).toLocaleString('es-MX'); }
+    function alfa(hex, a) {
+      var h = hex.replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
+             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
+    }
+    function leerColores() {
+      var cs = getComputedStyle(document.documentElement);
+      colores = {
+        acc: cs.getPropertyValue('--acc-solid').trim() || '#00D4FF',
+        danger: cs.getPropertyValue('--danger').trim() || '#FF2E88',
+        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
+        t3: cs.getPropertyValue('--t3').trim() || '#999',
+        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
+        mono: cs.getPropertyValue('--font-mono').trim() || 'monospace'
+      };
+    }
+    function tamano() {
+      var caja = canvas.parentElement.getBoundingClientRect();
+      var dpr = window.devicePixelRatio || 1;
+      canvas.width = caja.width * dpr;
+      canvas.height = caja.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    // ── el diagrama M-P de la regla seleccionada ─────────────────────
+    function dibujarNeurona() {
+      if (!ctx) return;
+      leerColores();
+      tamano();
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      ctx.font = '10px ' + colores.mono;
+      if (activo < 0 || !datos || !datos.reglas[activo]) {
+        ctx.fillStyle = colores.t3;
+        ctx.textAlign = 'center';
+        ctx.fillText('TOCA UNA REGLA PARA VER SU NEURONA', w / 2, h / 2);
+        return;
+      }
+      var rg = datos.reglas[activo];
+      var ins = rg.entradas;
+      var xIn = 16, xSum = w * 0.46, xThr = w * 0.72, xOut = w - 14;
+      var ySum = h * 0.44;
+      var pasoY = ins.length > 1 ? (h * 0.62) / (ins.length - 1) : 0;
+      var y0 = ins.length > 1 ? h * 0.14 : ySum;
+
+      // entradas: condición + conteo vivo, arista con peso unitario
+      ins.forEach(function (c, i) {
+        var y = y0 + i * pasoY;
+        ctx.strokeStyle = alfa(colores.acc, 0.85);
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(xIn + 4, y);
+        ctx.lineTo(xSum - 22, ySum + (y - ySum) * 0.18);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+        ctx.fillStyle = colores.t1;
+        ctx.textAlign = 'left';
+        ctx.fillText(c.campo + ' = ' + c.valor, xIn, y - 14);
+        ctx.fillStyle = colores.t3;
+        ctx.fillText(c.n + ' filas', xIn, y - 3);
+        // el peso unitario: FIJO por ley del cálculo M-P
+        ctx.fillStyle = colores.acc;
+        ctx.fillText('w=1', xIn + (xSum - 22 - xIn) * 0.55,
+                     y + (ySum - y) * 0.12 - 5);
+      });
+
+      // Σ
+      ctx.beginPath();
+      ctx.arc(xSum, ySum, 20, 0, 6.283);
+      ctx.strokeStyle = colores.acc;
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = colores.t1;
+      ctx.font = '700 16px ' + colores.mono;
+      ctx.textAlign = 'center';
+      ctx.fillText('Σ', xSum, ySum + 5);
+
+      // umbral θ (la caja escalón)
+      ctx.strokeStyle = alfa(colores.acc, 0.85);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(xSum + 20, ySum); ctx.lineTo(xThr - 18, ySum);
+      ctx.stroke();
+      ctx.strokeRect(xThr - 18, ySum - 16, 36, 32);
+      ctx.beginPath();                                 // el escalón
+      ctx.moveTo(xThr - 10, ySum + 8); ctx.lineTo(xThr, ySum + 8);
+      ctx.lineTo(xThr, ySum - 8); ctx.lineTo(xThr + 10, ySum - 8);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.fillStyle = colores.t3;
+      ctx.font = '10px ' + colores.mono;
+      ctx.fillText('θ = ' + rg.umbral, xThr, ySum + 30);
+
+      // salida: disparos y, de esos, violaciones en magenta
+      ctx.strokeStyle = alfa(colores.acc, 0.85);
+      ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(xThr + 18, ySum); ctx.lineTo(xOut - 8, ySum);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = colores.t1;
+      ctx.fillText(rg.n_disparos + ' disparan', xOut, ySum - 22);
+      ctx.fillStyle = colores.acc;
+      ctx.fillText(rg.n_conformes + ' conformes', xOut, ySum - 10);
+      ctx.fillStyle = colores.danger;
+      ctx.font = '700 12px ' + colores.mono;
+      ctx.fillText(rg.n_violaciones + ' violan', xOut, ySum + 6);
+      ctx.font = '10px ' + colores.mono;
+      ctx.fillStyle = colores.t3;
+      ctx.fillText('esperado: ' + rg.entonces.campo + ' = ' +
+                   rg.entonces.valor, xOut, ySum + 20);
+    }
+
+    // ── izquierda: lista de reglas ───────────────────────────────────
+    function pintarReglas() {
+      if (!datos.reglas.length) {
+        elReglas.innerHTML = '<p class="qa-base-hint">Sin reglas declaradas — ' +
+          'la primera nace abajo, o promovida desde un insight SINAPSIS.</p>';
+        return;
+      }
+      var html = '';
+      datos.reglas.forEach(function (rg, i) {
+        var pnl = rg.pnl_mxn != null
+          ? '$' + num(Math.round(rg.pnl_mxn)) + ' MXN' : 'sin monto';
+        html += '<button type="button" class="cn-caja qa-item' +
+          (i === activo ? ' activo' : '') + (rg.n_violaciones ? '' : ' vl-ok') +
+          '" data-i="' + i + '">' +
+          '<span class="clase">' + esc(rg.origen) +
+          (rg.activa ? '' : ' · inactiva') + '</span>' +
+          '<span class="fila"><span class="titulo">' + esc(rg.nombre) + '</span>' +
+          '<span class="monto' + (rg.n_violaciones ? '' : ' neutro') + '">' +
+          (rg.n_violaciones ? pnl : 'en paz') + '</span></span>' +
+          '<p class="detalle">dispara en ' + num(rg.n_disparos) + ' de ' +
+          num(rg.base) + ' filas · ' + rg.n_conformes + ' conformes · ' +
+          rg.n_violaciones + ' violan' +
+          (rg.sin_precio ? ' · ' + rg.sin_precio + ' sin precio (no se estima)' : '') +
+          '</p></button>';
+      });
+      elReglas.innerHTML = html;
+      elReglas.querySelectorAll('.cn-caja').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          activo = Number(btn.dataset.i);
+          pintarReglas();
+          pintarRefs();
+          dibujarNeurona();
+        });
+      });
+    }
+
+    function pintarRefs() {
+      var rg = datos.reglas[activo];
+      if (!rg || !rg.refs.length) {
+        elRefs.innerHTML = '<p class="qa-base-hint">' +
+          (rg ? 'Ninguna fila viola esta regla.' : 'Toca una regla.') + '</p>';
+        return;
+      }
+      var html = '';
+      rg.refs.forEach(function (r) {
+        html += '<div class="cn-ref"><span>factura <b>' + esc(r.factura) +
+          '</b> · chasis <b>' + esc(r.chasis) + '</b></span></div>';
+      });
+      if (rg.n_violaciones > rg.refs.length) {
+        html += '<p class="qa-base-hint">+' + (rg.n_violaciones - rg.refs.length) +
+          ' más — el P&L SÍ las incluye.</p>';
+      }
+      elRefs.innerHTML = html;
+    }
+
+    function cargar() {
+      fetch('/api/v1/autogenes/nomos')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) {
+            elReglas.innerHTML = '<p class="qa-base-hint">' +
+              esc((j && j.error) || 'Sin datos') + '</p>';
+            return;
+          }
+          datos = j;
+          document.getElementById('nm-total').textContent = num(j.total);
+          document.getElementById('nm-activas').textContent = num(j.activas);
+          var v = document.getElementById('nm-violaciones');
+          v.textContent = num(j.violaciones_activas);
+          v.classList.toggle('riesgo', j.violaciones_activas > 0);
+          var p = document.getElementById('nm-pnl');
+          p.textContent = '$' + num(Math.round(j.pnl_activas_mxn));
+          p.classList.toggle('riesgo', j.pnl_activas_mxn > 0);
+          pintarReglas();
+          pintarRefs();
+          dibujarNeurona();
+        })
+        .catch(function () {
+          elReglas.innerHTML = '<p class="qa-base-hint">Sin conexión.</p>';
+        });
+    }
+
+    // ── declarar regla ───────────────────────────────────────────────
+    ['nm-c-campo', 'nm-e-campo'].forEach(function (id) {
+      var sel = document.getElementById(id);
+      CAMPOS.forEach(function (c) {
+        var op = document.createElement('option');
+        op.value = c; op.textContent = c;
+        sel.appendChild(op);
+      });
+    });
+    document.getElementById('nm-e-campo').value = 'j_y_n';
+
+    document.getElementById('nm-form').addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var msj = document.getElementById('nm-msj');
+      msj.className = 'ag-msj';
+      msj.textContent = 'Creando…';
+      fetch('/api/v1/autogenes/nomos/regla', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nombre: document.getElementById('nm-nombre').value.trim(),
+          condiciones: [{
+            campo: document.getElementById('nm-c-campo').value,
+            valor: document.getElementById('nm-c-valor').value.trim()
+          }],
+          entonces: {
+            campo: document.getElementById('nm-e-campo').value,
+            valor: document.getElementById('nm-e-valor').value.trim()
+          }
+        })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            msj.className = 'ag-msj error';
+            msj.textContent = res.j.error || 'No se pudo crear';
+            return;
+          }
+          msj.textContent = 'Regla creada';
+          document.getElementById('nm-form').reset();
+          document.getElementById('nm-e-campo').value = 'j_y_n';
+          cargar();
+        })
+        .catch(function () {
+          msj.className = 'ag-msj error';
+          msj.textContent = 'Sin conexión';
+        });
+    });
+
+    if (canvas) {
+      window.addEventListener('resize', dibujarNeurona);
+      var alternador = document.getElementById('theme-toggle');
+      if (alternador) alternador.addEventListener('click', function () {
+        setTimeout(dibujarNeurona, 60);
+      });
+    }
+    cargar();
+  });
+})();

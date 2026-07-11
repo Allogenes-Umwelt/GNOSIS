@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · NOMOS — Reglas del caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Izquierda: las reglas con su P&L -->
+    <section class="ag-centro gr-centro" aria-label="Reglas del caso">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">NMS-04 · AUTOGENES F12</span>
+          <span class="nom">◆ NOMOS · Reglas del caso</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">P&amp;L de reglas</div>
+      <div class="cn-flujo">
+        <div class="qa-bar"><span class="l">Reglas</span><span class="v" id="nm-total">—</span></div>
+        <div class="qa-bar"><span class="l">Activas</span><span class="v" id="nm-activas">—</span></div>
+        <div class="qa-bar"><span class="l">Violaciones</span><span class="v" id="nm-violaciones">—</span></div>
+        <div class="qa-bar"><span class="l">P&amp;L activas · MXN</span><span class="v" id="nm-pnl">—</span></div>
+      </div>
+
+      <div class="qa-sec">Reglas</div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Cada regla es una neurona
+      McCulloch-Pitts en el sentido original de 1943: condiciones como
+      entradas 0/1 con pesos unitarios FIJOS, umbral θ = número de
+      condiciones (AND), y un valor esperado cuando dispara. Nada se aprende
+      ni se pondera a ojo — es lógica, no oráculo. Toca una regla para ver su
+      anatomía viva a la derecha.</p>
+      <div class="qa-lista" id="nm-reglas" aria-live="polite">
+        <p class="qa-base-hint">Cargando reglas…</p>
+      </div>
+
+      <div class="qa-sec">Declarar regla</div>
+      <form id="nm-form" class="nm-form">
+        <input type="text" id="nm-nombre" placeholder="nombre de la regla"
+               autocomplete="off" required>
+        <div class="fila">
+          <span class="op">SI</span>
+          <select id="nm-c-campo"></select>
+          <span class="op">=</span>
+          <input type="text" id="nm-c-valor" placeholder="valor" required>
+          <span class="op">⇒</span>
+          <select id="nm-e-campo"></select>
+          <span class="op">=</span>
+          <input type="text" id="nm-e-valor" placeholder="esperado" required>
+        </div>
+        <button type="submit" class="qa-accion">crear regla</button>
+        <span class="ag-msj" id="nm-msj" role="status"></span>
+      </form>
+    </section>
+
+    <!-- Derecha: la neurona M-P de la regla seleccionada -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Anatomía McCulloch-Pitts">
+      <div class="ag-panel-head">
+        <h2>Neurona</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Anatomía M-P</div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Entradas con su conteo
+      vivo de filas → Σ → umbral θ → salida: filas que disparan, y de esas,
+      cuántas violan el valor esperado (magenta). Pesos unitarios por ley —
+      se dibujan porque son parte del cálculo, no decoración.</p>
+      <div class="qa-lienzo nm-lienzo" id="nm-lienzo"
+           aria-label="Diagrama McCulloch-Pitts de la regla seleccionada">
+        <canvas></canvas>
+      </div>
+      <div class="qa-sec">Filas violadoras</div>
+      <div class="qa-lista" id="nm-refs" aria-live="polite">
+        <p class="qa-base-hint">Toca una regla.</p>
+      </div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← AUTOGENES</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='nomos.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}
