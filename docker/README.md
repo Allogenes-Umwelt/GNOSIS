@@ -15,6 +15,7 @@ docker/
 ├── compose.yaml      orquestación (construye desde el repo padre)
 ├── .env.example      plantilla de secretos → copiar a ../.env
 ├── install.sh        instalador de un comando
+├── INSTALL_MAC.md    guía paso a paso para macOS (Podman)
 └── README.md         esta guía
 ```
 
@@ -116,8 +117,10 @@ systemctl --user start gnosis
 loginctl enable-linger "$USER"     # arranca sin sesión abierta
 ```
 
-> En macOS/Windows usa Podman Desktop: instalación rápida con compose y marca
-> el contenedor como *autostart* en la interfaz.
+> **macOS:** sigue la guía dedicada [`INSTALL_MAC.md`](./INSTALL_MAC.md) —
+> instala Podman con Homebrew, arranca la `podman machine` y usa
+> `./docker/install.sh`. Con Podman Desktop puedes marcar el contenedor como
+> *autostart* desde la interfaz.
 
 ---
 
