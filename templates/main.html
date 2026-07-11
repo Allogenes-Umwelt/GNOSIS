@@ -263,11 +263,6 @@
   .sw-empty:hover { background: var(--bg); } .sw-empty:hover::before, .sw-empty:hover::after { display: none; }
   .sw-empty .ph-mk { font-size: 1.4rem; color: var(--t3); opacity: .5; }
   .sw-empty .ph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); opacity: .6; }
-  /* tarjetas TBV: abren su página completa (no render embebido) */
-  .sw-goto { height: 130px; margin-top: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-  .sw-goto .mk { font-size: 1.3rem; color: var(--acc-text); }
-  .sw-goto .go { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
-  .sw-card:hover .sw-goto .go, .sw-card:focus-visible .sw-goto .go { color: var(--acc-text); }
 
   /* ── VISTA DEDICADA (super gráfica standalone) ── */
   /* main crea contexto de apilamiento (z-index:1) que atrapaba los overlays fixed;
@@ -1655,14 +1650,51 @@ const VIZ={
 };
 const SW_ORDER=['heatmap','icicle','flow','seguimiento','vintree','manh','chord','dendro'];
 const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',seguimiento:'TRAYECTORIA',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
-// Tableros VW de negocio (TBV): páginas completas en /tableros, no renders embebidos
+// Tableros VW de negocio (TBV): la tarjeta muestra la MISMA gráfica en
+// miniatura con datos reales de su API; el click abre la página completa
 const SW_TBV=[
-  {href:'/tableros/maduracion',tag:'TBV-01',name:'Maduración',desc:'Días de importación a venta · espectro por marca'},
-  {href:'/tableros/dominio',tag:'TBV-02',name:'Dominio',desc:'Qué modelo dominó cada periodo · escalera de rangos'},
-  {href:'/tableros/rutas',tag:'TBV-03',name:'Rutas',desc:'Flujo país → aduana · arcos sobre OSM'},
-  {href:'/tableros/rechazos',tag:'TBV-04',name:'Rechazos',desc:'Pareto de razones de falla · archivos citados'},
-  {href:'/tableros/cupo',tag:'TBV-05',name:'Cupo',desc:'Libro mayor mensual · cascada sin proyección'},
+  {href:'/tableros/maduracion',api:'/api/v1/tableros/maduracion',tag:'TBV-01',name:'Maduración',desc:'Días de importación a venta · espectro por marca',mini:tbvMiniMad},
+  {href:'/tableros/dominio',api:'/api/v1/tableros/dominio?escala=mes',tag:'TBV-02',name:'Dominio',desc:'Qué modelo dominó cada periodo · escalera de rangos',mini:tbvMiniDom},
+  {href:'/tableros/rutas',api:'/api/v1/tableros/rutas',tag:'TBV-03',name:'Rutas',desc:'Flujo país → aduana · arcos sobre OSM',mini:tbvMiniRut},
+  {href:'/tableros/rechazos',api:'/api/v1/tableros/rechazos',tag:'TBV-04',name:'Rechazos',desc:'Pareto de razones de falla · archivos citados',mini:tbvMiniRec},
+  {href:'/tableros/cupo',api:'/api/v1/tableros/cupo',tag:'TBV-05',name:'Cupo',desc:'Libro mayor mensual · cascada sin proyección',mini:tbvMiniCup},
 ];
+
+// ── Miniaturas TBV (datos reales del API · sin etiquetas amontonadas) ──
+function tbvMiniMad(el,d){ const s=gc(el); if(!s)return; const {x,W,H}=s; const ms=(d.marcas||[]).slice(0,5); if(!ms.length){gnd(s);return;}
+  const maxD=Math.max(1,d.max_dias||1); const rowH=(H-14)/ms.length;
+  ms.forEach((m,i)=>{ const y=8+i*rowH; x.strokeStyle='rgba('+GCY+',0.3)';
+    m.deltas.forEach(dd=>{ const px=8+(W-16)*dd/maxD; x.beginPath(); x.moveTo(px,y); x.lineTo(px,y+rowH-6); x.stroke(); });
+    const mx=8+(W-16)*m.mediana/maxD; x.strokeStyle=GACC; x.lineWidth=1.6; x.beginPath(); x.moveTo(mx,y-1); x.lineTo(mx,y+rowH-5); x.stroke(); x.lineWidth=1; }); }
+function tbvMiniDom(el,d){ const s=gc(el); if(!s)return; const {x,W,H}=s; const per=d.periodos||[]; const se=(d.series||[]).slice(0,6); if(!per.length||!se.length){gnd(s);return;}
+  const n=se.length; const stepX=(W-20)/Math.max(1,per.length-1); const Y=r=>10+(H-24)*((r-1)/Math.max(1,n-1));
+  se.forEach((sr,si)=>{ x.strokeStyle=si===0?GACC:'rgba('+GTXT+',0.45)'; x.lineWidth=si===0?2:1; x.beginPath(); let pen=false;
+    sr.rangos.forEach((r,i)=>{ if(r==null){pen=false;return;} const px=10+stepX*i,py=Y(r); if(!pen){x.moveTo(px,py);pen=true;} else x.lineTo(px,py); }); x.stroke(); }); x.lineWidth=1; }
+function tbvMiniRut(el,d){ const s=gc(el); if(!s)return; const {x,W,H}=s; const fs=d.flujos||[]; if(!fs.length){gnd(s);return;}
+  let lo=[1/0,1/0],hi=[-1/0,-1/0]; fs.forEach(f=>{ [f.origen,f.destino].forEach(p=>{ lo[0]=Math.min(lo[0],p.lon); hi[0]=Math.max(hi[0],p.lon); lo[1]=Math.min(lo[1],p.lat); hi[1]=Math.max(hi[1],p.lat); }); });
+  const px=p=>12+(W-24)*((p.lon-lo[0])/Math.max(1e-6,hi[0]-lo[0])); const py=p=>H-12-(H-28)*((p.lat-lo[1])/Math.max(1e-6,hi[1]-lo[1]));
+  const maxN=fs[0].n;
+  fs.forEach(f=>{ const ax=px(f.origen),ay=py(f.origen),bx=px(f.destino),by=py(f.destino);
+    x.strokeStyle='rgba('+GCY+',0.6)'; x.lineWidth=0.8+3*(f.n/maxN); x.beginPath(); x.moveTo(ax,ay); x.quadraticCurveTo((ax+bx)/2,Math.min(ay,by)-14,bx,by); x.stroke(); });
+  x.lineWidth=1; fs.forEach(f=>{ x.fillStyle=GACC; x.beginPath(); x.arc(px(f.destino),py(f.destino),2.4,0,6.283); x.fill(); }); }
+function tbvMiniRec(el,d){ const s=gc(el); if(!s)return; const {x,W,H}=s; const ps=d.pareto||[]; if(!ps.length){gnd(s);return;}
+  const maxN=ps[0].n; const step=(W-20)/ps.length; const bw=Math.min(18,step*0.6);
+  ps.forEach((p,i)=>{ const bh=(H-26)*p.n/maxN; const bx=10+step*i+(step-bw)/2;
+    x.fillStyle=p.clase==='faltante'?'rgba('+GPINK+',0.75)':'rgba('+GCY+',0.55)'; x.fillRect(bx,H-12-bh,bw,bh); });
+  x.strokeStyle=GACC; x.lineWidth=1.4; x.beginPath();
+  ps.forEach((p,i)=>{ const cx=10+step*i+step/2, cy=12+(H-26)*(1-p.acumulado_pct/100); i?x.lineTo(cx,cy):x.moveTo(cx,cy); }); x.stroke(); x.lineWidth=1; }
+function tbvMiniCup(el,d){ const s=gc(el); if(!s)return; const {x,W,H}=s; const se=(d.series||[])[0]; if(!se||!se.meses.length){gnd(s);return;}
+  const ms=se.meses; let maxV=1; ms.forEach(m=>{ maxV=Math.max(maxV,m.inicio||0,m.fin||0); });
+  const step=(W-20)/ms.length; const bw=Math.min(16,step*0.62); const Y=v=>10+(H-24)*(1-v/maxV); let prev=null;
+  ms.forEach((m,i)=>{ const bx=10+step*i+(step-bw)/2; const ini=m.inicio==null?(prev==null?0:prev):m.inicio; const fin=m.fin==null?ini-m.consumo:m.fin;
+    x.fillStyle='rgba('+(m.agotado?GPINK:GCY)+',0.55)'; x.fillRect(bx,Y(ini),bw,Math.max(2,Y(fin)-Y(ini)));
+    if(prev!=null){ x.strokeStyle='rgba('+GTXT+',0.5)'; x.setLineDash([2,2]); x.beginPath(); x.moveTo(bx-(step-bw),Y(prev)); x.lineTo(bx,Y(ini)); x.stroke(); x.setLineDash([]); }
+    prev=fin; }); }
+const _tbvCache={};
+function gnosisTbvMinis(){ SW_TBV.forEach(t=>{ const cv=t._cv; if(!cv||!t.mini)return;
+  const pinta=d=>{ try{ t.mini(cv,d); }catch(e){} };
+  if(_tbvCache[t.api]){ pinta(_tbvCache[t.api]); return; }
+  fetch(t.api).then(r=>r.json()).then(j=>{ if(!j||j.error)return; _tbvCache[t.api]=j; pinta(j); }).catch(()=>{}); }); }
 
 // ── Tablero (ventanas W-C) ──
 function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; cv._vizkey=k; cv._onpick=(k==='chord')?gnosisChordPick:null; cv._redraw=function(){ try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }; gnBindHover(cv); gnBindResize(cv); try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
@@ -1684,9 +1716,9 @@ function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!
   if(grid && !grid.dataset.built){ grid.dataset.built='1'; SW_ORDER.forEach((k,i)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>gnosisOpenDashboard(k);
     c.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span><span class="tag">'+SW_TAG[k]+'</span><canvas class="sw-cv"></canvas><div class="meta"><div class="name">'+VIZ[k].name+'</div><div class="desc">'+VIZ[k].desc+'</div></div>'; grid.appendChild(c); });
     SW_TBV.forEach((t,j)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>{ location.href=t.href; };
-      c.innerHTML='<span class="num">'+String(SW_ORDER.length+j+1).padStart(2,'0')+'</span><span class="tag">'+t.tag+'</span><div class="sw-goto"><span class="mk">◆</span><span class="go">Abrir tablero →</span></div><div class="meta"><div class="name">'+t.name+'</div><div class="desc">'+t.desc+'</div></div>'; grid.appendChild(c); });
+      c.innerHTML='<span class="num">'+String(SW_ORDER.length+j+1).padStart(2,'0')+'</span><span class="tag">'+t.tag+'</span><canvas class="sw-cv"></canvas><div class="meta"><div class="name">'+t.name+'</div><div class="desc">'+t.desc+'</div></div>'; t._cv=c.querySelector('.sw-cv'); grid.appendChild(c); });
     for(var e=SW_ORDER.length+SW_TBV.length; e%4!==0; e++){ var ph=document.createElement('div'); ph.className='sw-card sw-empty'; ph.innerHTML='<span class="ph-mk">◇</span><span class="ph-t">Ranura reservada</span>'; grid.appendChild(ph); } }
-  m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; try{ VIZ[k].render(cv); }catch(e){} }); }); }
+  m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; if(k){ try{ VIZ[k].render(cv); }catch(e){} } }); gnosisTbvMinis(); }); }
 function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
 
 // ── Vista dedicada DUAL (Ventana A síntesis + Ventana B gráfica) ──
