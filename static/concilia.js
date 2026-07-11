@@ -74,11 +74,16 @@
       elLista.innerHTML = html;
       elLista.querySelectorAll('.cn-caja').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          activo = Number(btn.dataset.i);
-          pintarLista();
-          pintarFicha(datos.hallazgos[activo]);
+          seleccionar(Number(btn.dataset.i));
         });
       });
+    }
+
+    function seleccionar(i) {
+      activo = i;
+      pintarLista();
+      pintarFicha(datos.hallazgos[i]);
+      dibujarCaudal();
     }
 
     function pintarFicha(h) {
@@ -190,6 +195,216 @@
         elCupos.innerHTML = '<p class="qa-base-hint">Sin conexión.</p>';
       });
 
+    // ── ANATOMÍA DEL CAUDAL: el Sankey determinista del motor ────────
+    // Tres pilas (vendido / conciliado / llegado) unidas por la cinta
+    // acento de lo conciliado; cada hallazgo es un chip magenta abajo,
+    // conectado por cinta (fugas de flujo, grosor ∝ unidades) o hilo
+    // (disputas y atributos) al punto exacto del caudal donde sangra.
+    var lienzo = document.getElementById('cn-lienzo');
+    var canvas = lienzo && lienzo.querySelector('canvas');
+    var ctx = canvas && canvas.getContext('2d');
+    var colores = {};
+    var chips = [];             // hit areas: {x, y, w, h, i}
+
+    function leerColores() {
+      var cs = getComputedStyle(document.documentElement);
+      colores = {
+        acc: cs.getPropertyValue('--acc-solid').trim() || '#00D4FF',
+        danger: cs.getPropertyValue('--danger').trim() || '#FF2E88',
+        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
+        t3: cs.getPropertyValue('--t3').trim() || '#999',
+        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
+        mono: cs.getPropertyValue('--font-mono').trim() || 'monospace',
+        display: cs.getPropertyValue('--font-d').trim() || 'sans-serif'
+      };
+    }
+    function alfa(hex, a) {
+      var h = hex.replace('#', '');
+      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
+             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
+    }
+    function tamano() {
+      var caja = canvas.parentElement.getBoundingClientRect();
+      var dpr = window.devicePixelRatio || 1;
+      canvas.width = caja.width * dpr;
+      canvas.height = caja.height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    // cinta horizontal entre dos segmentos verticales (Sankey clásico)
+    function cinta(x1, a1, b1, x2, a2, b2, tinta, af, sel) {
+      var cx = (x1 + x2) / 2;
+      ctx.beginPath();
+      ctx.moveTo(x1, a1);
+      ctx.bezierCurveTo(cx, a1, cx, a2, x2, a2);
+      ctx.lineTo(x2, b2);
+      ctx.bezierCurveTo(cx, b2, cx, b1, x1, b1);
+      ctx.closePath();
+      ctx.fillStyle = alfa(tinta, sel ? af + 0.14 : af);
+      ctx.fill();
+      ctx.strokeStyle = alfa(tinta, sel ? 0.9 : 0.5);
+      ctx.lineWidth = sel ? 1.6 : 1;
+      ctx.stroke();
+    }
+    function hilo(x1, y1, x2, y2, tinta, sel) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.bezierCurveTo(x1, (y1 + y2) / 2, x2, (y1 + y2) / 2, x2, y2);
+      ctx.strokeStyle = alfa(tinta, sel ? 0.95 : 0.55);
+      ctx.lineWidth = sel ? 2.2 : 1.4;
+      ctx.stroke();
+    }
+    // a qué pila pertenece cada clase de hallazgo
+    var LADO = {
+      vendido_sin_llegada: 'izq', sin_pedimento: 'izq', vin_duplicado_dwh: 'izq',
+      llegado_sin_venta: 'der', vin_duplicado_llegadas: 'der',
+      extraccion_fallida: 'der',
+      jn_en_disputa: 'centro', pais_en_disputa: 'centro'
+    };
+
+    function dibujarCaudal() {
+      if (!ctx || !datos) return;
+      leerColores();
+      tamano();
+      chips = [];
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var f = datos.flujo;
+      ctx.clearRect(0, 0, w, h);
+      if (!f.vendidos && !f.llegados) {
+        ctx.fillStyle = colores.t3;
+        ctx.font = '12px ' + colores.mono;
+        ctx.textAlign = 'center';
+        ctx.fillText('Sin datos aduanales — el caudal nace con la sesión.', w / 2, h / 2);
+        return;
+      }
+
+      var yTop = 64;
+      var zonaChips = 92;
+      var flujoH = h - yTop - zonaChips - 56;
+      var maxN = Math.max(f.vendidos, f.llegados, 1);
+      var s = flujoH / maxN;
+      var xL = Math.round(w * 0.09), xC = Math.round(w * 0.5),
+          xR = Math.round(w * 0.91), barra = 14;
+      var concS = f.conciliados * s;
+      var okDer = (f.llegados - f.sin_venta) * s;
+
+      // cintas acento: lo conciliado fluye de pila a pila
+      if (f.conciliados) {
+        cinta(xL + barra / 2, yTop, yTop + concS,
+              xC - barra / 2, yTop, yTop + concS, colores.acc, 0.18, false);
+        cinta(xC + barra / 2, yTop, yTop + concS,
+              xR - barra / 2, yTop, yTop + okDer, colores.acc, 0.18, false);
+      }
+
+      // chips: un nodo por hallazgo, repartidos en el zócalo
+      var hs = datos.hallazgos;
+      var yChip = h - zonaChips + 26;
+      var chipW = hs.length ? Math.min(196, (w - 40) / hs.length - 12) : 0;
+      var paso = hs.length ? (w - 40) / hs.length : 0;
+
+      hs.forEach(function (hz, i) {
+        var cxChip = 20 + paso * i + paso / 2;
+        var x = cxChip - chipW / 2;
+        var sel = i === activo;
+        var lado = LADO[hz.clase] || 'centro';
+
+        // conexión al caudal
+        if (hz.clase === 'vendido_sin_llegada' && f.sin_llegada) {
+          cinta(xL + barra / 2, yTop + concS, yTop + concS + f.sin_llegada * s,
+                cxChip, yChip, yChip, colores.danger, 0.2, sel);
+        } else if (hz.clase === 'llegado_sin_venta' && f.sin_venta) {
+          cinta(xR - barra / 2, yTop + okDer, yTop + okDer + f.sin_venta * s,
+                cxChip, yChip, yChip, colores.danger, 0.2, sel);
+        } else {
+          var xO = lado === 'izq' ? xL : lado === 'der' ? xR : xC;
+          var yO = yTop + (lado === 'centro' ? concS
+                           : lado === 'izq' ? f.vendidos * s : f.llegados * s);
+          hilo(xO, yO, cxChip, yChip, colores.danger, sel);
+        }
+
+        // el chip
+        ctx.fillStyle = sel ? alfa(colores.danger, 0.16) : alfa(colores.danger, 0.06);
+        ctx.strokeStyle = sel ? colores.danger : alfa(colores.danger, 0.6);
+        ctx.lineWidth = sel ? 1.8 : 1;
+        ctx.fillRect(x, yChip, chipW, 46);
+        ctx.strokeRect(x, yChip, chipW, 46);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = colores.t1;
+        ctx.font = '10px ' + colores.mono;
+        var titulo = hz.titulo.toUpperCase();
+        while (titulo.length > 3 && ctx.measureText(titulo).width > chipW - 12) {
+          titulo = titulo.slice(0, -2);
+        }
+        ctx.fillText(titulo, cxChip, yChip + 18);
+        ctx.fillStyle = hz.monto != null ? colores.danger : colores.t3;
+        ctx.font = '11px ' + colores.mono;
+        ctx.fillText(hz.monto != null
+          ? '$' + Math.round(hz.monto).toLocaleString('es-MX') + ' ' + hz.moneda
+          : hz.n_unidades + (hz.n_unidades === 1 ? ' unidad' : ' unidades') +
+            ' · sin monto', cxChip, yChip + 35);
+        chips.push({ x: x, y: yChip, w: chipW, h: 46, i: i });
+      });
+      if (!hs.length) {
+        ctx.fillStyle = colores.t3;
+        ctx.font = '11px ' + colores.mono;
+        ctx.textAlign = 'center';
+        ctx.fillText('SESIÓN CONCILIADA — SIN FUGAS QUE PINTAR', w / 2, yChip + 28);
+      }
+
+      // pilas encima de las cintas
+      function pila(x, n, okS, etiqueta, monto, lado) {
+        var alto = Math.max(n * s, n ? 2 : 0);
+        ctx.fillStyle = alfa(colores.t3, 0.25);
+        ctx.fillRect(x - barra / 2, yTop, barra, alto);
+        if (okS) {
+          ctx.fillStyle = colores.acc;
+          ctx.fillRect(x - barra / 2, yTop, barra, okS);
+        }
+        if (alto - okS > 0.5) {
+          ctx.fillStyle = alfa(colores.danger, 0.85);
+          ctx.fillRect(x - barra / 2, yTop + okS, barra, alto - okS);
+        }
+        ctx.textAlign = 'center';
+        ctx.fillStyle = colores.t3;
+        ctx.font = '10px ' + colores.mono;
+        ctx.fillText(etiqueta, x, yTop - 38);
+        ctx.fillStyle = colores.t1;
+        ctx.font = '700 22px ' + colores.display;
+        ctx.fillText(String(n), x, yTop - 14);
+        if (monto != null) {
+          // desplazado hacia afuera para no chocar con las cintas de fuga
+          ctx.textAlign = lado === 'izq' ? 'right' : 'center';
+          ctx.fillStyle = colores.t3;
+          ctx.font = '10px ' + colores.mono;
+          ctx.fillText('$' + Math.round(monto).toLocaleString('es-MX'),
+                       lado === 'izq' ? x - barra : x,
+                       yTop + Math.max(n * s, 2) + 16);
+        }
+      }
+      pila(xL, f.vendidos, concS, 'VENDIDO · DWH', f.valor_vendido_mxn, 'izq');
+      pila(xC, f.conciliados, concS, 'CONCILIADO', f.valor_conciliado_mxn, 'centro');
+      pila(xR, f.llegados, okDer, 'LLEGADO · PDF', null, 'der');
+    }
+
+    if (canvas) {
+      canvas.addEventListener('click', function (ev) {
+        var caja = canvas.getBoundingClientRect();
+        var mx = ev.clientX - caja.left, my = ev.clientY - caja.top;
+        for (var k = 0; k < chips.length; k++) {
+          var c = chips[k];
+          if (mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h) {
+            seleccionar(c.i);
+            return;
+          }
+        }
+      });
+      window.addEventListener('resize', dibujarCaudal);
+      var alternador = document.getElementById('theme-toggle');
+      if (alternador) alternador.addEventListener('click', function () {
+        setTimeout(dibujarCaudal, 60);
+      });
+    }
+
     fetch('/api/v1/autogenes/concilia')
       .then(function (r) { return r.json(); })
       .then(function (j) {
@@ -201,6 +416,7 @@
         datos = j;
         pintarFlujo(j.flujo, j.valor_en_riesgo_mxn);
         pintarLista();
+        dibujarCaudal();
       })
       .catch(function () {
         elLista.innerHTML = '<p class="qa-base-hint">Sin conexión con el sustrato.</p>';
