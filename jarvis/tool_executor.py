@@ -14,7 +14,12 @@ DETAIL_TOOLS = {'buscar_por_vin', 'buscar_por_factura', 'buscar_en_extraccion', 
 
 # Tools de grafo cuyos resultados pueden arrastrar chasis/facturas
 # (etiquetas de nodos vehiculo, campos anidados): ofuscacion recursiva.
-GRAFO_DETAIL_TOOLS = {'expediente_entidad', 'camino_entre', 'vecindario'}
+# conciliacion/resumen_grafo/senales_caso/hallazgos_pendientes emiten
+# chasis (evidencia/afectados/etiqueta de nodo) y numeros de factura
+# (faltantes) — sin ofuscar filtraban identificadores reales al modelo.
+GRAFO_DETAIL_TOOLS = {'expediente_entidad', 'camino_entre', 'vecindario',
+                      'conciliacion', 'resumen_grafo', 'senales_caso',
+                      'hallazgos_pendientes'}
 
 # Mapeo nombre -> funcion
 TOOL_FUNCTIONS = {

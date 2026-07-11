@@ -175,3 +175,23 @@ def test_ejecutor_ofusca_chasis_en_resultados_de_grafo():
     })
     assert resultado["saltos"][0]["de"]["etiqueta"].startswith("[VIN-")
     assert resultado["saltos"][0]["a"]["etiqueta"] == "VW"
+
+
+def test_tools_sensibles_pasan_por_ofuscacion():
+    """conciliacion/resumen_grafo/senales_caso/hallazgos_pendientes emiten
+    chasis/factura; deben estar en el set de ofuscación de grafo o filtran
+    identificadores reales al modelo."""
+    from jarvis.tool_executor import GRAFO_DETAIL_TOOLS
+    for tool in ("conciliacion", "resumen_grafo", "senales_caso",
+                 "hallazgos_pendientes"):
+        assert tool in GRAFO_DETAIL_TOOLS
+
+
+def test_mask_row_bloquea_vin_por_alias():
+    """SELECT chasis AS x evade el enmascarado por nombre; la defensa por
+    patrón de valor (forma de VIN) lo enmascara igual."""
+    from jarvis.ofuscation import ObfuscationLayer
+    o = ObfuscationLayer()
+    masked = o.mask_row({"x": "WVWZZZ1JZXW000001", "marca": "VW"})
+    assert masked["x"].startswith("[VIN-")   # VIN bajo alias, enmascarado
+    assert masked["marca"] == "VW"           # no-identificador, intacto

@@ -4,7 +4,12 @@ Ofusca: factura, chasis (VIN), pedimento, patente (identificadores transaccional
 NO ofusca: marca, tipo, pais, precio, j_y_n, fechas, totales.
 """
 
+import re
 import uuid
+
+# VIN ISO 3779: 17 caracteres, sin I/O/Q. Un valor con esta forma es un
+# chasis aunque venga bajo un alias o expresión (SELECT chasis AS x).
+_VIN_RE = re.compile(r'^[A-HJ-NPR-Z0-9]{17}$')
 
 
 class ObfuscationLayer:
@@ -54,6 +59,14 @@ class ObfuscationLayer:
         for field, field_type in sensitive_fields.items():
             if field in masked and masked[field]:
                 masked[field] = self.mask_value(masked[field], field_type)
+        # Defensa por VALOR: enmascara cualquier columna (alias/expresión)
+        # cuyo contenido tenga forma de VIN, para que `SELECT chasis AS x`
+        # no evada el enmascarado por nombre.
+        for field, value in list(masked.items()):
+            if field in sensitive_fields:
+                continue
+            if isinstance(value, str) and _VIN_RE.match(value.strip()):
+                masked[field] = self.mask_value(value, 'chasis')
         return masked
 
     def mask_results(self, results):

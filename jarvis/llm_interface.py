@@ -168,7 +168,15 @@ class DeepSeekProvider(LLMProvider):
         resp.raise_for_status()
         data = resp.json()
 
-        eleccion = data['choices'][0]
+        # DeepSeek puede responder HTTP 200 con cuerpo de error o choices
+        # vacío (rate-limit suave, error de proveedor): indexar a ciegas
+        # rompía con KeyError/IndexError en vez de degradar con mensaje.
+        choices = data.get('choices')
+        if not choices:
+            detalle = data.get('error') or data
+            raise RuntimeError(f"Respuesta sin choices del proveedor: {detalle}")
+
+        eleccion = choices[0]
         mensaje = eleccion.get('message', {})
         tool_calls = []
         for tc in mensaje.get('tool_calls') or []:
