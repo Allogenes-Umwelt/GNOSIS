@@ -263,6 +263,11 @@
   .sw-empty:hover { background: var(--bg); } .sw-empty:hover::before, .sw-empty:hover::after { display: none; }
   .sw-empty .ph-mk { font-size: 1.4rem; color: var(--t3); opacity: .5; }
   .sw-empty .ph-t { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); opacity: .6; }
+  /* tarjetas TBV: abren su página completa (no render embebido) */
+  .sw-goto { height: 130px; margin-top: 26px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+  .sw-goto .mk { font-size: 1.3rem; color: var(--acc-text); }
+  .sw-goto .go { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); }
+  .sw-card:hover .sw-goto .go, .sw-card:focus-visible .sw-goto .go { color: var(--acc-text); }
 
   /* ── VISTA DEDICADA (super gráfica standalone) ── */
   /* main crea contexto de apilamiento (z-index:1) que atrapaba los overlays fixed;
@@ -477,7 +482,7 @@
   <div class="switcher hud-frame">
     <div class="sw-head">
       <div class="t">Selector de Análisis</div>
-      <div class="s">GNOSIS · 7 TABLEROS · SESIÓN #{{ current_session.id }}</div>
+      <div class="s">GNOSIS · 13 TABLEROS · SESIÓN #{{ current_session.id }}</div>
       <button class="sw-close" onclick="gnosisCloseSwitcher()" aria-label="Cerrar">✕</button>
     </div>
     <div class="sw-grid" id="sw-grid"></div>
@@ -1650,6 +1655,14 @@ const VIZ={
 };
 const SW_ORDER=['heatmap','icicle','flow','seguimiento','vintree','manh','chord','dendro'];
 const SW_TAG={heatmap:'HEATMAP',icicle:'ICICLE',flow:'FLOW·RES',seguimiento:'TRAYECTORIA',vintree:'VIN·TREE',manh:'MANHATTAN',chord:'CHORD',dendro:'DENDRO'};
+// Tableros VW de negocio (TBV): páginas completas en /tableros, no renders embebidos
+const SW_TBV=[
+  {href:'/tableros/maduracion',tag:'TBV-01',name:'Maduración',desc:'Días de importación a venta · espectro por marca'},
+  {href:'/tableros/dominio',tag:'TBV-02',name:'Dominio',desc:'Qué modelo dominó cada periodo · escalera de rangos'},
+  {href:'/tableros/rutas',tag:'TBV-03',name:'Rutas',desc:'Flujo país → aduana · arcos sobre OSM'},
+  {href:'/tableros/rechazos',tag:'TBV-04',name:'Rechazos',desc:'Pareto de razones de falla · archivos citados'},
+  {href:'/tableros/cupo',tag:'TBV-05',name:'Cupo',desc:'Libro mayor mensual · cascada sin proyección'},
+];
 
 // ── Tablero (ventanas W-C) ──
 function gnosisRenderTablero(){ gTheme(); document.querySelectorAll('#gd-tablero .win:not(.collapsed) .win-cv').forEach(cv=>{ const k=cv.closest('.win').dataset.viz; cv._vizkey=k; cv._onpick=(k==='chord')?gnosisChordPick:null; cv._redraw=function(){ try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }; gnBindHover(cv); gnBindResize(cv); try{ if(VIZ[k]) VIZ[k].render(cv); }catch(e){} }); }
@@ -1670,7 +1683,9 @@ function gnosisToggleWin(btn){ const win=btn.closest('.win'); const open=documen
 function gnosisOpenSwitcher(){ const m=document.getElementById('sw-modal'); if(!m)return; const grid=document.getElementById('sw-grid');
   if(grid && !grid.dataset.built){ grid.dataset.built='1'; SW_ORDER.forEach((k,i)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>gnosisOpenDashboard(k);
     c.innerHTML='<span class="num">'+String(i+1).padStart(2,'0')+'</span><span class="tag">'+SW_TAG[k]+'</span><canvas class="sw-cv"></canvas><div class="meta"><div class="name">'+VIZ[k].name+'</div><div class="desc">'+VIZ[k].desc+'</div></div>'; grid.appendChild(c); });
-    for(var e=SW_ORDER.length; e%4!==0; e++){ var ph=document.createElement('div'); ph.className='sw-card sw-empty'; ph.innerHTML='<span class="ph-mk">◇</span><span class="ph-t">Ranura reservada</span>'; grid.appendChild(ph); } }
+    SW_TBV.forEach((t,j)=>{ const c=document.createElement('div'); c.className='sw-card'; c.tabIndex=0; c.onclick=()=>{ location.href=t.href; };
+      c.innerHTML='<span class="num">'+String(SW_ORDER.length+j+1).padStart(2,'0')+'</span><span class="tag">'+t.tag+'</span><div class="sw-goto"><span class="mk">◆</span><span class="go">Abrir tablero →</span></div><div class="meta"><div class="name">'+t.name+'</div><div class="desc">'+t.desc+'</div></div>'; grid.appendChild(c); });
+    for(var e=SW_ORDER.length+SW_TBV.length; e%4!==0; e++){ var ph=document.createElement('div'); ph.className='sw-card sw-empty'; ph.innerHTML='<span class="ph-mk">◇</span><span class="ph-t">Ranura reservada</span>'; grid.appendChild(ph); } }
   m.hidden=false; gTheme(); requestAnimationFrame(()=>{ document.querySelectorAll('#sw-grid .sw-card .sw-cv').forEach((cv,i)=>{ const k=SW_ORDER[i]; try{ VIZ[k].render(cv); }catch(e){} }); }); }
 function gnosisCloseSwitcher(){ const m=document.getElementById('sw-modal'); if(m)m.hidden=true; }
 
