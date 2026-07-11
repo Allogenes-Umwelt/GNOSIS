@@ -10,6 +10,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     var elLista = document.getElementById('cn-hallazgos');
     var elDetalle = document.getElementById('cn-detalle');
+    var elCupos = document.getElementById('cn-cupos');
+    var btnDossier = document.getElementById('cn-dossier');
+    var elMsj = document.getElementById('cn-msj');
     var datos = null;
     var activo = -1;
 
@@ -110,7 +113,82 @@
       });
       html += '</div>';
       elDetalle.innerHTML = html;
+      btnDossier.style.display = '';
+      btnDossier.disabled = false;
+      btnDossier.textContent = 'dockear dossier';
+      elMsj.textContent = '';
     }
+
+    // ── dossier de defensa: snapshot completo del hallazgo vivo ─────
+    btnDossier.addEventListener('click', function () {
+      if (activo < 0 || !datos) return;
+      var clave = datos.hallazgos[activo].clave;
+      btnDossier.disabled = true;
+      elMsj.className = 'ag-msj';
+      elMsj.textContent = 'Dockeando…';
+      fetch('/api/v1/autogenes/concilia/dossier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: clave })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            btnDossier.disabled = false;
+            elMsj.className = 'ag-msj error';
+            elMsj.textContent = res.j.error || 'No se pudo dockear — reintenta';
+            return;
+          }
+          btnDossier.textContent = 'dossier dockeado';
+          elMsj.textContent = '«' + res.j.producto.titulo + '» ya es producto del grafo';
+        })
+        .catch(function () {
+          btnDossier.disabled = false;
+          elMsj.className = 'ag-msj error';
+          elMsj.textContent = 'Sin conexión — reintenta';
+        });
+    });
+
+    // ── cupos what-if: proyección sobre run-rate medido ──────────────
+    function pintarCupos(c) {
+      if (!c.cupos.length) {
+        elCupos.innerHTML = '<p class="qa-base-hint">La sesión no tiene ' +
+          'cupos registrados.</p>';
+        return;
+      }
+      var html = '';
+      c.cupos.forEach(function (q) {
+        var linea;
+        if (q.motivo) {
+          linea = esc(q.motivo);
+        } else {
+          linea = 'run-rate <b>' + num(q.run_rate) + '</b>/mes → se agota en ~<b>' +
+            num(q.meses_restantes) + '</b> meses' +
+            (q.mes_estimado_agote ? ' (mes ' + q.mes_estimado_agote + ')'
+              : ' — fuera del ejercicio');
+        }
+        html += '<div class="cn-ref' + (q.mes_agotado ? ' agotado' : '') + '">' +
+          '<b>' + esc(q.tipo) + ' · ' + esc(q.numero || 's/n') + '</b>' +
+          '<span>saldo <b>' + num(q.saldo) + '</b> de ' + num(q.inicial) +
+          ' · ' + linea + '</span></div>';
+      });
+      html += '<p class="qa-base-hint">' + esc(c.nota) + '</p>';
+      elCupos.innerHTML = html;
+    }
+
+    fetch('/api/v1/autogenes/concilia/cupos')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        if (!j || j.error) {
+          elCupos.innerHTML = '<p class="qa-base-hint">' +
+            esc((j && j.error) || 'Sin datos') + '</p>';
+          return;
+        }
+        pintarCupos(j);
+      })
+      .catch(function () {
+        elCupos.innerHTML = '<p class="qa-base-hint">Sin conexión.</p>';
+      });
 
     fetch('/api/v1/autogenes/concilia')
       .then(function (r) { return r.json(); })

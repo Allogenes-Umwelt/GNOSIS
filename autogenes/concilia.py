@@ -60,7 +60,8 @@ def parse_monto(texto: Optional[str]) -> Optional[float]:
 
 def _hallazgo(clave: str, clase: str, titulo: str, detalle: str,
               monto: Optional[float], moneda: Optional[str],
-              unidades: list[str], refs: list[dict]) -> dict[str, Any]:
+              unidades: list[str], refs: list[dict],
+              tope: int = MAX_UNIDADES) -> dict[str, Any]:
     return {
         "clave": clave,
         "clase": clase,
@@ -69,8 +70,8 @@ def _hallazgo(clave: str, clase: str, titulo: str, detalle: str,
         "monto": round(monto, 2) if monto is not None else None,
         "moneda": moneda if monto is not None else None,
         "n_unidades": len(unidades),
-        "unidades": unidades[:MAX_UNIDADES],
-        "refs": refs[:MAX_REFS],
+        "unidades": unidades[:tope],
+        "refs": refs[:tope],
     }
 
 
@@ -92,9 +93,16 @@ def _n(n: int, singular: str, plural: str) -> str:
     return f"{n} {singular if n == 1 else plural}"
 
 
-def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+def conciliar(conn: sqlite3.Connection, session_id: int,
+              tope: int = MAX_UNIDADES) -> dict[str, Any]:
     """El estado de conciliación de la sesión: flujo tri-fuente +
-    hallazgos ordenados por valor en riesgo (monto desc, None al final)."""
+    hallazgos ordenados por valor en riesgo (monto desc, None al final).
+    `tope` acota unidades/refs por hallazgo (el dossier pide más); el
+    conteo y el monto siempre cubren el total."""
+
+    def _h(*args: Any) -> dict[str, Any]:
+        return _hallazgo(*args, tope=tope)
+
     filas = conn.execute(
         f"SELECT i.id, i.chasis, i.factura, i.precio, i.j_y_n, i.pais_code,"
         f"       i.pedimento_id,"
@@ -144,7 +152,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         if sin_chasis:
             nota += (f" {sin_chasis} sin chasis en el DWH: "
                      "no pueden conciliarse por VIN.")
-        hallazgos.append(_hallazgo(
+        hallazgos.append(_h(
             "conc-vendido-sin-llegada", "vendido_sin_llegada",
             _n(len(no_casadas), "vendida sin factura física",
                "vendidas sin factura física"),
@@ -172,7 +180,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
             if ilegibles:
                 plural = "importe ilegible" if ilegibles == 1 else "importes ilegibles"
                 detalle += f" {ilegibles} {plural}: no se suman."
-            hallazgos.append(_hallazgo(
+            hallazgos.append(_h(
                 f"conc-llegado-sin-venta-{moneda}", "llegado_sin_venta",
                 _n(len(grupo), "llegada sin venta", "llegadas sin venta")
                 + f" ({moneda})",
@@ -197,7 +205,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
             return
         monto, sin_precio = _mxn(en_disputa)
         _al_riesgo(en_disputa)
-        hallazgos.append(_hallazgo(
+        hallazgos.append(_h(
             clave, clase,
             _n(len(en_disputa), singular, plural),
             detalle + _nota_sin_precio(sin_precio),
@@ -231,7 +239,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         if not grupos:
             return
         extra = sum(g["n"] - 1 for g in grupos)
-        hallazgos.append(_hallazgo(
+        hallazgos.append(_h(
             clave, clase,
             _n(len(grupos), "VIN repetido", "VIN repetidos") + f" en {fuente}",
             f"El mismo chasis aparece más de una vez en {fuente} "
@@ -253,7 +261,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     if sin_ped:
         monto, sin_precio = _mxn(sin_ped)
         _al_riesgo(sin_ped)
-        hallazgos.append(_hallazgo(
+        hallazgos.append(_h(
             "conc-sin-pedimento", "sin_pedimento",
             _n(len(sin_ped), "vendida sin pedimento vinculado",
                "vendidas sin pedimento vinculado"),
@@ -270,7 +278,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         " ORDER BY filename", (session_id,),
     ).fetchall()
     if errores:
-        hallazgos.append(_hallazgo(
+        hallazgos.append(_h(
             "conc-extraccion-fallida", "extraccion_fallida",
             _n(len(errores), "PDF ilegible", "PDFs ilegibles"),
             "Facturas cuyo PDF no pudo extraerse: las llegadas pueden estar "
@@ -310,3 +318,115 @@ def conciliar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         "total": len(hallazgos),
         "valor_en_riesgo_mxn": round(valor_en_riesgo, 2),
     }
+
+
+# ── ola 2: what-if de cupos ──────────────────────────────────────────
+
+MESES_MINIMOS_HISTORIA = 2
+
+
+def cupos_what_if(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+    """Proyección determinista del agotamiento de cupos: el run-rate es
+    el promedio de consumo mensual MEDIDO en seguimiento_mensual (meses
+    con consumo > 0). Con menos de MESES_MINIMOS_HISTORIA meses de
+    historia no se proyecta y se dice por qué — nada de placebo."""
+    consumos = {
+        "PRODUCCION": [], "INVERSION": [],
+    }
+    ultimo_mes = 0
+    for r in conn.execute(
+        "SELECT mes, consumo_produccion, consumo_inversion FROM"
+        " seguimiento_mensual WHERE session_id = ? ORDER BY mes",
+        (session_id,),
+    ):
+        ultimo_mes = max(ultimo_mes, r["mes"])
+        if (r["consumo_produccion"] or 0) > 0:
+            consumos["PRODUCCION"].append(r["consumo_produccion"])
+        if (r["consumo_inversion"] or 0) > 0:
+            consumos["INVERSION"].append(r["consumo_inversion"])
+
+    cupos = []
+    for r in conn.execute(
+        "SELECT tipo, numero_autorizacion, cantidad_inicial,"
+        "       cantidad_consumida, cantidad_saldo, mes_agotado"
+        " FROM cupos WHERE session_id = ? ORDER BY tipo, numero_autorizacion",
+        (session_id,),
+    ):
+        serie = consumos.get((r["tipo"] or "").strip().upper(), [])
+        cupo: dict[str, Any] = {
+            "tipo": r["tipo"],
+            "numero": r["numero_autorizacion"],
+            "inicial": r["cantidad_inicial"],
+            "consumido": r["cantidad_consumida"],
+            "saldo": r["cantidad_saldo"],
+            "mes_agotado": r["mes_agotado"],
+            "run_rate": None,
+            "meses_restantes": None,
+            "mes_estimado_agote": None,
+            "motivo": None,
+        }
+        if r["mes_agotado"]:
+            cupo["motivo"] = "Ya agotado — hecho, no proyección."
+        elif len(serie) < MESES_MINIMOS_HISTORIA:
+            cupo["motivo"] = (f"Historia insuficiente ({len(serie)} "
+                              f"{'mes' if len(serie) == 1 else 'meses'} con "
+                              "consumo): no se proyecta.")
+        elif not r["cantidad_saldo"]:
+            cupo["motivo"] = "Sin saldo restante."
+        else:
+            rate = sum(serie) / len(serie)
+            meses = r["cantidad_saldo"] / rate
+            cupo["run_rate"] = round(rate, 1)
+            cupo["meses_restantes"] = round(meses, 1)
+            # mes calendario estimado a partir del último mes con registro
+            est = ultimo_mes + meses
+            cupo["mes_estimado_agote"] = (int(est) + (0 if est == int(est) else 1)
+                                          if est <= 12 else None)
+        cupos.append(cupo)
+
+    return {
+        "session_id": session_id,
+        "cupos": cupos,
+        "meses_historia": ultimo_mes,
+        "nota": ("El run-rate es el promedio de consumo mensual medido; "
+                 "la proyección es lineal y se rompe con estacionalidad — "
+                 "es un instrumento, no una promesa."),
+    }
+
+
+# ── ola 2: dossier de defensa ────────────────────────────────────────
+
+TOPE_DOSSIER = 2000
+
+
+def dockear_dossier(conn: sqlite3.Connection, session_id: int,
+                    clave: str) -> dict[str, Any]:
+    """Dockea UN hallazgo como Producto{clase:"informe", unidad:"concilia"}
+    — el dossier de defensa: snapshot completo (unidades y referencias SIN
+    tope) + el flujo tri-fuente del momento, listo para auditoría externa.
+    El motor se re-ejecuta aquí: el dossier documenta el estado VIVO, no
+    lo que el navegador recuerda. Como el parte QUALIA, cita filas
+    aduanales y no fragmentos: evidencia vacía en vez de procedencia
+    fabricada."""
+    from autogenes.sustrato import Sustrato
+
+    r = conciliar(conn, session_id, tope=TOPE_DOSSIER)
+    hallazgo = next((h for h in r["hallazgos"] if h["clave"] == clave), None)
+    if hallazgo is None:
+        return {"error": f"El hallazgo «{clave}» ya no existe — el estado "
+                         "vivo cambió; recarga el tablero."}
+
+    cuerpo = {
+        "hallazgo": hallazgo,
+        "flujo": r["flujo"],
+        "valor_en_riesgo_mxn": r["valor_en_riesgo_mxn"],
+    }
+    producto = Sustrato(conn, session_id).dockear_producto(
+        clase="informe",
+        titulo=f"Dossier CONCILIA — {hallazgo['titulo']}",
+        unidad="concilia",
+        cuerpo=cuerpo,
+        entidades=[],
+        evidencia=[],
+    )
+    return {"session_id": session_id, "producto": producto.model_dump()}

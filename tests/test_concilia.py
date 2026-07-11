@@ -170,3 +170,80 @@ def test_estado_hallazgos_latente_sin_datos_aduanales(conn):
     from autogenes.estado import estado_de_sesion
     e = estado_de_sesion(conn, SID)
     assert e["hallazgos"] is None
+
+
+# ── ola 2: what-if de cupos + dossier ────────────────────────────────
+
+
+def _cupo(c, tipo, saldo, inicial=200, agotado=None):
+    c.execute(
+        "INSERT INTO cupos (session_id, tipo, numero_autorizacion,"
+        " cantidad_inicial, cantidad_consumida, cantidad_saldo, mes_agotado)"
+        " VALUES (?, ?, 'A-1', ?, ?, ?, ?)",
+        (SID, tipo, inicial, inicial - saldo, saldo, agotado),
+    )
+
+
+def _mes(c, mes, prod, inv=0):
+    c.execute(
+        "INSERT INTO seguimiento_mensual (session_id, mes, mes_nombre,"
+        " consumo_produccion, consumo_inversion) VALUES (?, ?, ?, ?, ?)",
+        (SID, mes, f"M{mes}", prod, inv),
+    )
+
+
+def test_cupos_sin_historia_no_proyecta(conn):
+    from autogenes.concilia import cupos_what_if
+    _cupo(conn, "PRODUCCION", saldo=100)
+    _mes(conn, 1, prod=50)
+    r = cupos_what_if(conn, SID)
+    cupo = r["cupos"][0]
+    assert cupo["run_rate"] is None
+    assert "insuficiente" in cupo["motivo"].lower()
+
+
+def test_cupos_proyecta_con_run_rate_medido(conn):
+    from autogenes.concilia import cupos_what_if
+    _cupo(conn, "PRODUCCION", saldo=100)
+    _mes(conn, 1, prod=40)
+    _mes(conn, 2, prod=60)
+    r = cupos_what_if(conn, SID)
+    cupo = r["cupos"][0]
+    assert cupo["run_rate"] == 50.0
+    assert cupo["meses_restantes"] == 2.0
+    assert cupo["mes_estimado_agote"] == 4        # último mes 2 + 2
+    assert cupo["motivo"] is None
+    assert "no es una promesa" in r["nota"] or "instrumento" in r["nota"]
+
+
+def test_cupo_agotado_es_hecho_no_proyeccion(conn):
+    from autogenes.concilia import cupos_what_if
+    _cupo(conn, "INVERSION", saldo=0, agotado="junio")
+    _mes(conn, 1, prod=0, inv=50)
+    _mes(conn, 2, prod=0, inv=50)
+    r = cupos_what_if(conn, SID)
+    cupo = r["cupos"][0]
+    assert cupo["run_rate"] is None and "agotado" in cupo["motivo"].lower()
+
+
+def test_dossier_dockea_snapshot_completo_sin_tope(conn):
+    from autogenes.concilia import dockear_dossier
+    ped = _pedimento(conn)
+    for i in range(15):
+        _vender(conn, f"VIN000000000000000{i:02d}", f"F26{i:02d}-8Y3",
+                precio=1000.0, pedimento_id=ped)
+    r = dockear_dossier(conn, SID, "conc-vendido-sin-llegada")
+    assert "error" not in r
+    p = r["producto"]
+    assert p["clase"] == "informe" and p["unidad"] == "concilia"
+    assert len(p["cuerpo"]["hallazgo"]["unidades"]) == 15   # SIN tope de 12
+    assert p["cuerpo"]["flujo"]["vendidos"] == 15
+    assert p["evidencia"] == [] and p["entidades"] == []
+
+
+def test_dossier_clave_inexistente_no_escribe(conn):
+    from autogenes.concilia import dockear_dossier
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3")
+    r = dockear_dossier(conn, SID, "conc-no-existe")
+    assert "error" in r
+    assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0

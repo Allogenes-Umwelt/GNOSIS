@@ -1707,6 +1707,42 @@ def api_concilia():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/concilia/cupos', methods=['GET'])
+def api_concilia_cupos():
+    """What-if de cupos: proyección lineal sobre el run-rate MEDIDO en
+    seguimiento_mensual; sin historia suficiente no se proyecta."""
+    from autogenes.concilia import cupos_what_if
+
+    def handler(conn, session_id):
+        return jsonify(cupos_what_if(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/concilia/dossier', methods=['POST'])
+def api_concilia_dossier():
+    """HITL: dockea un hallazgo como dossier de defensa — snapshot
+    completo sin tope, re-ejecutando el motor sobre el estado vivo."""
+    from autogenes.concilia import dockear_dossier
+
+    cuerpo = request.get_json(silent=True) or {}
+    clave = cuerpo.get('clave')
+    if not clave or not isinstance(clave, str):
+        return jsonify({'error': 'Falta la clave del hallazgo'}), 400
+
+    def handler(conn, session_id):
+        r = dockear_dossier(conn, session_id, clave)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/qualia/red', methods=['GET'])
 def api_qualia_red():
     """La red del caso para el lienzo QUALIA: nivel N de la escalera de

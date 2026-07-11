@@ -75,6 +75,8 @@
   font-family: var(--font-mono); font-size: .66rem; color: var(--t2);
 }
 .cn-ref b { color: var(--t1); font-weight: 400; }
+.cn-ref.agotado { border-left: 2px solid var(--danger); }
+.cn-ref.agotado > b { color: var(--danger); }
 
 @media (max-width: 860px) {
   .cn-flujo { grid-template-columns: repeat(2, 1fr); }
