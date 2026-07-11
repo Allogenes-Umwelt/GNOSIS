@@ -227,6 +227,9 @@
             return;
           }
           datos = j;
+          // la lista se re-rankea por P&L en cada carga: un índice viejo
+          // apuntaría a OTRA regla — la selección se suelta, no se miente
+          activo = -1;
           document.getElementById('nm-total').textContent = num(j.total);
           document.getElementById('nm-activas').textContent = num(j.activas);
           var v = document.getElementById('nm-violaciones');

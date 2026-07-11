@@ -48,6 +48,21 @@ app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # una carga jamas debe poder tumbar el proceso
+
+
+# ── candado de operador (opcional): con GNOSIS_TOKEN en el entorno,
+# toda mutación via API exige el header X-Gnosis-Token. Sin la variable
+# el candado no existe — el uso local de un solo operador no cambia.
+@app.before_request
+def _candado_operador():
+    esperado = os.environ.get('GNOSIS_TOKEN')
+    if not esperado:
+        return None
+    if request.path.startswith('/api/') and request.method in (
+            'POST', 'PUT', 'DELETE', 'PATCH'):
+        if request.headers.get('X-Gnosis-Token') != esperado:
+            return jsonify({'error': 'Token de operador requerido'}), 401
+    return None
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'Gestel2025')
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
@@ -114,6 +129,10 @@ def log_error_to_file(error_type, error_message, error_traceback):
     timestamp_display = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     log_filename = f"Ticket_de_Servicio_ADUANAS_{timestamp_filename}.txt"
     log_filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], log_filename)
+    # el manejador de errores no puede fallar: sin este directorio, el
+    # ticket que explica el error moría en FileNotFoundError y el 500
+    # original se perdía tras un segundo 500
+    os.makedirs(app.config['DOWNLOAD_FOLDER'], exist_ok=True)
 
     with open(log_filepath, 'w', encoding='utf-8') as log_file:
         log_file.write("="*80 + "\n")
@@ -1746,6 +1765,48 @@ def api_sinapsis():
 
     def handler(conn, session_id):
         return jsonify(insights_de_sesion(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/exportar', methods=['GET'])
+def api_autogenes_exportar():
+    """Soberanía del dato: la sesión AUTOGENES completa como bundle JSON
+    — grafo de evidencia, reglas NOMOS y bitácora WORM. Todo re-importable
+    y auditable fuera de GNOSIS."""
+    from autogenes.sustrato import Sustrato
+
+    def handler(conn, session_id):
+        s = Sustrato(conn, session_id)
+        bitacora = [dict(r) for r in conn.execute(
+            "SELECT ts, accion, detalle FROM ag_bitacora WHERE session_id = ?"
+            " ORDER BY id", (session_id,))]
+        return jsonify({
+            'session_id': session_id,
+            'grafo': s.leer_grafo(),
+            'reglas': s.leer_reglas(),
+            'bitacora': bitacora,
+        })
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/bitacora', methods=['GET'])
+def api_autogenes_bitacora():
+    """La bitácora WORM de la sesión: cada mutación del sustrato, en
+    orden, solo-lectura — el pendiente menor de la auditoría F6."""
+    def handler(conn, session_id):
+        filas = [dict(r) for r in conn.execute(
+            "SELECT ts, accion, detalle FROM ag_bitacora WHERE session_id = ?"
+            " ORDER BY id DESC LIMIT 200", (session_id,))]
+        return jsonify({'session_id': session_id, 'bitacora': filas,
+                        'total': conn.execute(
+                            "SELECT COUNT(*) FROM ag_bitacora WHERE session_id = ?",
+                            (session_id,)).fetchone()[0]})
     try:
         return _con_sesion(handler)
     except Exception as e:

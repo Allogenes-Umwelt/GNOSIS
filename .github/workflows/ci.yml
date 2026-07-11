@@ -2,24 +2,22 @@ name: CI
 
 on:
   push:
-    branches: ["claude/gnosis-autogenes-i-85bwsd", "main"]
+    branches: ['**']
   pull_request:
 
 jobs:
-  test:
+  pruebas:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      # Substrate tests need only the light deps; the PDF stack
-      # (camelot/tabula/Java) is exercised in Docker, not here.
-      - run: pip install pydantic pytest ruff pandas numpy networkx requests flask
-      - name: Lint (new code only — legacy modules are exempt until refactored)
-        run: >
-          ruff check autogenes/*.py tests/ jarvis/quorum.py
-          database/__init__.py database/migrations.py database/models_autogenes.py
-          database/config.py jarvis/llm_interface.py
-      - name: Tests
-        run: python -m pytest tests/ -q
+          python-version: '3.11'
+      - name: Dependencias
+        run: |
+          pip install flask pydantic networkx python-dotenv requests \
+            pandas numpy pytest ruff
+      - name: Lint (autogenes, tests, jarvis)
+        run: ruff check autogenes tests jarvis
+      - name: Suite
+        run: python -m pytest -q
