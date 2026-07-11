@@ -38,10 +38,12 @@ def _vacio(v: Any) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
 
 
-def validar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+def validar(conn: sqlite3.Connection, session_id: int,
+            tope: int = MAX_REFS) -> dict[str, Any]:
     """El estado de conformidad de la sesión: todas las reglas evaluadas
     (violadas o no), ordenadas por violaciones, y el porcentaje de filas
-    plenamente conformes por fuente."""
+    plenamente conformes por fuente. `tope` acota refs por regla (el
+    certificado pide más); el conteo siempre cubre el total."""
     dwh = conn.execute(
         "SELECT id, chasis, factura, precio, j_y_n, pais_code, catalogo_id"
         " FROM importaciones WHERE session_id = ? ORDER BY id",
@@ -70,7 +72,7 @@ def validar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
             "fuente": fuente,
             "base": len(filas),
             "n": len(v),
-            "refs": [ref(r) for r in v[:MAX_REFS]],
+            "refs": [ref(r) for r in v[:tope]],
         })
 
     def ref_dwh(r: sqlite3.Row) -> dict:
@@ -142,3 +144,33 @@ def validar(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         "conformidad_pct": (round(100 * conformes / total_filas)
                             if total_filas else None),
     }
+
+
+# ── ola 2: el expediente certificado por sesión ──────────────────────
+
+TOPE_CERTIFICADO = 2000
+
+
+def dockear_certificado(conn: sqlite3.Connection,
+                        session_id: int) -> dict[str, Any]:
+    """Dockea el estado de conformidad COMPLETO como Producto{informe,
+    unidad validacion} — el expediente certificado: las 16 reglas con
+    todas sus filas violadoras (sin tope), listo para glosa externa. El
+    motor se re-ejecuta aquí: certifica el estado vivo. Cita filas
+    aduanales, no fragmentos: evidencia vacía, jamás fabricada."""
+    from autogenes.sustrato import Sustrato
+
+    r = validar(conn, session_id, tope=TOPE_CERTIFICADO)
+    if not r["filas"]["dwh"] and not r["filas"]["pdf"]:
+        return {"error": "La sesión no tiene filas que certificar"}
+
+    pct = r["conformidad_pct"]
+    producto = Sustrato(conn, session_id).dockear_producto(
+        clase="informe",
+        titulo=f"Certificado de conformidad — {pct}%",
+        unidad="validacion",
+        cuerpo=r,
+        entidades=[],
+        evidencia=[],
+    )
+    return {"session_id": session_id, "producto": producto.model_dump()}

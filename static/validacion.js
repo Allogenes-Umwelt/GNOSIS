@@ -78,6 +78,32 @@
       elDetalle.innerHTML = html;
     }
 
+    // ── expediente certificado: la conformidad viva como producto ────
+    var btnCert = document.getElementById('vl-certificar');
+    btnCert.addEventListener('click', function () {
+      var msj = document.getElementById('vl-msj');
+      btnCert.disabled = true;
+      msj.className = 'ag-msj';
+      msj.textContent = 'Certificando…';
+      fetch('/api/v1/autogenes/validacion/certificado', { method: 'POST' })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            btnCert.disabled = false;
+            msj.className = 'ag-msj error';
+            msj.textContent = res.j.error || 'No se pudo certificar — reintenta';
+            return;
+          }
+          btnCert.textContent = 'certificado dockeado';
+          msj.textContent = '«' + res.j.producto.titulo + '» ya es producto del grafo';
+        })
+        .catch(function () {
+          btnCert.disabled = false;
+          msj.className = 'ag-msj error';
+          msj.textContent = 'Sin conexión — reintenta';
+        });
+    });
+
     fetch('/api/v1/autogenes/validacion')
       .then(function (r) { return r.json(); })
       .then(function (j) {

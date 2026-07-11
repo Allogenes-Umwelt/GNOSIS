@@ -100,3 +100,48 @@ def test_sin_filas_conformidad_es_nula_no_cien(conn):
     r = validar(conn, SID)
     assert r["conformidad_pct"] is None
     assert r["filas"] == {"dwh": 0, "pdf": 0}
+
+
+# ── ola 2: certificado + Radar ───────────────────────────────────────
+
+
+def test_certificado_dockea_conformidad_completa_sin_tope(conn):
+    from autogenes.validacion import dockear_certificado
+    cat = _cat(conn)
+    for i in range(15):     # 15 violaciones de precio > MAX_REFS
+        _fila_dwh(conn, chasis=f"WAUZZZ8Y000000{i:03d}", factura=f"F{i}",
+                  precio=None, catalogo_id=cat)
+    r = dockear_certificado(conn, SID)
+    assert "error" not in r
+    p = r["producto"]
+    assert p["clase"] == "informe" and p["unidad"] == "validacion"
+    assert p["titulo"].startswith("Certificado de conformidad")
+    regla = next(x for x in p["cuerpo"]["reglas"] if x["clave"] == "val-dwh-precio")
+    assert regla["n"] == 15 and len(regla["refs"]) == 15    # SIN tope de 12
+    assert p["evidencia"] == [] and p["entidades"] == []
+
+
+def test_certificado_sin_filas_no_escribe(conn):
+    from autogenes.validacion import dockear_certificado
+    r = dockear_certificado(conn, SID)
+    assert "error" in r
+    assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0
+
+
+def test_radar_publica_violaciones_como_urgencia(conn):
+    from autogenes.metabolismo import metabolismo_de_sesion
+    cat = _cat(conn)
+    _fila_dwh(conn, jn="J", pais="BRA", catalogo_id=cat)   # glosa segura
+    m = metabolismo_de_sesion(conn, SID)
+    norma = next(u for u in m["urgencias"] if u["tipo"] == "norma")
+    assert norma["critico"] is True                        # jn-norma violada
+    assert norma["accion"] == "/autogenes/validacion"
+    assert "glosa segura" in norma["sub"]
+
+
+def test_radar_sin_violaciones_sin_urgencia_de_norma(conn):
+    from autogenes.metabolismo import metabolismo_de_sesion
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)
+    m = metabolismo_de_sesion(conn, SID)
+    assert not any(u["tipo"] == "norma" for u in m["urgencias"])

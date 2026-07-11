@@ -1729,6 +1729,23 @@ def api_validacion():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/validacion/certificado', methods=['POST'])
+def api_validacion_certificado():
+    """HITL: dockea el expediente certificado — el estado de conformidad
+    completo (reglas + filas violadoras sin tope) como producto."""
+    from autogenes.validacion import dockear_certificado
+
+    def handler(conn, session_id):
+        r = dockear_certificado(conn, session_id)
+        if 'error' in r:
+            return jsonify(r), 422
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/concilia/vin', methods=['GET'])
 def api_concilia_vin():
     """Lookup directo: estado vivo tri-fuente de un chasis (parcial
