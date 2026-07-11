@@ -113,3 +113,47 @@
   .qa-marco, .qa-marco.der-off { grid-template-columns: 1fr; }
   .qa-dial { margin-left: 0; }
 }
+
+/* ── Máquina C2: la sala de mando OODA ── */
+.qm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.qm-ventana {
+  border: 1px solid var(--line); background: var(--surface);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+  min-height: 180px;
+}
+.qm-ventana.viva { border-left: 2px solid var(--acc-text); }
+.qm-ventana.alerta { border-left: 2px solid var(--danger); }
+.qm-fase {
+  display: flex; align-items: baseline; gap: 10px;
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--acc-text);
+}
+.qm-fase .instr { color: var(--t3); letter-spacing: 1.5px; }
+.qm-titular {
+  font-family: var(--font-d); font-weight: 700; font-size: 1.3rem;
+  line-height: 1.25; color: var(--t1); overflow-wrap: anywhere;
+}
+.qm-titular.alerta { color: var(--danger); }
+.qm-dato { color: var(--t2); font-size: .8rem; line-height: 1.55; margin: 0; }
+.qm-dato b { color: var(--t1); }
+.qm-abrir {
+  margin-top: auto; align-self: flex-start;
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--acc-text); text-decoration: none;
+  border: 1px solid var(--line); padding: 0 14px; min-height: 40px;
+  display: inline-flex; align-items: center;
+}
+.qm-abrir:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+/* el parte del sistema (narrativa saneada) */
+.qm-parte { border: 1px solid var(--line); background: var(--surface); padding: 16px; }
+.qm-panorama { color: var(--t1); font-size: .92rem; line-height: 1.6; margin: 8px 0 12px; }
+.qm-lectura {
+  border-left: 2px solid var(--line-ghost); padding: 4px 0 4px 12px;
+  margin: 6px 0; color: var(--t2); font-size: .82rem; line-height: 1.55;
+}
+.qm-lectura .clave {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--acc-text); display: block;
+}
+.qm-obs { color: var(--t2); font-size: .8rem; margin: 4px 0 0; padding-left: 16px; }
+@media (max-width: 900px) { .qm-grid { grid-template-columns: 1fr; } }

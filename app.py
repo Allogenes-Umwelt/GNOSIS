@@ -1385,6 +1385,14 @@ def autogenes_qualia_cuerdas():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@app.route('/autogenes/qualia/maquina')
+def autogenes_qualia_maquina():
+    """Qualia · Máquina C2 (F7): las cuatro ventanas OODA con titulares
+    del motor y la lectura SYNESIS del sistema."""
+    return render_template('autogenes_qualia_maquina.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @app.route('/autogenes/sintesis')
 def autogenes_sintesis():
     """Síntesis (F6): informe ejecutivo citado, split digesto ↔ informe

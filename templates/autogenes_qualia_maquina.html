@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Máquina de inteligencia{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing" id="ag-landing" style="display:block">
+    <section class="ag-centro" aria-label="Máquina de inteligencia Qualia">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-C2 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Máquina de inteligencia</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina" class="activo" aria-current="page">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+        </nav>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <!-- Las cuatro ventanas OODA: titulares del motor, cero teatro -->
+      <div class="qm-grid" style="margin-top:14px">
+        <section class="qm-ventana" id="qm-observar" aria-label="Observar">
+          <div class="qm-fase">[ Observar ]<span class="instr">Terreno de anomalías</span></div>
+          <div class="qm-titular" id="qm-obs-titular">—</div>
+          <p class="qm-dato" id="qm-obs-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/terreno">abrir terreno →</a>
+        </section>
+        <section class="qm-ventana" id="qm-orientar" aria-label="Orientar">
+          <div class="qm-fase">[ Orientar ]<span class="instr">Orbe gravitacional</span></div>
+          <div class="qm-titular" id="qm-ori-titular">—</div>
+          <p class="qm-dato" id="qm-ori-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/orbe">abrir orbe →</a>
+        </section>
+        <section class="qm-ventana" id="qm-decidir" aria-label="Decidir">
+          <div class="qm-fase">[ Decidir ]<span class="instr">Cascada de bifurcación</span></div>
+          <div class="qm-titular" id="qm-dec-titular">—</div>
+          <p class="qm-dato" id="qm-dec-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/cascada">abrir cascada →</a>
+        </section>
+        <section class="qm-ventana" id="qm-actuar" aria-label="Actuar">
+          <div class="qm-fase">[ Actuar ]<span class="instr">Horizonte de eventos</span></div>
+          <div class="qm-titular" id="qm-act-titular">—</div>
+          <p class="qm-dato" id="qm-act-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/horizonte">abrir horizonte →</a>
+        </section>
+      </div>
+
+      <!-- Leer el sistema: el modelo interpreta el digesto ya calculado -->
+      <div class="qm-parte" style="margin-top:14px" aria-label="Parte del sistema">
+        <div class="qa-sec" style="margin-top:0">Leer el sistema</div>
+        <div id="qm-parte-cuerpo">
+          <p class="qa-base-hint">El motor condensa las cuatro ventanas en un
+          digesto citable; el modelo solo interpreta y el saneador poda en
+          servidor toda lectura que cite una clave no enviada.</p>
+        </div>
+        <button type="button" id="qm-leer" class="qa-accion" style="margin-top:12px">leer el sistema</button>
+        <span class="ag-msj" id="qm-msj" role="status"></span>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_maquina.js') }}"></script>
+{% endblock %}

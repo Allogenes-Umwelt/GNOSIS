@@ -199,3 +199,11 @@ def test_qualia_cuerdas_renderiza():
     html = _flask_render("autogenes_qualia_cuerdas.html", sesion_etiqueta="07/2026")
     assert "QLA-06" in html
     assert "qd-lienzo" in html and "qualia_cuerdas.js" in html
+
+
+def test_qualia_maquina_renderiza():
+    html = _flask_render("autogenes_qualia_maquina.html", sesion_etiqueta="07/2026")
+    assert "QLA-C2" in html
+    assert "qm-observar" in html and "qm-orientar" in html
+    assert "qm-decidir" in html and "qm-actuar" in html
+    assert "qualia_maquina.js" in html
