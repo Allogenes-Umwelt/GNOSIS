@@ -18,6 +18,6 @@ jobs:
           pip install flask pydantic networkx python-dotenv requests \
             pandas numpy pytest ruff
       - name: Lint (autogenes, tests, jarvis)
-        run: ruff check autogenes tests jarvis
+        run: ruff check autogenes tableros tests jarvis
       - name: Suite
         run: python -m pytest -q

@@ -127,3 +127,58 @@ def test_maduracion_percentiles_rango_mas_cercano(conn):
     assert _percentil([10, 20, 30, 40, 50], 0.9) == 50
     assert _percentil([10], 0.25) == 10
     assert _percentil([], 0.5) == 0
+
+
+# ── TBV-04 · Rechazos ────────────────────────────────────────────────
+
+
+def test_rechazos_pareto_con_acumulado_y_corte_80(conn):
+    from tableros.rechazos import rechazos
+    for i in range(6):
+        conn.execute("INSERT INTO facturas_errores (session_id, filename,"
+                     " error_type) VALUES (1, ?, 'parsing_failed')", (f"a{i}.pdf",))
+    for i in range(3):
+        conn.execute("INSERT INTO facturas_errores (session_id, filename,"
+                     " error_type) VALUES (1, ?, '')", (f"b{i}.pdf",))
+    conn.execute("INSERT INTO facturas_faltantes (session_id, factura)"
+                 " VALUES (1, 'F-900')")
+    r = rechazos(conn, 1)
+    assert r["total"] == 10
+    assert r["pareto"][0]["razon"] == "parsing_failed"
+    assert r["pareto"][0]["n"] == 6 and r["pareto"][0]["acumulado_pct"] == 60.0
+    assert r["pareto"][1]["razon"] == "sin razón registrada"   # vacío se confiesa
+    assert r["pareto"][1]["acumulado_pct"] == 90.0
+    assert r["razones_para_80"] == 2
+    assert r["sin_razon"] == 3
+    faltante = next(p for p in r["pareto"] if p["clase"] == "faltante")
+    assert faltante["archivos"] == ["F-900"]
+
+
+def test_rechazos_sesion_limpia_cero_honesto(conn):
+    from tableros.rechazos import rechazos
+    r = rechazos(conn, 1)
+    assert r["total"] == 0 and r["pareto"] == [] and r["razones_para_80"] == 0
+
+
+# ── TBV-05 · Cupo (pasado y presente, sin futuro) ────────────────────
+
+
+def test_libro_cupo_corta_el_futuro_y_lo_declara(conn):
+    from tableros.cupo import libro_cupo
+    for mes, prod_ini, prod_cons, prod_fin in (
+            (5, 500, 100, 400), (6, 400, 150, 250), (7, 250, 250, 0),
+            (8, 0, 0, 0), (9, 0, 0, 0)):        # 8 y 9 son futuro (sesión=7)
+        conn.execute(
+            "INSERT INTO seguimiento_mensual (session_id, mes, mes_nombre,"
+            " disponible_produccion_inicio, consumo_produccion,"
+            " disponible_produccion_fin, consumo_inversion)"
+            " VALUES (1, ?, ?, ?, ?, ?, 0)",
+            (mes, f"M{mes}", prod_ini, prod_cons, prod_fin))
+    r = libro_cupo(conn, 1)
+    assert r["mes_corte"] == 7
+    assert r["meses_futuros_excluidos"] == 2
+    prod = next(s for s in r["series"] if s["tipo"] == "PRODUCCION")
+    assert [m["mes"] for m in prod["meses"]] == [5, 6, 7]
+    assert prod["meses"][-1]["agotado"] is True     # llegar a 0 es un hecho
+    assert prod["meses"][0]["agotado"] is False
+    assert "sin proyecciones" in r["nota"]

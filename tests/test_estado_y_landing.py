@@ -256,3 +256,10 @@ def test_tableros_renderizan():
     html3 = _flask_render("tableros_maduracion.html", sesion_etiqueta="07/2026")
     assert "TBV-01" in html3 and "tm-lienzo" in html3 and "tm-toggle" in html3
     assert "tbv_maduracion.js" in html3
+    html4 = _flask_render("tableros_rechazos.html", sesion_etiqueta="07/2026")
+    assert "TBV-04" in html4 and "tr-lienzo" in html4 and "tr-lista" in html4
+    assert "tbv_rechazos.js" in html4
+    html5 = _flask_render("tableros_cupo.html", sesion_etiqueta="07/2026")
+    assert "TBV-05" in html5 and "tc-lienzo" in html5 and "tc-dial" in html5
+    assert "tbv_cupo.js" in html5
+    assert "/tableros/rechazos" in html and "/tableros/cupo" in html

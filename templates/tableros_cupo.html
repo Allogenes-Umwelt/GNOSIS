@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · TBV-05 — Cupo{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
+
+    <section class="ag-centro gr-centro" aria-label="Libro mayor del cupo">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">TBV-05 · TABLEROS VW</span>
+          <span class="nom">◆ Cupo · Libro mayor</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Autorizaciones</div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Pasado y presente tal
+      cual del seguimiento mensual — el futuro se quitó por acuerdo: aquí no
+      hay proyecciones. Llegar a cero es un hecho y se marca; el what-if vive
+      solo en CONCILIA.</p>
+      <div class="qa-lista" id="tc-cupos" aria-live="polite">
+        <p class="qa-base-hint">Cargando…</p>
+      </div>
+      <div class="qa-sec">Libro mensual</div>
+      <div class="qa-lista" id="tc-meses" aria-live="polite"></div>
+    </section>
+
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Cascada de agotamiento">
+      <div class="ag-panel-head">
+        <h2>Cascada</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="ag-centro-head" style="border:0; padding:0">
+        <div class="qa-sec" style="margin-top:0">Cascada de agotamiento</div>
+        <nav class="qa-dial" id="tc-dial" aria-label="Tipo de cupo"></nav>
+      </div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Cada mes un escalón:
+      disponible al inicio, el consumo como caída, disponible al fin. Todo
+      del seguimiento mensual; un mes que toca cero va en magenta porque es
+      un hecho, no una alerta inventada.</p>
+      <div class="qa-lienzo tc-lienzo" id="tc-lienzo"
+           aria-label="Cascada mensual de consumo del cupo">
+        <canvas></canvas>
+      </div>
+      <p class="qa-base-hint" id="tc-nota"></p>
+      <a class="ag-volver" href="/tableros" style="margin-top:auto">← Tableros</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tbv_cupo.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

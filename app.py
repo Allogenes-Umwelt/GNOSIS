@@ -1808,6 +1808,44 @@ def api_tableros_maduracion():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/tableros/rechazos')
+def tableros_rechazos():
+    """TBV-04 · RECHAZOS: Pareto de razones de falla con archivos citados."""
+    return render_template('tableros_rechazos.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/tableros/rechazos', methods=['GET'])
+def api_tableros_rechazos():
+    from tableros.rechazos import rechazos
+
+    def handler(conn, session_id):
+        return jsonify(rechazos(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/tableros/cupo')
+def tableros_cupo():
+    """TBV-05 · CUPO: libro mayor mensual — pasado y presente, sin futuro."""
+    return render_template('tableros_cupo.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/tableros/cupo', methods=['GET'])
+def api_tableros_cupo():
+    from tableros.cupo import libro_cupo
+
+    def handler(conn, session_id):
+        return jsonify(libro_cupo(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/tableros/dominio', methods=['GET'])
 def api_tableros_dominio():
     from tableros.dominio import dominio
