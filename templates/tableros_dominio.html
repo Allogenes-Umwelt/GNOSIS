@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · TBV-02 — Dominio{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
+
+    <!-- Izquierda: el ranking escalonado por marca -->
+    <section class="ag-centro gr-centro" aria-label="Ranking por marca">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">TBV-02 · TABLEROS VW</span>
+          <span class="nom">◆ Dominio · Más vendidos</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Facturado</div>
+      <div class="cn-flujo">
+        <div class="qa-bar"><span class="l">Unidades</span><span class="v" id="td-total">—</span></div>
+        <div class="qa-bar"><span class="l">Modelos</span><span class="v" id="td-modelos">—</span></div>
+        <div class="qa-bar"><span class="l">Periodos</span><span class="v" id="td-periodos">—</span></div>
+        <div class="qa-bar"><span class="l">Sin fecha</span><span class="v" id="td-sinfecha">—</span></div>
+      </div>
+
+      <div class="qa-sec">Ranking por marca</div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Total facturado por marca
+      en el rango cargado. Toca una marca: se desglosa su unidad más vendida
+      y sus modelos se iluminan en la escalera.</p>
+      <div class="qa-lista" id="td-marcas" aria-live="polite">
+        <p class="qa-base-hint">Cargando…</p>
+      </div>
+    </section>
+
+    <!-- Derecha: la escalera de dominio -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Escalera de dominio">
+      <div class="ag-panel-head">
+        <h2>Escalera</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="ag-centro-head" style="border:0; padding:0">
+        <div class="qa-sec" style="margin-top:0">Escalera de dominio</div>
+        <nav class="qa-dial" id="td-dial" aria-label="Escala de periodo">
+          <button type="button" data-escala="mes" class="activo">mes</button>
+          <button type="button" data-escala="trimestre">trim</button>
+          <button type="button" data-escala="semestre">sem</button>
+          <button type="button" data-escala="anio">año</button>
+        </nav>
+      </div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Cada modelo es una línea
+      moviéndose por su posición en el ranking de cada periodo — el cruce de
+      líneas es el insight: quién desplazó a quién. Sin ventas en un periodo,
+      la línea se corta: nada se interpola.</p>
+      <div class="qa-lienzo td-lienzo" id="td-lienzo"
+           aria-label="Trayectorias de rango de los modelos más vendidos">
+        <canvas></canvas>
+      </div>
+      <div id="td-detalle" class="gr-inspector" aria-live="polite"></div>
+      <a class="ag-volver" href="/tableros" style="margin-top:auto">← Tableros</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tbv_dominio.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

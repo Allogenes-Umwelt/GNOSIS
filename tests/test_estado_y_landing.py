@@ -245,3 +245,11 @@ def test_cronos_renderiza():
     assert "CRN-05" in html
     assert "cr-momentos-lista" in html and "cr-lienzo" in html
     assert "cronos.js" in html
+
+
+def test_tableros_renderizan():
+    html = _flask_render("tableros_index.html", sesion_etiqueta="07/2026")
+    assert "TBV" in html and "/tableros/dominio" in html
+    html2 = _flask_render("tableros_dominio.html", sesion_etiqueta="07/2026")
+    assert "TBV-02" in html2 and "td-lienzo" in html2 and "td-dial" in html2
+    assert "tbv_dominio.js" in html2

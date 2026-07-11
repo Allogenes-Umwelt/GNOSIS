@@ -1771,6 +1771,37 @@ def api_sinapsis():
         return jsonify({'error': str(e)}), 500
 
 
+# ── TABLEROS VW (TBV): la zona de tableros de negocio, no-autogenes ──
+
+@app.route('/tableros')
+def tableros_indice():
+    """El índice de los tableros de negocio VW (TBV-01..05)."""
+    return render_template('tableros_index.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/tableros/dominio')
+def tableros_dominio():
+    """TBV-02 · DOMINIO: escalera de rangos de los modelos más vendidos
+    por periodo + ranking escalonado por marca con desglose."""
+    return render_template('tableros_dominio.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/tableros/dominio', methods=['GET'])
+def api_tableros_dominio():
+    from tableros.dominio import dominio
+
+    escala = request.args.get('escala', 'mes')
+
+    def handler(conn, session_id):
+        return jsonify(dominio(conn, session_id, escala))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/autogenes/cronos')
 def autogenes_cronos():
     """CRONOS (F13): time travel del sustrato — reconstrucción aditiva
