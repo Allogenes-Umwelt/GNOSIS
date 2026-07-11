@@ -476,6 +476,10 @@ def dashboard():
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")
+        try:
+            conn.close()   # no dejar la conexión abierta al degradar (fuga fd/lock WAL)
+        except Exception:
+            pass
         return render_template('main.html', **_empty)
 
 
@@ -548,6 +552,10 @@ def procesar_page():
         conn.close()
     except Exception as e:
         print(f"[Procesar] Error leyendo stats: {e}")
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     return render_template('procesar.html', fase1_stats=fase1_stats, historico_sessions=historico_sessions)
 
@@ -1221,6 +1229,10 @@ def api_status():
         conn.close()
         return jsonify({'status': 'ok', 'tables': stats})
     except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
@@ -1264,6 +1276,10 @@ def api_session_detail(session_id):
         conn.close()
         return jsonify(detail)
     except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({'error': str(e)}), 500
 
 
