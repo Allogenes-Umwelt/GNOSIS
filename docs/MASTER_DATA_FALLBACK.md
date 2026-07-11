@@ -23,24 +23,35 @@ ruta crítica F1–F12 completa, 205 pruebas verdes, ruff limpio.
 
 ## Referencia inmutable
 
-- **Tag git:** `master-data-fallback-gnosis-autogenes` (nombre humano:
-  MASTER DATA FALLBACK GNOSIS:AUTOGENES).
-- **Rama:** `claude/gnosis-autogenes-i-85bwsd`.
-- Un tag anotado no se mueve con nuevos commits: apunta para siempre a
-  este árbol exacto. Para blindarlo del todo, proteger el tag en
-  GitHub (Settings → Tags → New rule → `master-data-fallback-*`).
+Ambas apuntan al mismo commit verificado `3249704`:
+
+- **Rama-ancla remota:** `master-data-fallback-gnosis-autogenes` (en
+  origin). Es el punto de retorno vivo en GitHub. NADA se commitea sobre
+  ella: si queda intacta, es inmutable de facto.
+- **Tag anotado local:** `master-data-fallback-gnosis-autogenes`. Un tag
+  no se mueve con nuevos commits. El push del tag desde la sesión de
+  Claude lo bloquea la política de la organización (403); para tenerlo
+  también en remoto, empujarlo con permisos de operador:
+  `git push origin master-data-fallback-gnosis-autogenes`.
+
+**Blindaje en GitHub (recomendado):** Settings → Branches → Add rule →
+`master-data-fallback-gnosis-autogenes` → marcar «Lock branch» y
+«Restrict who can push». Así la rama-ancla queda de solo-lectura.
 
 ## Cómo volver a este punto
 
 ```bash
-# inspeccionar sin tocar la rama
+# traer la rama-ancla del remoto
+git fetch origin master-data-fallback-gnosis-autogenes
+
+# inspeccionar sin tocar la rama de trabajo
 git checkout master-data-fallback-gnosis-autogenes
 
 # restaurar un archivo puntual desde el fallback
 git checkout master-data-fallback-gnosis-autogenes -- ruta/al/archivo
 
-# reponer TODA la rama al fallback (destructivo — pide confirmación)
-git reset --hard master-data-fallback-gnosis-autogenes
+# reponer TODA la rama de trabajo al fallback (destructivo)
+git reset --hard origin/master-data-fallback-gnosis-autogenes
 ```
 
 ## Dominios de salida a permitir (allowlist de red)
