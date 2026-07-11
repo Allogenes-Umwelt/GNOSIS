@@ -7,6 +7,8 @@ pasa de 200/405 a 404 y el test grita.
 Cubre además el contrato de errores endurecido: un 404/405 conserva su
 código (no se entierra como 500) y las rutas /api/ responden en JSON.
 """
+import os
+
 import pytest
 
 
@@ -133,3 +135,35 @@ def test_api_sin_sesion_es_404_honesto(tmp_path):
         assert "sesiones" in r.get_json()["error"].lower()
     finally:
         database.DB_PATH = original
+
+
+# ── Endurecimiento de seguridad (regresión de la auditoría) ──────────
+
+def test_errores_delete_bloquea_path_traversal(cliente, tmp_path_factory, monkeypatch):
+    """POST /errores/delete con filename traversal no debe borrar fuera del
+    directorio de errores (secure_filename neutraliza el ../)."""
+    import app as gnosis
+    victima = tmp_path_factory.mktemp("victima") / "no_borrar.txt"
+    victima.write_text("intacto")
+    up = gnosis.app.config['UPLOAD_FOLDER']
+    rel = os.path.relpath(str(victima), os.path.join(up, 'errores', '1'))
+    cliente.post("/errores/delete", json={"sid": 1, "filename": rel})
+    assert victima.exists(), "el traversal borró un archivo fuera de errores/"
+
+
+def test_candado_operador_cubre_post_no_api(cliente, monkeypatch):
+    """Con GNOSIS_TOKEN puesto, una ruta mutante fuera de /api/ (p.ej.
+    /errores/delete) exige el token — antes quedaba libre."""
+    monkeypatch.setenv("GNOSIS_TOKEN", "secreto-operador")
+    r = cliente.post("/errores/delete", json={"sid": 1, "filename": "x.pdf"})
+    assert r.status_code == 401
+    r_ok = cliente.post("/errores/delete",
+                        json={"sid": 1, "filename": "x.pdf"},
+                        headers={"X-Gnosis-Token": "secreto-operador"})
+    assert r_ok.status_code != 401
+    monkeypatch.delenv("GNOSIS_TOKEN")
+
+
+def test_secret_key_no_es_el_default_conocido(cliente):
+    import app as gnosis
+    assert gnosis.app.config['SECRET_KEY'] != 'Gestel2025'

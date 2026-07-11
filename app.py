@@ -32,6 +32,25 @@ def _read_excel(path, **kwargs):
     except Exception:
         return pd.read_excel(path, engine='xlrd', **kwargs)
 
+
+# Tope de expansión al descomprimir un ZIP subido. MAX_CONTENT_LENGTH
+# acota el ARCHIVO (50 MB) pero no lo DESCOMPRIMIDO: un zip bomba de 50 MB
+# puede expandir a gigabytes y llenar el disco.
+_MAX_UNZIPPED_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+
+
+def _extraer_zip_seguro(zip_path, destino):
+    """Extrae un ZIP abortando si la suma descomprimida supera el tope.
+    Lanza FileUploadError (400 vía errorhandler) si excede o está corrupto."""
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        total = sum(info.file_size for info in zip_ref.infolist())
+        if total > _MAX_UNZIPPED_BYTES:
+            raise FileUploadError(
+                f"El ZIP se expande a {total // (1024*1024)} MB, supera el "
+                f"tope de {_MAX_UNZIPPED_BYTES // (1024*1024*1024)} GB.")
+        zip_ref.extractall(destino)
+
+
 # --- Persistencia SQLite (Gnosis AI) ---
 from database import init_db
 from database.persistence import (
@@ -59,12 +78,20 @@ def _candado_operador():
     esperado = os.environ.get('GNOSIS_TOKEN')
     if not esperado:
         return None
-    if request.path.startswith('/api/') and request.method in (
-            'POST', 'PUT', 'DELETE', 'PATCH'):
+    # El candado se ancla al MÉTODO mutante, no al prefijo /api/: rutas
+    # destructivas como /processing, /procesar/*, /admin/dedup y
+    # /errores/delete no viven bajo /api/ y antes quedaban libres.
+    if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
         if request.headers.get('X-Gnosis-Token') != esperado:
             return jsonify({'error': 'Token de operador requerido'}), 401
     return None
-app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY', 'Gestel2025')
+
+
+# La cookie de sesión se firma con SECRET_KEY: sin un valor fuerte en el
+# entorno, un tercero forja la cookie. Sin default embebido — si no está
+# la env var, se genera una efímera por-proceso (invalida sesiones al
+# reiniciar, que es lo correcto para un default inseguro ausente).
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
 
@@ -551,8 +578,7 @@ def procesar_fase1():
     facturas_zip.save(facturas_zip_path)
 
     try:
-        with zipfile.ZipFile(facturas_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
+        _extraer_zip_seguro(facturas_zip_path, temp_dir)
     except zipfile.BadZipFile:
         shutil.rmtree(temp_dir, ignore_errors=True)
         return jsonify({'error': 'El archivo no es un ZIP valido.'}), 400
@@ -900,9 +926,7 @@ def processing():
     facturas_zip.save(facturas_zip_path)
 
     try:
-        with zipfile.ZipFile(facturas_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(facturas_dir)
-        print(f"ZIP extraído en: {facturas_dir}")
+        _extraer_zip_seguro(facturas_zip_path, facturas_dir)
     except zipfile.BadZipFile:
         raise FileUploadError("El archivo de facturas no es un ZIP válido.")
 
@@ -1037,11 +1061,11 @@ def processing():
             combined_dwh_file = os.path.join(dwh_dir, "combined_dwh.txt")
             combine_txt_files(dwh_files, combined_dwh_file)
             dwh_files = [combined_dwh_file]  # Update the dwh_files list to only have the combined file
-        else: 
-            handle_concentrado_error("Error con los pedimentos")
-        
+        else:
+            raise ConcentradoError("Error con los pedimentos")
+
         if len(dwh_files) != 1 or len(incrementales_files) != 1:
-            raise handle_concentrado_error("Debe haber por lo menos un archivo en el directorio 'dwh' y solo 1 archivo en el directorio 'incrementales'.")
+            raise ConcentradoError("Debe haber por lo menos un archivo en el directorio 'dwh' y solo 1 archivo en el directorio 'incrementales'.")
 
         pedimento = Concentrado(dwh_files[0], incrementales_files[0])
         output_filename2 = 'Concentrado1.xlsx'
@@ -1619,14 +1643,17 @@ def reprocesar_pdfs():
     # 5. Sincronizar directorio de errores persistente
     errores_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'errores', str(session_id))
     os.makedirs(errores_dir, exist_ok=True)
+    # los nombres de destino en disco pasan por secure_filename: el nombre
+    # ORIGINAL (nombre_map) puede traer "../" y `orig` alimenta os.remove /
+    # shutil.copy2 — sanearlo bloquea escritura/borrado fuera de errores_dir.
     for nombre in nombres_exito:
-        orig = nombre_map.get(nombre, nombre)
+        orig = secure_filename(nombre_map.get(nombre, nombre)) or nombre
         err_file = os.path.join(errores_dir, orig)
         if os.path.isfile(err_file):
             os.remove(err_file)
     for path in errores_nuevos:
         secure_name = os.path.basename(path)
-        orig = nombre_map.get(secure_name, secure_name)
+        orig = secure_filename(nombre_map.get(secure_name, secure_name)) or secure_name
         if os.path.isfile(path):
             shutil.copy2(path, os.path.join(errores_dir, orig))
 
@@ -1662,9 +1689,15 @@ def errores_delete():
     conn.commit()
     conn.close()
 
-    err_file = os.path.join(app.config['UPLOAD_FOLDER'], 'errores', str(session_id), filename)
-    if os.path.isfile(err_file):
-        os.remove(err_file)
+    # el archivo en disco SIEMPRE se guardó bajo secure_filename (ver
+    # reprocesar_pdfs); sanear aquí bloquea el traversal por `filename`
+    # arbitrario del JSON (p.ej. "../../database/gnosis.db").
+    safe_name = secure_filename(filename)
+    if safe_name:
+        err_file = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'errores', str(int(session_id)), safe_name)
+        if os.path.isfile(err_file):
+            os.remove(err_file)
 
     return jsonify({'ok': True})
 
@@ -1700,4 +1733,8 @@ def errores_download_zip():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001,debug=True)
+    # debug=True expone la consola Werkzeug (RCE) y host 0.0.0.0 la publica
+    # en toda la red. Ambos se controlan por entorno; el default es seguro.
+    debug = os.environ.get('GNOSIS_DEBUG') == '1'
+    host = os.environ.get('GNOSIS_HOST', '127.0.0.1')
+    app.run(host=host, port=int(os.environ.get('GNOSIS_PORT', '5001')), debug=debug)
