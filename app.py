@@ -1170,8 +1170,8 @@ AUTOGENES_SECCIONES = {
                        'la norma — estructura, catálogo y reglas de negocio. '
                        'Expediente certificado por sesión.',
         'metricas': [('errores', 'Registros con error'), ('facturas', 'Facturas')],
-        'estado': 'Los validadores declarativos llegan en F10 — los errores de '
-                  'captura ya se leen aquí.'},
+        'estado': 'Activo — reglas de estructura, catálogo y negocio evaluadas '
+                  'sobre toda la sesión, con filas violadoras citadas.'},
     'sinapsis': {
         'nombre': 'SINAPSIS', 'numero': 'III', 'forma': 'triangulo',
         'tipo': 'Dashboard', 'fase': 'Fase F11',
@@ -1398,6 +1398,14 @@ def autogenes_concilia():
     """CONCILIA (F9): dashboard propio de la conciliación tri-fuente —
     flujo vendido/conciliado/llegado y hallazgos monetizados del motor."""
     return render_template('autogenes_concilia.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/validacion')
+def autogenes_validacion():
+    """VALIDACIÓN (F10): la glosa preventiva — conformidad de cada fila
+    contra la norma, con cada regla evaluada y sus filas violadoras."""
+    return render_template('autogenes_validacion.html',
                            sesion_etiqueta=_etiqueta_sesion())
 
 
@@ -1701,6 +1709,36 @@ def api_concilia():
 
     def handler(conn, session_id):
         return jsonify(conciliar(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/validacion', methods=['GET'])
+def api_validacion():
+    """VALIDACIÓN (F10): todas las reglas evaluadas (violadas o no) y la
+    conformidad por filas — salida determinista del motor."""
+    from autogenes.validacion import validar
+
+    def handler(conn, session_id):
+        return jsonify(validar(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/concilia/vin', methods=['GET'])
+def api_concilia_vin():
+    """Lookup directo: estado vivo tri-fuente de un chasis (parcial
+    permitido; ambigüedad honesta con candidatos)."""
+    from autogenes.concilia import estado_vin
+
+    chasis = request.args.get('chasis', '')
+
+    def handler(conn, session_id):
+        return jsonify(estado_vin(conn, session_id, chasis))
     try:
         return _con_sesion(handler)
     except Exception as e:

@@ -430,3 +430,67 @@ def dockear_dossier(conn: sqlite3.Connection, session_id: int,
         evidencia=[],
     )
     return {"session_id": session_id, "producto": producto.model_dump()}
+
+
+# ── ola 2: lookup directo — estado vivo por VIN ──────────────────────
+
+
+def estado_vin(conn: sqlite3.Connection, session_id: int,
+               chasis: str) -> dict[str, Any]:
+    """El estado vivo tri-fuente de UN chasis: qué dice el DWH, qué
+    facturas físicas lo amparan, bajo qué pedimento entró, si concilió
+    y qué afirmaciones están en disputa. Parcial permitido (LIKE); si
+    varios VIN casan se devuelven candidatos, no se adivina."""
+    buscado = (chasis or "").strip()
+    if not buscado:
+        return {"error": "Chasis vacío"}
+
+    exactos = [r["chasis"] for r in conn.execute(
+        "SELECT DISTINCT chasis FROM ("
+        " SELECT chasis FROM importaciones WHERE session_id = :s"
+        " UNION SELECT chasis FROM extraccion_facturas WHERE session_id = :s)"
+        " WHERE chasis LIKE :q ORDER BY chasis LIMIT 9",
+        {"s": session_id, "q": f"%{buscado}%"})]
+    if not exactos:
+        return {"error": f"Ningún chasis casa con «{buscado}» en la sesión"}
+    if len(exactos) > 1 and buscado not in exactos:
+        return {"ambiguo": True, "candidatos": exactos}
+    vin = buscado if buscado in exactos else exactos[0]
+
+    dwh = [dict(r) for r in conn.execute(
+        "SELECT i.factura, i.precio, i.j_y_n, i.pais_code,"
+        "       p.numero_pedimento, p.aduana"
+        " FROM importaciones i LEFT JOIN pedimentos p ON i.pedimento_id = p.id"
+        " WHERE i.session_id = ? AND i.chasis = ? ORDER BY i.id",
+        (session_id, vin))]
+    llegadas = [dict(r) for r in conn.execute(
+        "SELECT factura, amount, moneda, j_y_n, pais_code, filename"
+        " FROM extraccion_facturas WHERE session_id = ? AND chasis = ?"
+        " ORDER BY id", (session_id, vin))]
+
+    pares = conn.execute(
+        f"SELECT i.j_y_n, ef.j_y_n AS ef_jn, i.pais_code, ef.pais_code AS ef_pais"
+        f" FROM importaciones i JOIN extraccion_facturas ef ON{_JOIN_PAR}"
+        f" WHERE i.session_id = ? AND i.chasis = ?",
+        (session_id, vin)).fetchall()
+    disputas = []
+    for r in pares:
+        if ((r["j_y_n"] or "").strip() and (r["ef_jn"] or "").strip()
+                and r["j_y_n"].strip().upper() != r["ef_jn"].strip().upper()):
+            disputas.append({"campo": "j_y_n", "dwh": r["j_y_n"],
+                             "pdf": r["ef_jn"]})
+        if ((r["pais_code"] or "").strip() and (r["ef_pais"] or "").strip()
+                and r["pais_code"].strip().upper()
+                != r["ef_pais"].strip().upper()):
+            disputas.append({"campo": "pais", "dwh": r["pais_code"],
+                             "pdf": r["ef_pais"]})
+
+    return {
+        "chasis": vin,
+        "dwh": dwh,
+        "llegadas": llegadas,
+        "conciliado": bool(pares),
+        "disputas": disputas,
+        "duplicado_dwh": len(dwh) > 1,
+        "duplicado_llegadas": len(llegadas) > 1,
+    }

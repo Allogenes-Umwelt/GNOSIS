@@ -60,7 +60,14 @@
         <h2>Ficha</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
-      <div class="qa-sec" style="margin-top:0">El hallazgo</div>
+      <div class="qa-sec" style="margin-top:0">Lookup · VIN</div>
+      <form id="cn-vin-form" class="cn-vin">
+        <input type="text" id="cn-vin" placeholder="chasis o fragmento"
+               autocomplete="off" spellcheck="false" aria-label="Buscar chasis">
+        <button type="submit" class="qa-accion">buscar</button>
+      </form>
+
+      <div class="qa-sec">El hallazgo</div>
       <div id="cn-detalle" class="gr-inspector" aria-live="polite">
         <p class="qa-base-hint">Toca un hallazgo. La ficha lista las unidades
         afectadas y las referencias exactas (factura, chasis, PDF) para

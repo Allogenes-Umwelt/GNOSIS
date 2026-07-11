@@ -247,3 +247,34 @@ def test_dossier_clave_inexistente_no_escribe(conn):
     r = dockear_dossier(conn, SID, "conc-no-existe")
     assert "error" in r
     assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0
+
+
+# ── ola 2: lookup directo por VIN ────────────────────────────────────
+
+
+def test_estado_vin_tri_fuente_con_disputas(conn):
+    from autogenes.concilia import estado_vin
+    ped = _pedimento(conn)
+    _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1", precio=512000, jn="J",
+            pais="DEU", pedimento_id=ped)
+    _llegar(conn, "WVGZZZ5NZMW900001", "F2699-5N", jn="N", pais="BRA",
+            filename="tiguan.pdf")
+    r = estado_vin(conn, SID, "MW900001")          # parcial casa único
+    assert r["chasis"] == "WVGZZZ5NZMW900001"
+    assert r["conciliado"] is True
+    assert r["dwh"][0]["numero_pedimento"] == "26-001"
+    assert r["llegadas"][0]["filename"] == "tiguan.pdf"
+    campos = {d["campo"] for d in r["disputas"]}
+    assert campos == {"j_y_n", "pais"}
+
+
+def test_estado_vin_ambiguo_y_ausente(conn):
+    from autogenes.concilia import estado_vin
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3")
+    _vender(conn, "VIN00000000000000002", "F2602-8W2")
+    amb = estado_vin(conn, SID, "VIN0000000000000000")
+    assert amb.get("ambiguo") and len(amb["candidatos"]) == 2
+    assert "error" in estado_vin(conn, SID, "NOEXISTE")
+    # exacto gana aunque haya otros parciales
+    ex = estado_vin(conn, SID, "VIN00000000000000001")
+    assert ex["chasis"] == "VIN00000000000000001" and ex["conciliado"] is False

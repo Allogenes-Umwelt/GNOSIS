@@ -124,6 +124,71 @@
       elMsj.textContent = '';
     }
 
+    // ── lookup directo: estado vivo tri-fuente de un VIN ─────────────
+    var formVin = document.getElementById('cn-vin-form');
+    if (formVin) formVin.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var q = document.getElementById('cn-vin').value.trim();
+      if (!q) return;
+      btnDossier.style.display = 'none';
+      elDetalle.innerHTML = '<p class="qa-base-hint">Buscando…</p>';
+      fetch('/api/v1/autogenes/concilia/vin?chasis=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (v) {
+          if (v.error) {
+            elDetalle.innerHTML = '<p class="qa-base-hint">' + esc(v.error) + '</p>';
+            return;
+          }
+          if (v.ambiguo) {
+            elDetalle.innerHTML = '<p class="qa-base-hint">Varios chasis ' +
+              'casan — precisa uno:</p><div class="qa-lista">' +
+              v.candidatos.map(function (c) {
+                return '<div class="cn-ref"><b>' + esc(c) + '</b></div>';
+              }).join('') + '</div>';
+            return;
+          }
+          var html = '<h3 style="margin:0 0 2px;font-family:var(--font-mono);' +
+            'font-size:.85rem">' + esc(v.chasis) + '</h3>' +
+            '<div class="cn-estado' + (v.conciliado ? '' : ' mal') + '">' +
+            (v.conciliado ? 'conciliado' : 'sin conciliar') + '</div>';
+          if (v.duplicado_dwh || v.duplicado_llegadas) {
+            html += '<p class="qa-base-hint" style="color:var(--danger)">VIN ' +
+              'repetido en ' + (v.duplicado_dwh ? 'el DWH' : 'las llegadas') + '.</p>';
+          }
+          html += '<div class="qa-sec">DWH · vendido</div><div class="qa-lista">';
+          html += v.dwh.length ? v.dwh.map(function (d) {
+            return '<div class="cn-ref"><b>' + esc(d.factura || 's/f') + '</b>' +
+              '<span>' + (d.precio != null ? '$' +
+                Number(d.precio).toLocaleString('es-MX') + ' MXN · ' : '') +
+              'J/N <b>' + esc(d.j_y_n || '—') + '</b> · país <b>' +
+              esc(d.pais_code || '—') + '</b>' +
+              (d.numero_pedimento ? ' · pedimento <b>' + esc(d.numero_pedimento) +
+                '</b>' : ' · sin pedimento') + '</span></div>';
+          }).join('') : '<p class="qa-base-hint">Nada vendido con este chasis.</p>';
+          html += '</div><div class="qa-sec">PDF · llegado</div><div class="qa-lista">';
+          html += v.llegadas.length ? v.llegadas.map(function (d) {
+            return '<div class="cn-ref"><b>' + esc(d.filename || d.factura || 's/f') +
+              '</b><span>' + (d.amount ? esc(d.amount) + ' ' +
+                esc(d.moneda || '') + ' · ' : '') +
+              'J/N <b>' + esc(d.j_y_n || '—') + '</b> · país <b>' +
+              esc(d.pais_code || '—') + '</b></span></div>';
+          }).join('') : '<p class="qa-base-hint">Ninguna factura física lo cita.</p>';
+          html += '</div>';
+          if (v.disputas.length) {
+            html += '<div class="qa-sec">En disputa</div><div class="qa-lista">' +
+              v.disputas.map(function (d) {
+                return '<div class="cn-ref"><span>' + esc(d.campo) +
+                  ': DWH dice <b>' + esc(d.dwh) + '</b> · PDF dice <b>' +
+                  esc(d.pdf) + '</b></span></div>';
+              }).join('') + '</div>';
+          }
+          elDetalle.innerHTML = html;
+        })
+        .catch(function () {
+          elDetalle.innerHTML = '<p class="qa-base-hint">Sin conexión.</p>';
+        });
+    });
+
     // ── dossier de defensa: snapshot completo del hallazgo vivo ─────
     btnDossier.addEventListener('click', function () {
       if (activo < 0 || !datos) return;
