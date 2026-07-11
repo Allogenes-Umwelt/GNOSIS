@@ -67,7 +67,10 @@ DOWNLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__)) + '/downloads'
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # una carga jamas debe poder tumbar el proceso
+# Una carga jamas debe poder tumbar el proceso, pero un ZIP mensual de
+# facturas rebasa 50 MB con facilidad; el guardia real contra zip-bombs
+# es _MAX_UNZIPPED_BYTES al extraer.
+app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024
 
 
 # ── candado de operador (opcional): con GNOSIS_TOKEN en el entorno,
@@ -205,12 +208,24 @@ def log_error_to_file(error_type, error_message, error_traceback):
 
 
 # Error Handlers
+@app.errorhandler(413)
+def handle_request_too_large(e):
+    limite_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+    mensaje = (f"El archivo supera el tope de {limite_mb} MB por carga. "
+               "Divide las facturas en varios ZIP y súbelos uno por uno.")
+    if request.path.startswith('/procesar/'):
+        return jsonify({'error': mensaje}), 413
+    return render_template('error.html', error_message=mensaje, log_file=None), 413
+
+
 @app.errorhandler(FileUploadError)
 def handle_file_upload_error(e):
     error_traceback = traceback.format_exc()
     log_filename = log_error_to_file(FileUploadError, str(e), error_traceback)
-   
-    return render_template('error.html', 
+
+    if request.path.startswith('/procesar/'):
+        return jsonify({'error': str(e)}), 400
+    return render_template('error.html',
                          error_message="Error durante la carga: " + str(e),
                          log_file=log_filename), 400
 @app.errorhandler(PDFProcessingError)

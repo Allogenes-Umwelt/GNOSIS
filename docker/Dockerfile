@@ -63,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # DENTRO del contenedor es correcto: la exposición la controla el mapeo de
 # puerto de Podman. timeout alto por el procesamiento de PDFs.
 CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", \
-     "--timeout", "600", "--access-logfile", "-", "app:app"]
+     "--timeout", "1800", "--access-logfile", "-", "app:app"]
