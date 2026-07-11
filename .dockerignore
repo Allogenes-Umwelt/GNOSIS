@@ -1,0 +1,43 @@
+# Lo que NO entra a la imagen. Crítico: el .env (secretos), la BD local y
+# los datos de trabajo — se montan como volúmenes en runtime, no se hornean.
+.env
+.env.*
+!.env.example
+
+# Datos y artefactos de trabajo (persisten en volúmenes)
+data/
+uploads/
+downloads/
+*.db
+*.db-wal
+*.db-shm
+backups/
+
+# Git y metadatos
+.git/
+.gitignore
+.github/
+
+# Caches de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node/Playwright y capturas (solo para desarrollo/tests)
+node_modules/
+package-lock.json
+*.png
+*.jpg
+
+# Entornos virtuales locales
+.venv/
+venv/
+env/
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store

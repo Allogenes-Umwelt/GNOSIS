@@ -10,4 +10,5 @@ uploads/
 # Secretos locales (nunca commitear)
 .env
 .env.*
+!.env.example
 *.pyc

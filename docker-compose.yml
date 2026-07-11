@@ -1,17 +1,33 @@
+# GNOSIS — orquestación para escritorio. Funciona con:
+#   podman-compose up -d      (Podman)
+#   docker compose up -d      (Docker)
+# Las llaves y secretos se leen de .env (crear a partir de .env.example).
 
 services:
-  aduanas:
-    build: .
+  gnosis:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: gnosis:local
+    container_name: gnosis
+    # Puerto atado a la loopback: en un escritorio NO se expone a la red
+    # local. Se abre en http://127.0.0.1:5001
     ports:
-      - "5001:5001"
+      - "127.0.0.1:5001:5001"
     volumes:
-      - aduanas_data:/ara/data
+      - gnosis_data:/app/data
+      - gnosis_uploads:/app/uploads
+      - gnosis_downloads:/app/downloads
+    env_file:
+      - .env
     environment:
-      - JARVIS_DB_PATH=/ara/data/aduanas.db
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
-      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY}
+      # La BD vive en el volumen persistente
+      - JARVIS_DB_PATH=/app/data/aduanas.db
+      # Descomenta para exigir X-Gnosis-Token en toda mutación (multiusuario)
+      # - GNOSIS_TOKEN=${GNOSIS_TOKEN}
     restart: unless-stopped
 
 volumes:
-  aduanas_data:
+  gnosis_data:
+  gnosis_uploads:
+  gnosis_downloads:
