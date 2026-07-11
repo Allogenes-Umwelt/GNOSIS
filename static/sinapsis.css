@@ -49,3 +49,19 @@
   margin-top: 6px; font-family: var(--font-mono); font-size: .72rem;
   color: var(--t3); overflow-wrap: anywhere;
 }
+.sn-tarjeta.activo { border-color: var(--danger); background: var(--acc-subtle); }
+
+/* el lattice en el panel derecho */
+.sn-lienzo { height: 300px; }
+.sn-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+.sn-celda {
+  width: 100%; text-align: left; cursor: pointer;
+  display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+  padding: 6px 8px; background: var(--s1); border: 1px solid var(--linea);
+  font-family: var(--font-mono); font-size: .72rem; color: var(--t2);
+}
+.sn-celda b { color: var(--t1); font-weight: 400; flex-shrink: 0; }
+.sn-celda.insight { border-left: 2px solid var(--danger); }
+.sn-celda.insight b { color: var(--danger); }
+.sn-celda.activo { border-color: var(--acc-text); background: var(--acc-subtle); }
+.sn-celda.insight.activo { border-color: var(--danger); }

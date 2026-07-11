@@ -494,3 +494,43 @@ def estado_vin(conn: sqlite3.Connection, session_id: int,
         "duplicado_dwh": len(dwh) > 1,
         "duplicado_llegadas": len(llegadas) > 1,
     }
+
+
+def veredicto_por_fila(conn: sqlite3.Connection,
+                       session_id: int) -> dict[str, list[int]]:
+    """La partición CONCILIA del universo DWH: cada fila vendida cae en
+    exactamente UNA celda — en_paz (concilió sin disputas), en_disputa
+    (concilió pero las fuentes afirman J/N o país distintos) o
+    sin_llegada. Misma regla de casamiento de siempre; ids de fila."""
+    filas = conn.execute(
+        f"SELECT i.id, i.j_y_n, i.pais_code,"
+        f"       ef.id AS ef_id, ef.j_y_n AS ef_jn, ef.pais_code AS ef_pais"
+        f" FROM importaciones i"
+        f" LEFT JOIN extraccion_facturas ef ON{_JOIN_PAR}"
+        f" WHERE i.session_id = ? ORDER BY i.id",
+        (session_id,),
+    ).fetchall()
+    celdas: dict[str, list[int]] = {"en_paz": [], "en_disputa": [],
+                                    "sin_llegada": []}
+    vistos: dict[int, str] = {}
+    for r in filas:
+        if r["ef_id"] is None:
+            vistos.setdefault(r["id"], "sin_llegada")
+            continue
+        disputa = (
+            ((r["j_y_n"] or "").strip() and (r["ef_jn"] or "").strip()
+             and r["j_y_n"].strip().upper() != r["ef_jn"].strip().upper())
+            or ((r["pais_code"] or "").strip() and (r["ef_pais"] or "").strip()
+                and r["pais_code"].strip().upper()
+                != r["ef_pais"].strip().upper())
+        )
+        # una fila casada con varias llegadas: disputa en cualquiera manda
+        if disputa:
+            vistos[r["id"]] = "en_disputa"
+        else:
+            vistos.setdefault(r["id"], "en_paz")
+    for fid, celda in vistos.items():
+        celdas[celda].append(fid)
+    for c in celdas.values():
+        c.sort()
+    return celdas

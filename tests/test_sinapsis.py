@@ -104,3 +104,67 @@ def test_orquestador_sobre_base_real():
                       if i["clave"] == "sin-error-confirmado")
     assert confirmado["refs"] == [{"chasis": "WVWBRA00000090002"}]
     assert r["total"] >= 1
+
+
+# ── el lattice de refinamiento ───────────────────────────────────────
+
+
+def test_reticula_celdas_son_intersecciones_reales():
+    from autogenes.sinapsis import componer_reticula
+    veredictos = {"en_paz": [1, 2, 3], "en_disputa": [4], "sin_llegada": [5, 6]}
+    particion = {"conformes": [1, 2, 5], "contra_norma": [4, 6],
+                 "otra_violacion": [3]}
+    insights = [{"clave": "sin-error-confirmado"}]
+    r = componer_reticula(veredictos, particion, insights)
+    assert r["universo"] == {"n": 6, "coincide": True}
+    celdas = {(c["concilia"], c["validacion"]): c
+              for c in r["refinamiento"]["celdas"]}
+    assert celdas[("en_paz", "conformes")]["n"] == 2       # {1,2}
+    assert celdas[("en_disputa", "contra_norma")]["n"] == 1
+    assert celdas[("en_disputa", "contra_norma")]["insight"] == "sin-error-confirmado"
+    assert ("en_paz", "contra_norma") not in celdas        # celda vacía no se dibuja
+    # suma de celdas == universo: es una partición de verdad
+    assert sum(c["n"] for c in r["refinamiento"]["celdas"]) == 6
+
+
+def test_reticula_sin_insight_no_marca_celda():
+    from autogenes.sinapsis import componer_reticula
+    r = componer_reticula({"en_disputa": [1]}, {"contra_norma": [1]}, [])
+    celda = r["refinamiento"]["celdas"][0]
+    assert celda["n"] == 1 and celda["insight"] is None    # el hecho existe;
+    # el insight compuesto no está en la lista → no se marca
+
+
+def test_reticula_universos_desalineados_se_confiesa():
+    from autogenes.sinapsis import componer_reticula
+    r = componer_reticula({"en_paz": [1]}, {"conformes": [1, 2]}, [])
+    assert r["universo"]["coincide"] is False
+
+
+def test_orquestador_incluye_reticula_coherente():
+    import sqlite3
+    from autogenes.sinapsis import insights_de_sesion
+    from database import models, models_autogenes
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed,"
+        " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    c.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " j_y_n, pais_code) VALUES (1, 'WVWBRA00000090002', 'F2700-BR1',"
+        " 298000, 'J', 'BRA')")
+    c.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura,"
+        " amount, moneda, j_y_n, pais_code, filename) VALUES (1,"
+        " 'WVWBRA00000090002', 'F2700-BR', '12,000.00', 'EUR', 'N', 'BRA',"
+        " 'tiguan.pdf')")
+    r = insights_de_sesion(c, 1)
+    ret = r["reticula"]
+    assert ret["universo"] == {"n": 1, "coincide": True}
+    celda = ret["refinamiento"]["celdas"][0]
+    assert (celda["concilia"], celda["validacion"]) == ("en_disputa",
+                                                        "contra_norma")
+    assert celda["insight"] == "sin-error-confirmado"

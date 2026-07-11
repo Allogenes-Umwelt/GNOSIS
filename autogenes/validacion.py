@@ -39,11 +39,12 @@ def _vacio(v: Any) -> bool:
 
 
 def validar(conn: sqlite3.Connection, session_id: int,
-            tope: int = MAX_REFS) -> dict[str, Any]:
+            tope: int = MAX_REFS, con_particion: bool = False) -> dict[str, Any]:
     """El estado de conformidad de la sesión: todas las reglas evaluadas
     (violadas o no), ordenadas por violaciones, y el porcentaje de filas
     plenamente conformes por fuente. `tope` acota refs por regla (el
-    certificado pide más); el conteo siempre cubre el total."""
+    certificado pide más); `con_particion` agrega la partición del
+    universo DWH por ids de fila (la pide SINAPSIS, no el API)."""
     dwh = conn.execute(
         "SELECT id, chasis, factura, precio, j_y_n, pais_code, catalogo_id"
         " FROM importaciones WHERE session_id = ? ORDER BY id",
@@ -57,6 +58,7 @@ def validar(conn: sqlite3.Connection, session_id: int,
     reglas: list[dict[str, Any]] = []
     malas_dwh: set[int] = set()
     malas_pdf: set[int] = set()
+    ids_dwh_por_regla: dict[str, set[int]] = {}
 
     def regla(clave: str, titulo: str, norma: str, fuente: str,
               filas: list[sqlite3.Row], viola, ref) -> None:
@@ -65,6 +67,8 @@ def validar(conn: sqlite3.Connection, session_id: int,
         v = [r for r in filas if viola(r)]
         marca = malas_dwh if fuente == "dwh" else malas_pdf
         marca.update(r["id"] for r in v)
+        if fuente == "dwh":
+            ids_dwh_por_regla[clave] = {r["id"] for r in v}
         reglas.append({
             "clave": clave,
             "titulo": titulo,
@@ -135,7 +139,7 @@ def validar(conn: sqlite3.Connection, session_id: int,
     reglas.sort(key=lambda r: (-r["n"], r["clave"]))
     total_filas = len(dwh) + len(pdf)
     conformes = total_filas - len(malas_dwh) - len(malas_pdf)
-    return {
+    salida = {
         "session_id": session_id,
         "reglas": reglas,
         "total_violaciones": sum(r["n"] for r in reglas),
@@ -144,6 +148,18 @@ def validar(conn: sqlite3.Connection, session_id: int,
         "conformidad_pct": (round(100 * conformes / total_filas)
                             if total_filas else None),
     }
+    if con_particion:
+        # la partición VALIDACIÓN del universo DWH (para SINAPSIS): cada
+        # fila en UNA celda — contra_norma manda sobre otra_violacion
+        contra_norma = ids_dwh_por_regla.get("val-dwh-jn-norma", set())
+        otra = malas_dwh - contra_norma
+        todos = {r["id"] for r in dwh}
+        salida["particion_dwh"] = {
+            "contra_norma": sorted(contra_norma),
+            "otra_violacion": sorted(otra),
+            "conformes": sorted(todos - malas_dwh),
+        }
+    return salida
 
 
 # ── ola 2: el expediente certificado por sesión ──────────────────────

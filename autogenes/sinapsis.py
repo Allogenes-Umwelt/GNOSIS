@@ -194,7 +194,7 @@ def insights_de_sesion(conn: sqlite3.Connection,
     """Orquestador: recolecta las salidas VIVAS de los motores y las
     pasa al compositor puro. Nunca escribe."""
     from autogenes import topologia
-    from autogenes.concilia import conciliar, cupos_what_if
+    from autogenes.concilia import conciliar, cupos_what_if, veredicto_por_fila
     from autogenes.qualia import red_de_sesion
     from autogenes.validacion import validar
 
@@ -209,13 +209,89 @@ def insights_de_sesion(conn: sqlite3.Connection,
     ]
     conc = conciliar(conn, session_id)
     cupos = cupos_what_if(conn, session_id)
-    val = validar(conn, session_id)
+    val = validar(conn, session_id, con_particion=True)
 
     insights = componer_insights(resumen, monolitos, conc, cupos, val)
+    reticula = componer_reticula(veredicto_por_fila(conn, session_id),
+                                 val["particion_dwh"], insights)
     return {
         "session_id": session_id,
         "insights": insights,
         "total": len(insights),
+        "reticula": reticula,
         "motores": ["qualia.topologia", "qualia.centralidad", "concilia",
                     "concilia.cupos", "validacion"],
+    }
+
+
+# ── el lattice de refinamiento de particiones ────────────────────────
+
+ETIQUETA_BLOQUE = {
+    "en_paz": "En paz", "en_disputa": "En disputa",
+    "sin_llegada": "Sin llegada",
+    "conformes": "Conforme", "contra_norma": "Contra la norma",
+    "otra_violacion": "Otra violación",
+}
+BLOQUES_EN_PAZ = {"en_paz", "conformes"}
+
+
+def componer_reticula(veredictos: dict[str, list[int]],
+                      particion_val: dict[str, list[int]],
+                      insights: list[dict]) -> dict[str, Any]:
+    """El lattice de refinamiento del universo DWH — puro y verificado
+    por construcción: ⊤ (partición trivial) se refina en P·CONCILIA y
+    P·VALIDACIÓN (cada motor parte el MISMO conjunto de filas), y su
+    ínfimo P·C ∧ P·V es el refinamiento común — las celdas intersección
+    donde viven los insights compuestos. Todo bloque es |celda| real;
+    una celda vacía no se dibuja; una celda solo se marca como insight
+    si el insight compuesto EXISTE en la lista."""
+    claves_insight = {i["clave"] for i in insights}
+
+    def bloques(part: dict[str, list[int]]) -> list[dict[str, Any]]:
+        return [
+            {"clave": c, "etiqueta": ETIQUETA_BLOQUE.get(c, c),
+             "n": len(ids), "en_paz": c in BLOQUES_EN_PAZ}
+            for c, ids in part.items() if ids
+        ]
+
+    universo = {i for ids in veredictos.values() for i in ids}
+    universo_val = {i for ids in particion_val.values() for i in ids}
+    # ambos motores DEBEN partir el mismo conjunto; si difieren se dice
+    coincide = universo == universo_val
+
+    celdas = []
+    for c_conc, ids_c in veredictos.items():
+        for c_val, ids_v in particion_val.items():
+            n = len(set(ids_c) & set(ids_v))
+            if not n:
+                continue
+            insight = None
+            if (c_conc, c_val) == ("en_disputa", "contra_norma") \
+                    and "sin-error-confirmado" in claves_insight:
+                insight = "sin-error-confirmado"
+            if c_conc == "sin_llegada":
+                cupo = next((k for k in claves_insight
+                             if k.startswith("sin-cupo-")), None)
+                insight = insight or cupo
+            celdas.append({
+                "concilia": c_conc, "validacion": c_val,
+                "etiqueta": f"{ETIQUETA_BLOQUE[c_conc]} ∧ "
+                            f"{ETIQUETA_BLOQUE[c_val]}",
+                "n": n,
+                "en_paz": (c_conc in BLOQUES_EN_PAZ
+                           and c_val in BLOQUES_EN_PAZ),
+                "insight": insight,
+            })
+    celdas.sort(key=lambda c: (c["en_paz"], -c["n"], c["etiqueta"]))
+
+    return {
+        "universo": {"n": len(universo), "coincide": coincide},
+        "particiones": [
+            {"clave": "concilia", "nombre": "P · CONCILIA",
+             "bloques": bloques(veredictos)},
+            {"clave": "validacion", "nombre": "P · VALIDACIÓN",
+             "bloques": bloques(particion_val)},
+        ],
+        "refinamiento": {"nombre": "P·CONCILIA ∧ P·VALIDACIÓN",
+                         "celdas": celdas},
     }
