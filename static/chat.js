@@ -60,9 +60,19 @@ function addMessage(text, role) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
 }
 
+function escHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+
 function renderMarkdown(text) {
-  // Basic markdown rendering
-  let html = text;
+  // La respuesta del modelo puede repetir texto de un documento (p.ej. un
+  // campo "<img onerror=...>"). Se escapa ANTES del markdown: los tags que
+  // insertamos luego (strong/em/table) son literales controlados; el
+  // contenido del usuario/documento queda inerte. Sin esto se ejecutaría
+  // y además se re-renderiza en cada carga desde localStorage.
+  let html = escHtml(text);
 
   // Tables
   html = html.replace(/^\|(.+)\|$/gm, (match) => {

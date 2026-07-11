@@ -1179,24 +1179,44 @@ async function refreshErroresPanel() {
       if (zipLink && sid) zipLink.href = '/errores/download-zip?sid=' + sid;
 
       if (tbody) {
+        // El filename viene del nombre del archivo subido (no confiable):
+        // se escapa para contexto HTML y viaja por data-* (no concatenado
+        // en handlers inline), evitando XSS e inyección en contexto JS.
+        const escH = (s) => String(s == null ? '' : s)
+          .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
         tbody.innerHTML = data.errores.map((err, i) => {
           const rowId = 'err-row-live-' + i;
           const msg = (err.error_message || '').split(' | Parsers: ')[0];
           const truncated = msg.length > 60 ? msg.substring(0, 60) + '…' : msg;
+          const fnAttr = escH(err.filename);
           const dlUrl = '/errores/download?sid=' + sid + '&f=' + encodeURIComponent(err.filename);
-          return `<tr id="${rowId}">
-            <td style="word-break:break-all;max-width:120px;">${err.filename}</td>
-            <td><span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">${err.error_type || 'parse'}</span></td>
-            <td style="max-width:140px;"><span title="${err.error_message || ''}">${truncated}</span></td>
+          return `<tr id="${rowId}" data-fn="${fnAttr}" data-sid="${sid}" data-row="${rowId}">
+            <td style="word-break:break-all;max-width:120px;">${escH(err.filename)}</td>
+            <td><span style="background:transparent;border:1px solid var(--telos-on);color:var(--telos-on);padding:0.1rem 0.45rem;font-family:var(--font-mono);font-size:0.6rem;letter-spacing:0.5px;text-transform:uppercase;white-space:nowrap;">${escH(err.error_type || 'parse')}</span></td>
+            <td style="max-width:140px;"><span title="${escH(err.error_message || '')}">${escH(truncated)}</span></td>
             <td style="text-align:right;white-space:nowrap;">
-              <a href="${dlUrl}" title="Descargar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none;font-size:0.85rem;margin-right:0.3rem;">↓</a>
+              <a href="${escH(dlUrl)}" title="Descargar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;text-decoration:none;font-size:0.85rem;margin-right:0.3rem;">↓</a>
               <label title="Subir corregido" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;font-size:0.85rem;margin-right:0.3rem;">
-                ↑<input type="file" accept=".pdf" style="display:none" onchange="reprocessFile(this, '${err.filename}', ${sid}, '${rowId}')">
+                ↑<input type="file" accept=".pdf" style="display:none" data-act="reproc">
               </label>
-              <button onclick="deleteError('${err.filename}', ${sid}, '${rowId}')" title="Eliminar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:none;border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;font-size:1rem;padding:0;">×</button>
+              <button data-act="del" title="Eliminar" style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:6px;background:none;border:1px solid var(--border);color:var(--text-secondary);cursor:pointer;font-size:1rem;padding:0;">×</button>
             </td>
           </tr>`;
         }).join('');
+        // handlers delegados: leen filename/sid/row de data-*, sin concatenar
+        tbody.querySelectorAll('input[data-act="reproc"]').forEach((inp) => {
+          inp.addEventListener('change', function () {
+            const tr = this.closest('tr');
+            reprocessFile(this, tr.dataset.fn, Number(tr.dataset.sid), tr.dataset.row);
+          });
+        });
+        tbody.querySelectorAll('button[data-act="del"]').forEach((btn) => {
+          btn.addEventListener('click', function () {
+            const tr = this.closest('tr');
+            deleteError(tr.dataset.fn, Number(tr.dataset.sid), tr.dataset.row);
+          });
+        });
       }
     } else {
       if (tableWrap) tableWrap.style.display = 'none';
@@ -2102,10 +2122,13 @@ function gnosisDeepTables(){
     if(!data.length) return;
     var mx=Math.max.apply(null,data.map(function(d){return d.val;}))||1, sum=data.reduce(function(a,d){return a+d.val;},0);
     var maxIdx=data.reduce(function(bi,d,i,a){return d.val>a[bi].val?i:bi;},0);
+    // label/raw vienen de textContent (des-escapan las entidades de Jinja);
+    // reinyectar por innerHTML sin re-escapar revive HTML de un documento.
+    var esc=function(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');};
     var h='<div class="dx-dist">';
-    data.forEach(function(d,i){ h+='<div class="dx-row'+(i===maxIdx?' lead':'')+'"><span class="dx-k" title="'+d.label.replace(/"/g,'&quot;')+'">'+d.label+'</span><span class="dx-bar"><span data-w="'+(d.val/mx*100)+'"></span></span><span class="dx-v">'+d.raw+'</span></div>'; });
+    data.forEach(function(d,i){ h+='<div class="dx-row'+(i===maxIdx?' lead':'')+'"><span class="dx-k" title="'+esc(d.label)+'">'+esc(d.label)+'</span><span class="dx-bar"><span data-w="'+(d.val/mx*100)+'"></span></span><span class="dx-v">'+esc(d.raw)+'</span></div>'; });
     tbl.outerHTML=h+'</div>';
-    var th=card.querySelector('.th'); if(th){ var nm=th.textContent.trim(); th.innerHTML='<span>'+nm+'</span><span class="thn">'+(totalTxt||sum.toLocaleString())+'</span>'; }
+    var th=card.querySelector('.th'); if(th){ var nm=th.textContent.trim(); th.innerHTML='<span>'+esc(nm)+'</span><span class="thn">'+esc(totalTxt||sum.toLocaleString())+'</span>'; }
     card.dataset.dx='1';
   });
   requestAnimationFrame(function(){ document.querySelectorAll('.dx-bar span[data-w]').forEach(function(s){ s.style.width=s.getAttribute('data-w')+'%'; }); });

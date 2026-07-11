@@ -196,23 +196,28 @@
       cargarBacktest(rg);
     }
 
-    // backtest: la misma regla contra toda la historia procesada
+    // backtest: la misma regla contra toda la historia procesada.
+    // Guard de secuencia: al cambiar de regla rápido, la respuesta lenta de
+    // la regla anterior NO debe adjuntar su P&L bajo las refs de la nueva.
+    var backtestId = null;
     function cargarBacktest(rg) {
+      backtestId = rg.id;
       fetch('/api/v1/autogenes/nomos/backtest?id=' + encodeURIComponent(rg.id))
         .then(function (r) { return r.json(); })
         .then(function (j) {
+          if (backtestId !== rg.id) return;          // llegó tarde: descartar
           if (!j || j.error || !j.corridas) return;
           var html = '<div class="qa-sec">Backtest · toda la historia</div>' +
             '<div class="qa-lista">';
           j.corridas.forEach(function (c) {
-            html += '<div class="cn-ref' + (c.n_violaciones ? '' : '') + '">' +
+            html += '<div class="cn-ref">' +
               '<span>' + esc(c.sesion) + (c.actual ? ' · actual' : '') +
               ' · ' + c.n_disparos + ' caen · <b>' + c.n_violaciones +
               ' no cumplen</b>' +
               (c.pnl_mxn != null ? ' · $' + num(Math.round(c.pnl_mxn)) + ' MXN'
                 : '') + '</span></div>';
           });
-          elRefs.innerHTML += html + '</div>';
+          elRefs.insertAdjacentHTML('beforeend', html + '</div>');
         })
         .catch(function () {});
     }

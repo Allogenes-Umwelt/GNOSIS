@@ -280,7 +280,9 @@
               // 1. Marca de éxito (acento) inmediata
               row.style.transition = 'background 0.4s';
               row.style.background = 'var(--acc-subtle)';
-              row.cells[0].innerHTML = '<strong style="color:var(--acc-text)">✓ Procesado</strong> <code style="color:var(--t2)">' + file.name + '</code>';
+              // file.name lo controla quien re-sube: escapar antes de innerHTML
+              var _fn = String(file.name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+              row.cells[0].innerHTML = '<strong style="color:var(--acc-text)">✓ Procesado</strong> <code style="color:var(--t2)">' + _fn + '</code>';
               row.cells[1].innerHTML = '';
               row.cells[2].innerHTML = '';
               row.cells[3].innerHTML = '';
