@@ -4,7 +4,10 @@
 # PDFs (tabula/jpype en PDFs_v2.py); todo lo demás es Python puro.
 
 # ===== BUILDER =====
-FROM python:3.11-slim AS builder
+# Pin a bookworm (Debian 12): el tag rodante python:3.11-slim se movió a
+# trixie (Debian 13), donde openjdk-17 ya no existe. Fijar la variante
+# mantiene el build reproducible y el JRE 17 disponible.
+FROM python:3.11-slim-bookworm AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -23,7 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 
 # ===== RUNTIME =====
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
