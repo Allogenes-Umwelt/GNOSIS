@@ -1771,6 +1771,42 @@ def api_sinapsis():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/autogenes/cronos')
+def autogenes_cronos():
+    """CRONOS (F13): time travel del sustrato — reconstrucción aditiva
+    por created_at con los momentos de la bitácora como línea de tiempo."""
+    return render_template('autogenes_cronos.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/api/v1/autogenes/cronos', methods=['GET'])
+def api_cronos():
+    """CRONOS: estratos acumulados por momento de bitácora."""
+    from autogenes.cronos import estratos
+
+    def handler(conn, session_id):
+        return jsonify(estratos(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/cronos/estado', methods=['GET'])
+def api_cronos_estado():
+    """CRONOS: el sustrato reconstruido en el instante ts (sin ts = ahora)."""
+    from autogenes.cronos import estado_en
+
+    ts = request.args.get('ts') or None
+
+    def handler(conn, session_id):
+        return jsonify(estado_en(conn, session_id, ts))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/v1/autogenes/exportar', methods=['GET'])
 def api_autogenes_exportar():
     """Soberanía del dato: la sesión AUTOGENES completa como bundle JSON

@@ -238,3 +238,10 @@ def test_nomos_renderiza():
     assert "NMS-04" in html
     assert "nm-reglas" in html and "nm-lienzo" in html and "nm-form" in html
     assert "nomos.js" in html
+
+
+def test_cronos_renderiza():
+    html = _flask_render("autogenes_cronos.html", sesion_etiqueta="07/2026")
+    assert "CRN-05" in html
+    assert "cr-momentos-lista" in html and "cr-lienzo" in html
+    assert "cronos.js" in html

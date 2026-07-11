@@ -98,3 +98,7 @@
   flex-shrink: 0;
 }
 .nm-form button { align-self: flex-start; }
+
+/* CRONOS: lienzo de estratos */
+.cr-lienzo { height: 380px; }
+.cr-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
