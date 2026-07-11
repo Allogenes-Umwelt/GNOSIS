@@ -57,6 +57,15 @@ def hallazgos_pendientes(session_id=None):
     return _ejecutar(consultas.hallazgos_pendientes, session_id)
 
 
+def conciliacion(session_id=None):
+    """CONCILIA (F9): flujo tri-fuente + hallazgos monetizados + cupos."""
+    from autogenes.concilia import conciliar, cupos_what_if
+
+    def _todo(conn, sid):
+        return {**conciliar(conn, sid), "cupos": cupos_what_if(conn, sid)}
+    return _ejecutar(_todo, session_id)
+
+
 GRAFO_TOOL_FUNCTIONS = {
     'expediente_entidad': expediente_entidad,
     'camino_entre': camino_entre,
@@ -64,6 +73,7 @@ GRAFO_TOOL_FUNCTIONS = {
     'resumen_grafo': resumen_grafo,
     'senales_caso': senales_caso,
     'hallazgos_pendientes': hallazgos_pendientes,
+    'conciliacion': conciliacion,
 }
 
 _SESSION_PROP = {"type": "integer",
@@ -162,6 +172,23 @@ GRAFO_TOOL_DEFINITIONS = [
             "de actividad) con severidad, mas el detalle de facturas "
             "faltantes y con error. Si no hay base fijada lo dice: sin "
             "referencia no se inventan desviaciones."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"session_id": _SESSION_PROP},
+            "required": [],
+        },
+    },
+    {
+        "name": "conciliacion",
+        "description": (
+            "Estado CONCILIA de la sesion: flujo tri-fuente (vendido DWH / "
+            "conciliado / llegado PDF), hallazgos monetizados (vendido sin "
+            "llegada, llegado sin venta por moneda, J/N y pais en disputa, "
+            "VIN duplicado, sin pedimento, PDFs ilegibles), valor en riesgo "
+            "MXN por unidad distinta, y what-if de cupos con run-rate "
+            "medido. Usar para 'cuanto valor esta en riesgo', 'que no "
+            "concilia' o 'cuando se agota el cupo'."
         ),
         "input_schema": {
             "type": "object",
