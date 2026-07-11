@@ -1175,12 +1175,13 @@ AUTOGENES_SECCIONES = {
     'sinapsis': {
         'nombre': 'SINAPSIS', 'numero': 'III', 'forma': 'triangulo',
         'tipo': 'Dashboard', 'fase': 'Fase F11',
-        'descripcion': 'Conocimiento nuevo por recombinación: el modelo propone '
-                       'hipótesis, el servidor las recomputa, y solo lo confirmado '
-                       'se muestra — en un grafo que se reconfigura para demostrarlo.',
+        'descripcion': 'Insights por recombinación verificada: conjunciones '
+                       'entre las salidas vivas de los motores (QUALIA × '
+                       'CONCILIA × VALIDACIÓN) que ninguno ve solo, con su '
+                       'cadena de composición auditable.',
         'metricas': [('entidades', 'Entidades'), ('relaciones', 'Relaciones')],
-        'estado': 'El motor de recombinación llega en F11, sobre Qualia (F7) y '
-                  'el motor de hallazgos (F9).'},
+        'estado': 'Activo — puentes en duda, monolitos sin conciliar, cupos '
+                  'comprometidos y errores confirmados por doble motor.'},
     'nomos': {
         'nombre': 'NOMOS', 'numero': 'IV', 'forma': 'triangulo',
         'tipo': 'Dashboard', 'fase': 'Fase F12',
@@ -1406,6 +1407,14 @@ def autogenes_validacion():
     """VALIDACIÓN (F10): la glosa preventiva — conformidad de cada fila
     contra la norma, con cada regla evaluada y sus filas violadoras."""
     return render_template('autogenes_validacion.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
+@app.route('/autogenes/sinapsis')
+def autogenes_sinapsis():
+    """SINAPSIS (F11): insights por recombinación verificada — las
+    conjunciones entre motores que ninguno ve solo."""
+    return render_template('autogenes_sinapsis.html',
                            sesion_etiqueta=_etiqueta_sesion())
 
 
@@ -1723,6 +1732,20 @@ def api_validacion():
 
     def handler(conn, session_id):
         return jsonify(validar(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/autogenes/sinapsis', methods=['GET'])
+def api_sinapsis():
+    """SINAPSIS (F11): conjunciones verificadas entre las salidas vivas
+    de los motores; sin conjunción, lista vacía honesta."""
+    from autogenes.sinapsis import insights_de_sesion
+
+    def handler(conn, session_id):
+        return jsonify(insights_de_sesion(conn, session_id))
     try:
         return _con_sesion(handler)
     except Exception as e:

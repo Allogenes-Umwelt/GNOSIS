@@ -1,0 +1,51 @@
+/* GNOSIS · SINAPSIS (SNP-03) — tarjetas de insight con su cadena de
+   composición. Tokens siempre; magenta solo en la gravedad medida. */
+
+.sn-tarjeta {
+  padding: 12px 14px;
+  background: var(--s1); border: 1px solid var(--linea);
+  border-left: 2px solid var(--acc-solid);
+}
+.sn-tarjeta .motores {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 2px;
+  color: var(--acc-text); text-transform: uppercase;
+}
+.sn-tarjeta .titulo {
+  font-family: var(--font-d); font-weight: 700; font-size: .95rem;
+  letter-spacing: .4px; color: var(--t1); text-transform: uppercase;
+  margin: 3px 0 4px;
+}
+.sn-tarjeta .lectura {
+  margin: 0 0 8px; font-size: .875rem; line-height: 1.5; color: var(--t2);
+}
+/* la cadena de composición: hecho + hecho ⇒ */
+.sn-cadena { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.sn-hecho {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 5px 8px; background: var(--s2); border: 1px solid var(--linea);
+  font-size: .78rem; color: var(--t2);
+}
+.sn-hecho .motor {
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: 1px;
+  color: var(--acc-text); text-transform: uppercase; flex-shrink: 0;
+  min-width: 128px;
+}
+.sn-pie { display: flex; align-items: center; gap: 10px; }
+.sn-gravedad {
+  flex: 1; height: 6px; background: var(--s2);
+  border: 1px solid var(--linea); overflow: hidden;
+}
+.sn-gravedad .nivel { height: 100%; background: var(--danger); }
+.sn-pie .valor {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+.sn-pie a {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px;
+  color: var(--acc-text); text-decoration: none; text-transform: uppercase;
+}
+.sn-pie a:hover { text-decoration: underline; }
+.sn-refs {
+  margin-top: 6px; font-family: var(--font-mono); font-size: .72rem;
+  color: var(--t3); overflow-wrap: anywhere;
+}

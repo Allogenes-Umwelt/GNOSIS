@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · SINAPSIS — Recombinación verificada{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing" id="ag-landing" style="display:block">
+    <section class="ag-centro" aria-label="Insights por recombinación">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">SNP-03 · AUTOGENES F11</span>
+          <span class="nom">◆ SINAPSIS · Recombinación verificada</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Insights</div>
+      <p class="qa-base-hint" style="margin:0 0 10px">Un insight es la
+      conjunción de hechos que dos motores ya calcularon y que ninguno ve
+      solo. Cada tarjeta muestra su cadena de composición completa — hecho A
+      + hecho B ⇒ lectura — auditable pieza por pieza. Sin conjunción no hay
+      insight: cero placebo.</p>
+      <div class="qa-lista" id="sn-insights" aria-live="polite">
+        <p class="qa-base-hint">Cruzando motores…</p>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='sinapsis.js') }}"></script>
+{% endblock %}

@@ -225,3 +225,10 @@ def test_validacion_renderiza():
     assert "VLD-02" in html
     assert "vl-reglas" in html and "vl-detalle" in html
     assert "validacion.js" in html
+
+
+def test_sinapsis_renderiza():
+    html = _flask_render("autogenes_sinapsis.html", sesion_etiqueta="07/2026")
+    assert "SNP-03" in html
+    assert "sn-insights" in html
+    assert "sinapsis.js" in html
