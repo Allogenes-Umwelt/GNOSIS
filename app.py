@@ -2,26 +2,26 @@ import os
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory, send_file, jsonify # type: ignore
-import pandas as pd
-from PDFs_Final_v3 import PDFs_to_excel
-from concentrado1 import Concentrado
-from concentrado2 import Concentrado2
-from Estadistico import estadistico_v2
-from Estadistico import estadistico_v3
-
-from Estadistico import estadistico_v4
-
-import PDFs_v2
-import zipfile
-from werkzeug.utils import secure_filename
-from werkzeug.exceptions import HTTPException
 import datetime
 import shutil
 import tempfile
 import traceback
+import zipfile
 
-from flask import session, redirect, url_for
+import pandas as pd
+from flask import (  # type: ignore
+    Flask, request, render_template, redirect, url_for, send_from_directory,
+    send_file, jsonify, session,
+)
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
+
+# Nota: las herramientas del pipeline legado (PDFs_to_excel, Concentrado,
+# Concentrado2, estadistico_v4) arrastran el stack de data-science
+# (tabula/bokeh/matplotlib) y se importan PEREZOSAMENTE dentro de los
+# handlers de /procesar. Así la app —y sus rutas AUTOGENES/tableros—
+# importa sin ese stack, y la red de pruebas HTTP corre en CI liviano.
+
 
 def _read_excel(path, **kwargs):
     """Lee un Excel con engine apropiado; si openpyxl falla intenta xlrd."""
@@ -328,7 +328,8 @@ def dashboard():
             por_aduana = [dict(r) for r in conn.execute(
                 "SELECT aduana, COUNT(*) as total FROM pedimentos WHERE session_id = ? AND aduana IS NOT NULL AND aduana != '' GROUP BY aduana ORDER BY total DESC",
                 (session_id,)).fetchall()]
-        except Exception: por_aduana = []
+        except Exception:
+            por_aduana = []
         try:
             por_fraccion = [dict(r) for r in conn.execute(
                 """SELECT c.fraccion, COUNT(*) as total FROM importaciones i
@@ -336,12 +337,14 @@ def dashboard():
                    WHERE i.session_id = ? AND c.fraccion IS NOT NULL AND c.fraccion != ''
                    GROUP BY c.fraccion ORDER BY total DESC LIMIT 12""",
                 (session_id,)).fetchall()]
-        except Exception: por_fraccion = []
+        except Exception:
+            por_fraccion = []
         try:
             por_moneda = [dict(r) for r in conn.execute(
                 "SELECT COALESCE(NULLIF(moneda,''),'—') as moneda, COUNT(*) as total FROM extraccion_facturas WHERE session_id = ? GROUP BY moneda ORDER BY total DESC",
                 (session_id,)).fetchall()]
-        except Exception: por_moneda = []
+        except Exception:
+            por_moneda = []
 
         # ── GNOSIS deep-tech viz data contract (read-only aggregations · Decisión 1A) ──
         # Solo lectura; si algo falla, el dashboard sigue renderizando sin viz_data.
@@ -522,6 +525,7 @@ def procesar_fase1():
     Solo procesa las facturas del ZIP recien subido, luego las mueve
     al directorio acumulativo para que esten disponibles en Fases 2-4.
     """
+    from PDFs_Final_v3 import PDFs_to_excel
     facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
     historico_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'historico')
     downloads_dir = app.config['DOWNLOAD_FOLDER']
@@ -550,7 +554,7 @@ def procesar_fase1():
     # Eliminar el ZIP despues de extraer
     try:
         os.remove(facturas_zip_path)
-    except:
+    except OSError:
         pass
 
     # Eliminar archivos XML del ZIP (no son facturas y pueden causar errores de lectura)
@@ -559,7 +563,7 @@ def procesar_fase1():
             if f.lower().endswith('.xml'):
                 try:
                     os.remove(os.path.join(root, f))
-                except:
+                except OSError:
                     pass
 
     # Handle optional historico
@@ -660,7 +664,9 @@ def procesar_fase1():
 @app.route('/procesar/pipeline', methods=['POST'])
 def procesar_pipeline():
     """Fases 2-4: Pipeline completo (usa facturas ya extraidas)."""
-    facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
+    from concentrado1 import Concentrado
+    from concentrado2 import Concentrado2
+    from Estadistico import estadistico_v4
     dwh_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'dwh')
     incrementales_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'incrementales')
     pdfInversion_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfInversion')
@@ -822,6 +828,10 @@ def procesar_pipeline():
 
 @app.route('/processing', methods=['POST'])
 def processing():
+    from PDFs_Final_v3 import PDFs_to_excel
+    from concentrado1 import Concentrado
+    from concentrado2 import Concentrado2
+    from Estadistico import estadistico_v4
     facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
     dwh_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'dwh')
     incrementales_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'incrementales')
@@ -2447,6 +2457,7 @@ def admin_dedup():
 @app.route('/procesar/historico', methods=['POST'])
 def procesar_historico():
     """Pipeline historico: Concentrado2 via SQL + Estadistico con todos los cupos."""
+    from Estadistico import estadistico_v4
     from database import get_connection
     from database.persistence import get_historico_concentrado2, get_facturas_faltantes_historico
 
@@ -2706,6 +2717,7 @@ def reprocesar_pdfs():
     """Re-procesa PDFs corregidos subidos por el usuario.
     Espera multipart/form-data con: files[] y session_id.
     """
+    from PDFs_Final_v3 import PDFs_to_excel
     from database import get_connection as _get_conn
 
     session_id = request.form.get('session_id')

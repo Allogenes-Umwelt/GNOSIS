@@ -1,0 +1,8 @@
+# Ruff config. Los defaults (E4/E7/E9/F) aplican en todo el repo; solo
+# declaramos las excepciones deliberadas por archivo.
+
+[lint.per-file-ignores]
+# app.py llama load_dotenv() ANTES de importar módulos que leen variables
+# de entorno al importarse (.env debe poblarse primero). Ese orden es
+# intencional, así que E402 (import no al inicio) no aplica aquí.
+"app.py" = ["E402"]
