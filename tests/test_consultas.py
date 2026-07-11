@@ -37,8 +37,10 @@ def conn() -> sqlite3.Connection:
     e_sat = s.upsert_entidad("SAT", "organizacion", "synesis", evidencia=[f2.id])
     s.agregar_relacion(e_vw.id, e_ver.id, "importa por", 0.8, [f1.id])
     s.agregar_relacion(e_sat.id, e_vw.id, "audita a", 0.6, [f2.id])
+    # los eventos se citan por NOMBRE de entidad (como la extracción real),
+    # no por id — así el expediente los encuentra en producción.
     s.agregar_eventos([{"titulo": "Auditoría SAT", "fecha": "2026-08-01",
-                        "precision": "dia", "entidades": [e_sat.id, e_vw.id],
+                        "precision": "dia", "entidades": ["SAT", "VW"],
                         "evidencia": [f2.id], "origen": "synesis"}])
     # una huérfana para el radar
     s.upsert_entidad("Nota suelta", "concepto", "operador")

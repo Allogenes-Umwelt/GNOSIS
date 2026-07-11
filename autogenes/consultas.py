@@ -180,21 +180,27 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
                             json.loads(r["evidencia"] or "[]"), maximo=3),
         })
 
-    marca = f'%"{e["id"]}"%'
+    # ag_eventos.entidades guarda NOMBRES (así los poda sustrato.quitar_entidad
+    # y los cita la extracción), no ids: emparejar por id dejaba la sección de
+    # eventos SIEMPRE vacía en producción. Se busca por nombre + alias.
+    nombres_ent = [e["nombre"], *json.loads(e["alias"] or "[]")]
+    cond_ev = " OR ".join("entidades LIKE ?" for _ in nombres_ent)
+    params_ev = [f'%"{n}"%' for n in nombres_ent]
     eventos = [
         {"titulo": r["titulo"], "fecha": r["fecha"], "precision": r["precision"]}
         for r in conn.execute(
             "SELECT titulo, fecha, precision FROM ag_eventos"
-            " WHERE session_id = ? AND entidades LIKE ? ORDER BY fecha",
-            (session_id, marca),
+            f" WHERE session_id = ? AND ({cond_ev}) ORDER BY fecha",
+            (session_id, *params_ev),
         )
     ]
+    # ag_productos.entidades guarda IDS (así los poda quitar_entidad): id correcto.
     productos = [
         {"titulo": r["titulo"], "clase": r["clase"], "unidad": r["unidad"]}
         for r in conn.execute(
             "SELECT titulo, clase, unidad FROM ag_productos"
             " WHERE session_id = ? AND entidades LIKE ? ORDER BY created_at",
-            (session_id, marca),
+            (session_id, f'%"{e["id"]}"%'),
         )
     ]
 

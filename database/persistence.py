@@ -4,7 +4,6 @@ import shutil
 from datetime import datetime
 
 import pandas as pd
-import numpy as np
 
 from . import get_connection
 
@@ -26,19 +25,32 @@ def create_session(month, year):
     return session_id
 
 
+# Columnas que update_session_stats puede tocar. El nombre de columna se
+# interpola en el SQL (no se puede parametrizar un identificador), así que
+# se valida contra esta allowlist: sin esto, una clave derivada de entrada
+# externa sería inyección SQL.
+_STATS_COLUMNAS = frozenset({
+    'total_pdfs_processed', 'total_pdfs_errors', 'total_records',
+    'processing_time_seconds', 'status', 'month_processed', 'year_processed',
+    'session_date',
+})
+
+
 def update_session_stats(session_id, **kwargs):
     """Updates processing_sessions with final counts and timing.
-    Accepts: total_pdfs_processed, total_pdfs_errors, total_records,
-             processing_time_seconds, status
-    """
+    Solo se permiten columnas de la allowlist _STATS_COLUMNAS."""
     conn = get_connection()
-    for key, value in kwargs.items():
-        conn.execute(
-            f"UPDATE processing_sessions SET {key} = ? WHERE id = ?",
-            (value, session_id)
-        )
-    conn.commit()
-    conn.close()
+    try:
+        for key, value in kwargs.items():
+            if key not in _STATS_COLUMNAS:
+                raise ValueError(f"Columna no permitida en stats: {key}")
+            conn.execute(
+                f"UPDATE processing_sessions SET {key} = ? WHERE id = ?",
+                (value, session_id)
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def get_all_sessions():

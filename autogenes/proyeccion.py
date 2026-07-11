@@ -270,7 +270,11 @@ def arbol_ontologia(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]
     ramas_por_marca: dict[str, list[dict]] = {}
     for ped_id, veh in por_pedimento.items():
         marcas = [v["marca"] for v in veh if v["marca"]]
-        marca = max(set(marcas), key=marcas.count) if marcas else "Sin marca"
+        # sorted() antes de max estabiliza el desempate: iterar un set de
+        # strings varía con PYTHONHASHSEED y hacía que el árbol colgara el
+        # pedimento de una u otra marca entre reinicios (no reproducible).
+        marca = (max(sorted(set(marcas)), key=marcas.count)
+                 if marcas else "Sin marca")
         numero = veh[0]["numero_pedimento"] or "sin pedimento"
         hojas = [rama(f"veh:{v['id']}", v["chasis"] or str(v["id"]), "dato", [])
                  for v in veh]
