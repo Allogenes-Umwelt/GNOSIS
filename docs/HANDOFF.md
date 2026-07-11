@@ -73,6 +73,26 @@ Las cinco tarjetas viven además en el **Selector de Análisis** del
 dashboard principal (13 tableros) con **miniaturas reales** dibujadas
 de sus propios APIs (`SW_TBV` + `tbvMini*` en `main.html`).
 
+**Endurecimiento (ola de blueprints)** — contrato de errores honesto:
+los `HTTPException` (404/405/413) conservan su código y las rutas `/api/`
+responden JSON (antes todo se enterraba como 500). `tests/test_http_rutas.py`
+importa la app REAL contra una DB temporal y ejerce cada familia de rutas
+(páginas 200, APIs GET 200 JSON, POST-only 405, desconocida 404, sin
+sesión 404) — es el contrato que protege el split. `app.py` bajó de
+2848→1702 líneas: las herramientas del pipeline legado se importan
+perezosamente (la app importa sin tabula/bokeh/matplotlib, CI corre la
+red HTTP con deps mínimas) y `ruff.toml` declara el E402 deliberado
+(load_dotenv antes de imports). Paquete `rutas/`:
+- `rutas/comun.py` — helpers de sesión compartidos (`_sesion_activa`,
+  `_etiqueta_sesion`, `_con_sesion`: contrato de estado vacío honesto).
+- `rutas/tableros.py` — blueprint TBV (10 rutas).
+- `rutas/autogenes.py` — blueprint del sustrato completo (~45 rutas +
+  `AUTOGENES_SECCIONES`).
+Lo que sigue en `app.py`: pipeline legado `/procesar` (acoplado al stack
+pesado y a uploads/downloads — se deja a propósito), sessions/insumos,
+admin/llm, chat, errores, dashboard raíz y error handlers. Extraer esas
+familias menores es continuación trivial con el mismo patrón.
+
 ## Leyes que NO se negocian
 
 1. **Cero snake oil**: todo número es salida de motor; sin datos se
@@ -102,10 +122,13 @@ de sus propios APIs (`SW_TBV` + `tbvMini*` en `main.html`).
    DOF/CILA bloquean fetch automatizado (403 WAF); los 9 puertos
    marítimos ya son SEMAR oficial. Si el operador comparte el catálogo
    de recintos de Barbelo, alinear.
-3. **Endurecimiento diferido**: partir `app.py` en blueprints y subir
-   Flask/pypdf (ambos exigen primero cobertura de tests a nivel ruta);
-   batching de extracción; quórum paralelo; ~30 avisos ruff legacy en
-   `app.py` (fuera del alcance de CI a propósito).
+3. **Endurecimiento diferido restante**: extraer a blueprints las
+   familias menores que aún viven en `app.py` (sessions/insumos, chat,
+   admin/llm, errores) — trivial con el patrón de `rutas/`; el pipeline
+   legado `/procesar` se deja por su acople al stack pesado. Subir
+   Flask/pypdf (PyPDF2 está deprecado); batching de extracción; quórum
+   paralelo. (Hecho ya: red de rutas HTTP, status honestos, `app.py`
+   ruff-limpio y en CI, split de tableros + autogenes.)
 
 ## Gotchas de entorno (ahorran horas)
 
