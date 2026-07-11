@@ -86,30 +86,32 @@
     // gauge de salud metabólica — llena el espacio superior con dato
     function dibujarGauge() {
       if (datos.salud == null) return;
-      var cx = layout.w / 2, cy = layout.h * 0.22, R = 46;
+      // hero monumental: el arco crece y las etiquetas viven FUERA del
+      // anillo — el número nunca comparte tinta con las letras
+      var cx = layout.w / 2, cy = layout.h * 0.21, R = 64;
       var frac = datos.salud / 100;
       // dos estados honestos: magenta SOLO cuando el avance es crítico;
       // la granularidad la da el número, no un tercer color inventado
       var color = datos.salud >= 33 ? colores.acc : colores.danger;
       ctx.beginPath();
       ctx.strokeStyle = conAlfa(colores.linea, 0.7);
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.arc(cx, cy, R, -Math.PI * 0.75, Math.PI * 0.75);
       ctx.stroke();
       ctx.beginPath();
       ctx.strokeStyle = color;
-      ctx.lineWidth = 6;
+      ctx.lineWidth = 7;
       ctx.arc(cx, cy, R, -Math.PI * 0.75, -Math.PI * 0.75 + frac * Math.PI * 1.5);
       ctx.stroke();
       ctx.lineWidth = 1;
-      ctx.font = '700 30px "JetBrains Mono", monospace';
+      ctx.font = '700 46px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t1;
       ctx.textAlign = 'center';
-      ctx.fillText(datos.salud + '%', cx, cy + 6);
+      ctx.fillText(datos.salud + '%', cx, cy + 15);
       ctx.font = '10px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t3;
-      ctx.fillText('AVANCE DEL CASO', cx, cy + R + 4);
-      ctx.fillText(datos.total_fugas + ' PENDIENTES', cx, cy + R + 18);
+      ctx.fillText('AVANCE DEL CASO', cx, cy + R + 18);
+      ctx.fillText(datos.total_fugas + ' PENDIENTES', cx, cy + R + 32);
     }
 
     function dibujar(ts) {
@@ -157,6 +159,9 @@
         if (rc.r.fuga > 0) {
           var xm = (x0 + x1) / 2;
           var caida = 30 + FUGA_MAX * Math.min(1, rc.fugaRel);
+          // la gota y su etiqueta viven ARRIBA del bloque de barras
+          // (y0 = 0.74h): con fuga máxima jamás lo invaden
+          caida = Math.min(caida, Math.max(24, layout.h * 0.74 - y - 46));
           var anchoFuga = 3 + 16 * Math.min(1, rc.fugaRel);
           ctx.beginPath();
           ctx.moveTo(xm - anchoFuga, y);
