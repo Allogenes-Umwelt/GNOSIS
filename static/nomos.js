@@ -1,9 +1,9 @@
-/* GNOSIS · NOMOS (F12, NMS-04) — reglas como neuronas McCulloch-Pitts.
-   Izquierda: reglas con P&L real (violaciones monetizadas con precios
-   presentes; lo sin precio se declara). Derecha: la anatomía M-P de la
-   regla seleccionada — entradas con conteo vivo, pesos unitarios FIJOS
-   (parte del cálculo original de 1943, no decoración), Σ, umbral θ = n
-   condiciones y salida con conformes/violaciones. CERO snake oil: cada
+/* GNOSIS · NOMOS (F12, NMS-04) — reglas del caso con P&L real.
+   Izquierda: reglas monetizadas (precios presentes; lo sin precio se
+   declara). Derecha: el diagrama de decisión de la regla seleccionada
+   — internamente una unidad umbral McCulloch-Pitts (AND, pesos
+   unitarios fijos), pero TODA copia visible es de negocio: condiciones
+   → filas que caen → cumplen/violan lo esperado. CERO snake oil: cada
    número es |conjunto| del motor. Datos: /api/v1/autogenes/nomos. */
 (function () {
   'use strict';
@@ -62,7 +62,7 @@
       if (activo < 0 || !datos || !datos.reglas[activo]) {
         ctx.fillStyle = colores.t3;
         ctx.textAlign = 'center';
-        ctx.fillText('TOCA UNA REGLA PARA VER SU NEURONA', w / 2, h / 2);
+        ctx.fillText('TOCA UNA REGLA PARA VER CÓMO DECIDE', w / 2, h / 2);
         return;
       }
       var rg = datos.reglas[activo];
@@ -87,10 +87,7 @@
         ctx.fillText(c.campo + ' = ' + c.valor, xIn, y - 14);
         ctx.fillStyle = colores.t3;
         ctx.fillText(c.n + ' filas', xIn, y - 3);
-        // el peso unitario: FIJO por ley del cálculo M-P
-        ctx.fillStyle = colores.acc;
-        ctx.fillText('w=1', xIn + (xSum - 22 - xIn) * 0.55,
-                     y + (ySum - y) * 0.12 - 5);
+
       });
 
       // Σ
@@ -118,22 +115,25 @@
       ctx.lineWidth = 1;
       ctx.fillStyle = colores.t3;
       ctx.font = '10px ' + colores.mono;
-      ctx.fillText('θ = ' + rg.umbral, xThr, ySum + 30);
+      ctx.fillText(rg.umbral === 1 ? 'la condición' : 'las ' + rg.umbral +
+                   ' a la vez', xThr, ySum + 30);
 
       // salida: disparos y, de esos, violaciones en magenta
       ctx.strokeStyle = alfa(colores.acc, 0.85);
       ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.moveTo(xThr + 18, ySum); ctx.lineTo(xOut - 8, ySum);
+      // la línea muere ANTES de las etiquetas: el texto nunca se tacha
+      ctx.beginPath(); ctx.moveTo(xThr + 18, ySum);
+      ctx.lineTo(xOut - 128, ySum);
       ctx.stroke();
       ctx.lineWidth = 1;
       ctx.textAlign = 'right';
       ctx.fillStyle = colores.t1;
-      ctx.fillText(rg.n_disparos + ' disparan', xOut, ySum - 22);
+      ctx.fillText(rg.n_disparos + ' caen en la regla', xOut, ySum - 26);
       ctx.fillStyle = colores.acc;
-      ctx.fillText(rg.n_conformes + ' conformes', xOut, ySum - 10);
+      ctx.fillText(rg.n_conformes + ' cumplen', xOut, ySum - 12);
       ctx.fillStyle = colores.danger;
       ctx.font = '700 12px ' + colores.mono;
-      ctx.fillText(rg.n_violaciones + ' violan', xOut, ySum + 6);
+      ctx.fillText(rg.n_violaciones + ' no cumplen', xOut, ySum + 6);
       ctx.font = '10px ' + colores.mono;
       ctx.fillStyle = colores.t3;
       ctx.fillText('esperado: ' + rg.entonces.campo + ' = ' +
@@ -159,9 +159,9 @@
           '<span class="fila"><span class="titulo">' + esc(rg.nombre) + '</span>' +
           '<span class="monto' + (rg.n_violaciones ? '' : ' neutro') + '">' +
           (rg.n_violaciones ? pnl : 'en paz') + '</span></span>' +
-          '<p class="detalle">dispara en ' + num(rg.n_disparos) + ' de ' +
-          num(rg.base) + ' filas · ' + rg.n_conformes + ' conformes · ' +
-          rg.n_violaciones + ' violan' +
+          '<p class="detalle">' + num(rg.n_disparos) + ' de ' +
+          num(rg.base) + ' filas caen en la regla · ' + rg.n_conformes +
+          ' cumplen · ' + rg.n_violaciones + ' no cumplen' +
           (rg.sin_precio ? ' · ' + rg.sin_precio + ' sin precio (no se estima)' : '') +
           '</p></button>';
       });

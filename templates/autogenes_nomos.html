@@ -11,7 +11,7 @@
 
 {% block content %}
 <div class="ag-wrap">
-  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
 
     <!-- Izquierda: las reglas con su P&L -->
     <section class="ag-centro gr-centro" aria-label="Reglas del caso">
@@ -32,12 +32,11 @@
       </div>
 
       <div class="qa-sec">Reglas</div>
-      <p class="qa-base-hint" style="margin:0 0 8px">Cada regla es una neurona
-      McCulloch-Pitts en el sentido original de 1943: condiciones como
-      entradas 0/1 con pesos unitarios FIJOS, umbral θ = número de
-      condiciones (AND), y un valor esperado cuando dispara. Nada se aprende
-      ni se pondera a ojo — es lógica, no oráculo. Toca una regla para ver su
-      anatomía viva a la derecha.</p>
+      <p class="qa-base-hint" style="margin:0 0 8px">Una regla se lee como
+      negocio: SI las condiciones se cumplen, la fila debe declarar el valor
+      esperado. Aquí ves cuántas filas caen en cada regla, cuántas cumplen y
+      cuánto vale lo que no cumple. Toca una regla para ver cómo decide, a la
+      derecha.</p>
       <div class="qa-lista" id="nm-reglas" aria-live="polite">
         <p class="qa-base-hint">Cargando reglas…</p>
       </div>
@@ -61,19 +60,19 @@
       </form>
     </section>
 
-    <!-- Derecha: la neurona M-P de la regla seleccionada -->
-    <aside class="ag-panel" id="ag-panel-der" aria-label="Anatomía McCulloch-Pitts">
+    <!-- Derecha: el diagrama de decisión (unidad umbral M-P por dentro) -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Cómo decide la regla">
       <div class="ag-panel-head">
-        <h2>Neurona</h2>
+        <h2>Cómo decide</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
-      <div class="qa-sec" style="margin-top:0">Anatomía M-P</div>
-      <p class="qa-base-hint" style="margin:0 0 6px">Entradas con su conteo
-      vivo de filas → Σ → umbral θ → salida: filas que disparan, y de esas,
-      cuántas violan el valor esperado (magenta). Pesos unitarios por ley —
-      se dibujan porque son parte del cálculo, no decoración.</p>
+      <div class="qa-sec" style="margin-top:0">Cómo decide la regla</div>
+      <p class="qa-base-hint" style="margin:0 0 6px">De izquierda a derecha:
+      cada condición con cuántas filas la cumplen; las que cumplen TODAS caen
+      en la regla; de esas, cuántas declaran el valor esperado y cuántas no —
+      lo magenta es valor en riesgo.</p>
       <div class="qa-lienzo nm-lienzo" id="nm-lienzo"
-           aria-label="Diagrama McCulloch-Pitts de la regla seleccionada">
+           aria-label="Diagrama de decisión de la regla seleccionada">
         <canvas></canvas>
       </div>
       <div class="qa-sec">Filas violadoras</div>
