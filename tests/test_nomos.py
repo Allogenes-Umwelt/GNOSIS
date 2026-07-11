@@ -88,3 +88,23 @@ def test_estado_publica_conteo_de_reglas(conn):
     s.crear_regla("BRA=N", [{"campo": "pais_code", "valor": "BRA"}],
                   {"campo": "j_y_n", "valor": "N"})
     assert estado_de_sesion(conn, 1)["reglas"] == 1
+
+
+def test_backtest_corre_la_regla_sobre_toda_la_historia(conn):
+    from autogenes.nomos import backtest_regla
+    # una segunda sesión histórica con una violación BRA=J
+    conn.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed,"
+        " year_processed) VALUES ('2026-06-10', 6, 2026)")
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " j_y_n, pais_code) VALUES (2, 'H1', 'FH1', 50000, 'J', 'BRA')")
+    s = Sustrato(conn, 1)
+    regla = s.crear_regla("BRA=N", [{"campo": "pais_code", "valor": "BRA"}],
+                          {"campo": "j_y_n", "valor": "N"})
+    r = backtest_regla(conn, 1, regla["id"])
+    assert [c["sesion"] for c in r["corridas"]] == ["07/2026", "06/2026"]
+    assert r["corridas"][0]["actual"] is True
+    assert r["corridas"][1]["n_violaciones"] == 1
+    assert r["corridas"][1]["pnl_mxn"] == 50000
+    assert "error" in backtest_regla(conn, 1, "no-existe")

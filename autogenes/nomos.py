@@ -92,3 +92,43 @@ def evaluar_reglas(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         "pnl_activas_mxn": round(sum(e["pnl_mxn"] or 0 for e in activas), 2),
         "base": len(filas),
     }
+
+
+# ── ola 2: backtest contra la historia ───────────────────────────────
+
+
+def backtest_regla(conn: sqlite3.Connection, session_id: int,
+                   regla_id: str) -> dict[str, Any]:
+    """La regla evaluada contra TODAS las sesiones procesadas: qué habría
+    encontrado en cada una. Mismo evaluador, otras filas — nada nuevo que
+    inventar. La regla vive en su sesión; el backtest solo LEE historia."""
+    regla_fila = conn.execute(
+        "SELECT * FROM ag_reglas WHERE id = ? AND session_id = ?",
+        (regla_id, session_id)).fetchone()
+    if regla_fila is None:
+        return {"error": "Regla inexistente en esta sesión"}
+    regla = {**dict(regla_fila),
+             "condiciones": json.loads(regla_fila["condiciones"]),
+             "entonces": json.loads(regla_fila["entonces"]),
+             "activa": bool(regla_fila["activa"])}
+
+    sesiones = conn.execute(
+        "SELECT id, month_processed, year_processed FROM processing_sessions"
+        " ORDER BY id").fetchall()
+    corridas = []
+    for s in sesiones:
+        filas = conn.execute(
+            "SELECT id, chasis, factura, precio, j_y_n, pais_code, auto_code"
+            " FROM importaciones WHERE session_id = ? ORDER BY id",
+            (s["id"],)).fetchall()
+        e = evaluar_regla(filas, regla)
+        corridas.append({
+            "session_id": s["id"],
+            "sesion": f"{s['month_processed']:02d}/{s['year_processed']}",
+            "actual": s["id"] == session_id,
+            "base": e["base"],
+            "n_disparos": e["n_disparos"],
+            "n_violaciones": e["n_violaciones"],
+            "pnl_mxn": e["pnl_mxn"],
+        })
+    return {"regla": regla["nombre"], "corridas": corridas}

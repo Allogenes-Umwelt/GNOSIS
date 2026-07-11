@@ -193,6 +193,28 @@
           ' más — el P&L SÍ las incluye.</p>';
       }
       elRefs.innerHTML = html;
+      cargarBacktest(rg);
+    }
+
+    // backtest: la misma regla contra toda la historia procesada
+    function cargarBacktest(rg) {
+      fetch('/api/v1/autogenes/nomos/backtest?id=' + encodeURIComponent(rg.id))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error || !j.corridas) return;
+          var html = '<div class="qa-sec">Backtest · toda la historia</div>' +
+            '<div class="qa-lista">';
+          j.corridas.forEach(function (c) {
+            html += '<div class="cn-ref' + (c.n_violaciones ? '' : '') + '">' +
+              '<span>' + esc(c.sesion) + (c.actual ? ' · actual' : '') +
+              ' · ' + c.n_disparos + ' caen · <b>' + c.n_violaciones +
+              ' no cumplen</b>' +
+              (c.pnl_mxn != null ? ' · $' + num(Math.round(c.pnl_mxn)) + ' MXN'
+                : '') + '</span></div>';
+          });
+          elRefs.innerHTML += html + '</div>';
+        })
+        .catch(function () {});
     }
 
     function cargar() {
@@ -233,6 +255,18 @@
     });
     document.getElementById('nm-e-campo').value = 'j_y_n';
 
+    // volante insight→regla (HITL): el insight siembra nombre y origen;
+    // la lógica la declara el operador — jamás se auto-crea una regla
+    var params = new URLSearchParams(location.search);
+    var desdeInsight = params.get('desde') || '';
+    if (params.get('nombre')) {
+      document.getElementById('nm-nombre').value = params.get('nombre');
+      if (desdeInsight) {
+        document.getElementById('nm-msj').textContent =
+          'Promovida desde SINAPSIS — declara la condición y el esperado';
+      }
+    }
+
     document.getElementById('nm-form').addEventListener('submit', function (ev) {
       ev.preventDefault();
       var msj = document.getElementById('nm-msj');
@@ -250,7 +284,8 @@
           entonces: {
             campo: document.getElementById('nm-e-campo').value,
             valor: document.getElementById('nm-e-valor').value.trim()
-          }
+          },
+          origen: desdeInsight ? 'insight' : 'operador'
         })
       })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })

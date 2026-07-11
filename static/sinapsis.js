@@ -80,6 +80,8 @@
           '%"></div></div>' +
           '<span class="valor">' + Math.round(ins.gravedad * 100) + '%</span>' +
           '<a href="' + esc(ins.accion) + '">actuar →</a>' +
+          '<a href="/autogenes/nomos?nombre=' + encodeURIComponent(ins.titulo) +
+          '&desde=' + encodeURIComponent(ins.clave) + '">regla →</a>' +
           '<button type="button" class="sn-dockear" data-clave="' +
           esc(ins.clave) + '">dockear</button></div>';
         if ((ins.refs || []).length) {

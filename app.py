@@ -1794,6 +1794,24 @@ def api_nomos_regla():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/v1/autogenes/nomos/backtest', methods=['GET'])
+def api_nomos_backtest():
+    """Backtest: la regla evaluada contra todas las sesiones procesadas."""
+    from autogenes.nomos import backtest_regla
+
+    regla_id = request.args.get('id', '')
+
+    def handler(conn, session_id):
+        r = backtest_regla(conn, session_id, regla_id)
+        if 'error' in r:
+            return jsonify(r), 404
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/autogenes/nomos')
 def autogenes_nomos():
     """NOMOS (F12): reglas como ciudadanos del grafo — neuronas M-P con
