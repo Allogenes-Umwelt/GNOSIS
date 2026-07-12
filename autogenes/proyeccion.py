@@ -16,7 +16,7 @@ import math
 import sqlite3
 from typing import Any, Optional
 
-from autogenes import topologia
+from autogenes import concilia, topologia
 
 NUCLEO_PREFIX = "nucleo-sesion-"
 
@@ -89,6 +89,71 @@ def _q(conn: sqlite3.Connection, sql: str, params: tuple) -> list[sqlite3.Row]:
     return conn.execute(sql, params).fetchall()
 
 
+# Anomaly severity by CONCILIA finding class (PANOPTES §1.3). A fixed,
+# documented classification of the descuadre TYPE — never an estimated
+# amount or probability (ZERO SNAKE OIL): danger = the case does not hold
+# (missing amparo, conflicting tariff-determining claim); warn = needs
+# adjudication but is not a structural break.
+SEVERIDAD_CONCILIA = {
+    "vendido_sin_llegada": "danger",
+    "sin_pedimento": "danger",
+    "jn_en_disputa": "danger",
+    "pais_en_disputa": "danger",
+    "llegado_sin_venta": "warn",
+    "vin_duplicado_dwh": "warn",
+    "vin_duplicado_llegadas": "warn",
+    "extraccion_fallida": "warn",
+}
+
+
+def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
+                         nodos: list[dict], enlaces: list[dict]) -> int:
+    """Project CONCILIA's deterministic reconciliation findings as Δ
+    anomaly nodes (PANOPTES §3). Read-only: CONCILIA reads the legacy
+    pipeline's materialized verdicts; sustrato.py stays the only writer of
+    ag_* and no Δ is ever a row. Each Δ cites the nodes it implicates (the
+    orphaned ν, the unamparado Σ) and always tethers to the nucleus. No
+    amount is invented — the finding says what is missing, not its value.
+    Mutates nodos/enlaces in place; returns the anomaly count."""
+    reporte = concilia.conciliar(conn, session_id)
+    if not reporte["hallazgos"]:
+        return 0
+    nucleo_id = f"{NUCLEO_PREFIX}{session_id}"
+    chasis_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
+                     if n["kind"] == "vehiculo"}
+    archivo_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
+                      if n["kind"] == "artefacto"}
+
+    def _objetivos(hallazgo: dict) -> list[str]:
+        cadenas = list(hallazgo.get("unidades", []))
+        for ref in hallazgo.get("refs", []):
+            for clave in ("chasis", "filename"):
+                if ref.get(clave):
+                    cadenas.append(ref[clave])
+        resueltos: list[str] = []
+        vistos: set[str] = set()
+        for c in cadenas:
+            nid = chasis_a_nodo.get(c) or archivo_a_nodo.get(c)
+            if nid and nid not in vistos:
+                vistos.add(nid)
+                resueltos.append(nid)
+        return resueltos
+
+    for h in reporte["hallazgos"]:
+        aid = f"anom:{h['clave']}"
+        nodo = _nodo(aid, "anomalia", h["titulo"], tipo=h["clase"],
+                     extra={"motor": "concilia", "regla_id": h["clave"],
+                            "detalle": h["detalle"],
+                            "n_unidades": h["n_unidades"]})
+        nodo["severidad"] = SEVERIDAD_CONCILIA.get(h["clase"], "warn")
+        nodos.append(nodo)
+        enlaces.append(_enlace(f"cita-{nucleo_id}-{aid}", nucleo_id, aid,
+                               "cita", 0.3))
+        for nid in _objetivos(h):
+            enlaces.append(_enlace(f"cita-{aid}-{nid}", aid, nid, "cita", 0.6))
+    return len(reporte["hallazgos"])
+
+
 def _anotar_analitica(nodos: list[dict], enlaces: list[dict]) -> int:
     """Annotate each node with its community, articulation-bridge flag and
     normalized eigenvector centrality (PANOPTES §3). Uses the deterministic
@@ -115,6 +180,7 @@ def construir_grafo(
     session_id: int,
     limite_vehiculos: Optional[int] = None,
     con_analitica: bool = True,
+    con_anomalias: bool = True,
 ) -> dict[str, Any]:
     """One session's whole ontology as {nodos, enlaces}.
 
@@ -287,6 +353,11 @@ def construir_grafo(
                 enlaces.append(_enlace(f"cita-{p['id']}-{art_id}", p["id"], art_id,
                                        "cita", 0.4))
 
+    # ── anomalías (Δ) desde CONCILIA ─────────────────────────────────
+    n_anomalias = 0
+    if con_anomalias:
+        n_anomalias = _proyectar_anomalias(conn, session_id, nodos, enlaces)
+
     # ── grados ────────────────────────────────────────────────────────
     grados: dict[str, int] = {}
     for enl in enlaces:
@@ -295,7 +366,7 @@ def construir_grafo(
     for n in nodos:
         n["grado"] = grados.get(n["id"], 0)
 
-    meta: dict[str, Any] = {"comunidades": 0}
+    meta: dict[str, Any] = {"comunidades": 0, "anomalias": n_anomalias}
     if con_analitica:
         meta["comunidades"] = _anotar_analitica(nodos, enlaces)
 

@@ -241,3 +241,45 @@ def test_con_analitica_false_omite_el_costo(conn):
     assert all("comunidad" not in n for n in g["nodos"])
     # la estructura y los glifos siguen intactos sin la analítica
     assert all("glifo" in n for n in g["nodos"])
+
+
+def test_anomalias_delta_desde_concilia(conn):
+    g = construir_grafo(conn, SID)
+    anomalias = [n for n in g["nodos"] if n["kind"] == "anomalia"]
+    # el fixture tiene 2 vendidas sin factura (VIN...02, VIN...03) y 1
+    # llegada sin venta (VIN_NO_VENDIDO_9 / huerfana.pdf)
+    clases = {n["tipo"] for n in anomalias}
+    assert "vendido_sin_llegada" in clases and "llegado_sin_venta" in clases
+    assert g["meta"]["anomalias"] == len(anomalias)
+
+    # cada Δ lleva glifo, severidad y regla_id (procedencia del hallazgo)
+    for n in anomalias:
+        assert n["glifo"] == "Δ"
+        assert n["severidad"] in ("warn", "danger")
+        assert n["extra"]["motor"] == "concilia" and n["extra"]["regla_id"]
+
+    enlaces = {(e["source"], e["target"]) for e in g["enlaces"]}
+    vendido = next(n for n in anomalias if n["tipo"] == "vendido_sin_llegada")
+    assert vendido["severidad"] == "danger"
+    # cita a los vehículos huérfanos que la protagonizan y ancla al núcleo
+    assert (vendido["id"], "veh:2") in enlaces
+    assert (vendido["id"], "veh:3") in enlaces
+    assert ("nucleo-sesion-1", vendido["id"]) in enlaces
+
+    llegado = next(n for n in anomalias if n["tipo"] == "llegado_sin_venta")
+    assert llegado["severidad"] == "warn"
+    # resuelve por chasis (vehfac) y por archivo (PDF huérfano)
+    assert (llegado["id"], "vehfac:VIN_NO_VENDIDO_9") in enlaces
+    assert (llegado["id"], "art:pdf:huerfana.pdf") in enlaces
+
+
+def test_con_anomalias_false_no_proyecta_delta(conn):
+    g = construir_grafo(conn, SID, con_anomalias=False)
+    assert not any(n["kind"] == "anomalia" for n in g["nodos"])
+    assert g["meta"]["anomalias"] == 0
+
+
+def test_anomalias_no_escriben_nada(conn):
+    antes = _conteos(conn)
+    construir_grafo(conn, SID)  # CONCILIA corre dentro: debe ser lectura pura
+    assert _conteos(conn) == antes
