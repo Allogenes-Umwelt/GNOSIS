@@ -93,7 +93,10 @@ def test_grafo_proyecta_la_estructura_aduanal(conn):
         kinds[n["kind"]] = kinds.get(n["kind"], 0) + 1
 
     assert kinds["nucleo"] == 1 and por_id["nucleo-sesion-1"]["etiqueta"] == "Sesión 07/2026"
-    assert kinds["pedimento"] == 2 and kinds["vehiculo"] == 3
+    # 3 vehículos conciliados (importaciones) + 1 de factura sin venta
+    # (VIN_NO_VENDIDO_9): el grafo proyecta el contenido de la factura
+    # aunque aún no haya conciliación DWH.
+    assert kinds["pedimento"] == 2 and kinds["vehiculo"] == 4
     assert kinds["marca"] == 2 and kinds["pais"] == 2
     assert kinds["artefacto"] == 2  # matched + orphan virtual PDFs
 
@@ -101,6 +104,9 @@ def test_grafo_proyecta_la_estructura_aduanal(conn):
     assert ("ped:1", "veh:1") in enlaces and ("ped:2", "veh:3") in enlaces
     # tri-source match: the sold vehicle cites the PDF it arrived under
     assert ("veh:1", "art:pdf:lote_alemania.pdf") in enlaces
+    # el vehículo de factura sin conciliar cita su PDF huérfano
+    assert "vehfac:VIN_NO_VENDIDO_9" in por_id
+    assert ("vehfac:VIN_NO_VENDIDO_9", "art:pdf:huerfana.pdf") in enlaces
     # the orphan PDF exists but tethers to the nucleus (CONCILIA raw material)
     assert ("nucleo-sesion-1", "art:pdf:huerfana.pdf") in enlaces
     assert por_id["art:pdf:huerfana.pdf"]["extra"]["virtual"] is True

@@ -355,7 +355,10 @@
     max-width: none; padding: 0; overflow: hidden;
   }
   #gnosis-inicio { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 52px; }
-  .cel-stage { display: grid; grid-template-columns: 1fr 320px; flex: 1; min-height: 0; }
+  /* grid-template-rows acota la fila al alto del stage: sin esto, el riel
+     de KPIs (contenido alto) estira la fila y descentra el hexágono. */
+  .cel-stage { display: grid; grid-template-columns: 1fr 320px; grid-template-rows: minmax(0, 1fr); flex: 1; min-height: 0; }
+  .cel-cell { min-height: 0; }
   .cel-cell { position: relative; display: flex; align-items: center; justify-content: center; padding: 10px 24px; min-width: 0; }
   .cel-svg { width: 100%; height: 100%; display: block; }
   .cel-svg .cel-nm { font-family: var(--font-mono); font-size: 16.5px; font-weight: 700; letter-spacing: 1.4px; }

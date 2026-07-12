@@ -1082,7 +1082,10 @@ footer {
 
 /* Contenido por encima del patrón de fondo */
 .gstl-header, body > main, .gstl-footer, .ia-console { position: relative; z-index: 1; }
-.gstl-header { z-index: 50; }
+/* Header pegajoso: en páginas con scroll (Áreas en pantalla angosta) el
+   header no se pierde al bajar. En los shells acotados (Inicio/Autogenes,
+   sin scroll de página) sticky se comporta como relative — sin efecto. */
+.gstl-header { position: sticky; top: 0; z-index: 50; }
 
 /* Footer HUD */
 .gstl-footer {

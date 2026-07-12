@@ -65,22 +65,43 @@
     }
 
     // ── ingesta ──────────────────────────────────────────────────────
-    function subir(archivo) {
+    function subirUno(archivo) {
       var fd = new FormData();
       fd.append('documento', archivo);
-      aviso('Ingiriendo ' + archivo.name + '…');
-      fetch('/api/v1/autogenes/ingestar', { method: 'POST', body: fd })
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-        .then(function (res) {
-          if (!res.ok) { aviso(res.j.error || 'Falló la ingesta', 'error'); return; }
-          aviso('Dockeado: ' + res.j.nombre + ' · ' + res.j.fragmentos + ' fragmentos', 'ok');
-          pintarArtefactos();
-          recargarMapa();
-        })
-        .catch(function () { aviso('Sin conexión — reintenta', 'error'); });
+      return fetch('/api/v1/autogenes/ingestar', { method: 'POST', body: fd })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
+    }
+    // Cola secuencial: varios PDFs (o una carpeta soltada) entran uno por
+    // uno para no saturar el servidor ni perder el orden de dockeo.
+    var enCola = false;
+    function subirLote(archivos) {
+      var lista = [];
+      for (var i = 0; i < archivos.length; i++) {
+        var n = (archivos[i].name || '').toLowerCase();
+        if (n.match(/\.(pdf|txt|md)$/)) lista.push(archivos[i]);
+      }
+      if (!lista.length) { aviso('Solo PDF, TXT o MD', 'error'); return; }
+      if (enCola) return;
+      enCola = true;
+      var ok = 0, err = 0, total = lista.length;
+      (function siguiente(i) {
+        if (i >= total) {
+          enCola = false;
+          aviso('Ingesta lista · ' + ok + ' dockeado(s)' + (err ? ' · ' + err + ' con error' : ''),
+                err ? 'error' : 'ok');
+          pintarArtefactos(); recargarMapa();
+          return;
+        }
+        aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' + lista[i].name + '…');
+        subirUno(lista[i]).then(function (res) {
+          if (res.ok) { ok++; } else { err++; }
+          if (res.ok) { pintarArtefactos(); recargarMapa(); }
+          siguiente(i + 1);
+        }).catch(function () { err++; siguiente(i + 1); });
+      })(0);
     }
     file.addEventListener('change', function () {
-      if (file.files.length) subir(file.files[0]);
+      if (file.files.length) subirLote(file.files);
       file.value = '';   // re-elegir el mismo archivo vuelve a disparar change
     });
     ['dragover', 'dragenter'].forEach(function (ev) {
@@ -90,7 +111,7 @@
       drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('arrastrando'); });
     });
     drop.addEventListener('drop', function (e) {
-      if (e.dataTransfer.files.length) subir(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) subirLote(e.dataTransfer.files);
     });
 
     // ── extracción + revisión HITL ───────────────────────────────────

@@ -155,6 +155,35 @@ def construir_grafo(
         nodos.append(_nodo(art_id, "artefacto", filename, tipo="pdf",
                            extra={"virtual": True}))
 
+    # ── Facturas extraídas SIN conciliar aún (solo Fase 1, sin DWH):
+    # proyecta su contenido — país + vehículo por chasis citando su PDF —
+    # para que el grafo tenga cuerpo antes de la conciliación completa.
+    # Se saltan los chasis ya proyectados desde importaciones (sin doble).
+    chasis_conciliados = {v["chasis"] for v in vehiculos if v["chasis"]}
+    paises_vistos = {n["id"] for n in nodos if n["kind"] == "pais"}
+    vehfac_vistos: set[str] = set()
+    lim_fac = int(limite_vehiculos) if limite_vehiculos else 100000
+    for r in _q(conn, f"""
+            SELECT chasis, auto, pais_code, j_y_n, amount, moneda, filename
+            FROM extraccion_facturas
+            WHERE session_id = ? AND chasis IS NOT NULL AND chasis != ''
+            LIMIT {lim_fac}""", (session_id,)):
+        if r["chasis"] in chasis_conciliados or r["chasis"] in vehfac_vistos:
+            continue
+        vehfac_vistos.add(r["chasis"])
+        vid = f"vehfac:{r['chasis']}"
+        nodos.append(_nodo(vid, "vehiculo", r["chasis"], tipo=r["auto"],
+                           extra={"j_y_n": r["j_y_n"], "moneda": r["moneda"]}))
+        art_id = pdf_ids.get(r["filename"])
+        if art_id:
+            enlaces.append(_enlace(f"cita-{vid}-{art_id}", vid, art_id, "cita", 0.6))
+        if r["pais_code"]:
+            pid = f"pais:{r['pais_code']}"
+            if pid not in paises_vistos:
+                nodos.append(_nodo(pid, "pais", r["pais_code"]))
+                paises_vistos.add(pid)
+            enlaces.append(_enlace(f"cita-{vid}-{pid}", vid, pid, "cita", 0.4))
+
     # ── ag_* substrate (port of construirGrafo) ──────────────────────
     artefactos = _q(conn, "SELECT * FROM ag_artefactos WHERE session_id = ?", (session_id,))
     fragmentos = _q(conn, "SELECT * FROM ag_fragmentos WHERE session_id = ?", (session_id,))

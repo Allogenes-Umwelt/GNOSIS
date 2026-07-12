@@ -241,7 +241,9 @@
       iaConsole.classList.toggle('open', open);
       iaConsole.setAttribute('aria-hidden', open ? 'false' : 'true');
       iaBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
-      if (open) { iacInit(); setTimeout(function(){ var i=document.getElementById('iac-input'); if(i) i.focus(); }, 260); }
+      // preventScroll: enfocar el input NO debe arrastrar la página hacia
+      // él (en Áreas eso empujaba el scroll y ocultaba el header).
+      if (open) { iacInit(); setTimeout(function(){ var i=document.getElementById('iac-input'); if(i) i.focus({ preventScroll: true }); }, 260); }
     }
     if (iaBtn) iaBtn.addEventListener('click', function() {
       setIA(!iaConsole.classList.contains('open'));

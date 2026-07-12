@@ -14,8 +14,10 @@ import html
 import math
 from typing import Any, Optional
 
-# Geometría del hexágono (coordenadas del viewBox).
-_W, _H = 1180, 1050
+# Geometría del hexágono (coordenadas del viewBox). El alto del viewBox se
+# ajusta para que el hexágono + su halo queden VERTICALMENTE CENTRADOS
+# (_CY al 50%): así el landing respira igual arriba y abajo.
+_W, _H = 1180, 860
 _CX, _CY = 590, 430
 _R = 262
 
@@ -122,18 +124,10 @@ def construir_celda_svg(m: dict[str, Any]) -> str:
         f'<text x="{_CX}" y="{_CY + 60}" fill="{_T3}" class="cel-core-s" text-anchor="middle">una sola fuente de la verdad</text>'
     )
 
-    ax, ay = 96, 940
-    ejes = (
-        f'<g stroke="{_T2}" stroke-width="1.2" fill="{_T2}" class="cel-ejes" font-style="italic">'
-        f'<line x1="{ax}" y1="{ay}" x2="{ax + 62}" y2="{ay}" marker-end="url(#cel-ax)"/>'
-        f'<line x1="{ax}" y1="{ay}" x2="{ax + 31}" y2="{ay - 54}" marker-end="url(#cel-ax)"/>'
-        f'<text x="{ax + 70}" y="{ay + 5}">a</text><text x="{ax + 36}" y="{ay - 60}">b</text></g>'
-    )
-
     return (
         f'<svg viewBox="0 0 {_W} {_H}" class="cel-svg" preserveAspectRatio="xMidYMid meet" '
         f'role="img" aria-label="Celda de navegación GNOSIS">'
-        f'{defs}{halo}{spokes}{hexg}{nodos}{nucleo}{ejes}</svg>'
+        f'{defs}{halo}{spokes}{hexg}{nodos}{nucleo}</svg>'
     )
 
 
