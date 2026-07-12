@@ -800,7 +800,18 @@
         return '<div class="gr-fila"><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>';
       }).join('');
     }
+    // sección dueña de un nodo, para el deep-link "Abrir en"
+    function destinoDe(n) {
+      if (n.kind === 'artefacto') return ['/autogenes/ingesta', 'Ingesta'];
+      if (n.kind === 'anomalia') {
+        return (n.extra && n.extra.motor === 'validacion')
+          ? ['/autogenes/validacion', 'Validación'] : ['/autogenes/concilia', 'Concilia'];
+      }
+      if (n.kind === 'producto') return ['/autogenes/sintesis', 'Síntesis'];
+      return null;
+    }
     function contenidoTarjeta(n) {
+      var dest = destinoDe(n);
       return '<div class="gr-tar-head">' +
         '<span class="gr-tar-glifo" style="color:' + colorNodo(n) + '">' + esc(n.glifo || '·') + '</span>' +
         '<span class="gr-tar-kind">' + esc((n.meta ? 'racimo' : n.kind)) +
@@ -813,6 +824,7 @@
         '<div class="gr-tar-acciones">' +
         '<button type="button" class="gr-tar-accion" data-accion="vecindario">Vecindario</button>' +
         '<button type="button" class="gr-tar-accion" data-accion="centrar">Centrar</button>' +
+        (dest ? '<button type="button" class="gr-tar-accion" data-accion="abrir">Abrir en ' + esc(dest[1]) + '</button>' : '') +
         '</div>';
     }
     function accionTarjeta(a, n) {
@@ -820,6 +832,9 @@
         vistaManual = true; vista.k = Math.max(vista.k, 1.6);
         vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
         if (!animando) dibujar(0);
+      } else if (a === 'abrir') {
+        var d = destinoDe(n);
+        if (d) window.location.href = d[0];
       } else if (a === 'vecindario') {
         var rn = {}, re = {};
         rn[n.id] = true;
@@ -874,16 +889,26 @@
     function dibujarGuias() {
       if (!tarjetas.length || !capaTarjetas) return;
       var w = canvas.clientWidth, h = canvas.clientHeight;
-      var movil = w < 640;
+      var movil = w < 640, m = 16, puestas = [];
       for (var i = 0; i < tarjetas.length; i++) {
         var t = tarjetas[i], p = pantallaDe(t.nodo);
         if (movil) continue;   // hoja inferior por CSS, sin línea guía
-        var cw = t.el.offsetWidth || 264, ch = t.el.offsetHeight || 120, m = 16;
+        var cw = t.el.offsetWidth || 264, ch = t.el.offsetHeight || 120;
         var cx = p[0] < w / 2 ? Math.min(w - cw - m, p[0] + 64) : Math.max(m, p[0] - cw - 64);
         var cy = p[1] < h / 2 ? Math.min(h - ch - m, p[1] + 34) : Math.max(m, p[1] - ch - 34);
-        if (i === 1) cy = Math.min(h - ch - m, Math.max(m, cy + (p[1] < h / 2 ? ch + 12 : -ch - 12)));
+        // evita solapar con las tarjetas ya colocadas: la empuja debajo (o
+        // encima si no cabe) de la que estorba
+        for (var g = 0; g < puestas.length; g++) {
+          var o = puestas[g];
+          if (cx < o.x + o.w && cx + cw > o.x && cy < o.y + o.h && cy + ch > o.y) {
+            var abajo = o.y + o.h + 10;
+            cy = (abajo + ch <= h - m) ? abajo : Math.max(m, o.y - ch - 10);
+          }
+        }
+        cy = Math.max(m, Math.min(h - ch - m, cy));
         t.el.style.left = Math.round(cx) + 'px';
         t.el.style.top = Math.round(cy) + 'px';
+        puestas.push({ x: cx, y: cy, w: cw, h: ch });
         var ax = (cx + cw / 2 < p[0]) ? cx + cw : cx, ay = cy + Math.min(ch / 2, 22);
         ctx.save();
         ctx.strokeStyle = colores.acc; ctx.globalAlpha = t.fijada ? 0.85 : 0.5;
