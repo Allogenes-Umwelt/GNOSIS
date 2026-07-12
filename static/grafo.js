@@ -151,29 +151,27 @@
     function glowBurn(n, r, ts) {
       var color = n.severidad === 'danger' ? colores.danger : colores.warn;
       var periodo = n.severidad === 'danger' ? 1600 : 2400;   // crít 1.6s / alto 2.4s
-      var rr = r + 10;
+      var f = reduce ? 0.5 : fase(periodo, ts);               // estático a media presencia
       ctx.save();
-      if (reduce) {
-        if (esLight) {
-          ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.globalAlpha = 1;
-          ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.stroke();
-        } else {
-          ctx.shadowColor = color; ctx.shadowBlur = 14;
-          ctx.fillStyle = conAlfa(color, 0.5);
-          ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.fill();
-        }
-        ctx.restore(); return;
-      }
-      var f = fase(periodo, ts);
       if (esLight) {
-        ctx.globalAlpha = 0.12 + 0.88 * f;
-        ctx.strokeStyle = color; ctx.lineWidth = n.severidad === 'danger' ? 2.6 : 3.4;
+        // BURN: anillo de trazo que titila (Daylight)
+        var rr = r + 12;
+        ctx.globalAlpha = reduce ? 0.9 : 0.15 + 0.8 * f;
+        ctx.strokeStyle = color; ctx.lineWidth = n.severidad === 'danger' ? 2.4 : 3.0;
         ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.stroke();
       } else {
-        ctx.globalAlpha = 0.12 + 0.66 * f;
-        ctx.shadowColor = color; ctx.shadowBlur = 8 + 14 * f;
-        ctx.fillStyle = conAlfa(color, 0.6);
-        ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.fill();
+        // GLOW: halo RADIAL que respira (Nocturne). Gradiente suave —
+        // el centro no satura y el borde se desvanece a transparente, en
+        // vez del disco de relleno plano que quemaba el color.
+        var rg = r + 16;
+        var a = 0.5 + 0.5 * f;
+        var g = ctx.createRadialGradient(n.x, n.y, r * 0.5, n.x, n.y, rg);
+        g.addColorStop(0, conAlfa(color, 0.30 * a));
+        g.addColorStop(0.55, conAlfa(color, 0.13 * a));
+        g.addColorStop(1, conAlfa(color, 0));
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(n.x, n.y, rg, 0, 6.283); ctx.fill();
       }
       ctx.restore();
     }
@@ -464,7 +462,18 @@
         ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
         ctx.lineWidth = e.kind === 'relacion' ? 1.3 + (e.peso || 0.5) * 2 : 1.0;
         ctx.setLineDash(e.kind === 'cita' ? [4, 6] : []);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(a.x, a.y);
+        // aristas inter-comunidad se curvan (PANOPTES §4.3): el punto de
+        // control se desplaza perpendicular al vano, así los saltos entre
+        // racimos se leen como cableado y cruzan menos; intra-comunidad recto
+        if (a.comunidad != null && b.comunidad != null && a.comunidad !== b.comunidad) {
+          var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          var ex = b.x - a.x, ey = b.y - a.y;
+          ctx.quadraticCurveTo(mx - ey * 0.12, my + ex * 0.12, b.x, b.y);
+        } else {
+          ctx.lineTo(b.x, b.y);
+        }
+        ctx.stroke();
       });
       ctx.setLineDash([]);
 
