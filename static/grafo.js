@@ -356,6 +356,7 @@
           (nMeta ? ' · ' + nMeta + ' RACIMO' + (nMeta > 1 ? 'S' : '') : '');
       }
       if (typeof pintarLeyenda === 'function') pintarLeyenda();
+      if (typeof pintarDatalist === 'function') pintarDatalist();
     }
 
     // Reconstruye la simulación sobre el set visible. Los nodos conservan su
@@ -965,19 +966,42 @@
 
     // ── controles externos ──────────────────────────────────────────
     var buscar = q(cont.getAttribute('data-buscar'));
+    var datalistEl = document.getElementById('gr-nodos');
+    function pintarDatalist() {
+      if (!datalistEl) return;
+      var vistos = {}, ops = [];
+      for (var i = 0; i < nodos.length && ops.length < 300; i++) {
+        var e = nodos[i].etiqueta;
+        if (e && !vistos[e]) { vistos[e] = true; ops.push('<option value="' + esc(e) + '">'); }
+      }
+      datalistEl.innerHTML = ops.join('');
+    }
     if (buscar) {
       buscar.addEventListener('change', function () {
-        var q = buscar.value.trim().toLowerCase();
-        if (!q) return;
-        var n = nodos.find(function (x) { return x.etiqueta.toLowerCase().indexOf(q) >= 0; });
+        var texto = buscar.value.trim().toLowerCase();
+        if (!texto) return;
+        var n = nodos.find(function (x) { return x.etiqueta && x.etiqueta.toLowerCase() === texto; })
+          || nodos.find(function (x) { return x.etiqueta && x.etiqueta.toLowerCase().indexOf(texto) >= 0; });
         if (n) {
-          sel = n; pintarInspector(n);
-          vista.k = 1.8; vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
+          sel = n; resalte = null; pintarInspector(n); abrirTarjeta(n);
+          vistaManual = true; vista.k = Math.max(vista.k, 1.8);
+          vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
           if (!animando) dibujar(0);
           arrancarLatido();
         }
       });
     }
+    // teclado: Esc sale de cualquier modo (camino, aislar, resalte, selección)
+    canvas.setAttribute('tabindex', '0');
+    canvas.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') {
+        modoCamino = null; canvas.style.cursor = 'grab';
+        kindAislado = null; kindsAtenuados = {}; resalte = null;
+        sel = null; pintarInspector(null); cerrarActivas();
+        if (typeof pintarLeyenda === 'function') pintarLeyenda();
+        colapsar(); if (!animando) dibujar(0);
+      }
+    });
     var reset = q(cont.getAttribute('data-reset'));
     if (reset) {
       reset.addEventListener('click', function () {
