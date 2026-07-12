@@ -53,7 +53,7 @@
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     var nodos = [], enlaces = [], porId = {}, vecinos = {};
-    var sim = null, animando = false, t0 = 0;
+    var sim = null, animando = false, latiendo = false, t0 = 0;
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
@@ -128,6 +128,74 @@
       ctx.beginPath(); ctx.arc(n.x, n.y, rc, 0, 6.283); ctx.fill();
     }
 
+    // fase 0..1 de un ciclo respiratorio de `periodo` ms (coseno suave)
+    function fase(periodo, ts) {
+      return 0.5 - 0.5 * Math.cos(2 * Math.PI * ((ts || 0) % periodo) / periodo);
+    }
+
+    // GLOW⇄BURN (S1S1R1 §3.1 / PANOPTES §5.4): la MISMA alerta de riesgo,
+    // dos render por tema. Solo Δ con severidad. En Nocturne un halo
+    // relleno que respira; en Daylight un anillo de trazo que titila.
+    // reduced-motion: anillo estático a plena presencia (la info no se pierde).
+    function glowBurn(n, r, ts) {
+      var color = n.severidad === 'danger' ? colores.danger : colores.warn;
+      var periodo = n.severidad === 'danger' ? 1600 : 2400;   // crít 1.6s / alto 2.4s
+      var rr = r + 10;
+      ctx.save();
+      if (reduce) {
+        if (esLight) {
+          ctx.strokeStyle = color; ctx.lineWidth = 2.6; ctx.globalAlpha = 1;
+          ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.stroke();
+        } else {
+          ctx.shadowColor = color; ctx.shadowBlur = 14;
+          ctx.fillStyle = conAlfa(color, 0.5);
+          ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.fill();
+        }
+        ctx.restore(); return;
+      }
+      var f = fase(periodo, ts);
+      if (esLight) {
+        ctx.globalAlpha = 0.12 + 0.88 * f;
+        ctx.strokeStyle = color; ctx.lineWidth = n.severidad === 'danger' ? 2.6 : 3.4;
+        ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.stroke();
+      } else {
+        ctx.globalAlpha = 0.12 + 0.66 * f;
+        ctx.shadowColor = color; ctx.shadowBlur = 8 + 14 * f;
+        ctx.fillStyle = conAlfa(color, 0.6);
+        ctx.beginPath(); ctx.arc(n.x, n.y, rr, 0, 6.283); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // Halo del sujeto α (S1S1R1 §3.3): anillo exterior que respira; pulsa
+    // solo mientras el latido corre (hay actividad), estático si no.
+    function haloAlfa(n, r, ts) {
+      var a = (reduce || !latiendo) ? 0.3 : 0.18 + 0.27 * fase(3500, ts);
+      ctx.save();
+      ctx.globalAlpha = a; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(n.x, n.y, r + 14, 0, 6.283); ctx.stroke();
+      ctx.restore();
+    }
+
+    // Afterburn de selección (S1S1R1 §3.5 / las barras verticales del AC):
+    // barras de luz bajo el nodo, gradiente que se desvanece. Estático bajo
+    // reduced-motion; con motion, shimmer suave (ciclo ≥ 2s, nunca > 5 Hz).
+    function afterburn(n, r, ts) {
+      var barras = 3, sep = 3.4, largo = r * 1.7;
+      var shimmer = reduce ? 1 : 0.7 + 0.3 * fase(2200, ts);
+      ctx.save(); ctx.lineWidth = 1.4;
+      for (var i = 0; i < barras; i++) {
+        var bx = n.x + (i - (barras - 1) / 2) * sep;
+        var y0 = n.y + r + 2, y1 = y0 + largo;
+        var grad = ctx.createLinearGradient(bx, y0, bx, y1);
+        grad.addColorStop(0, conAlfa(colores.acc, 0.5 * shimmer));
+        grad.addColorStop(1, conAlfa(colores.acc, 0));
+        ctx.strokeStyle = grad;
+        ctx.beginPath(); ctx.moveTo(bx, y0); ctx.lineTo(bx, y1); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     var dpr = 1;
     function tamano() {
       var caja = canvas.parentElement.getBoundingClientRect();
@@ -181,8 +249,31 @@
         var alfa = sim ? sim.tick() : 0;
         dibujar(ts);
         if (alfa > 0.004 || arrastre.nodo) requestAnimationFrame(paso);
-        else { animando = false; if (!vistaManual) encuadrar(); dibujar(ts); }
+        else { animando = false; if (!vistaManual) encuadrar(); dibujar(ts); arrancarLatido(); }
       })(0);
+    }
+
+    // Latido: reloj de render puro (sin tick de simulación) para los efectos
+    // vivos — glow/burn de las Δ y afterburn de la selección. Solo corre si
+    // hay algo que animar y NO bajo reduced-motion; cede el paso a la
+    // simulación cuando ésta retoma. Mantiene el lienzo en reposo cuando no
+    // hay alertas ni selección (sin rAF ocioso).
+    function vivoAnimado() {
+      if (reduce) return false;
+      if (sel) return true;
+      for (var i = 0; i < nodos.length; i++) {
+        if (nodos[i].kind === 'anomalia' && nodos[i].severidad) return true;
+      }
+      return false;
+    }
+    function arrancarLatido() {
+      if (latiendo || animando || !vivoAnimado()) return;
+      latiendo = true;
+      requestAnimationFrame(function pulso(ts) {
+        if (animando || !vivoAnimado()) { latiendo = false; return; }
+        dibujar(ts);
+        requestAnimationFrame(pulso);
+      });
     }
 
     // encuadre: centra el CORAZÓN del caso (todo menos el halo de
@@ -281,6 +372,10 @@
         ctx.globalAlpha = 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
 
+        // efectos DETRÁS del nodo: glow/burn de la alerta, halo del sujeto
+        if (n.kind === 'anomalia' && n.severidad) glowBurn(n, r, ts);
+        if (n.kind === 'nucleo') haloAlfa(n, r, ts);
+
         if (tier === 'hub') {
           // carcasa (anillo exterior) + mecanizado (anillo medio) + iris
           // (marcas radiales) + núcleo incandescente = el ojo-sensor
@@ -318,8 +413,10 @@
           }
         }
 
-        // selección: anillo punteado giratorio (quieto bajo reduced-motion)
+        // selección: anillo punteado giratorio + afterburn (quietos bajo
+        // reduced-motion)
         if (n === sel) {
+          afterburn(n, r, ts);
           ctx.save();
           ctx.strokeStyle = colores.acc; ctx.lineWidth = 1; ctx.setLineDash([4, 6]);
           ctx.lineDashOffset = reduce ? 0 : -(ts || 0) / 60;
@@ -452,6 +549,7 @@
         sel = nodoEn(p[0], p[1]);
         pintarInspector(sel);
         if (!animando) dibujar(0);
+        arrancarLatido();                              // afterburn de la selección
       }
       if (arrastre.nodo) { arrastre.nodo.fx = null; arrastre.nodo.fy = null; }
       arrastre.activo = false; arrastre.nodo = null;
@@ -507,6 +605,7 @@
           sel = n; pintarInspector(n);
           vista.k = 1.8; vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
           if (!animando) dibujar(0);
+          arrancarLatido();
         }
       });
     }
@@ -545,6 +644,7 @@
         vista.k = Math.max(vista.k, 1.4);
         vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
         if (!animando) dibujar(0);
+        arrancarLatido();
       }
     };
 
