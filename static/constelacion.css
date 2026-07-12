@@ -97,13 +97,25 @@
 }
 
 /* ── Landing /autogenes: ancho completo, paneles plegables ─────── */
+/* AUTOGENES es un shell de viewport fijo: la pagina no crece, cada
+   columna scrollea dentro. Acotamos body/main a la altura de la ventana
+   para que el overflow interno se active (sin esto, una columna larga
+   estira la pagina y deja un "vacio" al final). */
+body:has(.ag-wrap) { height: 100vh; overflow: hidden; }
+main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
+
 .ag-wrap {
-  width: 100%; padding: 0 22px; flex: 1; display: flex; flex-direction: column;
-  text-align: left;
+  width: 100%; padding: 0 22px; flex: 1; min-height: 0;
+  display: flex; flex-direction: column; text-align: left;
 }
 .ag-landing {
   display: grid; grid-template-columns: 280px 1fr 360px; gap: 22px;
   padding: 22px 0 0; flex: 1; align-items: stretch; transition: grid-template-columns .25s ease;
+  /* Acotar a la altura disponible: sin esto, una columna larga (el
+     informe, una tabla) estira la fila y crece la pagina — el "vacio"
+     al hacer scroll. Con min-height:0 el overflow interno de cada
+     columna se activa en vez de empujar el alto. */
+  min-height: 0;
 }
 .ag-landing.izq-off { grid-template-columns: 46px 1fr 360px; }
 .ag-landing.der-off { grid-template-columns: 280px 1fr 46px; }
@@ -117,21 +129,31 @@
   cursor: pointer; font-size: .8rem; line-height: 1;
 }
 .ag-plegar:hover { color: var(--acc-text); border-color: var(--acc-text); }
-.ag-panel.plegado { padding: 10px 6px; align-items: center; gap: 14px; }
+.ag-panel.plegado { padding: 10px 6px; align-items: center; gap: 0; }
 .ag-panel.plegado > *:not(.ag-panel-head) { display: none; }
-.ag-panel.plegado .ag-panel-head { flex-direction: column; }
+/* La cabecera llena la altura del panel; el boton queda arriba y el
+   titulo vertical se centra en el espacio restante (igual que el riel
+   del landing .axc-rail). */
+.ag-panel.plegado .ag-panel-head {
+  flex-direction: column; flex: 1; width: 100%;
+  justify-content: flex-start; align-items: center; gap: 12px;
+}
 .ag-panel.plegado .ag-panel-head h2 {
   writing-mode: vertical-rl; letter-spacing: 4px; margin: 0;
+  flex: 1; display: flex; align-items: center; justify-content: center;
 }
 .ag-panel {
   border: 1px solid var(--line); background: var(--surface);
   padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  /* La columna se ajusta a la fila; su contenido largo scrollea dentro
+     del panel, no estira la pagina. */
+  min-height: 0; overflow-y: auto;
 }
 .ag-panel h2 {
   font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 3px;
   text-transform: uppercase; color: var(--acc-text); margin: 0 0 4px;
 }
-.ag-centro { border: 1px solid var(--line); background: var(--surface); padding: 18px 18px 8px; display: flex; flex-direction: column; }
+.ag-centro { border: 1px solid var(--line); background: var(--surface); padding: 18px 18px 8px; display: flex; flex-direction: column; min-height: 0; }
 .ag-centro .constelacion { flex: 1; display: flex; align-items: center; }
 .ag-centro .constelacion .cst-svg { max-height: min(74vh, 880px); }
 .ag-centro-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line-ghost); padding-bottom: 10px; }

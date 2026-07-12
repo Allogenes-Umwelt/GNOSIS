@@ -27,12 +27,18 @@
       };
     }
 
+    var cssW = 0, cssH = 0;
     function tamano() {
       var caja = canvas.parentElement.getBoundingClientRect();
       var dpr = window.devicePixelRatio || 1;
-      canvas.width = caja.width * dpr;
-      canvas.height = Math.max(430, caja.height) * dpr;
-      canvas.style.height = Math.max(430, caja.height) + 'px';
+      cssW = caja.width;
+      cssH = Math.max(430, caja.height);
+      // Backing store en pixeles fisicos (nitido en Retina); tamano CSS
+      // fijado en AMBAS dimensiones para que el elemento no se estire.
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
@@ -45,12 +51,24 @@
 
     function dibujar() {
       if (!arbol) return;
-      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var w = cssW, h = cssH;
       ctx.clearRect(0, 0, w, h);
       var cx = w / 2, cy = h / 2;
       var maxD = Math.max(1, profundidadMax(arbol, 0));
       var paso = (Math.min(w, h) / 2 - 56) / maxD;
       nodos = [];
+      var etiquetas = [];   // cajas ya pintadas — para evitar encimados
+
+      function cabe(bx, by, bw, bh) {
+        for (var i = 0; i < etiquetas.length; i++) {
+          var e = etiquetas[i];
+          if (bx < e.x + e.w && bx + bw > e.x && by < e.y + e.h && by + bh > e.y) {
+            return false;
+          }
+        }
+        etiquetas.push({ x: bx, y: by, w: bw, h: bh });
+        return true;
+      }
 
       function color(kind) {
         return kind === 'entidad' ? colores.acc
@@ -90,11 +108,19 @@
 
         if (d <= 1 || rama.kind === 'artefacto' || rama.kind === 'agregado') {
           ctx.font = '10px "JetBrains Mono", monospace';
-          ctx.fillStyle = d === 0 ? colores.t1 : colores.t3;
-          ctx.textAlign = ang > 1.5708 && ang < 4.7124 && d > 0 ? 'right' : d === 0 ? 'center' : 'left';
-          var lx = d === 0 ? x : x + Math.cos(ang) * (rad + 5);
-          var ly = d === 0 ? y + rad + 13 : y + Math.sin(ang) * (rad + 5) + 3;
-          ctx.fillText((rama.etiqueta || '').slice(0, 22), lx, ly);
+          var texto = (rama.etiqueta || '').slice(0, 22);
+          var alin = ang > 1.5708 && ang < 4.7124 && d > 0 ? 'right' : d === 0 ? 'center' : 'left';
+          var lx = Math.round(d === 0 ? x : x + Math.cos(ang) * (rad + 5));
+          var ly = Math.round(d === 0 ? y + rad + 13 : y + Math.sin(ang) * (rad + 5) + 3);
+          // Caja aproximada (mono ~6px/char) segun la alineacion.
+          var bw = texto.length * 6, bh = 12;
+          var bx = alin === 'right' ? lx - bw : alin === 'center' ? lx - bw / 2 : lx;
+          // El nucleo (d=0) siempre se pinta; el resto solo si no choca.
+          if (d === 0 || cabe(bx, ly - bh, bw, bh)) {
+            ctx.fillStyle = d === 0 ? colores.t1 : colores.t3;
+            ctx.textAlign = alin;
+            ctx.fillText(texto, lx, ly);
+          }
         }
 
         var total = (rama.hijos || []).reduce(function (t, hijo) {
