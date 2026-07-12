@@ -189,3 +189,55 @@ def test_limite_de_vehiculos_no_rompe_grados(conn):
     assert kinds.count("vehiculo") == 1
     red = construir_red(conn, SID, limite_vehiculos=1)
     assert red.number_of_nodes() == len(g["nodos"])
+
+
+def test_glifos_por_kind(conn):
+    # entidades de los tres subtipos griegos (Ψ persona, Ω organización, ε resto)
+    s = Sustrato(conn, SID)
+    s.upsert_entidad("Ana López", "persona", "operador")
+    s.upsert_entidad("Aduanal SA", "organizacion", "operador")
+    s.upsert_entidad("flete marítimo", "concepto", "operador")
+
+    g = construir_grafo(conn, SID)
+    por_id = {n["id"]: n for n in g["nodos"]}
+    glifo_de_kind = {n["kind"]: n["glifo"] for n in g["nodos"]}
+    assert glifo_de_kind["nucleo"] == "α"
+    assert glifo_de_kind["pedimento"] == "Π"
+    assert glifo_de_kind["vehiculo"] == "ν"
+    assert glifo_de_kind["marca"] == "μ"
+    assert glifo_de_kind["pais"] == "⊕"
+    assert glifo_de_kind["artefacto"] == "Σ"
+
+    ents = {n["etiqueta"]: n["glifo"] for n in g["nodos"] if n["kind"] == "entidad"}
+    assert ents["Ana López"] == "Ψ"
+    assert ents["Aduanal SA"] == "Ω"
+    assert ents["flete marítimo"] == "ε"
+    # todo nodo lleva glifo, ninguno queda sin clasificar
+    assert all(n.get("glifo") and n["glifo"] != "·" for n in g["nodos"])
+    assert por_id["nucleo-sesion-1"]["glifo"] == "α"
+
+
+def test_analitica_topologica_es_determinista(conn):
+    g1 = construir_grafo(conn, SID)
+    g2 = construir_grafo(conn, SID)
+    # cada nodo trae comunidad, puente y centralidad
+    for n in g1["nodos"]:
+        assert "comunidad" in n and isinstance(n["comunidad"], int)
+        assert "puente" in n and isinstance(n["puente"], bool)
+        assert "centralidad" in n and 0.0 <= n["centralidad"] <= 1.0
+    # la centralidad viene normalizada: el nodo más pesado del caso es 1.0
+    assert max(n["centralidad"] for n in g1["nodos"]) == pytest.approx(1.0)
+    # mismo grafo -> misma analítica, bit a bit (ley de determinismo)
+    def campos(g):
+        return [(n["id"], n["comunidad"], n["puente"], n["centralidad"])
+                for n in g["nodos"]]
+    assert campos(g1) == campos(g2)
+    assert g1["meta"]["comunidades"] >= 1
+
+
+def test_con_analitica_false_omite_el_costo(conn):
+    g = construir_grafo(conn, SID, con_analitica=False)
+    assert g["meta"]["comunidades"] == 0
+    assert all("comunidad" not in n for n in g["nodos"])
+    # la estructura y los glifos siguen intactos sin la analítica
+    assert all("glifo" in n for n in g["nodos"])

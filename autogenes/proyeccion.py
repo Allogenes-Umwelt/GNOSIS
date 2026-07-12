@@ -16,7 +16,34 @@ import math
 import sqlite3
 from typing import Any, Optional
 
+from autogenes import topologia
+
 NUCLEO_PREFIX = "nucleo-sesion-"
+
+# Greek-glyph taxonomy (PANOPTES §1): every node kind is a class of object
+# with a canonical glyph, adapted from the TELOS compliance system to the
+# aduanal-automotive case. The glyph is NOT ornamental — it names the class.
+# Cover band: α Π ν μ ⊕ Δ Σ Φ.
+GLIFO_POR_KIND = {
+    "nucleo": "α",       # the session — ego of the analysis
+    "pedimento": "Π",    # the ruling customs declaration
+    "vehiculo": "ν",     # the atomic unit: one chassis/VIN
+    "marca": "μ",        # brand aggregator hub
+    "pais": "⊕",         # geographic origin
+    "artefacto": "Σ",    # documentary source (invoice/note/structured)
+    "fragmento": "σ",    # sub-evidence (unit of provenance)
+    "producto": "Φ",     # docked deliverable
+    "anomalia": "Δ",     # materialized deterministic finding
+}
+# Entidad subtypes by canonical tipo (tipos.TipoEntidad): person / org / rest.
+GLIFO_ENTIDAD = {"persona": "Ψ", "organizacion": "Ω"}
+GLIFO_ENTIDAD_DEFECTO = "ε"
+
+
+def _glifo(kind: str, tipo: Optional[str]) -> str:
+    if kind == "entidad":
+        return GLIFO_ENTIDAD.get((tipo or "").lower(), GLIFO_ENTIDAD_DEFECTO)
+    return GLIFO_POR_KIND.get(kind, "·")
 
 
 def seed_de(node_id: str) -> float:
@@ -32,6 +59,7 @@ def _nodo(node_id: str, kind: str, etiqueta: str, tipo: Optional[str] = None,
     n: dict[str, Any] = {
         "id": node_id,
         "kind": kind,
+        "glifo": _glifo(kind, tipo),
         "etiqueta": etiqueta,
         "grado": 0,
         "seed": seed_de(node_id),
@@ -61,11 +89,33 @@ def _q(conn: sqlite3.Connection, sql: str, params: tuple) -> list[sqlite3.Row]:
     return conn.execute(sql, params).fetchall()
 
 
+def _anotar_analitica(nodos: list[dict], enlaces: list[dict]) -> int:
+    """Annotate each node with its community, articulation-bridge flag and
+    normalized eigenvector centrality (PANOPTES §3). Uses the deterministic
+    topologia engine, NEVER the NetworkX lens: cross-platform, cross-run
+    reproducibility is law (the same graph must open identically). Returns
+    the community count. Mutates nodos in place; adds nothing to the graph."""
+    red = {
+        "nodos": [{"id": n["id"], "etiqueta": n["etiqueta"]} for n in nodos],
+        "enlaces": [{"origen": e["source"], "destino": e["target"],
+                     "peso": e["peso"]} for e in enlaces],
+    }
+    comunidad = topologia.detectar_comunidades(red)
+    puentes = set(topologia.puentes_articulacion(red))
+    centralidad = topologia.centralidad_vector_propio(red)
+    for n in nodos:
+        n["comunidad"] = comunidad.get(n["id"], 0)
+        n["puente"] = n["id"] in puentes
+        n["centralidad"] = round(centralidad.get(n["id"], 0.0), 4)
+    return len(set(comunidad.values()))
+
+
 def construir_grafo(
     conn: sqlite3.Connection,
     session_id: int,
     limite_vehiculos: Optional[int] = None,
-) -> dict[str, list[dict]]:
+    con_analitica: bool = True,
+) -> dict[str, Any]:
     """One session's whole ontology as {nodos, enlaces}.
 
     Structure: nucleo (the session) -> pedimentos -> vehiculos; each
@@ -245,7 +295,11 @@ def construir_grafo(
     for n in nodos:
         n["grado"] = grados.get(n["id"], 0)
 
-    return {"nodos": nodos, "enlaces": enlaces}
+    meta: dict[str, Any] = {"comunidades": 0}
+    if con_analitica:
+        meta["comunidades"] = _anotar_analitica(nodos, enlaces)
+
+    return {"nodos": nodos, "enlaces": enlaces, "meta": meta}
 
 
 # ── The ingestion map: single-parent hierarchy for the dendrogram ────
