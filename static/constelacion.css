@@ -121,6 +121,21 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .ag-landing.der-off { grid-template-columns: 280px 1fr 46px; }
 .ag-landing.izq-off.der-off { grid-template-columns: 46px 1fr 46px; }
 
+/* Ingesta 3 paneles: el CENTRO (dendrograma) también colapsa. Al plegarlo,
+   el panel derecho (Revisa e Integra) crece para revisar con holgura. */
+.ag-landing.cen-off { grid-template-columns: 280px 48px 1fr; }
+.ag-landing.izq-off.cen-off { grid-template-columns: 48px 48px 1fr; }
+.ag-landing.der-off.cen-off { grid-template-columns: 1fr 48px 48px; }
+.ag-landing.izq-off.der-off.cen-off { grid-template-columns: 48px 1fr 48px; }
+.ag-centro.plegado { padding: 10px 6px; overflow: hidden; align-items: center; }
+.ag-centro.plegado > *:not(.ag-centro-head) { display: none; }
+.ag-centro.plegado .ag-centro-head { flex-direction: column; flex: 1; width: 100%; justify-content: flex-start; align-items: center; gap: 12px; border: none; }
+.ag-centro.plegado .ag-centro-head .t { writing-mode: vertical-rl; letter-spacing: 3px; flex: 1; display: flex; align-items: center; justify-content: center; }
+.ag-centro.plegado .ag-centro-tools { flex-direction: column; }
+.ag-centro.plegado .ag-centro-tools .s { display: none; }
+.ag-centro-tools { display: flex; align-items: center; gap: 12px; }
+.in-quorum-lbl { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: .68rem; letter-spacing: 1px; color: var(--t3); }
+
 /* cabecera de panel con plegado */
 .ag-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .ag-plegar {

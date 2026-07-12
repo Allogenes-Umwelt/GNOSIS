@@ -301,21 +301,45 @@ def api_autogenes_artefactos():
 
 @bp.route('/api/v1/autogenes/ingestar', methods=['POST'])
 def api_autogenes_ingestar():
-    """Un documento entra al sustrato: PDF por páginas, texto por bloques."""
-    from autogenes.ingesta import ingestar_pdf, ingestar_texto
+    """Un documento entra al sustrato (PDF, texto, tabla). Un ZIP se
+    expande y cada archivo interno se ingiere; las imágenes se rechazan."""
+    import io
+    import zipfile
+
+    from autogenes.ingesta import ingestar_archivo
     archivo = request.files.get('documento')
     if not archivo or not archivo.filename:
         return jsonify({'error': 'Falta el archivo (campo documento)'}), 400
     nombre = secure_filename(archivo.filename)
+    contenido = archivo.read()
 
     def handler(conn, session_id):
-        if nombre.lower().endswith('.pdf'):
-            r = ingestar_pdf(conn, session_id, nombre, archivo.read())
-        elif nombre.lower().endswith(('.txt', '.md')):
-            r = ingestar_texto(conn, session_id, nombre,
-                               archivo.read().decode('utf-8', errors='replace'))
-        else:
-            return jsonify({'error': 'Formato no soportado: usa PDF o TXT'}), 400
+        # ── ZIP: ingerir cada archivo interno, resumen agregado ──
+        if nombre.lower().endswith('.zip'):
+            try:
+                zf = zipfile.ZipFile(io.BytesIO(contenido))
+            except zipfile.BadZipFile:
+                return jsonify({'error': 'El ZIP está dañado'}), 400
+            ok, err, frags = [], [], 0
+            for info in zf.infolist():
+                if info.is_dir() or info.filename.startswith('__MACOSX'):
+                    continue
+                interno = secure_filename(info.filename.split('/')[-1])
+                if not interno:
+                    continue
+                r = ingestar_archivo(conn, session_id, interno, zf.read(info))
+                if 'error' in r:
+                    err.append(interno)
+                else:
+                    ok.append(interno)
+                    frags += r.get('fragmentos', 0)
+            if ok:
+                _snapshot_telemetria(conn, session_id)
+            return jsonify({'status': 'ok', 'lote': True,
+                            'ingeridos': len(ok), 'fallidos': len(err),
+                            'fragmentos': frags, 'errores': err})
+        # ── archivo suelto ──
+        r = ingestar_archivo(conn, session_id, nombre, contenido)
         if 'error' in r:
             return jsonify(r), 422
         _snapshot_telemetria(conn, session_id)

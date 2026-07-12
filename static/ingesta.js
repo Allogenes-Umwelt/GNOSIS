@@ -18,8 +18,10 @@
     var integrarBtn = document.getElementById('in-integrar');
     var quorumChk = document.getElementById('in-quorum');
     var dendro = document.querySelector('.dn-lienzo');
+    var extraerTodoBtn = document.getElementById('in-extraer-todo');
     var propuestaActual = null;
     var extraccionEnVuelo = false;   // un doble clic no debe costar dos extracciones
+    var artefactosCache = [];        // último listado, para "extraer todo"
 
     // Nombres de archivo y salida del modelo: SIEMPRE escapados antes del DOM.
     function esc(s) {
@@ -42,8 +44,9 @@
       fetch('/api/v1/autogenes/artefactos')
         .then(function (r) { return r.json(); })
         .then(function (j) {
+          artefactosCache = j.artefactos || [];
           lista.innerHTML = '';
-          (j.artefactos || []).forEach(function (a) {
+          artefactosCache.forEach(function (a) {
             var li = document.createElement('li');
             var enlace = document.createElement('a');
             enlace.href = '#';
@@ -57,10 +60,12 @@
             li.appendChild(enlace);
             lista.appendChild(li);
           });
-          if (!(j.artefactos || []).length) {
+          if (!artefactosCache.length) {
             lista.innerHTML = '<li><span class="gr-vacio" style="padding:8px">' +
               'Sin artefactos aún — suelta el primero arriba.</span></li>';
           }
+          // "Extraer todo" solo tiene sentido con 2+ artefactos
+          if (extraerTodoBtn) extraerTodoBtn.hidden = artefactosCache.length < 2;
         }).catch(function () {});
     }
 
@@ -73,28 +78,38 @@
     }
     // Cola secuencial: varios PDFs (o una carpeta soltada) entran uno por
     // uno para no saturar el servidor ni perder el orden de dockeo.
+    var ACEPTA = /\.(pdf|txt|md|xml|csv|xls|xlsx|zip)$/;
+    var IMAGEN = /\.(jpe?g|png|gif|bmp|webp|tiff?|heic)$/;
     var enCola = false;
     function subirLote(archivos) {
-      var lista = [];
+      var aceptados = [], imgs = 0;
       for (var i = 0; i < archivos.length; i++) {
         var n = (archivos[i].name || '').toLowerCase();
-        if (n.match(/\.(pdf|txt|md)$/)) lista.push(archivos[i]);
+        if (ACEPTA.test(n)) aceptados.push(archivos[i]);
+        else if (IMAGEN.test(n)) imgs++;
       }
-      if (!lista.length) { aviso('Solo PDF, TXT o MD', 'error'); return; }
+      if (!aceptados.length) {
+        aviso(imgs ? 'Las imágenes aún no se ingieren (falta OCR)'
+                   : 'Usa PDF, TXT, XML, Excel o ZIP', 'error');
+        return;
+      }
       if (enCola) return;
       enCola = true;
-      var ok = 0, err = 0, total = lista.length;
+      var ok = 0, err = 0, total = aceptados.length;
       (function siguiente(i) {
         if (i >= total) {
           enCola = false;
-          aviso('Ingesta lista · ' + ok + ' dockeado(s)' + (err ? ' · ' + err + ' con error' : ''),
-                err ? 'error' : 'ok');
+          var extra = imgs ? ' · ' + imgs + ' imagen(es) omitida(s)' : '';
+          aviso('Ingesta lista · ' + ok + ' dockeado(s)' +
+                (err ? ' · ' + err + ' con error' : '') + extra, err ? 'error' : 'ok');
           pintarArtefactos(); recargarMapa();
           return;
         }
-        aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' + lista[i].name + '…');
-        subirUno(lista[i]).then(function (res) {
-          if (res.ok) { ok++; } else { err++; }
+        aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' + aceptados[i].name + '…');
+        subirUno(aceptados[i]).then(function (res) {
+          // un ZIP devuelve un resumen de lote; un archivo suelto, uno solo
+          if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); }
+          else { err++; }
           if (res.ok) { pintarArtefactos(); recargarMapa(); }
           siguiente(i + 1);
         }).catch(function () { err++; siguiente(i + 1); });
@@ -142,6 +157,48 @@
           aviso('Sin conexión — reintenta', 'error');
         });
     }
+
+    // ── extraer TODOS los artefactos en cola, propuesta combinada ──────
+    function extraerTodo() {
+      if (extraccionEnVuelo || !artefactosCache.length) return;
+      var cola = artefactosCache.slice();
+      var combinada = { entidades: [], relaciones: [], quorum: true };
+      extraccionEnVuelo = true;
+      if (extraerTodoBtn) { extraerTodoBtn.disabled = true; }
+      propCont.innerHTML = ''; propTitulo.hidden = true; integrarBtn.hidden = true;
+      var total = cola.length;
+      (function siguiente(i) {
+        if (i >= total) {
+          extraccionEnVuelo = false;
+          if (extraerTodoBtn) extraerTodoBtn.disabled = false;
+          propuestaActual = combinada;
+          aviso('Extracción de ' + total + ' artefactos · ' +
+                combinada.entidades.length + ' entidades · ' +
+                combinada.relaciones.length + ' relaciones', 'ok');
+          if (combinada.entidades.length || combinada.relaciones.length) {
+            pintarPropuesta(combinada);
+          } else {
+            propCont.innerHTML = '<p class="gr-vacio">Ningún artefacto propuso ' +
+              'entidades citables.</p>';
+          }
+          return;
+        }
+        aviso('Extrayendo ' + (i + 1) + '/' + total + ' · ' + cola[i].nombre + '…');
+        fetch('/api/v1/autogenes/extraer', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ artefacto_id: cola[i].id, quorum: quorumChk.checked })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (res.ok && res.j.entidades) {
+              combinada.entidades = combinada.entidades.concat(res.j.entidades);
+              combinada.relaciones = combinada.relaciones.concat(res.j.relaciones || []);
+              if (!res.j.quorum) combinada.quorum = false;
+            }
+            siguiente(i + 1);
+          }).catch(function () { siguiente(i + 1); });
+      })(0);
+    }
+    if (extraerTodoBtn) extraerTodoBtn.addEventListener('click', extraerTodo);
 
     function pintarPropuesta(p) {
       propCont.innerHTML = '';

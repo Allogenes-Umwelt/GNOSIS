@@ -18,3 +18,4 @@ pydantic>=2.7
 gunicorn>=22.0
 networkx>=3.2
 requests
+xlrd

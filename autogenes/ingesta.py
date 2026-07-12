@@ -75,6 +75,68 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
+def ingestar_tabla(conn: sqlite3.Connection, session_id: int,
+                   nombre: str, contenido: bytes) -> dict[str, Any]:
+    """Hoja de cálculo (XLS/XLSX/CSV) → bloques de filas como fragmentos
+    citables (kind 'estructurado'). Cada bloque cita su hoja y su rango."""
+    try:
+        import io
+
+        import pandas as pd
+    except ImportError:
+        return {"error": "pandas no está disponible en este despliegue"}
+    bajo = nombre.lower()
+    try:
+        if bajo.endswith(".csv"):
+            hojas = {"csv": pd.read_csv(io.BytesIO(contenido), header=None,
+                                        dtype=str, keep_default_na=False)}
+        else:
+            xls = pd.ExcelFile(io.BytesIO(contenido))
+            hojas = {h: xls.parse(h, header=None, dtype=str).fillna("")
+                     for h in xls.sheet_names}
+    except Exception:
+        return {"error": "La hoja de cálculo no se pudo leer (¿formato .xls muy "
+                         "antiguo o dañado?)"}
+    fragmentos: list[tuple[int, str]] = []
+    orden = 0
+    for hoja, df in hojas.items():
+        filas = ["\t".join(str(c) for c in fila) for fila in df.values.tolist()]
+        for i in range(0, len(filas), 40):   # ~40 filas por fragmento
+            bloque = f"[{hoja} · filas {i + 1}-{i + len(filas[i:i + 40])}]\n" + \
+                     "\n".join(filas[i:i + 40])
+            orden += 1
+            fragmentos.append((orden, bloque[:12000]))
+    if not fragmentos:
+        return {"error": "La hoja de cálculo no trae filas legibles"}
+    s = Sustrato(conn, session_id)
+    art = s.crear_artefacto("estructurado", nombre)
+    frags = s.agregar_fragmentos(art.id, fragmentos)
+    return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
+
+
+# Extensiones de imagen: rechazadas por ahora (falta OCR para sacar texto).
+_IMAGENES = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".heic")
+
+
+def ingestar_archivo(conn: sqlite3.Connection, session_id: int,
+                     nombre: str, contenido: bytes) -> dict[str, Any]:
+    """Dispatcher por extensión: PDF, texto (txt/md/xml), tabla (xls/xlsx/
+    csv). Las imágenes se rechazan con mensaje claro (sin OCR aún)."""
+    bajo = nombre.lower()
+    if bajo.endswith(".pdf"):
+        return ingestar_pdf(conn, session_id, nombre, contenido)
+    if bajo.endswith((".txt", ".md", ".xml")):
+        return ingestar_texto(conn, session_id, nombre,
+                              contenido.decode("utf-8", errors="replace"))
+    if bajo.endswith((".xls", ".xlsx", ".csv")):
+        return ingestar_tabla(conn, session_id, nombre, contenido)
+    if bajo.endswith(_IMAGENES):
+        return {"error": "Las imágenes aún no se ingieren (falta OCR). "
+                         "Usa PDF, texto o Excel."}
+    return {"error": f"Formato no soportado: {nombre}. "
+                     "Usa PDF, TXT, XML o Excel (xls/xlsx/csv)."}
+
+
 def listar_artefactos(conn: sqlite3.Connection, session_id: int) -> list[dict[str, Any]]:
     """Los artefactos del sustrato con su pulso: fragmentos y entidades
     que los citan (para la bandeja de ingesta)."""

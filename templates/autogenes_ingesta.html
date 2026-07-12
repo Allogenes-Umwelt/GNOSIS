@@ -8,42 +8,62 @@
 
 {% block content %}
 <div class="ag-wrap">
-  <div class="ag-landing gr-marco" id="ag-landing">
+  <div class="ag-landing ing3" id="ag-landing">
 
-    <!-- Mapa de ingesta -->
-    <section class="ag-centro gr-centro" aria-label="Mapa de ingesta">
+    <!-- IZQUIERDA · Bandeja de ingesta -->
+    <aside class="ag-panel" id="ag-panel-izq" aria-label="Bandeja de documentos">
+      <div class="ag-panel-head">
+        <h2>Bandeja</h2>
+        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
+      </div>
+      <label class="ag-drop" id="in-drop" for="in-file">
+        <span class="mas">[ + ]</span>
+        <span>PDF · TXT · XML · EXCEL · ZIP — CLIC O ARRASTRA (VARIOS O CARPETA)</span>
+        <input type="file" id="in-file"
+               accept=".pdf,.txt,.md,.xml,.csv,.xls,.xlsx,.zip" multiple hidden>
+      </label>
+      <div class="ag-msj" id="in-msj" role="status"></div>
+      <label class="in-quorum-lbl">
+        <input type="checkbox" id="in-quorum"> QUÓRUM (2 MODELOS SI HAY)
+      </label>
+      <button type="button" id="in-extraer-todo" class="ag-subir" hidden>
+        Extraer de todos
+      </button>
+      <div class="ag-grupo">Artefactos del sustrato</div>
+      <ul class="ag-nav" id="in-artefactos"></ul>
+    </aside>
+
+    <!-- CENTRO · Dendrograma (colapsable) -->
+    <section class="ag-centro gr-centro" id="ag-centro-mapa" aria-label="Mapa de ingesta">
       <div class="ag-centro-head">
         <span class="t">◆ Mapa de Ingesta</span>
-        <span class="s">SESIÓN {{ sesion_etiqueta }} · DENDROGRAMA DE LA ONTOLOGÍA</span>
+        <span class="ag-centro-tools">
+          <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+          <button type="button" class="ag-plegar" data-panel="cen" aria-label="Plegar el mapa">◧</button>
+        </span>
       </div>
       <div class="dn-lienzo gr-lienzo" data-info="#dn-info">
         <canvas aria-label="Dendrograma de la ontología de la sesión" role="img"></canvas>
       </div>
       <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b>●</b> entidad</li><li><b>□</b> artefacto</li><li><b>◇</b> fragmento</li>
         <li><span id="dn-info" role="status">CARGANDO…</span></li>
+        <li style="margin-left:auto;color:var(--t3)">clic en un nodo: abre/cierra su rama</li>
       </ul>
     </section>
 
-    <!-- Bandeja + extracción -->
-    <aside class="ag-panel" id="ag-panel-der" aria-label="Bandeja de documentos">
+    <!-- DERECHA · Revisa e Integra (exclusivo) -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Revisa e integra la extracción">
       <div class="ag-panel-head">
-        <h2>Bandeja de Ingesta</h2>
+        <h2>Revisa e Integra</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
-      <label class="ag-drop" id="in-drop" for="in-file">
-        <span class="mas">[ + ]</span>
-        <span>PDF O TXT — CLIC O ARRASTRA (VARIOS A LA VEZ)</span>
-        <input type="file" id="in-file" accept=".pdf,.txt,.md" multiple hidden>
-      </label>
-      <div class="ag-msj" id="in-msj" role="status"></div>
-      <label style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:.68rem;letter-spacing:1px;color:var(--t3)">
-        <input type="checkbox" id="in-quorum"> QUÓRUM (2 MODELOS SI HAY)
-      </label>
-      <div class="ag-grupo">Artefactos del sustrato</div>
-      <ul class="ag-nav" id="in-artefactos"></ul>
-      <div class="ag-grupo" id="in-prop-titulo" hidden>Propuesta — revisa e integra</div>
-      <div id="in-propuesta" class="gr-inspector"></div>
-      <button type="button" id="in-integrar" class="ag-subir" hidden>Integrar seleccionado</button>
+      <div id="in-prop-titulo" class="ag-grupo" hidden>Propuesta de entidades</div>
+      <div id="in-propuesta" class="gr-inspector">
+        <p class="gr-vacio">Extrae un artefacto de la bandeja para revisar sus
+          entidades y relaciones antes de integrarlas al grafo.</p>
+      </div>
+      <button type="button" id="in-integrar" class="ag-subir" hidden>Integrar seleccionadas</button>
       <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
     </aside>
   </div>
@@ -54,16 +74,21 @@
 <script src="{{ url_for('static', filename='dendro.js') }}"></script>
 <script src="{{ url_for('static', filename='ingesta.js') }}"></script>
 <script>
+// Colapso de los tres paneles (izq · centro · der).
 (function () {
-  const landing = document.getElementById('ag-landing');
-  const btn = document.querySelector('.ag-plegar[data-panel=der]');
-  const panel = document.getElementById('ag-panel-der');
-  btn.addEventListener('click', () => {
-    const off = !panel.classList.contains('plegado');
-    landing.classList.toggle('der-off', off);
-    panel.classList.toggle('plegado', off);
-    btn.textContent = off ? '‹' : '›';
-    window.dispatchEvent(new Event('resize'));
+  var landing = document.getElementById('ag-landing');
+  var mapa = document.getElementById('ag-centro-mapa');
+  document.querySelectorAll('.ag-plegar[data-panel]').forEach(function (btn) {
+    var lado = btn.getAttribute('data-panel');
+    var panel = document.getElementById('ag-panel-' + lado) || (lado === 'cen' ? mapa : null);
+    btn.addEventListener('click', function () {
+      var off = !panel.classList.contains('plegado');
+      landing.classList.toggle(lado + '-off', off);
+      panel.classList.toggle('plegado', off);
+      if (lado === 'izq') btn.textContent = off ? '›' : '‹';
+      if (lado === 'der') btn.textContent = off ? '‹' : '›';
+      window.dispatchEvent(new Event('resize'));
+    });
   });
 })();
 </script>
