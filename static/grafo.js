@@ -73,6 +73,8 @@
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
     var kindAislado = null;      // clase aislada (duotono §7.2); null = ninguna
     function leyOculta(k) { return kindAislado ? k !== kindAislado : !!kindsAtenuados[k]; }
+    var despliegue = null;       // funnel: {centro, orbita:[{n,tx,ty,x0,y0}], t}
+    var particulas = [];         // sinapsis: {a,b,p,sp,color} sobre cables activos
     var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
     var esLight = false;         // tema activo — decide glow (dark) vs burn (light)
@@ -376,6 +378,7 @@
       animando = true;
       (function paso(ts) {
         var alfa = sim ? sim.tick() : 0;
+        pasoDespliegue(); pasoParticulas();
         dibujar(ts);
         if (alfa > 0.004 || arrastre.nodo) requestAnimationFrame(paso);
         else { animando = false; if (!vistaManual) encuadrar(); dibujar(ts); arrancarLatido(); }
@@ -389,7 +392,7 @@
     // hay alertas ni selección (sin rAF ocioso).
     function vivoAnimado() {
       if (reduce) return false;
-      if (sel) return true;
+      if (sel || despliegue) return true;
       for (var i = 0; i < nodos.length; i++) {
         if (nodos[i].kind === 'anomalia' && nodos[i].severidad) return true;
       }
@@ -400,9 +403,84 @@
       latiendo = true;
       requestAnimationFrame(function pulso(ts) {
         if (animando || !vivoAnimado()) { latiendo = false; return; }
+        pasoDespliegue(); pasoParticulas();
         dibujar(ts);
         requestAnimationFrame(pulso);
       });
+    }
+
+    // ── Funnel newtype (PANOPTES §7.1) ────────────────────────────────
+    // Al seleccionar, los top-K vecinos por peso de arista se despliegan a
+    // un anillo orbital alrededor del nodo (posiciones angulares estables por
+    // id); el resto recede (el apagado del foco). Las aristas activas son
+    // cables-estela con caída; por ellas viajan partículas sinápticas (solo
+    // Nocturne). Esc / nueva selección repliega. Reduced-motion: directo.
+    function desplegarFunnel(centro) {
+      replegarFunnel();
+      var pesos = {};
+      enlaces.forEach(function (e) {
+        if (e.source === centro.id) pesos[e.target] = Math.max(pesos[e.target] || 0, e.peso || 0.5);
+        else if (e.target === centro.id) pesos[e.source] = Math.max(pesos[e.source] || 0, e.peso || 0.5);
+      });
+      var ids = Object.keys(vecinos[centro.id] || {})
+        .sort(function (a, b) { return (pesos[b] || 0) - (pesos[a] || 0); }).slice(0, 8);
+      if (!ids.length) return;
+      var R = radioDe(centro) + 90, K = ids.length;
+      var orbita = [];
+      ids.forEach(function (id, i) {
+        var n = porId[id];
+        if (!n || n.fx != null) return;   // no roba un nodo ya fijado (arrastre)
+        var ang = (n.seed || 0) * 0.3 + i * (2 * Math.PI / K);
+        orbita.push({ n: n, tx: centro.x + Math.cos(ang) * R, ty: centro.y + Math.sin(ang) * R,
+                      x0: n.x, y0: n.y });
+      });
+      if (!orbita.length) return;
+      var ids = {};
+      orbita.forEach(function (o) { ids[o.n.id] = true; });
+      despliegue = { centro: centro, orbita: orbita, ids: ids, t: reduce ? 1 : 0 };
+      centro.fx = centro.x; centro.fy = centro.y;      // ancla el centro
+      if (reduce) orbita.forEach(function (o) { o.n.fx = o.tx; o.n.fy = o.ty; o.n.x = o.tx; o.n.y = o.ty; });
+    }
+    function pasoDespliegue() {
+      if (!despliegue || despliegue.t >= 1) return;
+      despliegue.t = Math.min(1, despliegue.t + 0.09);
+      var e = despliegue.t * (2 - despliegue.t);        // ease-out
+      despliegue.orbita.forEach(function (o) {
+        o.n.fx = o.x0 + (o.tx - o.x0) * e; o.n.fy = o.y0 + (o.ty - o.y0) * e;
+        o.n.x = o.n.fx; o.n.y = o.n.fy;
+      });
+    }
+    // punto sobre el cable-estela (quadratic con caída hacia abajo en +y)
+    function puntoCable(a, b, p) {
+      var mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      var caida = Math.hypot(b.x - a.x, b.y - a.y) * 0.22;
+      var cx = mx, cy = my + caida;   // control desplazado hacia abajo
+      var u = 1 - p;
+      return [u * u * a.x + 2 * u * p * cx + p * p * b.x,
+              u * u * a.y + 2 * u * p * cy + p * p * b.y, cx, cy];
+    }
+    // partículas sinápticas (S1S1R1 §3.2c): solo Nocturne, 5%/tick por cable
+    // activo, vel 0.004–0.007, color = nodo origen, máx 30. Ornamento
+    // cancelable — Math.random aquí es la única aleatoriedad permitida.
+    function pasoParticulas() {
+      if (!despliegue || esLight || reduce) { if (particulas.length) particulas = []; return; }
+      for (var i = particulas.length - 1; i >= 0; i--) {
+        particulas[i].p += particulas[i].sp;
+        if (particulas[i].p >= 1) particulas.splice(i, 1);
+      }
+      if (particulas.length < 30 && Math.random() < 0.12) {
+        var o = despliegue.orbita[Math.floor(Math.random() * despliegue.orbita.length)];
+        if (o) particulas.push({ a: despliegue.centro, b: o.n, p: 0,
+                                 sp: 0.004 + Math.random() * 0.003,
+                                 color: colorNodo(despliegue.centro) });
+      }
+    }
+    function replegarFunnel(reasentar) {
+      if (!despliegue) return;
+      despliegue.orbita.forEach(function (o) { o.n.fx = null; o.n.fy = null; });
+      despliegue.centro.fx = null; despliegue.centro.fy = null;
+      despliegue = null; particulas = [];
+      if (reasentar && sim && !reduce) { sim.alfa(Math.max(sim.alfa(), 0.3)); animar(); }
     }
 
     // encuadre: centra el CORAZÓN del caso (todo menos el halo de
@@ -469,6 +547,16 @@
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
+        // cable-estela: arista activa del funnel (centro ↔ órbita)
+        if (despliegue && ((e.source === despliegue.centro.id && despliegue.ids[e.target]) ||
+                           (e.target === despliegue.centro.id && despliegue.ids[e.source]))) {
+          var pc = puntoCable(a, b, 0);
+          ctx.setLineDash([]); ctx.globalAlpha = 0.9;
+          ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y);
+          ctx.quadraticCurveTo(pc[2], pc[3], b.x, b.y); ctx.stroke();
+          return;
+        }
         var toca = foco && (e.source === foco.id || e.target === foco.id);
         var apagado = leyOculta(a.kind) || leyOculta(b.kind) ||
           (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
@@ -491,6 +579,16 @@
         ctx.stroke();
       });
       ctx.setLineDash([]);
+
+      // partículas sinápticas viajando por los cables activos (S1S1R1 §3.2c)
+      if (particulas.length) {
+        for (var pi = 0; pi < particulas.length; pi++) {
+          var pt = particulas[pi], qp = puntoCable(pt.a, pt.b, pt.p);
+          ctx.globalAlpha = 0.9; ctx.fillStyle = pt.color;
+          ctx.beginPath(); ctx.arc(qp[0], qp[1], 2.2, 0, 6.283); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
 
       // nodos — lenguaje ojo-sensor por tier (PANOPTES §5). El glow masivo
       // sigue proscrito: los cientos de hojas van limpias, solo los HUB
@@ -734,15 +832,16 @@
           modoCamino = null; canvas.style.cursor = 'grab';
         } else if (golpe && golpe.meta) {              // racimo ν×N: desplegar/plegar
           expandidos[golpe.ped] = !expandidos[golpe.ped];
-          sel = null; hover = null; pintarInspector(null);
+          sel = null; hover = null; pintarInspector(null); replegarFunnel(false);
           vistaManual = false;
           colapsar(); reconstruirSim();
         } else {                                       // seleccionar
           sel = golpe;
           pintarInspector(sel);
-          if (sel) { resalte = null; abrirTarjeta(sel); } else { cerrarActivas(); }
+          if (sel) { resalte = null; abrirTarjeta(sel); desplegarFunnel(sel); }
+          else { cerrarActivas(); replegarFunnel(true); }
           if (!animando) dibujar(0);
-          arrancarLatido();                            // afterburn de la selección
+          arrancarLatido();                            // afterburn + funnel
         }
       }
       if (arrastre.nodo) { arrastre.nodo.fx = null; arrastre.nodo.fy = null; }
@@ -997,7 +1096,7 @@
       if (ev.key === 'Escape') {
         modoCamino = null; canvas.style.cursor = 'grab';
         kindAislado = null; kindsAtenuados = {}; resalte = null;
-        sel = null; pintarInspector(null); cerrarActivas();
+        sel = null; pintarInspector(null); cerrarActivas(); replegarFunnel(true);
         if (typeof pintarLeyenda === 'function') pintarLeyenda();
         colapsar(); if (!animando) dibujar(0);
       }
