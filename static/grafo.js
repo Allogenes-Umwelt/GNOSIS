@@ -20,7 +20,9 @@
     var base = { nucleo: 14, pedimento: 8, marca: 9, pais: 8, vehiculo: 3.2,
                  artefacto: 6.5, fragmento: 2.2, entidad: 6.5, producto: 7.5,
                  anomalia: 8.5 }[n.kind] || 4;
-    return base + Math.min(6, Math.sqrt(n.grado || 0) * 0.9);
+    // la centralidad de vector propio modula el tamaño: lo que conecta con
+    // lo bien conectado pesa más (PANOPTES §4.2), no solo el grado bruto
+    return base + Math.min(5, Math.sqrt(n.grado || 0) * 0.8) + (n.centralidad || 0) * 3;
   }
 
   // Tiers de render (PANOPTES §5): HUB = ojo-sensor (anillos maquinados +
@@ -452,6 +454,14 @@
             ctx.arc(n.x, n.y, Math.max(1.3, r * 0.28), 0, 6.283);
             ctx.fillStyle = nucleoDe(n); ctx.fill();
           }
+        }
+
+        // puente de articulación (PANOPTES §4.2): el nodo cuyo retiro parte
+        // el caso en dos — oro analítico, se enfatiza con un doble anillo
+        if (n.puente) {
+          ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 0.8;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r + 4, 0, 6.283); ctx.stroke();
+          ctx.globalAlpha = 1;
         }
 
         // selección: anillo punteado giratorio + afterburn (quietos bajo

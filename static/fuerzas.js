@@ -41,6 +41,30 @@
       if (a && b) resortes.push({ a: a, b: b, peso: e.peso || 0.5 });
     });
 
+    // Sectores por comunidad (PANOPTES §4.2): cada comunidad ocupa un arco
+    // proporcional a su tamaño (orden estable por índice), y sus nodos reciben
+    // un empuje tangencial hacia el centro de su arco. Así los racimos se
+    // separan sin romper los anillos por kind — la nube pasa a rosa. Solo se
+    // activa si los nodos traen `comunidad` (payload PANOPTES); sin ella, el
+    // motor se comporta igual que antes.
+    var fuerzaSector = opts.fuerzaSector || 0.03;
+    var anguloCom = {}, tieneSectores = false;
+    (function () {
+      var conteo = {}, total = 0;
+      nodos.forEach(function (n) {
+        if (n.comunidad != null) { conteo[n.comunidad] = (conteo[n.comunidad] || 0) + 1; total++; }
+      });
+      if (!total) return;
+      tieneSectores = true;
+      var claves = Object.keys(conteo).sort(function (a, b) { return a - b; });
+      var acc = 0;
+      claves.forEach(function (c) {
+        var frac = conteo[c] / total;
+        anguloCom[c] = (acc + frac / 2) * 2 * Math.PI;   // ángulo central del arco
+        acc += frac;
+      });
+    })();
+
     function tick() {
       var i, j, n, m, dx, dy, d2, d, f;
       // repulsión de pares (n² con corte — suficiente a esta escala)
@@ -66,14 +90,24 @@
         dx = dx / d * f; dy = dy / d * f;
         r.a.vx += dx; r.a.vy += dy; r.b.vx -= dx; r.b.vy -= dy;
       }
-      // anillo por kind + centrado suave
+      // anillo por kind + sector por comunidad + centrado suave
       for (i = 0; i < nodos.length; i++) {
         n = nodos[i];
+        if (n.fx != null) continue;   // los fijados (núcleo, arrastre) no rotan
         var objetivo = anillos[n.kind];
+        d = Math.sqrt(n.x * n.x + n.y * n.y) || 1;
         if (objetivo != null) {
-          d = Math.sqrt(n.x * n.x + n.y * n.y) || 1;
           f = (objetivo - d) * (fuerzaPorKind[n.kind] || fuerzaAnillo) * alfa;
           n.vx += n.x / d * f; n.vy += n.y / d * f;
+        }
+        if (tieneSectores && n.comunidad != null) {
+          // empuje tangencial hacia el ángulo del sector (envuelto a [-π,π])
+          var dif = anguloCom[n.comunidad] - Math.atan2(n.y, n.x);
+          while (dif > Math.PI) dif -= 2 * Math.PI;
+          while (dif < -Math.PI) dif += 2 * Math.PI;
+          // escala con d: la velocidad angular es uniforme a cualquier anillo
+          var ft = dif * fuerzaSector * alfa * d;
+          n.vx += (-n.y / d) * ft; n.vy += (n.x / d) * ft;
         }
         n.vx -= n.x * 0.006 * alfa; n.vy -= n.y * 0.006 * alfa;
       }
