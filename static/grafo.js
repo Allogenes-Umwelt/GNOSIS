@@ -68,6 +68,7 @@
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
+    var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
     var esLight = false;         // tema activo — decide glow (dark) vs burn (light)
@@ -336,6 +337,13 @@
         (vecinos[e.source] = vecinos[e.source] || {})[e.target] = true;
         (vecinos[e.target] = vecinos[e.target] || {})[e.source] = true;
       });
+      // cierra tarjetas cuyo nodo dejó de ser visible (p.ej. hoja plegada)
+      if (capaTarjetas && tarjetas.length) {
+        tarjetas = tarjetas.filter(function (t) {
+          if (porId[t.nodo.id]) return true;
+          capaTarjetas.removeChild(t.el); return false;
+        });
+      }
       if (estadoLinea) {
         var nMeta = metaNodos.filter(function (m) { return !m.abierto; }).length;
         estadoLinea.textContent = nodos.length + ' NODOS · ' + enlaces.length +
@@ -626,6 +634,8 @@
           ctx.lineTo(c[4], c[5]); ctx.stroke();
         });
       ctx.globalAlpha = 1;
+
+      dibujarGuias();   // líneas guía + reposición de las tarjetas callout
     }
 
     // ── gestos ───────────────────────────────────────────────────────
@@ -719,6 +729,7 @@
         } else {                                       // seleccionar
           sel = golpe;
           pintarInspector(sel);
+          if (sel) { resalte = null; abrirTarjeta(sel); } else { cerrarActivas(); }
           if (!animando) dibujar(0);
           arrancarLatido();                            // afterburn de la selección
         }
@@ -764,6 +775,126 @@
         (extra.virtual ? ' · VIRTUAL' : '') + '</div>' +
         '<div class="gr-nombre">' + esc(n.etiqueta) + '</div>' +
         '<div class="gr-fila"><span>conexiones</span><b>' + (n.grado || 0) + '</b></div>' + filas;
+    }
+
+    // ── tarjetas callout (PANOPTES §6) ────────────────────────────────
+    // ficha técnica anclada al nodo por una línea guía; hasta 2 fijadas para
+    // comparar. Todo texto extraído pasa por esc(). El panel lateral se
+    // conserva y se sincroniza (decisión del operador: ambos visibles).
+    capaTarjetas = document.createElement('div');
+    capaTarjetas.className = 'gr-capa-tarjetas';
+    cont.appendChild(capaTarjetas);
+
+    function pantallaDe(n) {
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      return [w / 2 + vista.x + n.x * vista.k, h / 2 + vista.y + n.y * vista.k];
+    }
+    function filasTarjeta(n) {
+      var filas = [['conexiones', n.grado || 0]];
+      if (n.severidad) filas.push(['severidad', n.severidad]);
+      var extra = n.extra || {};
+      Object.keys(extra).forEach(function (k) {
+        if (extra[k] != null && extra[k] !== '' && k !== 'virtual') filas.push([k, extra[k]]);
+      });
+      return filas.map(function (f) {
+        return '<div class="gr-fila"><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>';
+      }).join('');
+    }
+    function contenidoTarjeta(n) {
+      return '<div class="gr-tar-head">' +
+        '<span class="gr-tar-glifo" style="color:' + colorNodo(n) + '">' + esc(n.glifo || '·') + '</span>' +
+        '<span class="gr-tar-kind">' + esc((n.meta ? 'racimo' : n.kind)) +
+          (n.tipo ? ' · ' + esc(n.tipo) : '') + ((n.extra && n.extra.virtual) ? ' · virtual' : '') + '</span>' +
+        '<button type="button" class="gr-tar-btn" data-pin aria-pressed="false" aria-label="Fijar tarjeta">⇱</button>' +
+        '<button type="button" class="gr-tar-btn" data-x aria-label="Cerrar tarjeta">×</button>' +
+        '</div>' +
+        '<div class="gr-tar-nombre">' + esc(n.etiqueta) + '</div>' +
+        filasTarjeta(n) +
+        '<div class="gr-tar-acciones">' +
+        '<button type="button" class="gr-tar-accion" data-accion="vecindario">Vecindario</button>' +
+        '<button type="button" class="gr-tar-accion" data-accion="centrar">Centrar</button>' +
+        '</div>';
+    }
+    function accionTarjeta(a, n) {
+      if (a === 'centrar') {
+        vistaManual = true; vista.k = Math.max(vista.k, 1.6);
+        vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
+        if (!animando) dibujar(0);
+      } else if (a === 'vecindario') {
+        var rn = {}, re = {};
+        rn[n.id] = true;
+        Object.keys(vecinos[n.id] || {}).forEach(function (id) { rn[id] = true; });
+        enlaces.forEach(function (e) {
+          if ((e.source === n.id && rn[e.target]) || (e.target === n.id && rn[e.source])) re[e.id] = true;
+        });
+        // segundo clic sobre el mismo vecindario lo apaga
+        resalte = (resalte && resalte.nodos[n.id] && Object.keys(resalte.nodos).length === Object.keys(rn).length)
+          ? null : { nodos: rn, enlaces: re };
+        if (!animando) dibujar(0);
+      }
+    }
+    function abrirTarjeta(n) {
+      if (!n || n.kind === 'fragmento') return;
+      if (tarjetas.some(function (t) { return t.nodo.id === n.id; })) return;
+      // retira la activa (no fijada) previa y respeta el tope de 2
+      tarjetas = tarjetas.filter(function (t) {
+        if (!t.fijada) { capaTarjetas.removeChild(t.el); return false; }
+        return true;
+      });
+      while (tarjetas.length >= 2) { capaTarjetas.removeChild(tarjetas.shift().el); }
+      var el = document.createElement('div');
+      el.className = 'gr-tarjeta';
+      el.innerHTML = contenidoTarjeta(n);
+      capaTarjetas.appendChild(el);
+      var card = { nodo: n, el: el, fijada: false };
+      tarjetas.push(card);
+      el.querySelector('[data-x]').addEventListener('click', function () { cerrarTarjeta(card); });
+      el.querySelector('[data-pin]').addEventListener('click', function (ev) {
+        card.fijada = !card.fijada;
+        el.classList.toggle('fijada', card.fijada);
+        ev.currentTarget.setAttribute('aria-pressed', card.fijada ? 'true' : 'false');
+      });
+      el.querySelectorAll('[data-accion]').forEach(function (btn) {
+        btn.addEventListener('click', function () { accionTarjeta(btn.getAttribute('data-accion'), n); });
+      });
+      if (!animando) dibujar(0);
+    }
+    function cerrarTarjeta(card) {
+      var i = tarjetas.indexOf(card);
+      if (i >= 0) { capaTarjetas.removeChild(card.el); tarjetas.splice(i, 1); }
+    }
+    function cerrarActivas() {
+      tarjetas = tarjetas.filter(function (t) {
+        if (!t.fijada) { capaTarjetas.removeChild(t.el); return false; }
+        return true;
+      });
+    }
+    // posiciona cada tarjeta en el cuadrante opuesto al nodo y traza su
+    // línea guía (canvas, espacio de pantalla). Llamada desde dibujar().
+    function dibujarGuias() {
+      if (!tarjetas.length || !capaTarjetas) return;
+      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var movil = w < 640;
+      for (var i = 0; i < tarjetas.length; i++) {
+        var t = tarjetas[i], p = pantallaDe(t.nodo);
+        if (movil) continue;   // hoja inferior por CSS, sin línea guía
+        var cw = t.el.offsetWidth || 264, ch = t.el.offsetHeight || 120, m = 16;
+        var cx = p[0] < w / 2 ? Math.min(w - cw - m, p[0] + 64) : Math.max(m, p[0] - cw - 64);
+        var cy = p[1] < h / 2 ? Math.min(h - ch - m, p[1] + 34) : Math.max(m, p[1] - ch - 34);
+        if (i === 1) cy = Math.min(h - ch - m, Math.max(m, cy + (p[1] < h / 2 ? ch + 12 : -ch - 12)));
+        t.el.style.left = Math.round(cx) + 'px';
+        t.el.style.top = Math.round(cy) + 'px';
+        var ax = (cx + cw / 2 < p[0]) ? cx + cw : cx, ay = cy + Math.min(ch / 2, 22);
+        ctx.save();
+        ctx.strokeStyle = colores.acc; ctx.globalAlpha = t.fijada ? 0.85 : 0.5;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, 6.283); ctx.stroke();
+        var qx = (p[0] + ax) / 2;
+        ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+        ctx.lineTo(qx, p[1]); ctx.lineTo(qx, ay); ctx.lineTo(ax, ay);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // ── controles externos ──────────────────────────────────────────
