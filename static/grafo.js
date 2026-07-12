@@ -69,6 +69,7 @@
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
+    var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
     var esLight = false;         // tema activo — decide glow (dark) vs burn (light)
@@ -721,7 +722,11 @@
       if (!arrastre.movido) {                          // tap
         var p = xy(ev);
         var golpe = nodoEn(p[0], p[1]);
-        if (golpe && golpe.meta) {                     // racimo ν×N: desplegar/plegar
+        if (modoCamino) {                              // segundo nodo: traza el camino
+          if (golpe && golpe.id !== modoCamino.desde) trazarCamino(modoCamino.desde, golpe.id);
+          else if (estadoLinea) colapsar();            // cancela: repinta el estado
+          modoCamino = null; canvas.style.cursor = 'grab';
+        } else if (golpe && golpe.meta) {              // racimo ν×N: desplegar/plegar
           expandidos[golpe.ped] = !expandidos[golpe.ped];
           sel = null; hover = null; pintarInspector(null);
           vistaManual = false;
@@ -823,6 +828,7 @@
         filasTarjeta(n) +
         '<div class="gr-tar-acciones">' +
         '<button type="button" class="gr-tar-accion" data-accion="vecindario">Vecindario</button>' +
+        '<button type="button" class="gr-tar-accion" data-accion="camino">Camino a…</button>' +
         '<button type="button" class="gr-tar-accion" data-accion="centrar">Centrar</button>' +
         (dest ? '<button type="button" class="gr-tar-accion" data-accion="abrir">Abrir en ' + esc(dest[1]) + '</button>' : '') +
         '</div>';
@@ -835,6 +841,11 @@
       } else if (a === 'abrir') {
         var d = destinoDe(n);
         if (d) window.location.href = d[0];
+      } else if (a === 'camino') {
+        modoCamino = { desde: n.id };
+        if (estadoLinea) estadoLinea.textContent = 'CAMINO DESDE ' +
+          (n.etiqueta || n.id).toUpperCase().slice(0, 24) + ' — ELIGE EL DESTINO';
+        canvas.style.cursor = 'crosshair';
       } else if (a === 'vecindario') {
         var rn = {}, re = {};
         rn[n.id] = true;
@@ -883,6 +894,31 @@
         if (!t.fijada) { capaTarjetas.removeChild(t.el); return false; }
         return true;
       });
+    }
+    // traza el camino más corto entre dos nodos (endpoint camino) y lo aísla
+    // por resalte. Nota: el camino se calcula sobre el grafo completo; un
+    // tramo por un nodo colapsado resalta su arista remapeada al meta.
+    function trazarCamino(desde, hasta) {
+      if (estadoLinea) estadoLinea.textContent = 'TRAZANDO EL CAMINO…';
+      fetch('/api/v1/autogenes/camino?desde=' + encodeURIComponent(desde) +
+            '&hasta=' + encodeURIComponent(hasta))
+        .then(function (r) { return r.json(); })
+        .then(function (g) {
+          if (!g || !g.camino) {
+            if (estadoLinea) estadoLinea.textContent = g && g.mensaje ? g.mensaje.toUpperCase() : 'SIN CAMINO';
+            return;
+          }
+          var rn = {}, re = {};
+          g.camino.saltos.forEach(function (s) {
+            rn[s.de.id] = true; rn[s.a.id] = true;
+            if (s.arista && s.arista.id) re[s.arista.id] = true;
+          });
+          resalte = { nodos: rn, enlaces: re };
+          if (estadoLinea) estadoLinea.textContent = 'CAMINO · ' + g.camino.largo +
+            (g.camino.largo === 1 ? ' SALTO' : ' SALTOS');
+          if (!animando) dibujar(0);
+        })
+        .catch(function () { if (estadoLinea) estadoLinea.textContent = 'ERROR AL TRAZAR EL CAMINO'; });
     }
     // posiciona cada tarjeta en el cuadrante opuesto al nodo y traza su
     // línea guía (canvas, espacio de pantalla). Llamada desde dibujar().
