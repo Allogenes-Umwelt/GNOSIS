@@ -630,27 +630,40 @@ def procesar_fase1():
     os.makedirs(historico_dir, exist_ok=True)
     os.makedirs(downloads_dir, exist_ok=True)
 
-    # Handle ZIP upload
-    facturas_zip = request.files.get('facturas')
-    if not facturas_zip or facturas_zip.filename == '':
-        return jsonify({'error': 'No se cargo el archivo ZIP de facturas.'}), 400
+    # Aceptar PDFs sueltos y/o un ZIP de facturas: el selector del navegador
+    # ya no obliga a comprimir. Los ZIP se extraen; los PDFs se guardan
+    # directo. (El pipeline de extracción trabaja sobre temp_dir igual.)
+    subidos = [f for f in request.files.getlist('facturas') if f and f.filename]
+    if not subidos:
+        return jsonify({'error': 'No se cargaron facturas. Selecciona PDFs o un ZIP.'}), 400
 
-    # Extraer ZIP a directorio temporal (solo procesar las nuevas)
     temp_dir = tempfile.mkdtemp(prefix='facturas_nuevas_')
-    facturas_zip_path = os.path.join(temp_dir, secure_filename(facturas_zip.filename))
-    facturas_zip.save(facturas_zip_path)
+    hay_pdf = False
+    for f in subidos:
+        nombre = secure_filename(f.filename)
+        bajo = nombre.lower()
+        if bajo.endswith('.zip'):
+            zip_path = os.path.join(temp_dir, nombre)
+            f.save(zip_path)
+            try:
+                _extraer_zip_seguro(zip_path, temp_dir)
+            except zipfile.BadZipFile:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return jsonify({'error': f'«{f.filename}» no es un ZIP valido.'}), 400
+            finally:
+                try:
+                    os.remove(zip_path)
+                except OSError:
+                    pass
+            hay_pdf = True
+        elif bajo.endswith('.pdf'):
+            f.save(os.path.join(temp_dir, nombre))
+            hay_pdf = True
+        # otros tipos se ignoran en silencio (el XML se limpia abajo)
 
-    try:
-        _extraer_zip_seguro(facturas_zip_path, temp_dir)
-    except zipfile.BadZipFile:
+    if not hay_pdf:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return jsonify({'error': 'El archivo no es un ZIP valido.'}), 400
-
-    # Eliminar el ZIP despues de extraer
-    try:
-        os.remove(facturas_zip_path)
-    except OSError:
-        pass
+        return jsonify({'error': 'No se encontraron PDFs ni un ZIP con facturas.'}), 400
 
     # Eliminar archivos XML del ZIP (no son facturas y pueden causar errores de lectura)
     for root, _, files in os.walk(temp_dir):

@@ -653,11 +653,11 @@
 
       <form id="fase1Form" enctype="multipart/form-data">
         <div class="upload-field-main">
-          <label class="upload-label">Facturas (.zip) *</label>
+          <label class="upload-label">Facturas (.pdf o .zip) *</label>
           <div class="file-drop" onclick="document.getElementById('input-facturas').click()">
-            <span>Clic para seleccionar o arrastra aquí</span>
+            <span>Clic para seleccionar PDFs o un ZIP, o arrastra aquí</span>
           </div>
-          <input type="file" id="input-facturas" name="facturas" accept=".zip" required
+          <input type="file" id="input-facturas" name="facturas" accept=".pdf,.zip" multiple required
                  style="display:none" onchange="handleFileSelect(this,'thumbs-facturas')">
           <div class="file-thumbs" id="thumbs-facturas"></div>
         </div>
