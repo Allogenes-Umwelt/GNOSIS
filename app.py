@@ -277,11 +277,22 @@ def handle_generic_error(e):
                          error_message="Error inesperado: " + str(e),
                          log_file=log_filename), 500
 
+# Tableros de análisis disponibles (rechazos, cupo, rutas, dominio, maduración):
+# es el conteo real de vistas, no una métrica de sesión inventada.
+_TABLEROS_DISPONIBLES = 5
+
+
 @app.route('/', methods=['GET'])
 def dashboard():
-    """Pagina principal — layout 3 columnas con chat, areas y dashboard."""
+    """Pagina principal — landing INICIO (celda) + dashboard desplegable."""
     from database import get_connection
     from database.persistence import get_all_sessions, get_latest_session_id, get_errores_session
+    from celda import construir_celda_svg, kpis_de_sesion
+
+    # La celda INICIO en estado latente (sin sesión): todo declarado «—».
+    _celda_latente = dict(session_id=None, vehiculos=None, facturas=None,
+                          faltantes=None, errores=None, entidades=None,
+                          conciliado_pct=None, valor_total=None, tableros=_TABLEROS_DISPONIBLES)
 
     _empty = dict(
         empty=True, sessions=[], current_session=None,
@@ -292,6 +303,8 @@ def dashboard():
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
         viz_data={}, data={},
+        celda_svg=construir_celda_svg(_celda_latente),
+        celda_kpis=kpis_de_sesion(_celda_latente),
     )
 
     try:
@@ -458,6 +471,31 @@ def dashboard():
             print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
             viz_data = {}
 
+        # ── Celda INICIO: métricas vivas de la sesión (mismo conn, sin
+        # dobles conteos: reusa stats; entidades y valor se leen directo). ──
+        try:
+            _ent = conn.execute(
+                "SELECT COUNT(*) FROM ag_entidades WHERE session_id = ?", (session_id,)
+            ).fetchone()[0]
+        except Exception:
+            _ent = None
+        try:
+            _valor = conn.execute(
+                "SELECT COALESCE(SUM(precio), 0) FROM importaciones WHERE session_id = ?",
+                (session_id,)
+            ).fetchone()[0]
+        except Exception:
+            _valor = None
+        _veh = stats['total_importaciones']
+        _falt = stats['total_faltantes']
+        _conf = max(0, min(100, round(100 * (_veh - _falt) / _veh))) if _veh else None
+        _celda = dict(
+            session_id=session_id, vehiculos=_veh, facturas=stats['total_extraccion'],
+            faltantes=_falt, errores=stats['total_errores'], entidades=_ent,
+            conciliado_pct=_conf, valor_total=_valor, tableros=_TABLEROS_DISPONIBLES)
+        celda_svg = construir_celda_svg(_celda)
+        celda_kpis = kpis_de_sesion(_celda)
+
         conn.close()
 
         graphs_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'plotly_graphs')
@@ -488,6 +526,8 @@ def dashboard():
             session_id=sid,
             viz_data=viz_data,
             data=session.get('data', {}),
+            celda_svg=celda_svg,
+            celda_kpis=celda_kpis,
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")

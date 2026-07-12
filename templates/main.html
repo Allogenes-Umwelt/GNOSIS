@@ -344,14 +344,70 @@
     .gd-graphic { display: none; }
     .sw-grid { grid-template-columns: repeat(2,1fr); }
   }
+
+  /* ═══ INICIO · la celda (landing) ═══ */
+  #gnosis-inicio { position: relative; }
+  .cel-stage { display: grid; grid-template-columns: 1fr 320px; height: calc(100vh - 95px - 52px); }
+  .cel-cell { position: relative; display: flex; align-items: center; justify-content: center; padding: 10px 24px; min-width: 0; }
+  .cel-svg { width: 100%; height: 100%; display: block; }
+  .cel-svg .cel-nm { font-family: var(--font-mono); font-size: 16.5px; font-weight: 700; letter-spacing: 1.4px; }
+  .cel-svg .cel-mk { font-family: var(--font-mono); font-size: 11.5px; }
+  .cel-svg .cel-core-t { font-family: var(--font-mono); font-size: 12.5px; font-weight: 700; letter-spacing: 3px; }
+  .cel-svg .cel-core-s { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1.5px; }
+  .cel-svg .cel-ejes { font-family: var(--font-mono); font-size: 15px; }
+  .cel-nodo { cursor: pointer; }
+  .cel-nodo circle { transition: r .14s ease; }
+  .cel-nodo:hover .cel-nm, .cel-nodo:focus .cel-nm { fill: var(--acc-text); }
+  .cel-nodo:hover circle[r="12"], .cel-nodo:focus circle[r="12"] { r: 15; }
+  .cel-nodo:focus { outline: none; }
+  .cel-side { border-left: 1px solid var(--line); padding: 26px 30px; display: flex; flex-direction: column; gap: 14px; justify-content: flex-start; overflow-y: auto; }
+  .cel-sh { color: var(--t3); font-family: var(--font-mono); font-size: .58rem; letter-spacing: .26em; border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+  .cel-sh b { color: var(--acc-text); font-weight: 400; }
+  .cel-kpi { border: 1px solid var(--line); padding: 14px 15px; background: var(--surface); }
+  .cel-kpi .k { color: var(--t3); font-family: var(--font-mono); font-size: .6rem; letter-spacing: .14em; text-transform: uppercase; }
+  .cel-kpi .v { font-family: var(--font-d); font-size: 1.9rem; font-weight: 700; margin: 4px 0 2px; font-variant-numeric: tabular-nums; color: var(--t1); }
+  .cel-kpi .d { color: var(--t2); font-family: var(--font-mono); font-size: .66rem; }
+  .cel-kpi.warn .v { color: var(--acc-text); }
+  .cel-verdict { position: absolute; left: 30px; bottom: 12px; color: var(--t3); font-family: var(--font-mono); font-size: .66rem; letter-spacing: .1em; }
+  .cel-verdict b { color: var(--acc-text); font-weight: 400; }
+  .cel-dashbar { position: fixed; left: 0; right: 0; bottom: 0; height: 52px; border: none; border-top: 1px solid var(--acc); background: var(--bg); display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--acc-text); font-family: var(--font-mono); font-size: .66rem; font-weight: 700; letter-spacing: .3em; cursor: pointer; transition: background .16s; }
+  .cel-dashbar:hover { background: var(--acc-subtle); }
+  .cel-dashbar .ic { font-size: .9rem; } .cel-dashbar .ch { font-size: .8rem; opacity: .8; }
+  @media (max-width: 820px) {
+    .cel-stage { grid-template-columns: 1fr; height: auto; }
+    .cel-side { border-left: none; border-top: 1px solid var(--line); }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
 <script type="application/json" id="viz-data">{{ viz_data | tojson }}</script>
 
-<!-- ═══════════ DASHBOARD deck-style (vista por defecto) ═══════════ -->
-<div id="gnosis-dashboard">
+<!-- ═══════════ INICIO · la celda (landing, vista por defecto) ═══════════ -->
+<div id="gnosis-inicio">
+  <div class="cel-stage">
+    <div class="cel-cell">
+      {{ celda_svg | safe }}
+      <div class="cel-verdict">SESIÓN
+        <b>{% if current_session %}#{{ '%02d'|format(current_session.id) }}{% else %}—{% endif %}</b>
+        {% if current_session %}· {{ current_session.session_date[:7] }}{% endif %}
+        · una sola fuente de la verdad</div>
+    </div>
+    <aside class="cel-side" aria-label="KPIs de la sesión">
+      <div class="cel-sh">SESIÓN
+        <b>{% if current_session %}#{{ '%02d'|format(current_session.id) }}{% else %}—{% endif %}</b>
+        {% if current_session %}· {{ current_session.session_date[:7] }} · <b>{{ current_session.status|upper }}</b>{% else %}· SIN SESIÓN{% endif %}</div>
+      {% for kpi in celda_kpis %}
+      <div class="cel-kpi {{ kpi.cls }}"><div class="k">{{ kpi.k }}</div><div class="v">{{ kpi.v }}</div><div class="d">{{ kpi.d }}</div></div>
+      {% endfor %}
+    </aside>
+  </div>
+  <button type="button" class="cel-dashbar" onclick="gnosisAbrirDashboard()">
+    <span class="ic">◫</span> ABRIR DASHBOARD PRINCIPAL <span class="ch">▴</span></button>
+</div>
+
+<!-- ═══════════ DASHBOARD deck-style (se abre desde INICIO) ═══════════ -->
+<div id="gnosis-dashboard" hidden>
 {% if empty %}
   <div class="gd"><div class="gd-empty">
     <div class="t">Sin datos procesados</div>
@@ -843,7 +899,13 @@ function switchPanel(id) {
 window.addEventListener('DOMContentLoaded', function() {
   const p = new URLSearchParams(window.location.search).get('panel');
   if (!p) return;
-  if (p === 'dashboard') { if (window.gnosisReveal) gnosisReveal(true); return; }  // el tablero vive en la vista Dashboard
+  // Un redirect con ?panel=dashboard (p. ej. tras subir facturas) abre la
+  // vista desplegada; sin él, INICIO (la celda) es la vista por defecto.
+  if (p === 'dashboard' || p === 'inicio') {
+    if (window.gnosisAbrirDashboard && p === 'dashboard') gnosisAbrirDashboard();
+    if (window.gnosisReveal) gnosisReveal(true);
+    return;
+  }
   if (window.gnosisShowTool) gnosisShowTool();
   switchPanel(p);
 });
@@ -1287,15 +1349,43 @@ function checkAllResolved() {
 function gnosisSetNav(which){
   document.querySelectorAll('.hud-link').forEach(a=>{
     const t=a.textContent.trim().toLowerCase();
-    a.classList.toggle('active', which==='tool' ? (t==='áreas'||t==='areas') : t==='dashboard');
+    const on = which==='tool' ? (t==='áreas'||t==='areas') : t==='inicio';
+    a.classList.toggle('active', on);
   });
 }
 function gnosisShowTool(){
-  const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool');
-  if(d) d.hidden=true; if(tl) tl.hidden=false;
+  const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool'),
+        ini=document.getElementById('gnosis-inicio');
+  if(ini) ini.hidden=true; if(d) d.hidden=true; if(tl) tl.hidden=false;
   document.documentElement.style.overflow='hidden'; document.body.classList.add('tool-active');
   gnosisSetNav('tool');
 }
+// ── INICIO (celda) ↔ Dashboard desplegado ──
+function gnosisAbrirDashboard(){
+  const ini=document.getElementById('gnosis-inicio'), d=document.getElementById('gnosis-dashboard');
+  if(ini) ini.hidden=true; if(d) d.hidden=false;
+  gnosisSetNav('dash'); requestAnimationFrame(gnosisRenderAll);
+}
+function gnosisMostrarInicio(){
+  const ini=document.getElementById('gnosis-inicio'), d=document.getElementById('gnosis-dashboard'),
+        tl=document.getElementById('gnosis-tool');
+  if(d) d.hidden=true; if(tl) tl.hidden=true; if(ini) ini.hidden=false;
+  document.documentElement.style.overflow=''; document.body.classList.remove('tool-active');
+  gnosisSetNav('inicio');
+}
+// Nodos de la celda: navegan a su ventana (o acción especial).
+document.querySelectorAll('#gnosis-inicio .cel-nodo').forEach(function(nodo){
+  function ir(e){
+    e.preventDefault();
+    const r=nodo.getAttribute('data-ruta')||'';
+    if(r==='#dashboard'){ gnosisAbrirDashboard(); }
+    else if(r==='#ia'){ const b=document.getElementById('gnosis-ia-btn'); if(b) b.click(); }
+    else if(r==='/procesar'){ gnosisShowTool(); }
+    else if(r){ window.location.href=r; }
+  }
+  nodo.addEventListener('click',ir);
+  nodo.addEventListener('keydown',function(e){ if(e.key==='Enter'||e.key===' ') ir(e); });
+});
 function gnosisShowDash(){
   const d=document.getElementById('gnosis-dashboard'), tl=document.getElementById('gnosis-tool');
   if(tl) tl.hidden=true; if(d) d.hidden=false;
@@ -1305,7 +1395,7 @@ function gnosisShowDash(){
 document.querySelectorAll('.hud-link').forEach(a=>{
   const t=a.textContent.trim().toLowerCase();
   if(t==='áreas'||t==='areas') a.addEventListener('click',e=>{e.preventDefault();gnosisShowTool();});
-  if(t==='dashboard') a.addEventListener('click',e=>{e.preventDefault();gnosisShowDash();});
+  if(t==='inicio') a.addEventListener('click',e=>{e.preventDefault();gnosisMostrarInicio();});
 });
 
 // ═══════════ GNOSIS · 7 exhibits + tablero W-C + modal + vistas dedicadas ═══════════
