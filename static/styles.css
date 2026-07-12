@@ -36,6 +36,7 @@
 
   --gnosis: #00D4FF; --telos: #A4133C; --umwelt: #FF0066; --dasein: #7B3FA0;
   --acc-solid: #00D4FF; /* GNOSIS real — fills/SVG */
+  --cobalt: #3D5AFE;    /* geográfico ⊕ (PANOPTES §2 / S1S1R1 §1) */
 
   /* Motion (E4): duraciones canónicas */
   --e4u-rapido: .12s;
@@ -60,6 +61,7 @@
 
   /* singularity-on-dark · variantes AAA (texto + gráfico fino) */
   --gnosis-on: #00D4FF; --telos-on: #F57F9C; --umwelt-on: #FF80AA; --dasein-on: #B99BD6;
+  --cobalt-on: #8C9EFF;   /* ⊕ geográfico · AAA sobre --bg oscuro */
 
   /* Singularidad activa = GNOSIS */
   --acc: var(--gnosis-on);
@@ -101,6 +103,7 @@
 
   /* singularity-on-light · escala 800 AAA sobre #FAFAF8 (§3.3.4) */
   --gnosis-on: #005A6E; --telos-on: #A4133C; --umwelt-on: #8C0038; --dasein-on: #633C8F;
+  --cobalt-on: #2A3EB1;   /* ⊕ geográfico · AAA sobre #FAFAF8 */
   --acc-subtle: #E6FAFF;
   --grid-opacity: 0.04;
   --acc-rgb: 0, 90, 110;

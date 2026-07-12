@@ -17,9 +17,22 @@
                         entidad: 0.14 };
 
   function radioDe(n) {
-    var base = { nucleo: 14, pedimento: 7, marca: 9, pais: 8, vehiculo: 3.2,
-                 artefacto: 6, fragmento: 2.2, entidad: 5.5, producto: 7 }[n.kind] || 4;
+    var base = { nucleo: 14, pedimento: 8, marca: 9, pais: 8, vehiculo: 3.2,
+                 artefacto: 6.5, fragmento: 2.2, entidad: 6.5, producto: 7.5,
+                 anomalia: 8.5 }[n.kind] || 4;
     return base + Math.min(6, Math.sqrt(n.grado || 0) * 0.9);
+  }
+
+  // Tiers de render (PANOPTES §5): HUB = ojo-sensor (anillos maquinados +
+  // núcleo incandescente); MEDIO = anillo simple + glifo; HOJA = forma
+  // mínima. Los kinds estructurales son HUB; un nodo-hoja con centralidad
+  // alta sube a MEDIO para que no se pierda.
+  var TIER_HUB = { nucleo: 1, marca: 1, pedimento: 1, pais: 1, producto: 1 };
+  var TIER_HOJA = { vehiculo: 1, fragmento: 1 };
+  function tierDe(n) {
+    if (TIER_HUB[n.kind]) return 'hub';
+    if (TIER_HOJA[n.kind]) return (n.centralidad || 0) >= 0.6 ? 'medio' : 'hoja';
+    return 'medio';   // artefacto (Σ), entidad (Ψ/Ω/ε), anomalia (Δ)
   }
 
   function q(sel) { return sel ? document.querySelector(sel) : null; }
@@ -46,6 +59,7 @@
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
     var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
+    var esLight = false;         // tema activo — decide glow (dark) vs burn (light)
 
     // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
     // por modo (--acc-text), nunca el cyan real fijo.
@@ -59,12 +73,59 @@
       var cs = getComputedStyle(document.documentElement);
       colores = {
         acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
+        cobalt: cs.getPropertyValue('--cobalt-on').trim() || '#8C9EFF',
+        warn: cs.getPropertyValue('--warn').trim() || '#FF80AA',
+        danger: cs.getPropertyValue('--danger').trim() || '#F57F9C',
         linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
         linea2: cs.getPropertyValue('--line-2').trim() || '#777',
         t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
         t3: cs.getPropertyValue('--t3').trim() || '#AAA',
+        bg: cs.getPropertyValue('--bg').trim() || '#050505',
         fondo: 'transparent'
       };
+      esLight = document.documentElement.getAttribute('data-theme') === 'light';
+    }
+
+    // ── paleta y formas por nodo (PANOPTES §1.1, §5) ──────────────────
+    // color de identidad del nodo (trazo del ojo-sensor y glifo)
+    function colorNodo(n) {
+      if (n.kind === 'anomalia') {
+        return n.severidad === 'danger' ? colores.danger : colores.warn;
+      }
+      if (n.kind === 'pais') return colores.cobalt;
+      if (n.kind === 'artefacto' || n.kind === 'entidad') return colores.acc;
+      if (n.kind === 'vehiculo' || n.kind === 'fragmento') return colores.linea2;
+      return colores.t1;   // nucleo, pedimento, marca, producto (Frame)
+    }
+    // color del núcleo incandescente: cian salvo país (cobalt) y Δ (severidad)
+    function nucleoDe(n) {
+      if (n.kind === 'anomalia') {
+        return n.severidad === 'danger' ? colores.danger : colores.warn;
+      }
+      if (n.kind === 'pais') return colores.cobalt;
+      return colores.acc;
+    }
+    function trazarForma(n, r) {
+      ctx.beginPath();
+      if (n.kind === 'artefacto' || n.kind === 'fragmento') {
+        ctx.rect(n.x - r, n.y - r, r * 2, r * 2);            // Frame: documental
+      } else if (n.kind === 'pedimento') {
+        ctx.moveTo(n.x, n.y - r); ctx.lineTo(n.x + r, n.y);
+        ctx.lineTo(n.x, n.y + r); ctx.lineTo(n.x - r, n.y); ctx.closePath();
+      } else if (n.kind === 'anomalia') {                    // Δ: triángulo de alerta
+        ctx.moveTo(n.x, n.y - r); ctx.lineTo(n.x + r * 0.92, n.y + r * 0.72);
+        ctx.lineTo(n.x - r * 0.92, n.y + r * 0.72); ctx.closePath();
+      } else {
+        ctx.arc(n.x, n.y, r, 0, 6.283);
+      }
+    }
+    function nucleoIncandescente(n, r, color) {
+      var rc = r * 0.6;
+      var grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, rc);
+      grad.addColorStop(0, conAlfa(color, 0.85));
+      grad.addColorStop(1, conAlfa(color, 0));
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(n.x, n.y, rc, 0, 6.283); ctx.fill();
     }
 
     var dpr = 1;
@@ -196,52 +257,67 @@
       });
       ctx.setLineDash([]);
 
-      // nodos — esferas con presencia: glow selectivo en los kinds
-      // estructurales (los cientos de vehículos/fragmentos van limpios,
-      // que el glow masivo mata el rendimiento y la lectura)
-      var GLOW = { nucleo: 20, marca: 13, pais: 11, pedimento: 10,
-                   entidad: 12, producto: 10 };
+      // nodos — lenguaje ojo-sensor por tier (PANOPTES §5). El glow masivo
+      // sigue proscrito: los cientos de hojas van limpias, solo los HUB
+      // llevan anillos maquinados + núcleo incandescente. El glow/burn real
+      // se reserva a las Δ (F3b).
       nodos.forEach(function (n) {
         var r = radioDe(n);
         var apagado = resalte ? !resalte.nodos[n.id]
           : (foco && n !== foco && !(visibles && visibles[n.id]));
-        var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
+        var tier = tierDe(n);
+        var col = colorNodo(n);
 
         if (apagado) {
-          // modo tenue: contorno láser cian sutil — presente, no fantasma
+          // modo tenue: contorno láser sutil — presente, no fantasma
           ctx.globalAlpha = 0.3;
           ctx.strokeStyle = conAlfa(colores.acc, 0.55);
-          ctx.fillStyle = 'rgba(0,0,0,0)';
           ctx.lineWidth = 0.9;
-        } else {
+          trazarForma(n, r); ctx.stroke();
           ctx.globalAlpha = 1;
-          var g = GLOW[n.kind];
-          if (g) { ctx.shadowColor = conAlfa(colores.acc, 0.9); ctx.shadowBlur = g; }
-          ctx.strokeStyle = (vivo || n.kind === 'nucleo' || n.kind === 'producto')
-            ? colores.acc
-            : (GLOW[n.kind] ? colores.t1 : colores.linea2);
-          ctx.fillStyle = vivo ? conAlfa(colores.acc, 0.3) : 'rgba(0,0,0,0)';
-          ctx.lineWidth = n === foco ? 2.6 : (GLOW[n.kind] ? 1.8 : 1.2);
+          return;
         }
 
-        ctx.beginPath();
-        if (n.kind === 'artefacto' || n.kind === 'fragmento') {
-          ctx.rect(n.x - r, n.y - r, r * 2, r * 2);   // Frame: documental
-        } else if (n.kind === 'pedimento') {
-          ctx.moveTo(n.x, n.y - r); ctx.lineTo(n.x + r, n.y);
-          ctx.lineTo(n.x, n.y + r); ctx.lineTo(n.x - r, n.y); ctx.closePath();
+        ctx.globalAlpha = 1;
+        var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
+
+        if (tier === 'hub') {
+          // carcasa (anillo exterior) + mecanizado (anillo medio) + iris
+          // (marcas radiales) + núcleo incandescente = el ojo-sensor
+          ctx.strokeStyle = col; ctx.globalAlpha = 0.9;
+          ctx.lineWidth = n === foco ? 2.4 : 1.4;
+          trazarForma(n, r); ctx.stroke();
+          ctx.globalAlpha = 0.45; ctx.lineWidth = 0.7;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.72, 0, 6.283); ctx.stroke();
+          ctx.globalAlpha = 0.3;
+          for (var t = 0; t < 10; t++) {
+            var ang = (n.seed || 0) + t * 0.6283;
+            var cx = Math.cos(ang), cy = Math.sin(ang);
+            ctx.beginPath();
+            ctx.moveTo(n.x + cx * r * 0.8, n.y + cy * r * 0.8);
+            ctx.lineTo(n.x + cx * r * 0.98, n.y + cy * r * 0.98);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+          nucleoIncandescente(n, r, nucleoDe(n));
+        } else if (tier === 'hoja') {
+          // hoja: forma mínima, sin núcleo — legibilidad y fps
+          ctx.strokeStyle = col; ctx.lineWidth = n === foco ? 2.0 : 1.0;
+          trazarForma(n, r); ctx.stroke();
         } else {
-          ctx.arc(n.x, n.y, r, 0, 6.283);
+          // MEDIO: anillo simple + relleno vivo (entidad) + punto de energía
+          ctx.strokeStyle = col; ctx.lineWidth = n === foco ? 2.4 : 1.5;
+          ctx.fillStyle = vivo ? conAlfa(colores.acc, 0.28) : 'rgba(0,0,0,0)';
+          trazarForma(n, r);
+          if (vivo) ctx.fill();
+          ctx.stroke();
+          if (!vivo) {
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, Math.max(1.3, r * 0.28), 0, 6.283);
+            ctx.fillStyle = nucleoDe(n); ctx.fill();
+          }
         }
-        if (vivo) ctx.fill();
-        ctx.stroke();
-        // singularidad interior: el punto de energía de cada esfera clave
-        if (!apagado && GLOW[n.kind] && n.kind !== 'entidad') {
-          ctx.beginPath();
-          ctx.arc(n.x, n.y, Math.max(1.4, r * (n.kind === 'nucleo' ? 0.4 : 0.3)), 0, 6.283);
-          ctx.fillStyle = colores.acc; ctx.fill();
-        }
-        ctx.shadowBlur = 0;
+
         // selección: anillo punteado giratorio (quieto bajo reduced-motion)
         if (n === sel) {
           ctx.save();
@@ -250,19 +326,31 @@
           ctx.beginPath(); ctx.arc(n.x, n.y, r + 7, 0, 6.283); ctx.stroke();
           ctx.restore();
         }
-        // etiquetas con LOD: siempre las estructurales, el resto al acercarse
-        // los hubs solo se etiquetan con zoom suficiente: alejados se enciman
+
+        // glifo griego DENTRO del nodo (LOD §6.3): visible si el radio en
+        // pantalla ≥ 7px y no es hoja; nombra la clase del objeto. Sobre el
+        // relleno vivo (entidad) va en --t1 para contrastar; el triángulo Δ
+        // baja el glifo a su centro geométrico.
+        if (n.glifo && r * vista.k >= 7 && tier !== 'hoja') {
+          var dyG = n.kind === 'anomalia' ? r * 0.26 : r * 0.02;
+          ctx.font = '700 ' + (r * 1.15) + 'px "JetBrains Mono", monospace';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = vivo ? colores.t1 : col;
+          ctx.fillText(n.glifo, n.x, n.y + dyG);
+          ctx.textBaseline = 'alphabetic';
+        }
+
+        // etiqueta con LOD: prioridad por centralidad (no solo grado)
         var conEtiqueta = ['nucleo', 'pedimento', 'marca', 'pais', 'producto'].indexOf(n.kind) >= 0
           || n === foco || (visibles && visibles[n.id]) || (resalte && resalte.nodos[n.id])
           || (vista.k > 1.6 && n.kind !== 'fragmento')
-          || ((n.grado || 0) >= 6 && vista.k >= 0.8);
-        if (conEtiqueta && !apagado) {
+          || ((n.centralidad || 0) >= 0.45 && vista.k >= 0.8);
+        if (conEtiqueta) {
           // piso de legibilidad: la etiqueta nunca baja de 10px en pantalla
           ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
           ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
           ctx.textAlign = 'center';
-          // etiqueta defensiva: un null de datos reales no puede tirar el
-          // frame (dejaría la transformación sucia — el glitch de estelas)
+          // etiqueta defensiva: un null de datos reales no puede tirar el frame
           ctx.fillText(String(n.etiqueta || '').slice(0, 26), n.x, n.y + r + 11 / vista.k);
         }
       });
