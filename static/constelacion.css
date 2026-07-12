@@ -153,7 +153,11 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 3px;
   text-transform: uppercase; color: var(--acc-text); margin: 0 0 4px;
 }
-.ag-centro { border: 1px solid var(--line); background: var(--surface); padding: 18px 18px 8px; display: flex; flex-direction: column; min-height: 0; }
+/* La columna central scrollea DENTRO cuando su contenido excede el alto
+   acotado del shell (p. ej. CONCILIA: flujo + hallazgos + caudal de
+   420px). En grafo/qualia el lienzo llena vía flex:1 y no hay overflow,
+   así que el scrollbar no aparece. Sin esto, el sobrante se recortaba. */
+.ag-centro { border: 1px solid var(--line); background: var(--surface); padding: 18px 18px 8px; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
 .ag-centro .constelacion { flex: 1; display: flex; align-items: center; }
 .ag-centro .constelacion .cst-svg { max-height: min(74vh, 880px); }
 .ag-centro-head { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line-ghost); padding-bottom: 10px; }

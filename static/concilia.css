@@ -55,8 +55,9 @@
 }
 .cn-estado.mal { color: var(--danger); }
 
-/* el lienzo del caudal ocupa el zócalo del tablero */
-.cn-lienzo { height: 420px; }
+/* el lienzo del caudal ocupa el zócalo del tablero — alto fijo (no
+   crece/encoge) para que la columna scrollee limpia sin recortarlo */
+.cn-lienzo { flex: 0 0 420px; height: 420px; }
 .cn-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
 
 /* hallazgo: caja de dos líneas — título + monto, luego el detalle */
