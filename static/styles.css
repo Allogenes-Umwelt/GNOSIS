@@ -148,6 +148,15 @@
   box-sizing: border-box;
 }
 
+/* The `button`/`.btn`/`.download-button a` display rules below are
+   author-origin, so they beat the UA `[hidden] { display: none }` and
+   silently break the `hidden` attribute on those elements. Restore it
+   with a matching-specificity author rule (no `!important`, so an inline
+   `style.display` can still override when a script needs to reveal one). */
+button[hidden], .btn[hidden], .download-button a[hidden] {
+  display: none;
+}
+
 body {
   font-family: var(--font-b);
   background-color: var(--bg-app);
