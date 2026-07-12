@@ -65,20 +65,41 @@
       });
     })();
 
+    var corte2 = corte * corte;
+
     function tick() {
       var i, j, n, m, dx, dy, d2, d, f;
-      // repulsión de pares (n² con corte — suficiente a esta escala)
+      // repulsión por rejilla espacial (PANOPTES §4.3): celda = radio de
+      // corte, así solo se comparan pares dentro de la misma celda y las 8
+      // vecinas — O(n·k) en vez de O(n²), MISMAS fuerzas (los pares más
+      // lejanos que el corte ya se descartaban). Determinista: el orden de
+      // iteración es el índice de nodo, no el hash.
+      var rejilla = {};
       for (i = 0; i < nodos.length; i++) {
         n = nodos[i];
-        for (j = i + 1; j < nodos.length; j++) {
-          m = nodos[j];
-          dx = n.x - m.x; dy = n.y - m.y;
-          d2 = dx * dx + dy * dy;
-          if (d2 > corte * corte || d2 === 0) continue;
-          d = Math.sqrt(d2);
-          f = (repulsion * alfa) / d2;
-          dx = dx / d * f; dy = dy / d * f;
-          n.vx += dx; n.vy += dy; m.vx -= dx; m.vy -= dy;
+        var clave = Math.floor(n.x / corte) + ',' + Math.floor(n.y / corte);
+        (rejilla[clave] = rejilla[clave] || []).push(i);
+      }
+      for (i = 0; i < nodos.length; i++) {
+        n = nodos[i];
+        var cx = Math.floor(n.x / corte), cy = Math.floor(n.y / corte);
+        for (var gx = cx - 1; gx <= cx + 1; gx++) {
+          for (var gy = cy - 1; gy <= cy + 1; gy++) {
+            var celda = rejilla[gx + ',' + gy];
+            if (!celda) continue;
+            for (var ci = 0; ci < celda.length; ci++) {
+              j = celda[ci];
+              if (j <= i) continue;            // cada par una sola vez
+              m = nodos[j];
+              dx = n.x - m.x; dy = n.y - m.y;
+              d2 = dx * dx + dy * dy;
+              if (d2 > corte2 || d2 === 0) continue;
+              d = Math.sqrt(d2);
+              f = (repulsion * alfa) / d2;
+              dx = dx / d * f; dy = dy / d * f;
+              n.vx += dx; n.vy += dy; m.vx -= dx; m.vy -= dy;
+            }
+          }
         }
       }
       // resortes de enlaces
