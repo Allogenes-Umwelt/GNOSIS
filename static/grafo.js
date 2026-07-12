@@ -53,6 +53,10 @@
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     var nodos = [], enlaces = [], porId = {}, vecinos = {};
+    var nodosRaw = [], enlacesRaw = [];   // payload completo; el colapso decide qué se dibuja
+    var badgeFrag = {};                   // artefacto id -> nº de fragmentos colapsados
+    var mostrarFragmentos = false;        // σ colapsados por defecto (mata el hairball)
+    var sesionId = null;
     var sim = null, animando = false, latiendo = false, t0 = 0;
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
@@ -218,28 +222,65 @@
           if (estadoLinea) estadoLinea.textContent = g && g.error ? g.error.toUpperCase() : 'SIN DATOS';
           return;
         }
-        nodos = g.nodos; enlaces = g.enlaces; porId = {}; vecinos = {};
-        nodos.forEach(function (n) { porId[n.id] = n; });
-        enlaces.forEach(function (e) {
-          (vecinos[e.source] = vecinos[e.source] || {})[e.target] = true;
-          (vecinos[e.target] = vecinos[e.target] || {})[e.source] = true;
+        nodosRaw = g.nodos; enlacesRaw = g.enlaces; sesionId = g.session_id;
+        // badges: nº de fragmentos que cuelgan de cada artefacto (Σ)
+        badgeFrag = {};
+        var porIdRaw = {};
+        nodosRaw.forEach(function (n) { porIdRaw[n.id] = n; });
+        enlacesRaw.forEach(function (e) {
+          var s = porIdRaw[e.source], t = porIdRaw[e.target];
+          if (s && t && s.kind === 'fragmento' && t.kind === 'artefacto') {
+            badgeFrag[t.id] = (badgeFrag[t.id] || 0) + 1;
+          }
         });
         sel = null; pintarInspector(null);
-        if (estadoLinea) {
-          estadoLinea.textContent = nodos.length + ' NODOS · ' + enlaces.length +
-            ' ENLACES · SESIÓN ' + (g.session_id || '—');
-        }
-        var nucleo = nodos.find(function (n) { return n.kind === 'nucleo'; });
-        if (nucleo) { nucleo.x = 0; nucleo.y = 0; nucleo.fx = 0; nucleo.fy = 0; }
-        sim = Fuerzas.simulacion(nodos, enlaces,
-                                 { anillos: ANILLOS, fuerzaPorKind: FUERZA_ANILLO });
-        if (reduce) { sim.correr(300); encuadrar(); dibujar(0); }
-        else { sim.correr(60); encuadrar(); animar(); }
+        colapsar();          // deriva nodos/enlaces visibles + estado
+        reconstruirSim();
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
       }).catch(function () {
         if (mia !== reqSeq) return;
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
       });
+    }
+
+    // Colapso (PANOPTES §4): del payload completo deriva el set VISIBLE. Los
+    // fragmentos (σ) se ocultan por defecto — son el grueso del hairball; su
+    // conteo vive en el badge de cada Σ. Reconstruye porId/vecinos sobre lo
+    // visible para que foco, resalte y búsqueda operen sobre lo que se ve.
+    function colapsar() {
+      var ocultos = {};
+      if (!mostrarFragmentos) {
+        for (var i = 0; i < nodosRaw.length; i++) {
+          if (nodosRaw[i].kind === 'fragmento') ocultos[nodosRaw[i].id] = true;
+        }
+      }
+      nodos = nodosRaw.filter(function (n) { return !ocultos[n.id]; });
+      enlaces = enlacesRaw.filter(function (e) {
+        return !ocultos[e.source] && !ocultos[e.target];
+      });
+      porId = {}; vecinos = {};
+      nodos.forEach(function (n) { porId[n.id] = n; });
+      enlaces.forEach(function (e) {
+        (vecinos[e.source] = vecinos[e.source] || {})[e.target] = true;
+        (vecinos[e.target] = vecinos[e.target] || {})[e.source] = true;
+      });
+      if (estadoLinea) {
+        estadoLinea.textContent = nodos.length + ' NODOS · ' + enlaces.length +
+          ' ENLACES · SESIÓN ' + (sesionId || '—') +
+          (mostrarFragmentos ? '' : ' · σ OCULTOS');
+      }
+    }
+
+    // Reconstruye la simulación sobre el set visible. Los nodos conservan su
+    // x/y previo (mismo objeto), así un toggle re-asienta en vez de saltar;
+    // los nuevos arrancan de su seed (determinista).
+    function reconstruirSim() {
+      var nucleo = nodos.find(function (n) { return n.kind === 'nucleo'; });
+      if (nucleo) { nucleo.x = 0; nucleo.y = 0; nucleo.fx = 0; nucleo.fy = 0; }
+      sim = Fuerzas.simulacion(nodos, enlaces,
+                               { anillos: ANILLOS, fuerzaPorKind: FUERZA_ANILLO });
+      if (reduce) { sim.correr(300); encuadrar(); dibujar(0); }
+      else { sim.correr(60); encuadrar(); animar(); }
     }
 
     function animar() {
@@ -437,6 +478,17 @@
           ctx.textBaseline = 'alphabetic';
         }
 
+        // badge de fragmentos colapsados en la Σ (×N σ): el halo cabe en un
+        // contador, no en cientos de nodos
+        if (n.kind === 'artefacto' && !mostrarFragmentos && badgeFrag[n.id]
+            && r * vista.k >= 6) {
+          ctx.font = '700 ' + (8 / vista.k) + 'px "JetBrains Mono", monospace';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = colores.acc;
+          ctx.fillText('×' + badgeFrag[n.id], n.x + r + 3 / vista.k, n.y - r + 2 / vista.k);
+          ctx.textBaseline = 'alphabetic';
+        }
+
         // etiqueta con LOD: prioridad por centralidad (no solo grado)
         var conEtiqueta = ['nucleo', 'pedimento', 'marca', 'pais', 'producto'].indexOf(n.kind) >= 0
           || n === foco || (visibles && visibles[n.id]) || (resalte && resalte.nodos[n.id])
@@ -623,6 +675,21 @@
     if (zmenos) zmenos.addEventListener('click', function () { zoomCentro(1 / 1.35); });
     var cap = q(cont.getAttribute('data-cap'));
     if (cap) cap.addEventListener('change', function () { cargar(cap.value || null); });
+    var frag = q(cont.getAttribute('data-frag'));
+    if (frag) {
+      var pintarFrag = function () {
+        frag.setAttribute('aria-pressed', mostrarFragmentos ? 'true' : 'false');
+        frag.textContent = mostrarFragmentos ? 'σ fragmentos' : 'σ ocultos';
+      };
+      pintarFrag();
+      frag.addEventListener('click', function () {
+        mostrarFragmentos = !mostrarFragmentos;
+        pintarFrag();
+        vistaManual = false;      // deja que el nuevo set se reencuadre
+        colapsar();
+        reconstruirSim();
+      });
+    }
 
     // API para vistas que cabalgan el lienzo (Vínculos)
     cont.grafoAPI = {

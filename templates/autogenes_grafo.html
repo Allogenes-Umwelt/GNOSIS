@@ -22,6 +22,8 @@
             <option value="400">400 vehículos</option>
             <option value="">todos</option>
           </select>
+          <button type="button" id="gr-frag" class="ag-plegar" style="min-width:auto;padding:0 10px"
+                  aria-pressed="false" aria-label="Mostrar u ocultar fragmentos">σ ocultos</button>
           <button type="button" id="gr-zmenos" class="ag-plegar" aria-label="Alejar">−</button>
           <button type="button" id="gr-zmas" class="ag-plegar" aria-label="Acercar">+</button>
           <button type="button" id="gr-reset" class="ag-plegar" style="min-width:auto;padding:0 10px" aria-label="Reencuadrar el grafo">⌖ centrar</button>
@@ -30,7 +32,7 @@
       </div>
       <div class="gr-lienzo" data-inspector="#gr-inspector" data-estado="#gr-estado"
            data-buscar="#gr-buscar" data-reset="#gr-reset" data-cap="#gr-cap"
-           data-zmas="#gr-zmas" data-zmenos="#gr-zmenos">
+           data-frag="#gr-frag" data-zmas="#gr-zmas" data-zmenos="#gr-zmenos">
         <canvas aria-label="Lienzo de fuerzas del grafo de la sesión" role="img"></canvas>
       </div>
       <ul class="ag-leyenda" style="margin-top:8px">
