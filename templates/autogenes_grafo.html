@@ -32,18 +32,24 @@
       </div>
       <div class="gr-lienzo" data-inspector="#gr-inspector" data-estado="#gr-estado"
            data-buscar="#gr-buscar" data-reset="#gr-reset" data-cap="#gr-cap"
-           data-frag="#gr-frag" data-zmas="#gr-zmas" data-zmenos="#gr-zmenos">
+           data-frag="#gr-frag" data-zmas="#gr-zmas" data-zmenos="#gr-zmenos"
+           data-leyenda="#gr-leyenda" data-aislado="#gr-aislado">
         <canvas aria-label="Lienzo de fuerzas del grafo de la sesión" role="img"></canvas>
       </div>
-      <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b style="color:var(--t1)">α</b> caso</li>
-        <li><b style="color:var(--t1)">Π</b> pedimento</li>
-        <li><b style="color:var(--t1)">ν</b> vehículo</li>
-        <li><b style="color:var(--t1)">μ</b> marca</li>
-        <li><b style="color:var(--cobalt-on)">⊕</b> país</li>
-        <li><b>Σ</b> fuente</li>
-        <li><b>Ψ Ω</b> entidad <span>(viva)</span></li>
-        <li><b style="color:var(--danger)">Δ</b> anomalía</li>
+      <div id="gr-aislado" class="gr-aislado" role="status" hidden>
+        <span class="gr-aislado-t"></span>
+        <button type="button" id="gr-aislado-salir" class="gr-tar-btn">salir</button>
+      </div>
+      <ul id="gr-leyenda" class="ag-leyenda gr-leyenda" style="margin-top:8px"
+          aria-label="Filtrar por clase de nodo">
+        <li><button type="button" class="gr-chip" data-kind="nucleo" aria-pressed="true"><b style="color:var(--t1)">α</b> caso <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="pedimento" aria-pressed="true"><b style="color:var(--t1)">Π</b> pedimento <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="vehiculo" aria-pressed="true"><b style="color:var(--t1)">ν</b> vehículo <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="marca" aria-pressed="true"><b style="color:var(--t1)">μ</b> marca <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="pais" aria-pressed="true"><b style="color:var(--cobalt-on)">⊕</b> país <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="artefacto" aria-pressed="true"><b>Σ</b> fuente <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="entidad" aria-pressed="true"><b>Ψ Ω</b> entidad <em class="gr-chip-n"></em></button></li>
+        <li><button type="button" class="gr-chip" data-kind="anomalia" aria-pressed="true"><b style="color:var(--danger)">Δ</b> anomalía <em class="gr-chip-n"></em></button></li>
         <li><span id="gr-estado" role="status">CARGANDO…</span></li>
       </ul>
     </section>

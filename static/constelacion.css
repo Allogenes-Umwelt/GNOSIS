@@ -199,6 +199,26 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .ag-leyenda b { color: var(--acc-text); margin-right: 6px; }
 .ag-leyenda span { color: var(--t2); }
 
+/* Leyenda viva (PANOPTES §8): cada glifo es un filtro — clic atenúa esa
+   clase, doble clic la aísla (duotono). Contadores reales por clase. */
+.gr-leyenda { gap: 4px 10px; }
+.gr-leyenda li { display: inline-flex; }
+.gr-chip {
+  font: inherit; font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px;
+  color: var(--t3); background: none; border: 1px solid transparent; padding: 3px 7px;
+  cursor: pointer; display: inline-flex; align-items: baseline; gap: 5px; min-height: 30px;
+}
+.gr-chip:hover { border-color: var(--line); }
+.gr-chip[aria-pressed="false"] { opacity: .38; text-decoration: line-through; }
+.gr-chip.aislado { border-color: var(--acc-text); color: var(--t1); }
+.gr-chip-n { color: var(--t3); font-size: .64rem; opacity: .8; }
+.gr-aislado {
+  display: inline-flex; align-items: center; gap: 10px; margin: 8px 0 0;
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--acc-text); border: 1px solid var(--acc-text); padding: 4px 6px 4px 10px;
+}
+.gr-aislado[hidden] { display: none; }
+
 /* carga de documentos */
 .ag-drop {
   border: 1px dashed var(--line-2); padding: 22px 14px; text-align: center;

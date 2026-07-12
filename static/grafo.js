@@ -70,6 +70,9 @@
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
+    var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
+    var kindAislado = null;      // clase aislada (duotono §7.2); null = ninguna
+    function leyOculta(k) { return kindAislado ? k !== kindAislado : !!kindsAtenuados[k]; }
     var vistaManual = false;     // pan/zoom del operador: el auto-encuadre no la pisa
     var colores = {};
     var esLight = false;         // tema activo — decide glow (dark) vs burn (light)
@@ -352,6 +355,7 @@
           (mostrarFragmentos ? '' : ' · σ OCULTOS') +
           (nMeta ? ' · ' + nMeta + ' RACIMO' + (nMeta > 1 ? 'S' : '') : '');
       }
+      if (typeof pintarLeyenda === 'function') pintarLeyenda();
     }
 
     // Reconstruye la simulación sobre el set visible. Los nodos conservan su
@@ -465,7 +469,8 @@
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
         var toca = foco && (e.source === foco.id || e.target === foco.id);
-        var apagado = resalte ? !resalte.enlaces[e.id] : (foco && !toca);
+        var apagado = leyOculta(a.kind) || leyOculta(b.kind) ||
+          (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
         ctx.globalAlpha = apagado ? 0.07 : (e.kind === 'relacion' ? 0.8 : 0.3);
         ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
@@ -492,8 +497,8 @@
       // se reserva a las Δ (F3b).
       nodos.forEach(function (n) {
         var r = radioDe(n);
-        var apagado = resalte ? !resalte.nodos[n.id]
-          : (foco && n !== foco && !(visibles && visibles[n.id]));
+        var apagado = leyOculta(n.kind) || (resalte ? !resalte.nodos[n.id]
+          : (foco && n !== foco && !(visibles && visibles[n.id])));
         var tier = tierDe(n);
         var col = colorNodo(n);
 
@@ -1001,6 +1006,52 @@
         colapsar();
         reconstruirSim();
       });
+    }
+    // leyenda viva (PANOPTES §8): clic atenúa una clase, doble clic la aísla
+    var leyendaEl = q(cont.getAttribute('data-leyenda'));
+    var aisladoEl = q(cont.getAttribute('data-aislado'));
+    if (leyendaEl) {
+      leyendaEl.querySelectorAll('.gr-chip').forEach(function (chip) {
+        var k = chip.getAttribute('data-kind'), tClic = null;
+        chip.addEventListener('click', function () {
+          clearTimeout(tClic);
+          tClic = setTimeout(function () {          // clic simple: atenuar
+            if (kindAislado) kindAislado = null;
+            kindsAtenuados[k] = !kindsAtenuados[k];
+            pintarLeyenda(); if (!animando) dibujar(0);
+          }, 200);
+        });
+        chip.addEventListener('dblclick', function () {  // doble: aislar (duotono)
+          clearTimeout(tClic);
+          kindsAtenuados = {};
+          kindAislado = (kindAislado === k) ? null : k;
+          pintarLeyenda(); if (!animando) dibujar(0);
+        });
+      });
+    }
+    if (aisladoEl) {
+      var salir = aisladoEl.querySelector('#gr-aislado-salir');
+      if (salir) salir.addEventListener('click', function () {
+        kindAislado = null; kindsAtenuados = {};
+        pintarLeyenda(); if (!animando) dibujar(0);
+      });
+    }
+    function pintarLeyenda() {
+      if (!leyendaEl) return;
+      var cuenta = {};
+      nodosRaw.forEach(function (n) { cuenta[n.kind] = (cuenta[n.kind] || 0) + 1; });
+      leyendaEl.querySelectorAll('.gr-chip').forEach(function (chip) {
+        var k = chip.getAttribute('data-kind');
+        var em = chip.querySelector('.gr-chip-n');
+        if (em) em.textContent = cuenta[k] || 0;
+        chip.setAttribute('aria-pressed', leyOculta(k) ? 'false' : 'true');
+        chip.classList.toggle('aislado', kindAislado === k);
+      });
+      if (aisladoEl) {
+        aisladoEl.hidden = !kindAislado;
+        var t = aisladoEl.querySelector('.gr-aislado-t');
+        if (t && kindAislado) t.textContent = 'Aislando · ' + kindAislado;
+      }
     }
 
     // API para vistas que cabalgan el lienzo (Vínculos)
