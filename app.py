@@ -538,6 +538,44 @@ def dashboard():
         return render_template('main.html', **_empty)
 
 
+@app.route('/api/admin/reset', methods=['POST'])
+def admin_reset():
+    """Empezar de cero: borra la base local, insumos y resultados, y
+    reinicia el esquema. SOLO lo dispara el operador con confirmación
+    explícita en el cuerpo — un borrado jamás se delega ni se facilita.
+    """
+    datos = request.get_json(silent=True) or {}
+    if datos.get('confirmar') != 'BORRAR':
+        return jsonify({'error': 'Confirmación requerida: envía {"confirmar": "BORRAR"}.'}), 400
+
+    from database import DB_PATH, init_db
+    session.clear()
+    for sufijo in ('', '-wal', '-shm'):
+        try:
+            os.remove(DB_PATH + sufijo)
+        except OSError:
+            pass
+    init_db()
+
+    def _vaciar(directorio):
+        if not os.path.isdir(directorio):
+            return
+        for nombre in os.listdir(directorio):
+            ruta = os.path.join(directorio, nombre)
+            try:
+                if os.path.isdir(ruta):
+                    shutil.rmtree(ruta, ignore_errors=True)
+                else:
+                    os.remove(ruta)
+            except OSError:
+                pass
+
+    _vaciar(app.config['UPLOAD_FOLDER'])
+    _vaciar(app.config['DOWNLOAD_FOLDER'])
+    _vaciar(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'plotly_graphs'))
+    return jsonify({'ok': True, 'mensaje': 'Sesión local borrada; esquema reiniciado.'})
+
+
 @app.route('/welcome', methods=['GET'])
 def welcome():
     """Legacy: pagina de bienvenida original."""

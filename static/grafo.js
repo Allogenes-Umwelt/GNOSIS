@@ -67,11 +67,13 @@
       };
     }
 
+    var dpr = 1;
     function tamano() {
       var caja = canvas.parentElement.getBoundingClientRect();
-      var dpr = window.devicePixelRatio || 1;
-      canvas.width = caja.width * dpr;
-      canvas.height = Math.max(420, caja.height) * dpr;
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(caja.width * dpr);
+      canvas.height = Math.round(Math.max(420, caja.height) * dpr);
+      canvas.style.width = caja.width + 'px';
       canvas.style.height = Math.max(420, caja.height) + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
@@ -122,29 +124,55 @@
       })(0);
     }
 
-    // encuadre: la caja del grafo llena el 84% del lienzo, al tamaño
-    // que tenga el caso. Automático al cargar/asentar/redimensionar;
-    // manual siempre (botón reencuadrar y doble-tap en el fondo).
+    // encuadre: centra el CORAZÓN del caso (todo menos el halo de
+    // fragmentos, que es enorme y vacía la vista) llenando el 84% del
+    // lienzo. Automático al cargar/asentar/redimensionar; manual con el
+    // botón reencuadrar y doble-tap en el fondo.
     function encuadrar() {
       if (!nodos.length) return;
       vistaManual = false;
-      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, nucleo = null;
       nodos.forEach(function (n) {
+        if (n.kind === 'nucleo') nucleo = n;
+        if (n.kind === 'fragmento') return;   // el halo no dicta el encuadre
         if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
         if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
       });
+      if (minX > maxX) {                       // caso raro: solo fragmentos
+        nodos.forEach(function (n) {
+          if (n.x < minX) minX = n.x; if (n.x > maxX) maxX = n.x;
+          if (n.y < minY) minY = n.y; if (n.y > maxY) maxY = n.y;
+        });
+      }
       var w = canvas.clientWidth, h = canvas.clientHeight;
       var k = Math.min(6, Math.max(0.25,
         0.84 * Math.min(w / Math.max(maxX - minX, 60), h / Math.max(maxY - minY, 60))));
       vista.k = k;
-      vista.x = -((minX + maxX) / 2) * k;
-      vista.y = -((minY + maxY) / 2) * k;
+      // centrado en el núcleo de sesión cuando existe; si no, en la caja
+      var cx = nucleo ? nucleo.x : (minX + maxX) / 2;
+      var cy = nucleo ? nucleo.y : (minY + maxY) / 2;
+      vista.x = -cx * k;
+      vista.y = -cy * k;
+    }
+
+    // zoom por botón: ancla el punto que está al centro del lienzo
+    function zoomCentro(factor) {
+      var wx = -vista.x / vista.k, wy = -vista.y / vista.k;
+      vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
+      vista.x = -wx * vista.k; vista.y = -wy * vista.k;
+      vistaManual = true;
+      if (!animando) dibujar(0);
     }
 
     // ── dibujo ───────────────────────────────────────────────────────
     function dibujar(ts) {
       var w = canvas.clientWidth, h = canvas.clientHeight;
-      ctx.clearRect(0, 0, w, h);
+      // Limpieza a prueba de estado sucio: si un frame anterior murió a
+      // media transformación, un clearRect relativo deja residuo (el
+      // "glitch" de estelas). Reset absoluto y se vuelve a la base DPR.
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.save();
       ctx.translate(w / 2 + vista.x, h / 2 + vista.y);
       ctx.scale(vista.k, vista.k);
@@ -153,33 +181,48 @@
       var visibles = foco ? vecinos[foco.id] || {} : null;
       if (resalte) { visibles = null; }
 
-      // enlaces
+      // enlaces — trazos con presencia: la estructura se tiene que VER
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
         var toca = foco && (e.source === foco.id || e.target === foco.id);
         var apagado = resalte ? !resalte.enlaces[e.id] : (foco && !toca);
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
-        ctx.globalAlpha = apagado ? 0.05 : (e.kind === 'relacion' ? 0.55 : 0.16);
+        ctx.globalAlpha = apagado ? 0.07 : (e.kind === 'relacion' ? 0.8 : 0.3);
         ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
-        ctx.lineWidth = e.kind === 'relacion' ? 0.6 + (e.peso || 0.5) * 1.6 : 0.6;
-        ctx.setLineDash(e.kind === 'cita' ? [3, 5] : []);
+        ctx.lineWidth = e.kind === 'relacion' ? 1.3 + (e.peso || 0.5) * 2 : 1.0;
+        ctx.setLineDash(e.kind === 'cita' ? [4, 6] : []);
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
       });
       ctx.setLineDash([]);
 
-      // nodos
+      // nodos — esferas con presencia: glow selectivo en los kinds
+      // estructurales (los cientos de vehículos/fragmentos van limpios,
+      // que el glow masivo mata el rendimiento y la lectura)
+      var GLOW = { nucleo: 20, marca: 13, pais: 11, pedimento: 10,
+                   entidad: 12, producto: 10 };
       nodos.forEach(function (n) {
         var r = radioDe(n);
         var apagado = resalte ? !resalte.nodos[n.id]
           : (foco && n !== foco && !(visibles && visibles[n.id]));
-        ctx.globalAlpha = apagado ? 0.13 : 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
-        var esFrame = !vivo;
-        ctx.strokeStyle = vivo ? colores.acc : (n.kind === 'nucleo' || n.kind === 'producto'
-                          ? colores.acc : colores.linea2);
-        ctx.fillStyle = vivo ? conAlfa(colores.acc, 0.16) : 'rgba(0,0,0,0)';
-        ctx.lineWidth = n === foco ? 2 : 1.1;
+
+        if (apagado) {
+          // modo tenue: contorno láser cian sutil — presente, no fantasma
+          ctx.globalAlpha = 0.3;
+          ctx.strokeStyle = conAlfa(colores.acc, 0.55);
+          ctx.fillStyle = 'rgba(0,0,0,0)';
+          ctx.lineWidth = 0.9;
+        } else {
+          ctx.globalAlpha = 1;
+          var g = GLOW[n.kind];
+          if (g) { ctx.shadowColor = conAlfa(colores.acc, 0.9); ctx.shadowBlur = g; }
+          ctx.strokeStyle = (vivo || n.kind === 'nucleo' || n.kind === 'producto')
+            ? colores.acc
+            : (GLOW[n.kind] ? colores.t1 : colores.linea2);
+          ctx.fillStyle = vivo ? conAlfa(colores.acc, 0.3) : 'rgba(0,0,0,0)';
+          ctx.lineWidth = n === foco ? 2.6 : (GLOW[n.kind] ? 1.8 : 1.2);
+        }
 
         ctx.beginPath();
         if (n.kind === 'artefacto' || n.kind === 'fragmento') {
@@ -192,10 +235,13 @@
         }
         if (vivo) ctx.fill();
         ctx.stroke();
-        if (n.kind === 'nucleo') {
-          ctx.beginPath(); ctx.arc(n.x, n.y, r * 0.4, 0, 6.283);
+        // singularidad interior: el punto de energía de cada esfera clave
+        if (!apagado && GLOW[n.kind] && n.kind !== 'entidad') {
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, Math.max(1.4, r * (n.kind === 'nucleo' ? 0.4 : 0.3)), 0, 6.283);
           ctx.fillStyle = colores.acc; ctx.fill();
         }
+        ctx.shadowBlur = 0;
         // selección: anillo punteado giratorio (quieto bajo reduced-motion)
         if (n === sel) {
           ctx.save();
@@ -215,7 +261,9 @@
           ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
           ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
           ctx.textAlign = 'center';
-          ctx.fillText(n.etiqueta.slice(0, 26), n.x, n.y + r + 11 / vista.k);
+          // etiqueta defensiva: un null de datos reales no puede tirar el
+          // frame (dejaría la transformación sucia — el glitch de estelas)
+          ctx.fillText(String(n.etiqueta || '').slice(0, 26), n.x, n.y + r + 11 / vista.k);
         }
       });
       ctx.restore();
@@ -382,6 +430,10 @@
         if (!animando) dibujar(0);
       });
     }
+    var zmas = q(cont.getAttribute('data-zmas'));
+    if (zmas) zmas.addEventListener('click', function () { zoomCentro(1.35); });
+    var zmenos = q(cont.getAttribute('data-zmenos'));
+    if (zmenos) zmenos.addEventListener('click', function () { zoomCentro(1 / 1.35); });
     var cap = q(cont.getAttribute('data-cap'));
     if (cap) cap.addEventListener('change', function () { cargar(cap.value || null); });
 

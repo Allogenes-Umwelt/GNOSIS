@@ -23,6 +23,9 @@ def cliente(tmp_path_factory):
     database.DB_PATH = str(db)
 
     import app as gnosis  # dispara init_db() sobre la DB temporal
+    # ...salvo que otro test ya haya importado app: entonces el import es
+    # cache y el esquema no existe aqui. init_db() es idempotente.
+    database.init_db()
 
     conn = database.get_connection()
     conn.execute(

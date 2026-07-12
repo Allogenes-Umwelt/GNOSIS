@@ -346,8 +346,16 @@
   }
 
   /* ═══ INICIO · la celda (landing) ═══ */
-  #gnosis-inicio { position: relative; }
-  .cel-stage { display: grid; grid-template-columns: 1fr 320px; height: calc(100vh - 95px - 52px); }
+  /* Con la celda visible, la página ES el viewport: sin scroll, sin footer
+     (la barra ABRIR DASHBOARD ocupa el fondo), main a sangre completa. */
+  body:has(#gnosis-inicio:not([hidden])) { height: 100vh; overflow: hidden; }
+  body:has(#gnosis-inicio:not([hidden])) .gstl-footer { display: none; }
+  body:has(#gnosis-inicio:not([hidden])) > main {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    max-width: none; padding: 0; overflow: hidden;
+  }
+  #gnosis-inicio { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 52px; }
+  .cel-stage { display: grid; grid-template-columns: 1fr 320px; flex: 1; min-height: 0; }
   .cel-cell { position: relative; display: flex; align-items: center; justify-content: center; padding: 10px 24px; min-width: 0; }
   .cel-svg { width: 100%; height: 100%; display: block; }
   .cel-svg .cel-nm { font-family: var(--font-mono); font-size: 16.5px; font-weight: 700; letter-spacing: 1.4px; }
@@ -406,8 +414,9 @@
     <span class="ic">◫</span> ABRIR DASHBOARD PRINCIPAL <span class="ch">▴</span></button>
 </div>
 
-<!-- ═══════════ DASHBOARD deck-style (se abre desde INICIO) ═══════════ -->
-<div id="gnosis-dashboard" hidden>
+<!-- ═══════════ DASHBOARD deck-style (se abre desde INICIO, sin portada:
+     INICIO ya es la portada del app) ═══════════ -->
+<div id="gnosis-dashboard" class="revealed" hidden>
 {% if empty %}
   <div class="gd"><div class="gd-empty">
     <div class="t">Sin datos procesados</div>
@@ -416,53 +425,14 @@
   </div></div>
 {% else %}
   <div class="gd">
-    <!-- HERO (colapsa al hacer scroll) -->
-    <div class="gd-hero" id="gd-hero">
-      <div class="gd-eyebrow">GNOSIS · Una sola fuente de la verdad · Sesión #{{ current_session.id }} · {{ current_session.session_date[:7] }}</div>
-      <div class="gd-hero-row">
-        <div class="ver-zona">
-          <div class="ver-mapa" id="ver-mapa" aria-hidden="true"></div>
-          <div class="ver-terminal" data-mapa="#ver-mapa">
-            <div class="ver-terminal-int">
-              <div class="ver-head">GNOSIS·IA <span class="led">●</span> Veredicto de sesión #{{ current_session.id }}
-                <span class="ver-circuito-slot" style="margin-left:auto;display:flex"></span>
-              </div>
-              <div class="ver-tty" aria-hidden="true">Una sola fuente de la verdad.</div>
-              <span class="u-oculto" role="status">Una sola fuente de la verdad.</span>
-              <div class="ver-cmds">
-                <span class="prompt">gnosis&nbsp;▸</span>
-                <a class="ver-cmd" href="/autogenes/concilia">Ver conciliación</a>
-                <a class="ver-cmd" href="/autogenes/validacion">Abrir validación</a>
-                <a class="ver-cmd" href="/autogenes">Navegador</a>
-              </div>
-            </div>
-          </div>
-          <div class="gd-meta" style="position:relative;z-index:1">
-            <div class="m"><span class="mk">Sesión</span>
-              <select class="gd-sel" onchange="window.location='/?session_id='+this.value">{% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}</select>
-            </div>
-            <div class="m"><span class="mk">Estado</span><span class="mv" style="color:var(--acc-text)">{{ current_session.status }}</span></div>
-          </div>
-        </div>
-        <div class="gd-graphic">
-          <!-- Celda primitiva: la constelación navegable (constelacion.js) -->
-          <div class="constelacion" data-scope="app" aria-label="Mapa de la aplicación"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Pestaña de revelado: click → colapsa el hero y muestra el tablero -->
-    <div id="gd-reveal" onclick="gnosisReveal(true)" role="button" tabindex="0"
-         onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();gnosisReveal(true);}">
-      <span class="ico">◫</span> Dashboards <span class="chev">▴</span>
-    </div>
-
-    <!-- KPI panel + trigger de Tableros (sticky) -->
-    <div class="hud-frame gd-panel" id="gd-kpipanel">
+    <!-- KPI panel + trigger de Tableros (sticky). La portada del app es
+         INICIO; aquí se entra directo a los números. -->
+    <div class="hud-frame gd-panel" id="gd-kpipanel" style="margin-top:18px">
       <div class="gd-dh">
         <div class="l">GNOSIS <b>//</b> IMPORTACIONES · SESIÓN #{{ current_session.id }}</div>
         <div class="gd-dh-r">
-          <button class="gd-portadabtn" onclick="gnosisReveal(false)"><span>▴</span> Portada</button>
+          <select class="gd-sel" aria-label="Cambiar de sesión" onchange="window.location='/?session_id='+this.value+'&panel=dashboard'">{% for s in sessions %}<option value="{{ s.id }}" {% if s.id == current_session.id %}selected{% endif %}>#{{ s.id }} · {{ s.session_date[:10] }}</option>{% endfor %}</select>
+          <button class="gd-portadabtn" onclick="gnosisMostrarInicio()"><span>▴</span> Inicio</button>
           <button class="gd-tablerosbtn" onclick="gnosisOpenSwitcher()"><span class="ico">◫</span> Tableros</button>
           <div class="st"><span class="dot"></span> {{ current_session.status|upper }}</div>
         </div>

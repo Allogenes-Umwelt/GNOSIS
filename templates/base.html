@@ -148,6 +148,8 @@
       <button type="button" id="theme-toggle" class="hud-toggle" aria-label="Cambiar modo de visualización">
         <span id="theme-toggle-label">Daylight</span>
       </button>
+      <button type="button" id="admin-reset" class="hud-toggle" aria-label="Administración: empezar de cero"
+              title="Borra la sesión local completa y empieza de cero">Admin</button>
     </div>
   </header>
 
@@ -204,6 +206,30 @@
       var next = cur === 'light' ? 'dark' : 'light';
       localStorage.setItem('gestell-theme', next);
       applyTheme(next);
+    });
+
+    // Admin: empezar de cero. Doble compuerta — el operador debe teclear
+    // BORRAR; el servidor lo exige de nuevo en el cuerpo del POST.
+    var admBtn = document.getElementById('admin-reset');
+    if (admBtn) admBtn.addEventListener('click', function() {
+      var v = window.prompt(
+        'ADMIN · Empezar de cero.\n\nEsto borra TODA la sesión local: base de datos, ' +
+        'facturas cargadas, resultados y grafo de evidencia. No hay vuelta atrás.\n\n' +
+        'Escribe BORRAR para confirmar:');
+      if (v !== 'BORRAR') return;
+      admBtn.disabled = true; admBtn.textContent = 'Borrando…';
+      fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmar: 'BORRAR' })
+      }).then(function(r) { return r.json(); }).then(function(j) {
+        if (j && j.ok) { window.location.href = '/'; return; }
+        alert('No se pudo resetear: ' + ((j && j.error) || 'error desconocido'));
+        admBtn.disabled = false; admBtn.textContent = 'Admin';
+      }).catch(function() {
+        alert('Sin conexión con el servidor.');
+        admBtn.disabled = false; admBtn.textContent = 'Admin';
+      });
     });
 
     // GNOSIS·IA — toggle de consola (aria-pressed), como el copilot de BARBELO

@@ -96,13 +96,16 @@ def test_seccion_renderiza_con_metricas():
     assert "CONCILIA" in html and "75%" in html and "cst-forma" in html
 
 
-def test_home_monta_la_celda_primitiva():
+def test_home_monta_la_celda_inicio():
+    # La portada del app es INICIO (la celda); el hero/veredicto del
+    # dashboard se retiro por decision del operador (2026-07).
     with open("templates/main.html") as f:
         html = f.read()
-    assert 'data-scope="app"' in html
-    assert "constelacion.js" in html and "constelacion.css" in html
+    assert 'id="gnosis-inicio"' in html          # la celda es el landing
+    assert "celda_svg" in html                   # SVG vivo desde celda.py
+    assert "cel-dashbar" in html                 # dashboard por boton
+    assert "gd-hero" not in html.split("<script")[0] or "ver-terminal" not in html
     assert "gd-glow" not in html  # el ojo ornamental ya no existe
-    assert "Una sola fuente" in html  # el hero sobrevive (decisión de diseño)
 
 
 def test_lienzo_del_grafo_renderiza():
