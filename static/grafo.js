@@ -914,8 +914,10 @@
     function destinoDe(n) {
       if (n.kind === 'artefacto') return ['/autogenes/ingesta', 'Ingesta'];
       if (n.kind === 'anomalia') {
-        return (n.extra && n.extra.motor === 'validacion')
-          ? ['/autogenes/validacion', 'Validación'] : ['/autogenes/concilia', 'Concilia'];
+        var motor = n.extra && n.extra.motor;
+        if (motor === 'validacion') return ['/autogenes/validacion', 'Validación'];
+        if (motor === 'nomos') return ['/autogenes/nomos', 'Nomos'];
+        return ['/autogenes/concilia', 'Concilia'];
       }
       if (n.kind === 'producto') return ['/autogenes/sintesis', 'Síntesis'];
       return null;

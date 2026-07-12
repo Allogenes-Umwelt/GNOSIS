@@ -252,14 +252,16 @@ def test_anomalias_delta_desde_concilia(conn):
     assert "vendido_sin_llegada" in clases and "llegado_sin_venta" in clases
     assert g["meta"]["anomalias"] == len(anomalias)
 
-    # cada Δ lleva glifo, severidad y regla_id (procedencia del hallazgo)
+    # cada Δ lleva glifo, severidad, motor y regla_id (procedencia del hallazgo)
     for n in anomalias:
         assert n["glifo"] == "Δ"
         assert n["severidad"] in ("warn", "danger")
-        assert n["extra"]["motor"] == "concilia" and n["extra"]["regla_id"]
+        assert n["extra"]["motor"] in ("concilia", "validacion", "nomos")
+        assert n["extra"]["regla_id"]
 
     enlaces = {(e["source"], e["target"]) for e in g["enlaces"]}
     vendido = next(n for n in anomalias if n["tipo"] == "vendido_sin_llegada")
+    assert vendido["extra"]["motor"] == "concilia"
     assert vendido["severidad"] == "danger"
     # cita a los vehículos huérfanos que la protagonizan y ancla al núcleo
     assert (vendido["id"], "veh:2") in enlaces
@@ -271,6 +273,27 @@ def test_anomalias_delta_desde_concilia(conn):
     # resuelve por chasis (vehfac) y por archivo (PDF huérfano)
     assert (llegado["id"], "vehfac:VIN_NO_VENDIDO_9") in enlaces
     assert (llegado["id"], "art:pdf:huerfana.pdf") in enlaces
+
+
+def test_anomalias_validacion_y_nomos(conn):
+    # las filas DWH del fixture no declaran j_y_n -> VALIDACION dispara la
+    # regla de obligatorio; y una regla NOMOS del operador exige j_y_n=N para
+    # DEU, que ninguna de esas filas cumple -> violación proyectada como Δ.
+    Sustrato(conn, SID).crear_regla(
+        "DEU obliga N", [{"campo": "pais_code", "valor": "DEU"}],
+        {"campo": "j_y_n", "valor": "N"})
+
+    g = construir_grafo(conn, SID)
+    anomalias = [n for n in g["nodos"] if n["kind"] == "anomalia"]
+    motores = {n["extra"]["motor"] for n in anomalias}
+    assert {"concilia", "validacion", "nomos"} <= motores
+
+    val = next(n for n in anomalias if n["extra"]["motor"] == "validacion")
+    assert val["glifo"] == "Δ" and val["severidad"] in ("warn", "danger")
+    nom = next(n for n in anomalias if n["extra"]["motor"] == "nomos")
+    assert "incumplida" in nom["etiqueta"] and nom["severidad"] == "warn"
+    # el conteo meta cubre los tres motores
+    assert g["meta"]["anomalias"] == len(anomalias)
 
 
 def test_con_anomalias_false_no_proyecta_delta(conn):

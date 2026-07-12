@@ -16,7 +16,7 @@ import math
 import sqlite3
 from typing import Any, Optional
 
-from autogenes import concilia, topologia
+from autogenes import concilia, nomos, topologia, validacion
 
 NUCLEO_PREFIX = "nucleo-sesion-"
 
@@ -106,27 +106,32 @@ SEVERIDAD_CONCILIA = {
 }
 
 
+def _severidad_validacion(clave: str) -> str:
+    """Preference-against-norm is a tariff exposure (danger); the rest are
+    structure/catalog gaps needing repair (warn)."""
+    return "danger" if "jn-norma" in clave else "warn"
+
+
 def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
                          nodos: list[dict], enlaces: list[dict]) -> int:
-    """Project CONCILIA's deterministic reconciliation findings as Δ
-    anomaly nodes (PANOPTES §3). Read-only: CONCILIA reads the legacy
-    pipeline's materialized verdicts; sustrato.py stays the only writer of
-    ag_* and no Δ is ever a row. Each Δ cites the nodes it implicates (the
-    orphaned ν, the unamparado Σ) and always tethers to the nucleus. No
-    amount is invented — the finding says what is missing, not its value.
-    Mutates nodos/enlaces in place; returns the anomaly count."""
-    reporte = concilia.conciliar(conn, session_id)
-    if not reporte["hallazgos"]:
-        return 0
+    """Project the deterministic findings of the three anomaly engines as Δ
+    nodes (PANOPTES §3): CONCILIA (tri-source reconciliation descuadres),
+    VALIDACION (per-row non-conformance vs the norm) and NOMOS (operator
+    rules that fire). Read-only — the engines read materialized verdicts and
+    ag_reglas; sustrato.py stays the only writer of ag_* and no Δ is ever a
+    row. Each Δ cites the nodes it implicates (by chassis or filename) and
+    tethers to the nucleus. Severity is a fixed classification of the finding
+    TYPE, never an estimated amount (ZERO SNAKE OIL). Mutates nodos/enlaces
+    in place; returns the anomaly count."""
     nucleo_id = f"{NUCLEO_PREFIX}{session_id}"
     chasis_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
                      if n["kind"] == "vehiculo"}
     archivo_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
                       if n["kind"] == "artefacto"}
 
-    def _objetivos(hallazgo: dict) -> list[str]:
-        cadenas = list(hallazgo.get("unidades", []))
-        for ref in hallazgo.get("refs", []):
+    def _objetivos(refs: list[dict], unidades: Optional[list] = None) -> list[str]:
+        cadenas = list(unidades or [])
+        for ref in refs:
             for clave in ("chasis", "filename"):
                 if ref.get(clave):
                     cadenas.append(ref[clave])
@@ -139,19 +144,45 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
                 resueltos.append(nid)
         return resueltos
 
-    for h in reporte["hallazgos"]:
-        aid = f"anom:{h['clave']}"
-        nodo = _nodo(aid, "anomalia", h["titulo"], tipo=h["clase"],
-                     extra={"motor": "concilia", "regla_id": h["clave"],
-                            "detalle": h["detalle"],
-                            "n_unidades": h["n_unidades"]})
-        nodo["severidad"] = SEVERIDAD_CONCILIA.get(h["clase"], "warn")
+    total = 0
+
+    def _delta(clave: str, titulo: str, tipo: str, motor: str, severidad: str,
+               detalle: str, n: int, objetivos: list[str]) -> None:
+        nonlocal total
+        aid = f"anom:{clave}"
+        nodo = _nodo(aid, "anomalia", titulo, tipo=tipo,
+                     extra={"motor": motor, "regla_id": clave,
+                            "detalle": detalle, "n_unidades": n})
+        nodo["severidad"] = severidad
         nodos.append(nodo)
-        enlaces.append(_enlace(f"cita-{nucleo_id}-{aid}", nucleo_id, aid,
-                               "cita", 0.3))
-        for nid in _objetivos(h):
+        enlaces.append(_enlace(f"cita-{nucleo_id}-{aid}", nucleo_id, aid, "cita", 0.3))
+        for nid in objetivos:
             enlaces.append(_enlace(f"cita-{aid}-{nid}", aid, nid, "cita", 0.6))
-    return len(reporte["hallazgos"])
+        total += 1
+
+    # ── CONCILIA: descuadres de la conciliación tri-fuente ────────────
+    for h in concilia.conciliar(conn, session_id)["hallazgos"]:
+        _delta(h["clave"], h["titulo"], h["clase"], "concilia",
+               SEVERIDAD_CONCILIA.get(h["clase"], "warn"), h["detalle"],
+               h["n_unidades"], _objetivos(h.get("refs", []), h.get("unidades")))
+
+    # ── VALIDACION: reglas de conformidad violadas (n>0) ──────────────
+    for r in validacion.validar(conn, session_id)["reglas"]:
+        if r["n"] <= 0:
+            continue
+        _delta(r["clave"], r["titulo"], "validacion", "validacion",
+               _severidad_validacion(r["clave"]), r["norma"], r["n"],
+               _objetivos(r.get("refs", [])))
+
+    # ── NOMOS: reglas del operador activas que disparan violaciones ───
+    for e in nomos.evaluar_reglas(conn, session_id)["reglas"]:
+        if not e["activa"] or e["n_violaciones"] <= 0:
+            continue
+        _delta(f"nomos:{e['id']}", f"{e['nombre']} incumplida", "nomos", "nomos",
+               "warn", f"Regla del operador con {e['n_violaciones']} violaciones",
+               e["n_violaciones"], _objetivos(e.get("refs", [])))
+
+    return total
 
 
 def _anotar_analitica(nodos: list[dict], enlaces: list[dict]) -> int:
