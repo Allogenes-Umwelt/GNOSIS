@@ -17,6 +17,8 @@
                         entidad: 0.14 };
 
   function radioDe(n) {
+    // meta-nodo de vehículos (ν×N): radio ∝ √N, el racimo se ve por su masa
+    if (n.meta) return 9 + Math.min(15, Math.sqrt(n.conteo || 1) * 2);
     var base = { nucleo: 14, pedimento: 8, marca: 9, pais: 8, vehiculo: 3.2,
                  artefacto: 6.5, fragmento: 2.2, entidad: 6.5, producto: 7.5,
                  anomalia: 8.5 }[n.kind] || 4;
@@ -32,6 +34,7 @@
   var TIER_HUB = { nucleo: 1, marca: 1, pedimento: 1, pais: 1, producto: 1 };
   var TIER_HOJA = { vehiculo: 1, fragmento: 1 };
   function tierDe(n) {
+    if (n.meta) return 'medio';   // el racimo ν×N es prominente
     if (TIER_HUB[n.kind]) return 'hub';
     if (TIER_HOJA[n.kind]) return (n.centralidad || 0) >= 0.6 ? 'medio' : 'hoja';
     return 'medio';   // artefacto (Σ), entidad (Ψ/Ω/ε), anomalia (Δ)
@@ -55,9 +58,11 @@
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     var nodos = [], enlaces = [], porId = {}, vecinos = {};
-    var nodosRaw = [], enlacesRaw = [];   // payload completo; el colapso decide qué se dibuja
+    var nodosRaw = [], enlacesRaw = [], porIdRaw = {};   // payload completo; el colapso decide qué se dibuja
     var badgeFrag = {};                   // artefacto id -> nº de fragmentos colapsados
     var mostrarFragmentos = false;        // σ colapsados por defecto (mata el hairball)
+    var expandidos = {};                  // pedimento ids con su racimo de vehículos abierto
+    var UMBRAL_COLAPSO = 24;              // racimo de vehículos que se colapsa en meta-nodo
     var sesionId = null;
     var sim = null, animando = false, latiendo = false, t0 = 0;
     var vista = { x: 0, y: 0, k: 1 };
@@ -227,7 +232,7 @@
         nodosRaw = g.nodos; enlacesRaw = g.enlaces; sesionId = g.session_id;
         // badges: nº de fragmentos que cuelgan de cada artefacto (Σ)
         badgeFrag = {};
-        var porIdRaw = {};
+        porIdRaw = {};
         nodosRaw.forEach(function (n) { porIdRaw[n.id] = n; });
         enlacesRaw.forEach(function (e) {
           var s = porIdRaw[e.source], t = porIdRaw[e.target];
@@ -245,21 +250,88 @@
       });
     }
 
-    // Colapso (PANOPTES §4): del payload completo deriva el set VISIBLE. Los
-    // fragmentos (σ) se ocultan por defecto — son el grueso del hairball; su
-    // conteo vive en el badge de cada Σ. Reconstruye porId/vecinos sobre lo
-    // visible para que foco, resalte y búsqueda operen sobre lo que se ve.
+    // Colapso (PANOPTES §4): del payload completo deriva el set VISIBLE. Dos
+    // capas: (1) los fragmentos σ se ocultan por defecto tras el badge ×N de
+    // cada Σ; (2) los racimos de vehículos que cuelgan de un pedimento con más
+    // de UMBRAL unidades se pliegan en UN meta-nodo ν×N — tocar lo despliega.
+    // Las aristas de lo colapsado se remapean a su meta (nada pierde conexión)
+    // y se deduplican. porId/vecinos se reconstruyen sobre lo visible.
     function colapsar() {
-      var ocultos = {};
+      var oculto = {};
       if (!mostrarFragmentos) {
-        for (var i = 0; i < nodosRaw.length; i++) {
-          if (nodosRaw[i].kind === 'fragmento') ocultos[nodosRaw[i].id] = true;
-        }
+        nodosRaw.forEach(function (n) { if (n.kind === 'fragmento') oculto[n.id] = true; });
       }
-      nodos = nodosRaw.filter(function (n) { return !ocultos[n.id]; });
-      enlaces = enlacesRaw.filter(function (e) {
-        return !ocultos[e.source] && !ocultos[e.target];
+
+      // racimos: vehículos por pedimento (desde las citas ped -> veh)
+      var padre = {}, racimo = {};
+      enlacesRaw.forEach(function (e) {
+        var s = porIdRaw[e.source], t = porIdRaw[e.target];
+        if (s && t && s.kind === 'pedimento' && t.kind === 'vehiculo') padre[t.id] = s.id;
       });
+      nodosRaw.forEach(function (n) {
+        if (n.kind === 'vehiculo' && padre[n.id]) {
+          (racimo[padre[n.id]] = racimo[padre[n.id]] || []).push(n.id);
+        }
+      });
+
+      // meta-nodos ν×N para racimos grandes; los expandidos muestran las hojas
+      var metaDe = {}, metaNodos = [];
+      Object.keys(racimo).forEach(function (pedId) {
+        var vehs = racimo[pedId];
+        if (vehs.length <= UMBRAL_COLAPSO) return;
+        var metaId = 'metaveh:' + pedId, ped = porIdRaw[pedId];
+        var abierto = !!expandidos[pedId];
+        vehs.forEach(function (vid, idx) {
+          metaDe[vid] = metaId;
+          if (!abierto) { oculto[vid] = true; return; }   // colapsado: no se dibuja
+          // abierto: la hoja brota del pedimento en abanico si aún no tiene sitio
+          var v = porIdRaw[vid];
+          if (v && v.x == null && ped && ped.x != null) {
+            var a = (v.seed || 0) + idx * 0.7;
+            v.x = ped.x + Math.cos(a) * 30; v.y = ped.y + Math.sin(a) * 30;
+          }
+        });
+        metaNodos.push({
+          id: metaId, kind: 'vehiculo', meta: true, abierto: abierto,
+          conteo: vehs.length, glifo: 'ν', etiqueta: vehs.length + ' vehículos',
+          ped: pedId, comunidad: ped ? ped.comunidad : 0, centralidad: 0.35,
+          seed: (ped ? ped.seed : 0) || 0,
+          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined
+        });
+      });
+
+      nodos = nodosRaw.filter(function (n) { return !oculto[n.id]; }).concat(metaNodos);
+
+      // aristas: remapea colapsados a su meta, ancla el pedimento al meta,
+      // salta ocultos sin meta (fragmentos) y deduplica
+      var visto = {};
+      enlaces = [];
+      enlacesRaw.forEach(function (e) {
+        if (oculto[e.source] && !metaDe[e.source]) return;   // fragmento oculto
+        if (oculto[e.target] && !metaDe[e.target]) return;
+        var s = e.source, t = e.target;
+        if (oculto[e.source] && metaDe[e.source]) s = metaDe[e.source];
+        if (oculto[e.target] && metaDe[e.target]) t = metaDe[e.target];
+        // el pedimento ancla al meta (aunque el racimo esté abierto)
+        var sN = porIdRaw[e.source];
+        if (sN && sN.kind === 'pedimento' && metaDe[e.target]) t = metaDe[e.target];
+        if (s === t) return;
+        var k = s + '|' + t + '|' + e.kind;
+        if (visto[k]) return;
+        visto[k] = true;
+        enlaces.push({ id: e.id, source: s, target: t, kind: e.kind,
+                       peso: e.peso, tipo: e.tipo });
+      });
+      // fan-out: el meta cita cada hoja visible de un racimo abierto
+      Object.keys(metaDe).forEach(function (vid) {
+        if (oculto[vid]) return;   // hoja colapsada, ya representada por el meta
+        var k = metaDe[vid] + '|' + vid + '|cita';
+        if (visto[k]) return;
+        visto[k] = true;
+        enlaces.push({ id: 'fan-' + vid, source: metaDe[vid], target: vid,
+                       kind: 'cita', peso: 0.5 });
+      });
+
       porId = {}; vecinos = {};
       nodos.forEach(function (n) { porId[n.id] = n; });
       enlaces.forEach(function (e) {
@@ -267,9 +339,11 @@
         (vecinos[e.target] = vecinos[e.target] || {})[e.source] = true;
       });
       if (estadoLinea) {
+        var nMeta = metaNodos.filter(function (m) { return !m.abierto; }).length;
         estadoLinea.textContent = nodos.length + ' NODOS · ' + enlaces.length +
           ' ENLACES · SESIÓN ' + (sesionId || '—') +
-          (mostrarFragmentos ? '' : ' · σ OCULTOS');
+          (mostrarFragmentos ? '' : ' · σ OCULTOS') +
+          (nMeta ? ' · ' + nMeta + ' RACIMO' + (nMeta > 1 ? 'S' : '') : '');
       }
     }
 
@@ -375,6 +449,9 @@
       var foco = sel || hover;
       var visibles = foco ? vecinos[foco.id] || {} : null;
       if (resalte) { visibles = null; }
+      // un foco muy conectado (p.ej. un racimo abierto) no debe etiquetar sus
+      // decenas de hojas: se enciman. Sus vecinos estructurales sí.
+      var focoGrande = visibles && Object.keys(visibles).length > 16;
 
       // enlaces — trazos con presencia: la estructura se tiene que VER
       enlaces.forEach(function (e) {
@@ -499,11 +576,27 @@
           ctx.textBaseline = 'alphabetic';
         }
 
-        // etiqueta con LOD: prioridad por centralidad (no solo grado)
+        // meta-nodo de racimo: indicador plegable (+/−) — es tocable
+        if (n.meta && r * vista.k >= 6) {
+          ctx.font = '700 ' + (10 / vista.k) + 'px "JetBrains Mono", monospace';
+          ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = colores.acc;
+          ctx.fillText(n.abierto ? '−' : '+', n.x + r + 3 / vista.k, n.y - r + 2 / vista.k);
+          ctx.textBaseline = 'alphabetic';
+        }
+
+        // etiqueta con LOD: siempre las estructurales y el meta; el resto por
+        // centralidad al zoom medio, PERO nunca inundamos con las hojas
+        // (vehículo/fragmento) — esas solo en foco o zoom alto, si no un
+        // racimo expandido tapiza la pantalla de etiquetas encimadas
+        var esHoja = n.kind === 'vehiculo' || n.kind === 'fragmento';
         var conEtiqueta = ['nucleo', 'pedimento', 'marca', 'pais', 'producto'].indexOf(n.kind) >= 0
-          || n === foco || (visibles && visibles[n.id]) || (resalte && resalte.nodos[n.id])
-          || (vista.k > 1.6 && n.kind !== 'fragmento')
-          || ((n.centralidad || 0) >= 0.45 && vista.k >= 0.8);
+          || n.meta || n === foco
+          || (visibles && visibles[n.id] && !(esHoja && focoGrande))
+          || (resalte && resalte.nodos[n.id])
+          || (vista.k > 1.6 && !esHoja)
+          || (vista.k > 3 && esHoja)      // hojas: solo con zoom muy alto (inspección)
+          || ((n.centralidad || 0) >= 0.5 && vista.k >= 0.8 && !esHoja);
         if (conEtiqueta) {
           // piso de legibilidad: la etiqueta nunca baja de 10px en pantalla
           ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
@@ -606,12 +699,20 @@
       delete punteros[ev.pointerId];
       arrastre.pinchD = null; arrastre.pinchMX = 0; arrastre.pinchMY = 0;
       if (!arrastre.activo) return;
-      if (!arrastre.movido) {                          // tap: seleccionar
+      if (!arrastre.movido) {                          // tap
         var p = xy(ev);
-        sel = nodoEn(p[0], p[1]);
-        pintarInspector(sel);
-        if (!animando) dibujar(0);
-        arrancarLatido();                              // afterburn de la selección
+        var golpe = nodoEn(p[0], p[1]);
+        if (golpe && golpe.meta) {                     // racimo ν×N: desplegar/plegar
+          expandidos[golpe.ped] = !expandidos[golpe.ped];
+          sel = null; hover = null; pintarInspector(null);
+          vistaManual = false;
+          colapsar(); reconstruirSim();
+        } else {                                       // seleccionar
+          sel = golpe;
+          pintarInspector(sel);
+          if (!animando) dibujar(0);
+          arrancarLatido();                            // afterburn de la selección
+        }
       }
       if (arrastre.nodo) { arrastre.nodo.fx = null; arrastre.nodo.fy = null; }
       arrastre.activo = false; arrastre.nodo = null;
