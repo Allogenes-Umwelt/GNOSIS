@@ -166,11 +166,25 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         acuerdo = {e.nombre.strip().lower(): None for e in propuesta.entidades}
         quorum = False
 
+    # Merge-preview (entity resolution honesto): una entidad propuesta que ya
+    # existe (por nombre normalizado O alias) se marca YA EXISTE — integrarla
+    # NO crea nodo, solo suma evidencia. Usa el MISMO _norm que la integración
+    # para que el preview jamás la contradiga. Sin scores: coincide o no.
+    from autogenes.sustrato import _norm
+    existentes: set[str] = set()
+    for r in conn.execute(
+        "SELECT nombre, alias FROM ag_entidades WHERE session_id = ?", (session_id,)
+    ):
+        existentes.add(_norm(r["nombre"]))
+        for a in json.loads(r["alias"] or "[]"):
+            existentes.add(_norm(a))
+
     return {
         "artefacto_id": artefacto_id,
         "quorum": quorum,
         "entidades": [
-            {**e.model_dump(), "acuerdo": acuerdo.get(e.nombre.strip().lower())}
+            {**e.model_dump(), "acuerdo": acuerdo.get(e.nombre.strip().lower()),
+             "nueva": _norm(e.nombre) not in existentes}
             for e in propuesta.entidades
         ],
         "relaciones": [r.model_dump() for r in propuesta.relaciones],

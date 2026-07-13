@@ -310,9 +310,12 @@
         fila.style.cursor = 'pointer';
         var marca = e.acuerdo === false ? ' ⚠ sin acuerdo'
                   : e.acuerdo === true ? ' ✓✓' : '';
+        // merge-preview: si ya existe, integrarla suma evidencia, no crea nodo
+        var merge = e.nueva === false ? '<i class="in-existe">ya existe</i>'
+                  : '<i class="in-nueva">nueva</i>';
         fila.innerHTML = '<span><input type="checkbox" data-ent="' + i + '"' +
           (e.acuerdo === false ? '' : ' checked') + '> ' +
-          esc(e.nombre.slice(0, 20)) + '</span><b>' + esc(e.tipo) +
+          esc(e.nombre.slice(0, 20)) + ' ' + merge + '</span><b>' + esc(e.tipo) +
           ' · ' + e.evidencia.length + ' citas' + marca + '</b>';
         propCont.appendChild(fila);
       });

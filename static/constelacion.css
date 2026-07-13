@@ -576,6 +576,12 @@ button.tr-urg { align-items: baseline; }
 .in-fria a { border-left: 2px solid var(--danger); padding-left: 6px; }
 .in-frio { color: var(--danger); }
 
+/* ── Merge-preview (C6): entity resolution honesto, sin scores ── */
+.in-nueva, .in-existe { font-style: normal; font-size: .6rem; letter-spacing: .5px;
+  text-transform: uppercase; padding: 0 4px; border-radius: 2px; margin-left: 3px; }
+.in-nueva { color: var(--acc-text); border: 1px solid var(--line-2); }
+.in-existe { color: var(--t3); border: 1px solid var(--line); }
+
 /* ── Puntero grueso: objetivos tactiles al minimo de la ley (48px) ── */
 @media (pointer: coarse) {
   .ag-plegar { min-width: 48px; min-height: 48px; }

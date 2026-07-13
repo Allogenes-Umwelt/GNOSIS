@@ -464,9 +464,11 @@
       prop.entidades.slice(0, 14).forEach(function (e, i) {
         var lab = document.createElement('label'); lab.className = 'gr-fila';
         var marca = e.acuerdo === false ? ' ⚠' : e.acuerdo === true ? ' ✓✓' : '';
+        var merge = e.nueva === false ? '<i class="in-existe">ya existe</i>'
+                  : '<i class="in-nueva">nueva</i>';
         lab.innerHTML = '<span><input type="checkbox" data-ent="' + i + '"' +
           (e.acuerdo === false ? '' : ' checked') + '> ' + esc(e.nombre.slice(0, 16)) +
-          '</span><b>' + esc(e.tipo) + ' · ' + e.evidencia.length + marca + '</b>';
+          ' ' + merge + '</span><b>' + esc(e.tipo) + ' · ' + e.evidencia.length + marca + '</b>';
         detalle.appendChild(lab);
       });
       var fila = document.createElement('div'); fila.className = 'tr-acciones';

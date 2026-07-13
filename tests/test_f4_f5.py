@@ -92,6 +92,26 @@ def test_extraccion_de_artefacto_sanea_y_propone(conn, monkeypatch):
     assert r["entidades"][0]["acuerdo"] is None
 
 
+def test_merge_preview_marca_ya_existe(conn, monkeypatch):
+    """C6: una entidad propuesta que ya existe (por nombre normalizado) se
+    marca nueva=False — integrarla suma evidencia, no crea nodo."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "d.pdf")
+    fid = s.agregar_fragmentos(art.id, [(1, "Agencia y Puerto Nuevo.")])[0].id
+    s.upsert_entidad("Agencia", "organizacion", "operador", evidencia=[fid])
+    guion = ('{"entidades": ['
+             f'{{"nombre": "AGENCIA", "tipo": "organizacion", "evidencia": ["{fid}"]}},'
+             f'{{"nombre": "Puerto Nuevo", "tipo": "lugar", "evidencia": ["{fid}"]}}],'
+             '"relaciones": []}')
+    import jarvis.llm_interface as li
+    monkeypatch.setattr(li, "seleccionar_proveedor",
+                        lambda cfg=None: ("fake", ProveedorGuionado(guion)))
+    r = extraer_de_artefacto(conn, 1, art.id)
+    por_nombre = {e["nombre"].lower(): e["nueva"] for e in r["entidades"]}
+    assert por_nombre["agencia"] is False      # ya existe (match normalizado)
+    assert por_nombre["puerto nuevo"] is True  # nueva
+
+
 def test_extraccion_con_quorum_marca_acuerdo(conn, monkeypatch):
     s = Sustrato(conn, 1)
     art = s.crear_artefacto("pdf", "c.pdf")
