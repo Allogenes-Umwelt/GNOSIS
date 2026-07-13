@@ -141,6 +141,52 @@ def test_brecha_jn_detecta_que_vw_usa_menos_la_preferencia(conn):
     assert top["brecha"] == 1.0
 
 
+def test_rutas_ausentes_vs_pares(conn):
+    filas = analisis_vw._filas_flujo(conn, 1)
+    # AUDI solo usa DEU×Veracruz; sus pares (VW) usan también Manzanillo y USA
+    aus = {(a["pais"], a["aduana"]) for a in analisis_vw.rutas_ausentes_vs_pares(filas, "AUDI")}
+    assert ("DEU", "Manzanillo") in aus
+    assert ("USA", "Nuevo Laredo") in aus
+    # VW usa todas las rutas que AUDI usa: nada ausente para VW vs sus pares
+    assert analisis_vw.rutas_ausentes_vs_pares(filas, "VOLKSWAGEN") == []
+
+
+def test_deriva_entre_sesiones_gana_y_pierde_rutas():
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    vw = c.execute("SELECT id FROM marcas WHERE nombre='VOLKSWAGEN'").fetchone()["id"]
+
+    def poblar(sid, rutas):   # rutas: [(aduana, pais, n)]
+        c.execute("INSERT INTO processing_sessions (id, session_date, month_processed,"
+                  " year_processed) VALUES (?,?,?,?)", (sid, f'2026-0{sid}-01', sid, 2026))
+        c.execute("INSERT INTO catalogo_vehiculos (session_id, auto_code, tipo, marca_id)"
+                  " VALUES (?,?,?,?)", (sid, 'VW01', 'Tiguan', vw))
+        cvw = c.execute("SELECT id FROM catalogo_vehiculos WHERE session_id=?", (sid,)).fetchone()["id"]
+        vin = sid * 1000
+        for aduana, pais, n in rutas:
+            c.execute("INSERT INTO pedimentos (session_id, numero_pedimento, aduana)"
+                      " VALUES (?,?,?)", (sid, f'P-{sid}-{aduana}', aduana))
+            ped = c.execute("SELECT id FROM pedimentos WHERE session_id=? AND aduana=?",
+                            (sid, aduana)).fetchone()["id"]
+            for _ in range(n):
+                c.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                          " chasis, pais_code, precio) VALUES (?,?,?,?,?,?)",
+                          (sid, ped, cvw, f'V{vin}', pais, 100000))
+                vin += 1
+
+    poblar(1, [('Veracruz', 'DEU', 5), ('Manzanillo', 'DEU', 3)])        # referencia
+    poblar(2, [('Veracruz', 'DEU', 6), ('Nuevo Laredo', 'USA', 4)])      # actual
+    c.commit()
+    d = analisis_vw.deriva_vw(c, 2, 1, 'VOLKSWAGEN')
+    ganadas = {(g["pais"], g["aduana"]) for g in d["rutas_ganadas"]}
+    perdidas = {(p["pais"], p["aduana"]) for p in d["rutas_perdidas"]}
+    assert ("USA", "Nuevo Laredo") in ganadas   # ruta nueva
+    assert ("DEU", "Manzanillo") in perdidas     # ruta abandonada (esperada-pero-ausente)
+    assert d["delta_volumen"] == 2               # (6+4) − (5+3)
+
+
 def test_analisis_es_determinista(conn):
     assert analisis_vw.analisis(conn, 1) == analisis_vw.analisis(conn, 1)
 

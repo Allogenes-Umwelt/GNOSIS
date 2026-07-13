@@ -203,6 +203,58 @@ def brecha_jn(filas: list[dict], marca_foco: str, umbral: float = 0.05) -> list[
     return out
 
 
+def _rutas_marca(filas: list[dict], marca: str) -> dict[tuple, dict]:
+    """Rutas país-aduana de una marca con su volumen y valor agregados."""
+    r: dict[tuple, dict] = {}
+    for f in filas:
+        if f["marca"] == marca:
+            d = r.setdefault((f["pais"], f["aduana"]), {"unidades": 0, "valor": 0.0})
+            d["unidades"] += f["unidades"]
+            d["valor"] += f["valor"]
+    return r
+
+
+def rutas_ausentes_vs_pares(filas: list[dict], marca_foco: str) -> list[dict]:
+    """Rutas esperadas-pero-ausentes (definición intra-sesión): pares
+    país-aduana que OTRAS marcas usan en esta sesión pero la foco no. No es un
+    pronóstico — es una ausencia MEDIDA relativa a lo que los pares sí hacen."""
+    propias = set(_rutas_marca(filas, marca_foco))
+    pares: dict[tuple, dict] = {}
+    for f in filas:
+        if f["marca"] != marca_foco:
+            d = pares.setdefault((f["pais"], f["aduana"]), {"unidades": 0, "marcas": set()})
+            d["unidades"] += f["unidades"]
+            d["marcas"].add(f["marca"])
+    out = [{"pais": k[0], "aduana": k[1], "unidades_pares": d["unidades"],
+            "marcas": sorted(d["marcas"])}
+           for k, d in pares.items() if k not in propias]
+    out.sort(key=lambda a: (-a["unidades_pares"], a["pais"], a["aduana"]))
+    return out
+
+
+def deriva_vw(conn: sqlite3.Connection, sesion_actual: int, sesion_ref: int,
+              marca: str) -> dict[str, Any]:
+    """Deriva de la red de una marca entre DOS sesiones (no CRONOS: las tablas
+    aduanales no llevan timestamp por fila; se compara sesión con sesión).
+    Rutas país-aduana ganadas/perdidas y delta de volumen — todo medido. Las
+    rutas perdidas son la otra definición de 'esperada-pero-ausente': la usó
+    antes y ya no."""
+    ra = _rutas_marca(_filas_flujo(conn, sesion_actual), marca)
+    rr = _rutas_marca(_filas_flujo(conn, sesion_ref), marca)
+    ganadas = sorted(set(ra) - set(rr))
+    perdidas = sorted(set(rr) - set(ra))
+    vol_a = sum(d["unidades"] for d in ra.values())
+    vol_r = sum(d["unidades"] for d in rr.values())
+    return {
+        "sesion_ref": sesion_ref, "sesion_actual": sesion_actual,
+        "volumen_actual": vol_a, "volumen_ref": vol_r, "delta_volumen": vol_a - vol_r,
+        "rutas_ganadas": [{"pais": k[0], "aduana": k[1], "unidades": ra[k]["unidades"]}
+                          for k in ganadas],
+        "rutas_perdidas": [{"pais": k[0], "aduana": k[1], "unidades": rr[k]["unidades"]}
+                           for k in perdidas],
+    }
+
+
 def _elegir_marca(filas: list[dict], marca: Optional[str]) -> Optional[str]:
     presentes = {f["marca"] for f in filas}
     if marca and marca in presentes:
@@ -217,7 +269,8 @@ def _elegir_marca(filas: list[dict], marca: Optional[str]) -> Optional[str]:
 
 
 def analisis(conn: sqlite3.Connection, session_id: int,
-             marca: Optional[str] = None) -> dict[str, Any]:
+             marca: Optional[str] = None,
+             sesion_ref: Optional[int] = None) -> dict[str, Any]:
     """El análisis de red completo, listo para el panel VW (I2). Todo
     derivable y citable: unidades y valor son COUNT/SUM de filas reales.
 
@@ -293,6 +346,7 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             "redundancia_rutas": int(redun["valor"]),
             "similitud_conductual": similitud_conductual(filas, foco),
             "brecha_jn": brecha_jn(filas, foco),
+            "rutas_ausentes": rutas_ausentes_vs_pares(filas, foco),
             "corte_critico": {
                 "n_rutas": len(corte["corte"]),
                 "volumen": vol_corte,
@@ -304,6 +358,11 @@ def analisis(conn: sqlite3.Connection, session_id: int,
                 ],
             },
         })
+        if sesion_ref and sesion_ref != session_id:
+            try:
+                marca_foco["deriva"] = deriva_vw(conn, session_id, sesion_ref, foco)
+            except Exception:
+                marca_foco["deriva"] = None
 
     return {
         "suficiente": True,

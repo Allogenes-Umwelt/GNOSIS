@@ -1116,10 +1116,12 @@ def api_autogenes_analisis():
     Todo derivable y citable; ?marca=<nombre> fija el sujeto (default VW)."""
     from autogenes import analisis_vw
     marca = request.args.get('marca') or None
+    sesion_ref = request.args.get('deriva', type=int)
 
     def handler(conn, session_id):
         return jsonify({'session_id': session_id,
-                        **analisis_vw.analisis(conn, session_id, marca=marca)})
+                        **analisis_vw.analisis(conn, session_id, marca=marca,
+                                               sesion_ref=sesion_ref)})
     try:
         return _con_sesion(handler)
     except Exception as e:

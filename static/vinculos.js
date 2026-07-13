@@ -250,6 +250,20 @@
           fte: 'share medido en unidades sobre rutas idénticas · sin montos'
         }));
       }
+      var aus = m.rutas_ausentes;
+      if (aus && aus.length) {
+        var r0 = aus[0];
+        cards.push(tarjeta({
+          tit: 'Rutas esperadas-pero-ausentes',
+          cifra: String(aus.length),
+          unidad: 'ruta(s) que los pares usan y ' + m.nombre + ' no',
+          bench: r0.pais + '×' + r0.aduana + ' · pares: ' + r0.marcas.join(', '),
+          sw: 'Rutas donde marcas pares operan pero ' + m.nombre + ' está ausente.',
+          nw: 'Evaluar ' + r0.pais + '×' + r0.aduana + ' (pares mueven ' +
+            r0.unidades_pares + ' unidades ahí).',
+          fte: 'ausencia medida vs pares en la misma sesión · no es pronóstico'
+        }));
+      }
       return cards.join('');
     }
 
