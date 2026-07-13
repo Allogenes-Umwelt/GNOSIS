@@ -31,12 +31,14 @@ FROM python:3.11-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
-    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    JAVA_HOME=/usr/lib/jvm/java-17 \
     JARVIS_DB_PATH=/app/data/aduanas.db
 
 # JRE 17 headless (bookworm lo trae en main; openjdk-21 NO está en bookworm).
 # curl para el HEALTHCHECK. tesseract (+ español) y poppler para OCR de
 # facturas escaneadas / imágenes en la Ingesta de Autogenes.
+# El symlink java-17 normaliza la ruta del JRE (…-amd64 en Intel, …-arm64 en
+# Apple Silicon) para que JAVA_HOME sea el mismo en ambas arquitecturas.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         openjdk-17-jre-headless \
@@ -44,6 +46,7 @@ RUN apt-get update && \
         tesseract-ocr \
         tesseract-ocr-spa \
         poppler-utils && \
+    ln -s /usr/lib/jvm/java-17-openjdk-* /usr/lib/jvm/java-17 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
