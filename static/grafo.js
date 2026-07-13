@@ -663,6 +663,11 @@
     // ── dibujo ───────────────────────────────────────────────────────
     function dibujar(ts) {
       var w = canvas.clientWidth, h = canvas.clientHeight;
+      // culling por viewport (L3): un punto de mundo cae en pantalla (+margen)?
+      function dentro(mx, my, m) {
+        var sx = w / 2 + vista.x + mx * vista.k, sy = h / 2 + vista.y + my * vista.k;
+        return sx >= -m && sx <= w + m && sy >= -m && sy <= h + m;
+      }
       // Limpieza a prueba de estado sucio: si un frame anterior murió a
       // media transformación, un clearRect relativo deja residuo (el
       // "glitch" de estelas). Reset absoluto y se vuelve a la base DPR.
@@ -684,6 +689,7 @@
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
+        if (!dentro(a.x, a.y, 0) && !dentro(b.x, b.y, 0)) return;   // culling: ambos extremos fuera
         // cable-estela: arista activa del funnel (centro ↔ órbita)
         if (despliegue && ((e.source === despliegue.centro.id && despliegue.ids[e.target]) ||
                            (e.target === despliegue.centro.id && despliegue.ids[e.source]))) {
@@ -699,7 +705,9 @@
           (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
         var cae = whatif && resalte && resalte.enlaces[e.id];   // arista que muere en la simulación
-        ctx.globalAlpha = apagado ? 0.07 : (cae ? 0.85 : (e.kind === 'relacion' ? 0.8 : 0.3));
+        // alfa por peso (E3): la estructura pesa lo que pesa (cita 0.18–0.52)
+        ctx.globalAlpha = apagado ? 0.07 : (cae ? 0.85
+          : (e.kind === 'relacion' ? 0.8 : 0.18 + (e.peso || 0.5) * 0.34));
         ctx.strokeStyle = cae ? colores.danger : (e.kind === 'relacion' ? colores.acc : colores.linea2);
         ctx.lineWidth = cae ? 1.6 : (e.kind === 'relacion' ? 1.3 + (e.peso || 0.5) * 2 : 1.0);
         ctx.setLineDash(cae ? [3, 4] : (e.kind === 'cita' ? [4, 6] : []));
@@ -734,6 +742,7 @@
       // se reserva a las Δ (F3b).
       nodos.forEach(function (n) {
         var r = radioDe(n);
+        if (!dentro(n.x, n.y, r + 44)) return;   // culling: nodo y su etiqueta fuera de pantalla
         var apagado = leyOculta(n.kind) || (resalte ? !resalte.nodos[n.id]
           : (foco && n !== foco && !(visibles && visibles[n.id])));
         var tier = tierDe(n);
@@ -873,7 +882,14 @@
           ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
           ctx.textAlign = 'center';
           // etiqueta defensiva: un null de datos reales no puede tirar el frame
-          ctx.fillText(String(n.etiqueta || '').slice(0, 26), n.x, n.y + r + 11 / vista.k);
+          var etq = String(n.etiqueta || '').slice(0, 26);
+          // halo (E1): trazo del color de fondo detrás del texto — legible sobre
+          // zonas densas de aristas sin depender del contraste del cableado
+          ctx.lineWidth = 3 / vista.k;
+          ctx.strokeStyle = conAlfa(colores.bg, 0.85);
+          ctx.lineJoin = 'round';
+          ctx.strokeText(etq, n.x, n.y + r + 11 / vista.k);
+          ctx.fillText(etq, n.x, n.y + r + 11 / vista.k);
         }
       });
       // selección múltiple (P2): anillo acento sobre cada nodo seleccionado
