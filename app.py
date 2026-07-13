@@ -680,7 +680,15 @@ def procesar_fase1():
     Solo procesa las facturas del ZIP recien subido, luego las mueve
     al directorio acumulativo para que esten disponibles en Fases 2-4.
     """
-    from PDFs_Final_v3 import PDFs_to_excel
+    # El pipeline de extracción usa Java/tabula/PyPDF2 (imagen completa). En
+    # un despliegue lite/nativo esas deps no están: degradar con un mensaje
+    # claro en vez de reventar en 500 al subir cientos de facturas.
+    try:
+        from PDFs_Final_v3 import PDFs_to_excel
+    except Exception:
+        return jsonify({'error': 'El pipeline de extracción de PDFs no está '
+                        'disponible en este despliegue (faltan Java/tabula/PyPDF2). '
+                        'Usa la imagen completa docker/Containerfile, no la lite.'}), 503
     facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
     historico_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'historico')
     downloads_dir = app.config['DOWNLOAD_FOLDER']
@@ -831,9 +839,14 @@ def procesar_fase1():
 @app.route('/procesar/pipeline', methods=['POST'])
 def procesar_pipeline():
     """Fases 2-4: Pipeline completo (usa facturas ya extraidas)."""
-    from concentrado1 import Concentrado
-    from concentrado2 import Concentrado2
-    from Estadistico import estadistico_v4
+    try:
+        from concentrado1 import Concentrado
+        from concentrado2 import Concentrado2
+        from Estadistico import estadistico_v4
+    except Exception:
+        return jsonify({'error': 'El pipeline completo (concentrado/estadístico) '
+                        'no está disponible en este despliegue. Usa la imagen '
+                        'completa docker/Containerfile, no la lite.'}), 503
     dwh_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'dwh')
     incrementales_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'incrementales')
     pdfInversion_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfInversion')
