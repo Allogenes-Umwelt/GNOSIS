@@ -535,6 +535,16 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   .gr-centro { min-height: 60vh; }
 }
 
+/* ── Dossier de ingesta (C3): fila enlazable + fragmentos plegables ── */
+.gr-fila a { display: flex; flex: 1; justify-content: space-between; gap: 10px;
+  color: inherit; text-decoration: none; }
+.gr-fila a:hover b { color: var(--acc-text); }
+.in-frag { border-bottom: 1px solid var(--line-ghost); padding: 4px 0; }
+.in-frag summary { font-family: var(--font-mono); font-size: .68rem;
+  color: var(--t3); text-transform: uppercase; letter-spacing: 1px; cursor: pointer; }
+.in-frag p { margin: 6px 0 2px; font-size: .72rem; color: var(--t2);
+  line-height: 1.5; overflow-wrap: anywhere; }
+
 /* ── Puntero grueso: objetivos tactiles al minimo de la ley (48px) ── */
 @media (pointer: coarse) {
   .ag-plegar { min-width: 48px; min-height: 48px; }

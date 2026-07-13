@@ -142,6 +142,59 @@ def chord_ingesta(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     }
 
 
+def detalle_ingesta(conn: sqlite3.Connection, session_id: int,
+                    node_id: str) -> dict[str, Any]:
+    """The dossier behind one chord arc — read-only. For an artefacto: its
+    fragments (citable text) and the entities that cite it. For an entidad:
+    its source artefactos. For an aggregate arc: the members it rolled up."""
+    art = conn.execute(
+        "SELECT id, kind, nombre, paginas FROM ag_artefactos"
+        " WHERE id = ? AND session_id = ?", (node_id, session_id)).fetchone()
+    if art:
+        fragmentos = [
+            {"id": f["id"], "pagina": f["pagina"], "texto": f["texto"]}
+            for f in conn.execute(
+                "SELECT id, pagina, texto FROM ag_fragmentos"
+                " WHERE artefacto_id = ? AND session_id = ? ORDER BY pagina, created_at",
+                (node_id, session_id))
+        ]
+        frag_ids = {f["id"] for f in fragmentos}
+        citantes = []
+        for e in conn.execute(
+                "SELECT id, nombre, tipo, evidencia FROM ag_entidades"
+                " WHERE session_id = ? ORDER BY created_at", (session_id,)):
+            if frag_ids & set(json.loads(e["evidencia"] or "[]")):
+                citantes.append({"id": e["id"], "nombre": e["nombre"], "tipo": e["tipo"]})
+        return {"tipo": "artefacto", "id": node_id, "nombre": art["nombre"],
+                "kind": art["kind"], "paginas": art["paginas"],
+                "fragmentos": fragmentos, "citantes": citantes,
+                "fria": not citantes}
+
+    ent = conn.execute(
+        "SELECT id, nombre, tipo, resumen, evidencia FROM ag_entidades"
+        " WHERE id = ? AND session_id = ?", (node_id, session_id)).fetchone()
+    if ent:
+        frag_ids = set(json.loads(ent["evidencia"] or "[]"))
+        frag_a_art = {
+            r["id"]: r["artefacto_id"]
+            for r in conn.execute(
+                "SELECT id, artefacto_id FROM ag_fragmentos WHERE session_id = ?",
+                (session_id,))
+        }
+        art_ids = {frag_a_art.get(fid) for fid in frag_ids} - {None}
+        fuentes = [
+            {"id": a["id"], "nombre": a["nombre"], "kind": a["kind"]}
+            for a in conn.execute(
+                "SELECT id, nombre, kind FROM ag_artefactos WHERE session_id = ?",
+                (session_id,)) if a["id"] in art_ids
+        ]
+        return {"tipo": "entidad", "id": node_id, "nombre": ent["nombre"],
+                "tipo_ent": ent["tipo"], "resumen": ent["resumen"],
+                "fuentes": fuentes}
+
+    return {"error": "Nodo no encontrado en el sustrato de la sesión"}
+
+
 def _rollup(arcos: list[dict], maximo: int, prefijo: str,
             clave_orden, peso) -> list[dict]:
     """Keep the top `maximo` arcs by signal; collapse the overflow, PER

@@ -7,6 +7,7 @@ import pytest
 from autogenes.chord_ingesta import (
     MAX_ARCOS_ENTIDAD,
     chord_ingesta,
+    detalle_ingesta,
 )
 from autogenes.sustrato import Sustrato
 from database import models, models_autogenes
@@ -115,3 +116,28 @@ def test_sesion_vacia_no_truena(conn):
     ch = chord_ingesta(conn, 1)
     assert ch["artefactos"] == [] and ch["entidades"] == [] and ch["cintas"] == []
     assert ch["resumen"]["cobertura"] == 0
+
+
+def test_detalle_dossier_artefacto_y_entidad(conn):
+    _sembrar(conn)
+    ch = chord_ingesta(conn, 1)
+    caliente_id = next(a["id"] for a in ch["artefactos"] if a["nombre"] == "caliente.pdf")
+    fria_id = next(a["id"] for a in ch["artefactos"] if a["nombre"] == "fria.pdf")
+    agencia_id = next(e["id"] for e in ch["entidades"] if e["nombre"] == "Agencia")
+
+    da = detalle_ingesta(conn, 1, caliente_id)
+    assert da["tipo"] == "artefacto" and len(da["fragmentos"]) == 2
+    assert not da["fria"]
+    assert "Agencia" in {c["nombre"] for c in da["citantes"]}
+
+    df = detalle_ingesta(conn, 1, fria_id)
+    assert df["fria"] and df["citantes"] == []
+
+    de = detalle_ingesta(conn, 1, agencia_id)
+    assert de["tipo"] == "entidad"
+    assert "caliente.pdf" in {f["nombre"] for f in de["fuentes"]}
+
+
+def test_detalle_nodo_ajeno_es_error(conn):
+    _sembrar(conn)
+    assert "error" in detalle_ingesta(conn, 1, "no-existe")

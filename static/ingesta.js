@@ -39,6 +39,95 @@
       if (chord && chord.chordAPI) chord.chordAPI.recargar();
     }
 
+    // ── panel derecho: resumen por defecto (mata la pantalla muerta) ──
+    // Gramática de tarjeta: cifra+unidad+periodo → so-what → now-what → fuente.
+    function pintarResumen() {
+      propTitulo.hidden = true; integrarBtn.hidden = true;
+      fetch('/api/v1/autogenes/chord_ingesta')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) { propCont.innerHTML = ''; return; }
+          var r = j.resumen;
+          var ahora = r.frias
+            ? 'Extrae las ' + r.frias + ' frías o suelta más fuentes.'
+            : 'Todas las fuentes citadas — suelta nuevas o sintetiza.';
+          propCont.innerHTML =
+            '<div class="gr-kind">' + esc(j.etiqueta) + '</div>' +
+            '<div class="gr-fila"><span>Cobertura</span><b>' + esc(r.cobertura) +
+              '% · ' + esc(r.citados) + '/' + esc(r.fragmentos) + ' frag</b></div>' +
+            '<div class="gr-fila"><span>Fuentes</span><b>' + esc(r.fuentes) +
+              ' · ' + esc(r.frias) + ' frías</b></div>' +
+            '<div class="gr-fila"><span>Entidades</span><b>' + esc(r.entidades) + '</b></div>' +
+            '<p class="gr-vacio" style="margin-top:10px">' + esc(ahora) +
+            ' · clic en un arco para su dossier.</p>';
+        }).catch(function () {});
+    }
+
+    // ── dossier de un arco (artefacto o entidad) ──
+    function pintarDossier(nodo) {
+      if (!nodo || nodo.agregado) { pintarResumen(); return; }
+      propTitulo.hidden = true; integrarBtn.hidden = true;
+      propCont.innerHTML = '<p class="gr-vacio">Cargando dossier…</p>';
+      fetch('/api/v1/autogenes/detalle_ingesta?id=' + encodeURIComponent(nodo.id))
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { propCont.innerHTML = '<p class="gr-vacio">' +
+            esc(res.j.error || 'Sin dossier') + '</p>'; return; }
+          var d = res.j;
+          if (d.tipo === 'artefacto') { dossierArtefacto(d); }
+          else { dossierEntidad(d); }
+        }).catch(function () {
+          propCont.innerHTML = '<p class="gr-vacio">Sin conexión</p>';
+        });
+    }
+
+    function dossierArtefacto(d) {
+      var html = '<div class="gr-kind">' + (d.fria ? 'FRÍA · ' : '') +
+        esc(d.kind.toUpperCase()) + ' · ' + esc(d.fragmentos.length) + ' frag</div>' +
+        '<div class="gr-fila"><span>' + esc(d.nombre.slice(0, 26)) + '</span><b>' +
+        esc(d.citantes.length) + ' citante(s)</b></div>';
+      d.citantes.forEach(function (c) {
+        html += '<div class="gr-fila"><a href="/autogenes/grafo#n=' +
+          encodeURIComponent(c.id) + '"><span>' + esc(c.nombre.slice(0, 22)) +
+          '</span><b>' + esc(c.tipo) + '</b></a></div>';
+      });
+      html += '<div class="ag-grupo" style="margin-top:8px">Fragmentos</div>';
+      d.fragmentos.slice(0, 8).forEach(function (f) {
+        html += '<details class="in-frag"><summary>' +
+          (f.pagina ? 'p. ' + esc(f.pagina) : 'fragmento') + '</summary><p>' +
+          esc((f.texto || '').slice(0, 600)) + '</p></details>';
+      });
+      propCont.innerHTML = html;
+      // botón extraer: reusa el flujo HITL existente
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'ag-subir'; b.textContent = d.fria
+        ? 'Extraer (fuente fría)' : 'Extraer de nuevo';
+      b.addEventListener('click', function () { extraer(d.id, d.nombre); });
+      propCont.appendChild(b);
+    }
+
+    function dossierEntidad(d) {
+      var html = '<div class="gr-kind">' + esc((d.tipo_ent || 'entidad').toUpperCase()) +
+        '</div><div class="gr-fila"><a href="/autogenes/grafo#n=' +
+        encodeURIComponent(d.id) + '"><span>' + esc(d.nombre.slice(0, 24)) +
+        '</span><b>ver en grafo ▸</b></a></div>';
+      if (d.resumen) html += '<p class="gr-vacio">' + esc(d.resumen.slice(0, 240)) + '</p>';
+      html += '<div class="ag-grupo" style="margin-top:8px">Fuentes que la sustentan</div>';
+      (d.fuentes || []).forEach(function (a) {
+        html += '<div class="gr-fila"><span>' + esc(a.nombre.slice(0, 22)) +
+          '</span><b>' + esc(a.kind) + '</b></div>';
+      });
+      if (!d.fuentes || !d.fuentes.length) {
+        html += '<p class="gr-vacio">Sin fuente citada.</p>';
+      }
+      propCont.innerHTML = html;
+    }
+
+    if (chord) chord.addEventListener('chord-select', function (ev) {
+      pintarDossier(ev.detail);
+    });
+    pintarResumen();
+
     // ── bandeja ──────────────────────────────────────────────────────
     function pintarArtefactos() {
       fetch('/api/v1/autogenes/artefactos')
@@ -252,9 +341,10 @@
           aviso('Integradas ' + res.j.entidades + ' entidades y ' +
                 res.j.relaciones + ' relaciones al grafo', 'ok');
           propuestaActual = null;
-          propCont.innerHTML = ''; propTitulo.hidden = true; integrarBtn.hidden = true;
+          propTitulo.hidden = true; integrarBtn.hidden = true;
           pintarArtefactos();
           recargarMapa();
+          pintarResumen();
         })
         .catch(function () { aviso('Sin conexión — reintenta', 'error'); integrarBtn.disabled = false; });
     });

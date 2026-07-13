@@ -1209,3 +1209,23 @@ def api_autogenes_chord_ingesta():
         return jsonify(chord)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/detalle_ingesta', methods=['GET'])
+def api_autogenes_detalle_ingesta():
+    """El dossier detras de un arco del chord: para un artefacto sus
+    fragmentos y entidades citantes; para una entidad sus fuentes."""
+    from autogenes.chord_ingesta import detalle_ingesta
+    node_id = request.args.get('id', '')
+    if not node_id:
+        return jsonify({'error': 'Falta id'}), 400
+
+    def handler(conn, session_id):
+        r = detalle_ingesta(conn, session_id, node_id)
+        if 'error' in r:
+            return jsonify(r), 404
+        return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
