@@ -35,11 +35,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     JARVIS_DB_PATH=/app/data/aduanas.db
 
 # JRE 17 headless (bookworm lo trae en main; openjdk-21 NO está en bookworm).
-# curl para el HEALTHCHECK.
+# curl para el HEALTHCHECK. tesseract (+ español) y poppler para OCR de
+# facturas escaneadas / imágenes en la Ingesta de Autogenes.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         openjdk-17-jre-headless \
-        curl && \
+        curl \
+        tesseract-ocr \
+        tesseract-ocr-spa \
+        poppler-utils && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -78,19 +78,17 @@
     }
     // Cola secuencial: varios PDFs (o una carpeta soltada) entran uno por
     // uno para no saturar el servidor ni perder el orden de dockeo.
-    var ACEPTA = /\.(pdf|txt|md|xml|csv|xls|xlsx|zip)$/;
-    var IMAGEN = /\.(jpe?g|png|gif|bmp|webp|tiff?|heic)$/;
+    // Imágenes y PDFs escaneados entran vía OCR en el servidor (Tesseract).
+    var ACEPTA = /\.(pdf|txt|md|xml|csv|xls|xlsx|zip|jpe?g|png|gif|bmp|webp|tiff?|heic)$/;
     var enCola = false;
     function subirLote(archivos) {
-      var aceptados = [], imgs = 0;
+      var aceptados = [];
       for (var i = 0; i < archivos.length; i++) {
         var n = (archivos[i].name || '').toLowerCase();
         if (ACEPTA.test(n)) aceptados.push(archivos[i]);
-        else if (IMAGEN.test(n)) imgs++;
       }
       if (!aceptados.length) {
-        aviso(imgs ? 'Las imágenes aún no se ingieren (falta OCR)'
-                   : 'Usa PDF, TXT, XML, Excel o ZIP', 'error');
+        aviso('Usa PDF, imagen (jpg/png), TXT, XML, Excel o ZIP', 'error');
         return;
       }
       if (enCola) return;

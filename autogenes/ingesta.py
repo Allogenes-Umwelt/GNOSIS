@@ -50,8 +50,44 @@ def ingestar_texto(conn: sqlite3.Connection, session_id: int,
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
+# ── OCR (facturas escaneadas / imágenes) ─────────────────────────────
+# El sustrato es local-first: el OCR corre con Tesseract DENTRO del
+# contenedor — el documento nunca sale a la red. spa+eng cubre facturas MX.
+_OCR_LANG = "spa+eng"
+_OCR_DPI = 250
+
+
+def _ocr_paginas_pdf(contenido: bytes, saltar: set[int]) -> list[tuple[int, str]]:
+    """Rasteriza el PDF y corre OCR SOLO en las páginas sin capa de texto
+    (`saltar` = las que ya trajeron texto). Devuelve [] si faltan los deps de
+    OCR o si el render falla — el llamador degrada con gracia."""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+    except ImportError:
+        return []
+    try:
+        imagenes = convert_from_bytes(contenido, dpi=_OCR_DPI)
+    except Exception:
+        return []
+    out: list[tuple[int, str]] = []
+    for i, img in enumerate(imagenes, 1):
+        if i in saltar:
+            continue
+        try:
+            texto = pytesseract.image_to_string(img, lang=_OCR_LANG).strip()
+        except Exception:
+            texto = ""
+        if texto:
+            out.append((i, texto[:12000]))
+    return out
+
+
 def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
                  nombre: str, contenido: bytes) -> dict[str, Any]:
+    """PDF → fragmentos por página, híbrido: usa la capa de texto (pdfplumber,
+    rápido) y para las páginas escaneadas (sin texto) cae a OCR (Tesseract).
+    Así entran facturas digitales Y escaneadas por igual."""
     try:
         import io
 
@@ -59,19 +95,56 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
     except ImportError:
         return {"error": "pdfplumber no está disponible en este despliegue"}
     paginas: list[tuple[int, str]] = []
+    n_paginas = 0
     try:
         with pdfplumber.open(io.BytesIO(contenido)) as pdf:
+            n_paginas = len(pdf.pages)
             for i, pagina in enumerate(pdf.pages):
                 texto = (pagina.extract_text() or "").strip()
                 if texto:
                     paginas.append((i + 1, texto[:12000]))
     except Exception:
-        return {"error": "El PDF no se pudo leer — ¿está dañado o es imagen?"}
+        # un PDF 100% imagen (escaneado) puede fallar en pdfplumber pero SÍ en OCR
+        pass
+    # OCR de relleno para las páginas sin capa de texto (o el PDF entero)
+    if len(paginas) < n_paginas or n_paginas == 0:
+        con_texto = {p for p, _ in paginas}
+        paginas.extend(_ocr_paginas_pdf(contenido, con_texto))
     if not paginas:
-        return {"error": "El PDF no trae texto extraíble (puede ser escaneado)"}
+        return {"error": "El PDF no trae texto ni pudo leerse por OCR "
+                         "(¿dañado, protegido, o falta Tesseract en el despliegue?)"}
+    paginas.sort(key=lambda t: t[0])
     s = Sustrato(conn, session_id)
     art = s.crear_artefacto("pdf", nombre, paginas=len(paginas))
     frags = s.agregar_fragmentos(art.id, paginas)
+    return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
+
+
+def ingestar_imagen(conn: sqlite3.Connection, session_id: int,
+                    nombre: str, contenido: bytes) -> dict[str, Any]:
+    """Imagen (foto/escaneo de una factura) → OCR (Tesseract) → fragmentos."""
+    try:
+        import io
+
+        import pytesseract
+        from PIL import Image
+    except ImportError:
+        return {"error": "OCR no disponible (falta Tesseract/Pillow en el despliegue)"}
+    try:
+        img = Image.open(io.BytesIO(contenido))
+    except Exception:
+        return {"error": "La imagen no se pudo abrir"}
+    try:
+        texto = pytesseract.image_to_string(img, lang=_OCR_LANG).strip()
+    except Exception:
+        texto = ""
+    if not texto:
+        return {"error": "La imagen no trae texto legible por OCR "
+                         "(¿foto borrosa, muy chica, o sin texto?)"}
+    bloques = partir_texto(texto)
+    s = Sustrato(conn, session_id)
+    art = s.crear_artefacto("imagen", nombre)
+    frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
@@ -114,14 +187,14 @@ def ingestar_tabla(conn: sqlite3.Connection, session_id: int,
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
-# Extensiones de imagen: rechazadas por ahora (falta OCR para sacar texto).
+# Extensiones de imagen: ahora entran por OCR (Tesseract).
 _IMAGENES = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".heic")
 
 
 def ingestar_archivo(conn: sqlite3.Connection, session_id: int,
                      nombre: str, contenido: bytes) -> dict[str, Any]:
-    """Dispatcher por extensión: PDF, texto (txt/md/xml), tabla (xls/xlsx/
-    csv). Las imágenes se rechazan con mensaje claro (sin OCR aún)."""
+    """Dispatcher por extensión: PDF (con capa de texto y/o escaneado vía OCR),
+    texto (txt/md/xml), tabla (xls/xlsx/csv) e imagen (jpg/png… vía OCR)."""
     bajo = nombre.lower()
     if bajo.endswith(".pdf"):
         return ingestar_pdf(conn, session_id, nombre, contenido)
@@ -131,10 +204,9 @@ def ingestar_archivo(conn: sqlite3.Connection, session_id: int,
     if bajo.endswith((".xls", ".xlsx", ".csv")):
         return ingestar_tabla(conn, session_id, nombre, contenido)
     if bajo.endswith(_IMAGENES):
-        return {"error": "Las imágenes aún no se ingieren (falta OCR). "
-                         "Usa PDF, texto o Excel."}
+        return ingestar_imagen(conn, session_id, nombre, contenido)
     return {"error": f"Formato no soportado: {nombre}. "
-                     "Usa PDF, TXT, XML o Excel (xls/xlsx/csv)."}
+                     "Usa PDF, TXT, XML, Excel (xls/xlsx/csv) o imagen (jpg/png)."}
 
 
 def listar_artefactos(conn: sqlite3.Connection, session_id: int) -> list[dict[str, Any]]:

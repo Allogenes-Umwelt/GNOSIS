@@ -7,6 +7,9 @@ Flask==2.0.3
 Werkzeug==2.0.3
 jpype1
 pdfplumber
+pytesseract
+pdf2image
+Pillow
 pdfminer.six
 camelot-py
 pywaffle
