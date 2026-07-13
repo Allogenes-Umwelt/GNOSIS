@@ -508,19 +508,30 @@
       sim = Fuerzas.simulacion(nodos, enlaces,
                                { anillos: ANILLOS, fuerzaPorKind: FUERZA_ANILLO });
       if (reduce) { sim.correr(300); encuadrar(); dibujar(0); }
-      else { sim.correr(60); encuadrar(); animar(); }
+      else {
+        // Pre-asiento SÍNCRONO acotado: en redes grandes bloquear el hilo con
+        // 60 ticks + el primer dibujo congela la pestaña ("cargando…" y se
+        // traba). animar() ya asienta el resto frame-a-frame (no bloqueante) y
+        // el total de ticks hasta alfa<0.004 es fijo, así que el layout final
+        // es IDÉNTICO — solo se mueve trabajo del bloqueo al asiento vivo.
+        sim.correr(nodos.length > 400 ? 10 : 60);
+        encuadrar(); animar();
+      }
     }
 
     function animar() {
       if (animando) return;
       animando = true;
-      (function paso(ts) {
+      // El PRIMER paso va por rAF (no síncrono): en redes grandes, dibujar
+      // dentro de la llamada de carga bloquea la pestaña. Así cada frame es su
+      // propia tarea y el hilo respira mientras la red se asienta.
+      requestAnimationFrame(function paso(ts) {
         var alfa = sim ? sim.tick() : 0;
         pasoDespliegue(); pasoParticulas();
         dibujar(ts);
         if (alfa > 0.004 || arrastre.nodo) requestAnimationFrame(paso);
         else { animando = false; if (!vistaManual) encuadrar(); dibujar(ts); arrancarLatido(); }
-      })(0);
+      });
     }
 
     // Latido: reloj de render puro (sin tick de simulación) para los efectos
