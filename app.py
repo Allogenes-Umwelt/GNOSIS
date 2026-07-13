@@ -462,8 +462,27 @@ def dashboard():
             # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
             viz_data['por_marca'] = por_marca
 
-            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4
-            viz_data['seguimiento'] = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4.
+            # Si la sesión Flask no lo trae (recarga de página o sesión completada revisitada en otro
+            # navegador), se lee de la tabla durable `seguimiento_mensual` y se mapea a la MISMA forma
+            # que consume la trayectoria en el cliente, para que el tablero nunca quede en "SIN DATOS".
+            seg = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            if not seg and session_id:
+                try:
+                    seg = [dict(
+                        month=str(r['mes']), month_name=r['mes_nombre'],
+                        consumo_produccion=r['consumo_produccion'], consumo_inversion=r['consumo_inversion'],
+                        consumo_total=r['consumo_total'], acumulado_total=r['acumulado_total'],
+                        cupo_produccion_activo=r['cupo_produccion_activo'],
+                        cupo_inversion_activo=r['cupo_inversion_activo'],
+                    ) for r in conn.execute(
+                        "SELECT mes, mes_nombre, consumo_produccion, consumo_inversion, consumo_total,"
+                        " acumulado_total, cupo_produccion_activo, cupo_inversion_activo"
+                        " FROM seguimiento_mensual WHERE session_id = ? ORDER BY mes",
+                        (session_id,)).fetchall()]
+                except Exception:
+                    seg = []
+            viz_data['seguimiento'] = seg
             # Agotamientos de cupo (transiciones prod + inv) — read-only, para marcar en la trayectoria
             viz_data['agotamientos'] = (session.get('data', {}).get('TRANSICIONES_PRODUCCION', []) or []) \
                 + (session.get('data', {}).get('TRANSICIONES_INVERSION', []) or [])
