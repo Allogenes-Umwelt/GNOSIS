@@ -28,14 +28,18 @@
           <button type="button" id="gr-zmenos" class="ag-plegar" aria-label="Alejar">−</button>
           <button type="button" id="gr-zmas" class="ag-plegar" aria-label="Acercar">+</button>
           <button type="button" id="gr-reset" class="ag-plegar" style="min-width:auto;padding:0 10px" aria-label="Reencuadrar el grafo">⌖ centrar</button>
+          <button type="button" id="gr-tabla-btn" class="ag-plegar" style="min-width:auto;padding:0 10px"
+                  aria-pressed="false" aria-label="Ver los nodos como tabla accesible">▦ tabla</button>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
       <div class="gr-lienzo" data-inspector="#gr-inspector" data-estado="#gr-estado"
            data-buscar="#gr-buscar" data-reset="#gr-reset" data-cap="#gr-cap"
            data-frag="#gr-frag" data-zmas="#gr-zmas" data-zmenos="#gr-zmenos"
-           data-leyenda="#gr-leyenda" data-aislado="#gr-aislado">
+           data-leyenda="#gr-leyenda" data-aislado="#gr-aislado"
+           data-tabla="#gr-tabla" data-tabla-btn="#gr-tabla-btn">
         <canvas aria-label="Lienzo de fuerzas del grafo de la sesión" role="img"></canvas>
+        <div id="gr-tabla" class="gr-tabla" hidden aria-label="Nodos del caso, tabla accesible"></div>
       </div>
       <div id="gr-aislado" class="gr-aislado" role="status" hidden>
         <span class="gr-aislado-t"></span>

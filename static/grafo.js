@@ -1502,6 +1502,9 @@
     canvas.addEventListener('keydown', function (ev) {
       if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); irHistorial(-1); return; }
       if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); irHistorial(1); return; }
+      if (ev.key === '+' || ev.key === '=') { ev.preventDefault(); zoomCentro(1.35); return; }
+      if (ev.key === '-' || ev.key === '_') { ev.preventDefault(); zoomCentro(1 / 1.35); return; }
+      if (ev.key === '0') { ev.preventDefault(); vistaManual = false; encuadrar(); if (!animando) dibujar(0); return; }
       if (ev.key === 'Escape') {
         modoCamino = null; canvas.style.cursor = 'grab';
         kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null;
@@ -1817,6 +1820,98 @@
         if (paletaAbierta) cerrarPaleta(); else abrirPaleta();
       }
     });
+
+    // ── Modo tabla (A3): la alternativa accesible del grafo de datos ──
+    // El mismo payload como tabla HTML ordenable — teclado y lector de
+    // pantalla nativos. role=img del canvas NO basta para un grafo de datos.
+    var tablaEl = q(cont.getAttribute('data-tabla'));
+    var tablaBtn = q(cont.getAttribute('data-tabla-btn'));
+    var tablaAbierta = false, ordenCol = 'grado', ordenDir = -1;
+    var COLS = [
+      { k: 'etiqueta', et: 'Etiqueta' }, { k: 'kind', et: 'Tipo' },
+      { k: 'grado', et: 'Conexiones' }, { k: 'comunidad', et: 'Comunidad' },
+      { k: 'centralidad', et: 'Centralidad' }
+    ];
+    function colEt(k) {
+      for (var i = 0; i < COLS.length; i++) { if (COLS[i].k === k) return COLS[i].et; }
+      return k;
+    }
+    function filasTabla() {
+      var fs = nodosRaw.filter(function (n) { return n.kind !== 'fragmento'; });
+      var c = ordenCol, texto = (c === 'etiqueta' || c === 'kind');
+      return fs.sort(function (a, b) {
+        var va = a[c], vb = b[c];
+        if (texto) {
+          va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase();
+          return va < vb ? -ordenDir : va > vb ? ordenDir : (a.id < b.id ? -1 : 1);
+        }
+        return ((va || 0) - (vb || 0)) * ordenDir || (a.id < b.id ? -1 : 1);
+      });
+    }
+    function construirTabla() {
+      if (!tablaEl) return;
+      var fs = filasTabla();
+      var th = COLS.map(function (col) {
+        var act = ordenCol === col.k;
+        var sort = act ? (ordenDir > 0 ? 'ascending' : 'descending') : 'none';
+        return '<th scope="col" aria-sort="' + sort + '"><button type="button" data-col="' +
+          col.k + '">' + esc(col.et) + (act ? (ordenDir > 0 ? ' ▲' : ' ▼') : '') + '</button></th>';
+      }).join('') + '<th scope="col">Acción</th>';
+      var body = fs.map(function (n) {
+        return '<tr><th scope="row">' + esc(n.etiqueta || '—') + '</th>' +
+          '<td>' + esc(n.kind) + '</td><td>' + (n.grado || 0) + '</td>' +
+          '<td>' + (n.comunidad != null ? n.comunidad : '—') + '</td>' +
+          '<td>' + (n.centralidad != null ? n.centralidad.toFixed(2) : '—') + '</td>' +
+          '<td><button type="button" class="gr-tabla-foco" data-id="' + esc(n.id) +
+          '">Enfocar</button></td></tr>';
+      }).join('');
+      tablaEl.innerHTML = '<table><caption>Nodos del caso · ' + fs.length +
+        ' · ordenados por ' + esc(colEt(ordenCol)) + '</caption><thead><tr>' + th +
+        '</tr></thead><tbody>' + body + '</tbody></table>';
+    }
+    function abrirTabla() {
+      if (!tablaEl) return;
+      tablaAbierta = true; construirTabla(); tablaEl.hidden = false;
+      canvas.setAttribute('aria-hidden', 'true');
+      if (tablaBtn) tablaBtn.setAttribute('aria-pressed', 'true');
+      var f = tablaEl.querySelector('th button'); if (f) f.focus();
+    }
+    function cerrarTabla() {
+      if (!tablaEl) return;
+      tablaAbierta = false; tablaEl.hidden = true;
+      canvas.removeAttribute('aria-hidden');
+      if (tablaBtn) { tablaBtn.setAttribute('aria-pressed', 'false'); tablaBtn.focus(); }
+    }
+    if (tablaBtn) tablaBtn.addEventListener('click', function () {
+      if (tablaAbierta) cerrarTabla(); else abrirTabla();
+    });
+    if (tablaEl) {
+      tablaEl.addEventListener('click', function (ev) {
+        var cb = ev.target.closest('[data-col]');
+        if (cb) {
+          var c = cb.getAttribute('data-col');
+          if (ordenCol === c) ordenDir = -ordenDir;
+          else { ordenCol = c; ordenDir = (c === 'etiqueta' || c === 'kind') ? 1 : -1; }
+          construirTabla();
+          var f = tablaEl.querySelector('[data-col="' + c + '"]'); if (f) f.focus();
+          return;
+        }
+        var fb = ev.target.closest('.gr-tabla-foco');
+        if (fb) {
+          var id = fb.getAttribute('data-id'), n = porId[id];
+          cerrarTabla();
+          if (n) {
+            sel = n; resalte = null; whatif = null; pintarInspector(n); abrirTarjeta(n);
+            vistaManual = true; vista.k = Math.max(vista.k, 1.8);
+            vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
+            if (!animando) dibujar(0); arrancarLatido();
+          }
+        }
+      });
+      tablaEl.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Escape') cerrarTabla();
+      });
+    }
 
     leerColores();
     tamano();
