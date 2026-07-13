@@ -1,0 +1,44 @@
+# GNOSIS — imagen LITE para escritorios con poco disco (~500 MB vs ~3 GB).
+# Deja fuera el pipeline legado de PDFs (Java/tabula/camelot/jpype) y las
+# libs de graficado pesadas (bokeh/plotly) — que la Ingesta y el Radar de
+# Autogenes NO usan. Sirve todo el grafo, ingesta (TXT/CSV/PDF-con-texto),
+# radar, extracción y síntesis. El OCR de imágenes/PDF escaneado NO va en
+# esta imagen (requiere tesseract/poppler); degrada con gracia.
+#
+# Build:  podman build -f docker/Containerfile.lite -t gnosis:local .
+# Run:    podman run -d --name gnosis -p 127.0.0.1:5001:5001 \
+#            -v gnosis_data:/app/data --env-file .env gnosis:local
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    JARVIS_DB_PATH=/app/data/aduanas.db
+
+# curl para el HEALTHCHECK; nada de Java ni OCR en la imagen lite.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Solo lo que ingesta+radar+grafo+extracción+síntesis necesitan.
+RUN pip install --no-cache-dir \
+        Flask gunicorn python-dotenv \
+        pandas openpyxl xlrd python-dateutil \
+        pydantic networkx requests anthropic \
+        pdfplumber Pillow
+
+WORKDIR /app
+COPY . /app
+
+RUN groupadd -r gnosis && useradd -r -g gnosis -d /app gnosis && \
+    mkdir -p /app/data /app/uploads /app/downloads && \
+    chown -R gnosis:gnosis /app/data /app/uploads /app/downloads
+USER gnosis
+
+VOLUME ["/app/data", "/app/uploads", "/app/downloads"]
+EXPOSE 5001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5001/health || exit 1
+
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", \
+     "--timeout", "600", "--access-logfile", "-", "app:app"]
