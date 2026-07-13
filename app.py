@@ -33,6 +33,43 @@ def _read_excel(path, **kwargs):
         return pd.read_excel(path, engine='xlrd', **kwargs)
 
 
+# Columnas que el pipeline legado (concentrado1.Concentrado) exige del archivo
+# de Divisiones — la ranura «Incrementales» de la ingesta. El pipelegado NO se
+# toca: fuerza engine='openpyxl' (solo .xlsx) y hace df['CLAVES'] directo, así
+# que un .xls viejo revienta con BadZipFile y un archivo equivocado con
+# KeyError. Se normaliza y valida en el BORDE antes de entrar al pipeline.
+_COLS_DIVISIONES = ['CLAVES', 'Tipo', 'FRACCIÓN', 'Pais',
+                    'Seguro (Incrementables)', 'Flete (Incrementables)', 'MARCA']
+
+
+def _preparar_divisiones(path):
+    """Normaliza el archivo de Divisiones para el pipeline legado, sin tocarlo:
+    lo lee con el engine correcto (.xls→xlrd, .xlsx→openpyxl), valida que traiga
+    las columnas que Concentrado necesita y —si venía en .xls— lo reescribe como
+    .xlsx (el pipeline solo lee openpyxl). Devuelve la ruta lista para el pipeline.
+    Lanza ConcentradoError con un mensaje accionable si el archivo no sirve."""
+    nombre = os.path.basename(path)
+    try:
+        df = _read_excel(path)
+    except Exception as e:
+        raise ConcentradoError(
+            f"No se pudo leer «{nombre}» como Excel. La ranura Incrementales espera "
+            f"el archivo de Divisiones en formato .xls o .xlsx. Detalle: {e}")
+    faltan = [c for c in _COLS_DIVISIONES if c not in df.columns]
+    if faltan:
+        raise ConcentradoError(
+            f"«{nombre}» no parece el archivo de Divisiones: faltan las columnas "
+            + ", ".join(faltan) + ". Sube el archivo de Divisiones con sus 7 columnas "
+            "(CLAVES, Tipo, FRACCIÓN, Pais, Seguro (Incrementables), "
+            "Flete (Incrementables), MARCA) en la ranura Incrementales.")
+    if str(path).lower().endswith('.xlsx'):
+        return path
+    # .xls (u otro): reescribe a .xlsx para que el pipeline (openpyxl) lo lea
+    destino = os.path.splitext(path)[0] + '.norm.xlsx'
+    df.to_excel(destino, index=False)
+    return destino
+
+
 # Tope de expansión al descomprimir un ZIP subido. MAX_CONTENT_LENGTH
 # acota el ARCHIVO (50 MB) pero no lo DESCOMPRIMIDO: un zip bomba de 50 MB
 # puede expandir a gigabytes y llenar el disco.
@@ -909,6 +946,10 @@ def procesar_pipeline():
             combine_txt_files(dwh_files, combined_dwh_file)
             dwh_files = [combined_dwh_file]
 
+        # Normaliza/valida el archivo de Divisiones en el borde (.xls→.xlsx +
+        # chequeo de columnas) para que el pipeline legado lo procese igual sin
+        # tocarlo, y para dar un error accionable si subieron el archivo equivocado.
+        incrementales_files[0] = _preparar_divisiones(incrementales_files[0])
         pedimento = Concentrado(dwh_files[0], incrementales_files[0])
         output_file_path2 = os.path.join(downloads_dir, 'Concentrado1.xlsx')
         pedimento[0].to_excel(output_file_path2, sheet_name="concentrado", index=False)
