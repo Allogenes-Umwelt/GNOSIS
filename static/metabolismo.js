@@ -21,6 +21,10 @@
     var info = document.querySelector(cont.getAttribute('data-info') || '') || null;
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
     var colores = {}, datos = null, layout = null, sel = null, animando = false;
+    // T3 · feedback vivo: una transición ÚNICA de la vía al resolver algo
+    // (la banda crece, la gota encoge) y el conteo de la visita.
+    var transicion = null, resueltas = 0;
+    var DUR_TRANS = 600;
 
     // Ítems pendientes traen nombres de origen documental: escapar SIEMPRE.
     function esc(s) {
@@ -84,15 +88,15 @@
     }
 
     // gauge de salud metabólica — llena el espacio superior con dato
-    function dibujarGauge() {
-      if (datos.salud == null) return;
+    function dibujarGauge(saludN) {
+      if (saludN == null) return;
       // hero monumental: el arco crece y las etiquetas viven FUERA del
       // anillo — el número nunca comparte tinta con las letras
       var cx = layout.w / 2, cy = layout.h * 0.21, R = 64;
-      var frac = datos.salud / 100;
+      var frac = saludN / 100;
       // dos estados honestos: magenta SOLO cuando el avance es crítico;
       // la granularidad la da el número, no un tercer color inventado
-      var color = datos.salud >= 33 ? colores.acc : colores.danger;
+      var color = saludN >= 33 ? colores.acc : colores.danger;
       ctx.beginPath();
       ctx.strokeStyle = conAlfa(colores.linea, 0.7);
       ctx.lineWidth = 7;
@@ -107,7 +111,7 @@
       ctx.font = '700 46px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t1;
       ctx.textAlign = 'center';
-      ctx.fillText(datos.salud + '%', cx, cy + 15);
+      ctx.fillText(Math.round(saludN) + '%', cx, cy + 15);
       ctx.font = '10px "JetBrains Mono", monospace';
       ctx.fillStyle = colores.t3;
       ctx.fillText('AVANCE DEL CASO', cx, cy + R + 18);
@@ -119,7 +123,26 @@
       var w = layout.w, h = layout.h;
       ctx.clearRect(0, 0, w, h);
 
-      dibujarGauge();
+      // T3 · interpola bandas y gauge desde el estado previo (una sola vez)
+      var saludMostrada = datos.salud;
+      if (transicion) {
+        if (transicion.inicio == null) transicion.inicio = ts || 0;
+        var k = Math.min(1, ((ts || 0) - transicion.inicio) / DUR_TRANS);
+        k = 1 - Math.pow(1 - k, 3);              // easeOutCubic
+        layout.reacciones.forEach(function (rc) {
+          var a = transicion.rends0[rc.r.clave], b = transicion.rendsTo[rc.r.clave];
+          if (a != null && b != null) {
+            rc.rend = a + (b - a) * k;
+            rc.fugaRel = rc.r.potencial > 0 ? Math.max(0, 1 - rc.rend) : 0;
+          }
+        });
+        if (transicion.salud0 != null && transicion.saludTo != null) {
+          saludMostrada = transicion.salud0 + (transicion.saludTo - transicion.salud0) * k;
+        }
+        if (k >= 1) transicion = null;
+      }
+
+      dibujarGauge(saludMostrada);
 
       // reacciones (bandas pre/post + fuga)
       layout.reacciones.forEach(function (rc, idx) {
@@ -271,14 +294,17 @@
     }
 
     function animar() {
-      // el rAF solo corre si hay partículas que animar y la pestaña se ve
+      // el rAF corre si hay partículas que animar O una transición en curso,
+      // y la pestaña se ve; si no, un solo trazo estático
       var conFlux = layout && layout.reacciones.some(function (rc) { return rc.rend > 0; });
-      if (reduce || !conFlux) { dibujar(0); return; }
+      if (reduce || (!conFlux && !transicion)) { dibujar(0); return; }
       if (animando) return;
       animando = true;
       (function paso(ts) {
         if (document.hidden) { animando = false; return; }
         dibujar(ts);
+        var flux = layout && layout.reacciones.some(function (rc) { return rc.rend > 0; });
+        if (!flux && !transicion) { animando = false; return; }
         requestAnimationFrame(paso);
       })(0);
     }
@@ -326,6 +352,7 @@
       // el cache de entidades/verbos cambió (una relación nueva, un verbo nuevo)
       entidadesCache = null;
       sel = null;
+      resueltas += 1;
       recargarDatos(function () {
         if (detalle) detalle.innerHTML = '<div class="gr-kind">RESUELTO</div>' +
           '<p class="tr-ok">' + esc(mensaje) + '</p>';
@@ -586,17 +613,30 @@
     }
 
     function recargarDatos(despues) {
+      // estado previo, para animar la vía UNA vez hacia el nuevo (T3)
+      var rends0 = {}, salud0 = null;
+      if (layout && datos) {
+        layout.reacciones.forEach(function (rc) { rends0[rc.r.clave] = rc.rend; });
+        salud0 = datos.salud;
+      }
       fetch('/api/v1/autogenes/metabolismo')
         .then(function (r) { return r.json(); })
         .then(function (m) {
           if (!m || m.error) { if (info) info.textContent = (m && m.error) || 'SIN DATOS'; return; }
           datos = m;
           calcularLayout();
+          if (!reduce && Object.keys(rends0).length) {
+            var rendsTo = {};
+            layout.reacciones.forEach(function (rc) { rendsTo[rc.r.clave] = rc.rend; });
+            transicion = { rends0: rends0, rendsTo: rendsTo, salud0: salud0,
+                           saludTo: (m.salud == null ? salud0 : m.salud), inicio: null };
+          }
           pintarUrgencias();
           if (info) {
             info.textContent = 'AVANCE DEL CASO ' +
               (m.salud == null ? '—' : m.salud + '%') + ' · ' + m.total_fugas +
-              ' PENDIENTES · HOY ' + m.hoy;
+              ' PENDIENTES · HOY ' + m.hoy +
+              (resueltas ? ' · ' + resueltas + ' RESUELTAS EN ESTA VISITA' : '');
           }
           if (despues) { despues(); } else { pintarDetalle(); }
           animar();
