@@ -77,53 +77,75 @@ def get_latest_session_id():
 # CATALOGO DE VEHICULOS
 # ============================================================
 
+def _num_pct(v):
+    """Celda de Flete/Seguro → fracción (x/100). None si viene vacía o no
+    numérica: un '-', 'N/A' o '5%' NO debe tumbar el catálogo entero (antes
+    un float() sin guarda reventaba la fila y, sin commit, se perdía todo)."""
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    try:
+        return float(str(v).replace('%', '').replace(',', '').strip()) / 100
+    except (ValueError, TypeError):
+        return None
+
+
 def save_catalogo_vehiculos(session_id, df_divisiones):
     """Inserts the vehicle catalog from the Divisiones Excel into catalogo_vehiculos.
-    Also resolves marca_id from the marcas table.
-    Returns number of rows inserted."""
+    Also resolves marca_id from the marcas table. Returns number of rows inserted.
+
+    Cada fila se procesa de forma AISLADA: una celda sucia (número inválido,
+    tipo inesperado) salta esa fila y sigue — antes tumbaba el catálogo completo
+    en silencio y dejaba los importaciones.catalogo_id en NULL."""
     conn = get_connection()
 
     # Build marca name -> id lookup
     marcas_rows = conn.execute("SELECT id, nombre FROM marcas").fetchall()
     marca_lookup = {r['nombre'].upper(): r['id'] for r in marcas_rows}
 
-    count = 0
+    count, saltadas = 0, 0
     for _, row in df_divisiones.iterrows():
-        auto_code = str(row.get('CLAVES', '')).strip()
-        if not auto_code:
-            continue
+        try:
+            auto_code = str(row.get('CLAVES', '')).strip()
+            if not auto_code:
+                continue
 
-        marca_name = str(row.get('MARCA', '')).strip().upper()
-        marca_id = marca_lookup.get(marca_name)
+            marca_name = str(row.get('MARCA', '')).strip().upper()
+            marca_id = marca_lookup.get(marca_name)
 
-        pais_code = str(row.get('Pais', '')).strip() if pd.notna(row.get('Pais')) else None
+            pais_code = str(row.get('Pais', '')).strip() if pd.notna(row.get('Pais')) else None
 
-        fletes_val = row.get('Flete (Incrementables)')
-        fletes = float(fletes_val) / 100 if pd.notna(fletes_val) else None
+            fletes = _num_pct(row.get('Flete (Incrementables)'))
+            seguros = _num_pct(row.get('Seguro (Incrementables)'))
+            if seguros is None:
+                seguros = 0.0
 
-        seguros_val = row.get('Seguro (Incrementables)')
-        seguros = float(seguros_val) / 100 if pd.notna(seguros_val) else 0.0
+            # Ensure pais exists in catalog (insert if new). OR IGNORE conserva
+            # el nombre real ya sembrado cuando el código coincide.
+            if pais_code:
+                conn.execute(
+                    "INSERT OR IGNORE INTO paises (codigo, nombre) VALUES (?, ?)",
+                    (pais_code, pais_code)
+                )
 
-        # Ensure pais exists in catalog (insert if new)
-        if pais_code:
-            conn.execute(
-                "INSERT OR IGNORE INTO paises (codigo, nombre) VALUES (?, ?)",
-                (pais_code, pais_code)
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO catalogo_vehiculos
+                   (session_id, auto_code, tipo, fraccion, pais_code, fletes, seguros, marca_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (session_id, auto_code,
+                 str(row.get('Tipo', '')) if pd.notna(row.get('Tipo')) else None,
+                 str(row.get('FRACCIÓN', '')) if pd.notna(row.get('FRACCIÓN')) else None,
+                 pais_code, fletes, seguros, marca_id)
             )
-
-        conn.execute(
-            """INSERT OR IGNORE INTO catalogo_vehiculos
-               (session_id, auto_code, tipo, fraccion, pais_code, fletes, seguros, marca_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (session_id, auto_code,
-             str(row.get('Tipo', '')) if pd.notna(row.get('Tipo')) else None,
-             str(row.get('FRACCIÓN', '')) if pd.notna(row.get('FRACCIÓN')) else None,
-             pais_code, fletes, seguros, marca_id)
-        )
-        count += 1
+            if cur.rowcount:           # OR IGNORE: no contar duplicados descartados
+                count += 1
+        except Exception as e:
+            saltadas += 1
+            print(f"[catalogo] fila saltada (CLAVES={row.get('CLAVES')!r}): {e}")
 
     conn.commit()
     conn.close()
+    if saltadas:
+        print(f"[catalogo] {count} insertadas, {saltadas} filas saltadas por celdas inválidas")
     return count
 
 
