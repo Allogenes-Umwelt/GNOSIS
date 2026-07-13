@@ -398,6 +398,122 @@
       p.textContent = texto;
     }
 
+    function errorTriage(kind, msg) {
+      detalle.innerHTML = '<div class="gr-kind">' + esc(kind) + '</div>' +
+        '<p class="tr-aviso">' + esc(msg) + '</p>';
+      var fila = document.createElement('div'); fila.className = 'tr-acciones';
+      fila.appendChild(botonAccion('Cerrar', pintarDetalle));
+      detalle.appendChild(fila);
+    }
+
+    // Extraer una fuente fría: dispara la extracción citada y revisa la
+    // propuesta HITL aquí mismo (mismas reglas que la ingesta), integra vía
+    // Sustrato. Requiere proveedor LLM configurado.
+    function abrirExtraer(fria) {
+      detalle.innerHTML = '<div class="gr-kind">EXTRAER · ' + esc(fria.nombre.slice(0, 18)) +
+        '</div><p class="gr-vacio">Pidiendo extracción citada…</p>';
+      fetch('/api/v1/autogenes/extraer', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artefacto_id: fria.id })
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { errorTriage('EXTRAER', res.j.error || 'Extracción no disponible'); return; }
+          revisarExtraccion(fria, res.j);
+        }).catch(function () { errorTriage('EXTRAER', 'Sin conexión'); });
+    }
+
+    function revisarExtraccion(fria, prop) {
+      var head = '<div class="gr-kind">REVISA · ' + esc(fria.nombre.slice(0, 16)) +
+        ' · ' + (prop.quorum ? 'QUÓRUM' : 'un modelo') + '</div>';
+      if (!prop.entidades || !prop.entidades.length) {
+        detalle.innerHTML = head + '<p class="gr-vacio">El modelo no propuso entidades ' +
+          'citables.</p>';
+        var f0 = document.createElement('div'); f0.className = 'tr-acciones';
+        f0.appendChild(botonAccion('Cerrar', pintarDetalle));
+        detalle.appendChild(f0);
+        return;
+      }
+      detalle.innerHTML = head;
+      prop.entidades.slice(0, 14).forEach(function (e, i) {
+        var lab = document.createElement('label'); lab.className = 'gr-fila';
+        var marca = e.acuerdo === false ? ' ⚠' : e.acuerdo === true ? ' ✓✓' : '';
+        lab.innerHTML = '<span><input type="checkbox" data-ent="' + i + '"' +
+          (e.acuerdo === false ? '' : ' checked') + '> ' + esc(e.nombre.slice(0, 16)) +
+          '</span><b>' + esc(e.tipo) + ' · ' + e.evidencia.length + marca + '</b>';
+        detalle.appendChild(lab);
+      });
+      var fila = document.createElement('div'); fila.className = 'tr-acciones';
+      fila.appendChild(botonAccion('Integrar ▸', function () {
+        var ents = [], nombres = {};
+        detalle.querySelectorAll('input[data-ent]:checked').forEach(function (c) {
+          var e = prop.entidades[+c.dataset.ent]; ents.push(e);
+          nombres[e.nombre.toLowerCase()] = 1;
+        });
+        if (!ents.length) { avisoTriage('Marca al menos una entidad'); return; }
+        var rels = (prop.relaciones || []).filter(function (r) {
+          return nombres[r.desde.toLowerCase()] && nombres[r.hasta.toLowerCase()];
+        });
+        this.disabled = true;
+        fetch('/api/v1/autogenes/integrar', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ entidades: ents, relaciones: rels })
+        }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
+            refrescarTras(res.j.entidades + ' entidades integradas · ' + fria.nombre +
+              ' ya no está fría');
+          }).catch(function () { avisoTriage('Sin conexión'); });
+      }));
+      fila.appendChild(botonAccion('Cancelar', pintarDetalle));
+      detalle.appendChild(fila);
+    }
+
+    // Generar el informe ejecutivo citado del caso y dockearlo, sin salir del
+    // radar. Requiere proveedor LLM configurado.
+    function abrirSintetizar() {
+      detalle.innerHTML = '<div class="gr-kind">INFORME</div>' +
+        '<p class="gr-vacio">Redactando informe citado…</p>';
+      fetch('/api/v1/autogenes/sintetizar', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { errorTriage('INFORME', res.j.error || 'Síntesis no disponible'); return; }
+          revisarInforme(res.j);
+        }).catch(function () { errorTriage('INFORME', 'Sin conexión'); });
+    }
+
+    function revisarInforme(r) {
+      var inf = r.informe || {};
+      var nPuntos = (inf.secciones || []).reduce(
+        function (n, s) { return n + (s.puntos || []).length; }, 0);
+      var html = '<div class="gr-kind">INFORME · ' + nPuntos + ' puntos citados</div>' +
+        '<div class="gr-fila"><span>' + esc((inf.titulo || 'Informe').slice(0, 24)) +
+        '</span><b>' + (r.fuentes || 0) + ' fuentes</b></div>';
+      (inf.secciones || []).slice(0, 6).forEach(function (s) {
+        html += '<div class="gr-fila"><span>' + esc((s.encabezado || '').slice(0, 20)) +
+          '</span><b>' + (s.puntos || []).length + ' pts</b></div>';
+      });
+      detalle.innerHTML = html;
+      var fila = document.createElement('div'); fila.className = 'tr-acciones';
+      fila.appendChild(botonAccion('Dockear ▸', function () {
+        this.disabled = true;
+        fetch('/api/v1/autogenes/sintesis/dockear', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ informe: inf })
+        }).then(function (rr) { return rr.json().then(function (j) { return { ok: rr.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
+            refrescarTras('Informe dockeado · síntesis actualizada');
+          }).catch(function () { avisoTriage('Sin conexión'); });
+      }));
+      var ver = document.createElement('a');
+      ver.className = 'tr-accion'; ver.textContent = 'Ver completo';
+      ver.href = '/autogenes/sintesis'; ver.style.flex = '1'; ver.style.textAlign = 'center';
+      fila.appendChild(ver);
+      fila.appendChild(botonAccion('Cancelar', pintarDetalle));
+      detalle.appendChild(fila);
+    }
+
     function pintarDetalle() {
       if (!detalle) return;
       if (!sel) {
@@ -415,6 +531,8 @@
             '</span><b>' + esc(it.kind || it.tipo || '') + '</b>';
           if (r.clave === 'vinculacion' && it.id) {
             fila.appendChild(botonAccion('Vincular ▸', function () { abrirVincular(it); }));
+          } else if (r.clave === 'extraccion' && it.id) {
+            fila.appendChild(botonAccion('Extraer ▸', function () { abrirExtraer(it); }));
           }
           detalle.appendChild(fila);
         });
@@ -423,9 +541,16 @@
         vacio.textContent = r.fuga + ' elementos sin pasar a la etapa siguiente.';
         detalle.appendChild(vacio);
       }
-      // fallback: si la fuga tiene superficie propia (aún no inline), su enlace
+      // síntesis se resuelve a nivel de caso (un informe cubre varias entidades)
+      if (r.clave === 'sintesis') {
+        var fs = document.createElement('div'); fs.className = 'tr-acciones';
+        fs.appendChild(botonAccion('Generar informe ▸', abrirSintetizar));
+        detalle.appendChild(fs);
+      }
+      // fallback: fugas sin acción inline conservan el enlace a su superficie
       var ruta = rutaSegura(r.accion);
-      if (ruta && r.clave !== 'vinculacion') {
+      if (ruta && r.clave !== 'vinculacion' && r.clave !== 'extraccion'
+          && r.clave !== 'sintesis') {
         var a = document.createElement('a');
         a.className = 'ag-volver'; a.style.marginTop = '10px';
         a.href = ruta; a.textContent = 'Resolver en su página ▸';
