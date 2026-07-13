@@ -75,6 +75,11 @@ P4/P6 son las fases caras y van al final.
   operador como `Producto{investigacion}` por la puerta del Sustrato
   (procedencia/WORM), reabrible; migración del CHECK de `ag_productos`;
   excluidas de la proyección (son meta, no hallazgo). Verificado en vivo.
+- **P2** — selección múltiple: shift-clic + lazo rectangular, resalte de la
+  selección, resumen MEDIDO en la línea de estado (nodos, vehículos, valor
+  Σ sin doble conteo) y operaciones de grupo (aislar/limpiar) en la paleta.
+  Verificado en vivo. Pendiente de P2: el search-around tipado (expandir por
+  tipo de vecino) — refinamiento menor de la acción vecindario existente.
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -90,8 +95,9 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** P2 (search-around tipado + selección múltiple con lasso),
-luego P5 (diff visual de sesiones, sobre I4) y las fases caras P4/P6/P8.
+**Siguiente:** I3/I4 (benchmark de pares y deriva entre sesiones — cierran
+la Pista I y desbloquean P5/P8), luego el search-around tipado de P2 y las
+fases caras P4/P6.
 
 ---
 
