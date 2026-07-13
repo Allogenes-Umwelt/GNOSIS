@@ -148,6 +148,12 @@
     var analisisTit = document.getElementById('vn-analisis-tit');
 
     function pct(x) { return Math.round((x || 0) * 100) + '%'; }
+    function feature(k) {
+      if (k.indexOf('pais:') === 0) return 'origen ' + k.slice(5);
+      if (k.indexOf('aduana:') === 0) return 'aduana ' + k.slice(7);
+      if (k === 'pref:J') return 'preferencia J';
+      return k;
+    }
 
     function tarjeta(t) {
       return '<div class="vn-tar">' +
@@ -213,6 +219,35 @@
           sw: 'La aduana que más intermedia el flujo del caso.',
           nw: 'Auditar primero ' + b0.etiqueta + (otras ? '. Otras: ' + otras : '.'),
           fte: 'betweenness sobre la red país→aduana→marca'
+        }));
+      }
+      var sim = m.similitud_conductual;
+      if (sim && sim.length) {
+        var s0 = sim[0];
+        var otrasSim = sim.slice(1).map(function (s) {
+          return esc(s.marca) + ' (' + s.similitud + ')'; }).join(' · ');
+        cards.push(tarjeta({
+          tit: 'Se comporta como ' + m.nombre,
+          cifra: s0.marca, unidad: '',
+          bench: 'similitud ' + s0.similitud + (s0.comparten.length
+            ? ' · comparten ' + s0.comparten.map(feature).join(', ') : ''),
+          sw: 'La marca que más se comporta como ' + m.nombre + ' (origen, aduana, preferencia).',
+          nw: 'Comparar contra ' + s0.marca + (otrasSim ? '. Otras: ' + otrasSim : '.'),
+          fte: 'coseno sobre features de origen/aduana/preferencia medidos'
+        }));
+      }
+      var br = m.brecha_jn;
+      if (br && br.length) {
+        var g0 = br[0];
+        cards.push(tarjeta({
+          tit: 'Brecha de preferencia J/N',
+          cifra: pct(g0.brecha), unidad: 'menos que sus pares',
+          bench: g0.pais + '×' + g0.aduana + ': ' + m.nombre + ' ' + pct(g0.share_foco) +
+            ' J vs pares ' + pct(g0.share_pares) + ' J',
+          sw: m.nombre + ' usa la preferencia arancelaria menos que marcas pares en esta ruta.',
+          nw: 'Revisar por qué ' + m.nombre + ' no usa J en ' + g0.aduana +
+            ' (' + g0.unidades_foco + ' unidades).',
+          fte: 'share medido en unidades sobre rutas idénticas · sin montos'
         }));
       }
       return cards.join('');

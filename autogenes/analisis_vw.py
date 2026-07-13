@@ -18,6 +18,7 @@ LEYES de este módulo (como el resto del sustrato):
 - No es procedencia: es una vista estructural sobre datos citables, no
   evidencia primaria. Las cifras se derivan; no sustituyen a los motores.
 """
+import math
 import sqlite3
 from typing import Any, Optional
 
@@ -31,11 +32,14 @@ ORIGEN = "__origen__"   # super-fuente para el corte país→marca (no es un nod
 
 
 def _filas_flujo(conn: sqlite3.Connection, session_id: int) -> list[dict]:
-    """Materia prima MEDIDA: por (país, aduana, marca), unidades y valor Σ.
-    Una fila = un triple con su volumen real. Orden estable (determinista)."""
+    """Materia prima MEDIDA: por (país, aduana, marca), unidades, valor Σ y el
+    split de preferencia arancelaria J/N. Una fila = un triple con su volumen
+    real. Orden estable (determinista)."""
     filas = conn.execute(
         """SELECT i.pais_code AS pais, p.aduana AS aduana, m.nombre AS marca,
-                  COUNT(*) AS unidades, COALESCE(SUM(i.precio), 0) AS valor
+                  COUNT(*) AS unidades, COALESCE(SUM(i.precio), 0) AS valor,
+                  SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'J' THEN 1 ELSE 0 END) AS j,
+                  SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'N' THEN 1 ELSE 0 END) AS n
              FROM importaciones i
              JOIN pedimentos p ON i.pedimento_id = p.id
              JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
@@ -48,7 +52,8 @@ def _filas_flujo(conn: sqlite3.Connection, session_id: int) -> list[dict]:
         (session_id,),
     ).fetchall()
     return [{"pais": r["pais"], "aduana": r["aduana"], "marca": r["marca"],
-             "unidades": r["unidades"], "valor": r["valor"]} for r in filas]
+             "unidades": r["unidades"], "valor": r["valor"],
+             "j": r["j"], "n": r["n"]} for r in filas]
 
 
 def _pais_id(c: str) -> str: return f"pais:{c}"
@@ -116,6 +121,86 @@ def hhi(pesos: list[float]) -> dict[str, Any]:
              else "moderada (convención 0.15–0.25)" if h >= 0.15
              else "baja (convención <0.15)")
     return {"hhi": round(h, 4), "banda": banda, "n": len(pesos)}
+
+
+def _vector_marca(filas: list[dict], marca: str) -> tuple[dict[str, float], int]:
+    """Feature-vector conductual de una marca: share de unidades por origen,
+    por aduana, y share de preferencia J. Normalizado a proporciones (para que
+    marcas de distinto volumen sean comparables)."""
+    fm = [f for f in filas if f["marca"] == marca]
+    total = sum(f["unidades"] for f in fm)
+    if total == 0:
+        return {}, 0
+    vec: dict[str, float] = {}
+    j_total = 0
+    for f in fm:
+        vec[f"pais:{f['pais']}"] = vec.get(f"pais:{f['pais']}", 0.0) + f["unidades"]
+        vec[f"aduana:{f['aduana']}"] = vec.get(f"aduana:{f['aduana']}", 0.0) + f["unidades"]
+        j_total += f["j"]
+    v = {k: u / total for k, u in vec.items()}
+    v["pref:J"] = j_total / total
+    return v, total
+
+
+def _coseno(a: dict[str, float], b: dict[str, float]) -> float:
+    dot = sum(a.get(k, 0.0) * b.get(k, 0.0) for k in set(a) | set(b))
+    na = math.sqrt(sum(x * x for x in a.values()))
+    nb = math.sqrt(sum(x * x for x in b.values()))
+    return dot / (na * nb) if na > 0 and nb > 0 else 0.0
+
+
+def similitud_conductual(filas: list[dict], marca_foco: str,
+                         top: int = 3, minimo: int = 3) -> list[dict]:
+    """Qué marcas se comportan como la foco: distancia coseno entre sus
+    feature-vectors conductuales, con el porqué (features compartidos). No usa
+    la red; es aritmética sobre proporciones medidas. Marcas por debajo de
+    `minimo` unidades se declaran muestra insuficiente y se omiten del ranking."""
+    vfoco, nfoco = _vector_marca(filas, marca_foco)
+    if not vfoco:
+        return []
+    out = []
+    for m in sorted({f["marca"] for f in filas if f["marca"] != marca_foco}):
+        vm, nm = _vector_marca(filas, m)
+        if not vm or nm < minimo:
+            continue
+        comp = sorted(((k, min(vfoco.get(k, 0.0), vm.get(k, 0.0)))
+                       for k in set(vfoco) & set(vm)), key=lambda kv: -kv[1])
+        out.append({"marca": m, "similitud": round(_coseno(vfoco, vm), 4), "n": nm,
+                    "comparten": [k for k, v in comp if v > 0.1][:2]})
+    out.sort(key=lambda o: (-o["similitud"], -o["n"], o["marca"]))
+    return out[:top]
+
+
+def brecha_jn(filas: list[dict], marca_foco: str, umbral: float = 0.05) -> list[dict]:
+    """¿La marca foco usa la preferencia arancelaria J MENOS que sus pares en
+    rutas país-aduana idénticas? Comparación MEDIDA en share/unidades, jamás en
+    pesos (no hay tasas arancelarias como dato). Solo rutas donde los pares
+    usan J por encima del umbral más que la foco (la oportunidad medible)."""
+    rutas: dict[tuple, dict] = {}
+    for f in filas:
+        if f["marca"] == marca_foco:
+            d = rutas.setdefault((f["pais"], f["aduana"]), {"j": 0, "total": 0})
+            d["j"] += f["j"]
+            d["total"] += f["unidades"]
+    out = []
+    for (pais, aduana), df in sorted(rutas.items()):
+        pj, pt = 0, 0
+        for f in filas:
+            if f["marca"] != marca_foco and f["pais"] == pais and f["aduana"] == aduana:
+                pj += f["j"]
+                pt += f["unidades"]
+        if pt == 0 or df["total"] == 0:
+            continue
+        share_foco = df["j"] / df["total"]
+        share_pares = pj / pt
+        if share_pares - share_foco > umbral:
+            out.append({"pais": pais, "aduana": aduana,
+                        "share_foco": round(share_foco, 4),
+                        "share_pares": round(share_pares, 4),
+                        "unidades_foco": df["total"],
+                        "brecha": round(share_pares - share_foco, 4)})
+    out.sort(key=lambda b: (-b["brecha"], b["pais"], b["aduana"]))
+    return out
 
 
 def _elegir_marca(filas: list[dict], marca: Optional[str]) -> Optional[str]:
@@ -206,6 +291,8 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             "hhi_origenes": hhi(list(por_pais.values())),
             "hhi_aduanas": hhi(list(por_aduana.values())),
             "redundancia_rutas": int(redun["valor"]),
+            "similitud_conductual": similitud_conductual(filas, foco),
+            "brecha_jn": brecha_jn(filas, foco),
             "corte_critico": {
                 "n_rutas": len(corte["corte"]),
                 "volumen": vol_corte,

@@ -29,14 +29,16 @@ def conn() -> sqlite3.Connection:
               (sid, 'P1', 'Veracruz', sid, 'P2', 'Manzanillo', sid, 'P3', 'Nuevo Laredo'))
     pv, pm, pn = [r["id"] for r in c.execute("SELECT id FROM pedimentos ORDER BY id")]
     # VW: DEU×Veracruz=5, DEU×Manzanillo=3, USA×NuevoLaredo=2 (vol 10);
-    # AUDI: DEU×Veracruz=4 (comparte Veracruz con VW → la vuelve broker)
-    plan = [(pv, cvw, 'DEU', 5), (pm, cvw, 'DEU', 3), (pn, cvw, 'USA', 2), (pv, caudi, 'DEU', 4)]
+    # AUDI: DEU×Veracruz=4 (comparte Veracruz con VW → la vuelve broker).
+    # VW usa preferencia N; AUDI usa J en la misma ruta DEU×Veracruz → brecha.
+    plan = [(pv, cvw, 'DEU', 5, 'N'), (pm, cvw, 'DEU', 3, 'N'),
+            (pn, cvw, 'USA', 2, 'J'), (pv, caudi, 'DEU', 4, 'J')]
     vin = 1
-    for ped, cat, pais, n in plan:
+    for ped, cat, pais, n, jn in plan:
         for _ in range(n):
             c.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
-                      " chasis, pais_code, precio, auto_code) VALUES (?,?,?,?,?,?,?)",
-                      (sid, ped, cat, f'VIN{vin:05d}', pais, 100000, 'X'))
+                      " chasis, pais_code, precio, auto_code, j_y_n) VALUES (?,?,?,?,?,?,?,?)",
+                      (sid, ped, cat, f'VIN{vin:05d}', pais, 100000, 'X', jn))
             vin += 1
     c.commit()
     return c
@@ -107,6 +109,36 @@ def test_marca_explicita_gana_al_defecto(conn):
     assert a["marca"]["nombre"] == "AUDI"
     assert a["marca"]["es_defecto"] is False
     assert a["marca"]["volumen"] == 4
+
+
+def test_similitud_conductual_rankea_audi_como_pariente_de_vw(conn):
+    # AUDI comparte origen DEU y aduana Veracruz con VW: la más parecida
+    a = analisis_vw.analisis(conn, 1)
+    sim = a["marca"]["similitud_conductual"]
+    assert sim, "debe haber marcas comparables"
+    assert sim[0]["marca"] == "AUDI"
+    assert 0 < sim[0]["similitud"] <= 1.0
+    assert any("DEU" in c or "Veracruz" in c for c in sim[0]["comparten"])
+
+
+def test_similitud_es_determinista_y_omite_muestra_chica(conn):
+    a1 = analisis_vw.similitud_conductual(analisis_vw._filas_flujo(conn, 1), "VOLKSWAGEN")
+    a2 = analisis_vw.similitud_conductual(analisis_vw._filas_flujo(conn, 1), "VOLKSWAGEN")
+    assert a1 == a2
+    # SEAT/PORSCHE no existen en esta sesión -> no aparecen; AUDI (4) sí
+    assert all(s["n"] >= 3 for s in a1)
+
+
+def test_brecha_jn_detecta_que_vw_usa_menos_la_preferencia(conn):
+    # ruta DEU×Veracruz: VW=0% J, AUDI=100% J -> brecha a favor de los pares
+    a = analisis_vw.analisis(conn, 1)
+    br = a["marca"]["brecha_jn"]
+    assert br, "debe detectar la brecha en DEU×Veracruz"
+    top = br[0]
+    assert top["pais"] == "DEU" and top["aduana"] == "Veracruz"
+    assert top["share_foco"] == 0.0
+    assert top["share_pares"] == 1.0
+    assert top["brecha"] == 1.0
 
 
 def test_analisis_es_determinista(conn):
