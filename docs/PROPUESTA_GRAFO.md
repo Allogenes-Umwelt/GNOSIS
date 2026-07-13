@@ -78,8 +78,16 @@ P4/P6 son las fases caras y van al final.
 - **P2** — selección múltiple: shift-clic + lazo rectangular, resalte de la
   selección, resumen MEDIDO en la línea de estado (nodos, vehículos, valor
   Σ sin doble conteo) y operaciones de grupo (aislar/limpiar) en la paleta.
-  Verificado en vivo. Pendiente de P2: el search-around tipado (expandir por
-  tipo de vecino) — refinamiento menor de la acción vecindario existente.
+  Verificado en vivo. Incluye el search-around tipado (aislar vecinos por
+  kind desde la paleta).
+- **I3** — benchmark de pares: similitud conductual marca~VW (coseno sobre
+  features de origen/aduana/preferencia) + brecha de preferencia J/N vs pares
+  en rutas idénticas (en unidades, sin montos). Verificado en vivo.
+- **I4** — deriva entre sesiones + rutas esperadas-pero-ausentes (vs pares y
+  vs sesión previa). Cierra la Pista I. Verificado en vivo.
+- **P5** — diff de sesiones: selector de referencia + tarjeta de deriva en el
+  panel VW (no en el lienzo — las rutas de flujo no mapean a la procedencia,
+  como el selector de lente). Verificado con una BD de dos sesiones.
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -95,9 +103,9 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** I3/I4 (benchmark de pares y deriva entre sesiones — cierran
-la Pista I y desbloquean P5/P8), luego el search-around tipado de P2 y las
-fases caras P4/P6.
+**Siguiente:** L3 (culling + persistencia de posiciones) y el pulido §7
+(halos, alfa por peso, rampa E2), luego las fases caras P4 (facetas +
+histograma), P6 (mapa esquemático) y P8 (vigilancia, sobre P1+I4).
 
 ---
 
