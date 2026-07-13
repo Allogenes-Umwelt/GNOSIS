@@ -1839,6 +1839,46 @@
         })
         .catch(function () { if (estadoLinea) estadoLinea.textContent = 'ERROR AL GUARDAR'; });
     }
+    // Export de exhibit (E8): PNG del encuadre actual con pie de fuente — el
+    // puente del grafo al deck/memo. Se invoca desde la paleta.
+    function exportarExhibit() {
+      var pie = Math.round(46 * dpr);
+      var out = document.createElement('canvas');
+      out.width = canvas.width;
+      out.height = canvas.height + pie;
+      var o = out.getContext('2d');
+      o.fillStyle = colores.bg || '#050505';
+      o.fillRect(0, 0, out.width, out.height);
+      o.drawImage(canvas, 0, 0);
+      o.strokeStyle = colores.acc; o.globalAlpha = 0.5;
+      o.beginPath(); o.moveTo(0, canvas.height); o.lineTo(out.width, canvas.height); o.stroke();
+      o.globalAlpha = 1;
+      o.fillStyle = colores.t3;
+      o.font = Math.round(11 * dpr) + 'px "JetBrains Mono", monospace';
+      o.textAlign = 'left';
+      o.fillText('GNOSIS · Grafo del Caso · sesión ' + (sesionId || '—') + ' · ' +
+        nodos.length + ' nodos · ' + enlaces.length + ' enlaces',
+        12 * dpr, canvas.height + 20 * dpr);
+      o.fillText('Fuente: proyección determinista del sustrato AUTOGENES · ' +
+        new Date().toISOString().slice(0, 10), 12 * dpr, canvas.height + 36 * dpr);
+      out.toBlob(function (blob) {
+        if (!blob) return;
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'gnosis-grafo-sesion-' + (sesionId || 'x') + '.png';
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        if (estadoLinea) estadoLinea.textContent = 'EXHIBIT EXPORTADO';
+      });
+    }
+    function copiarEnlaceVista() {
+      guardarEstado();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(location.href).then(function () {
+          if (estadoLinea) estadoLinea.textContent = 'ENLACE DE LA VISTA COPIADO';
+        }).catch(function () { /* clipboard bloqueado: sin efecto */ });
+      }
+    }
     if (invBtn) invBtn.addEventListener('click', guardarInvestigacion);
     if (invLista) invLista.addEventListener('change', function () {
       if (invLista.value) aplicarEstadoTexto(invLista.value);
@@ -1908,6 +1948,8 @@
       }
       cmds.push({ et: 'Guardar investigación', hint: 'P1',
         run: function () { guardarInvestigacion(); } });
+      cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'export', run: exportarExhibit });
+      cmds.push({ et: 'Copiar enlace de esta vista', hint: 'export', run: copiarEnlaceVista });
       var nSel = Object.keys(multiSel).length;
       if (nSel) {
         cmds.push({ et: 'Aislar la selección (' + nSel + ')', hint: 'grupo',
