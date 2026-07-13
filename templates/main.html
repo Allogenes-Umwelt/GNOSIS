@@ -1493,17 +1493,26 @@ function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[
   const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-46, 330), rin=R-10, seg=[]; let tot=0;   // radio capado: en ventanas grandes el círculo no crece hasta invadir
   paises.forEach(p=>{const val=marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:p,type:'p',val}); tot+=val;});
   marcas.forEach(m=>{const val=paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:m,type:'m',val}); tot+=val;});
-  if(tot<=0){ gnd(s); return; } const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={}; x.textBaseline='middle';
+  if(tot<=0){ gnd(s); return; } const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={}; x.textBaseline='middle'; const drawnLbls=[];
   seg.forEach(g=>{ const span=g.val*scale; g.a0=a; g.a1=a+span; pos[g.name]={cur:a}; const col=g.type==='m'?mCol[g.name]:'#6699CC'; const _on=chSel.size===0||chSel.has(g.type+'|'+g.name);
     x.globalAlpha=_on?1:.26; x.strokeStyle=col; x.lineWidth=_on?6:5; x.beginPath(); x.arc(cx,cy,R,g.a0,g.a1); x.stroke(); x.globalAlpha=1;
     el._hits.push({shape:'arc',cx:cx,cy:cy,r0:R-7,r1:R+7,a0:g.a0,a1:g.a1,key:g.type+'|'+g.name,color:col,hl:col,tip:[(g.name||'').toUpperCase()+(g.type==='m'?' · MARCA':' · ORIGEN'),(gnosisMeasure==='valor'?'Valor: ':'Registros: ')+(typeof fMeasure==='function'?fMeasure(g.val):Math.round(g.val).toLocaleString()), (chSel.size? (chSel.has(g.type+'|'+g.name)?'✓ aislado · clic para quitar':'clic para aislar') : 'clic para aislar sus cintas')]});
-    const mid=(g.a0+g.a1)/2, lr=R+14+(g.val<tot*0.045?13:0), lx=cx+Math.cos(mid)*lr, ly=cy+Math.sin(mid)*lr;
+    // Etiqueta con anti-colisión: arcos chicos adyacentes (Porsche/Bentley/
+    // Audi arriba) encimaban sus letras; se empuja el radio hacia afuera
+    // hasta que no choque con una ya dibujada (determinista, orden fijo).
+    const mid=(g.a0+g.a1)/2; let lr=R+14, lx, ly, t=0;
+    do { lx=cx+Math.cos(mid)*lr; ly=cy+Math.sin(mid)*lr; t++;
+      if(!drawnLbls.some(d=>Math.abs(d.x-lx)<58 && Math.abs(d.y-ly)<12)) break;
+      lr+=13; } while(t<4);
+    drawnLbls.push({x:lx,y:ly});
     x.globalAlpha=_on?1:.4; x.font='10px "JetBrains Mono",monospace'; x.fillStyle=g.type==='m'?col:'rgba('+GTXT+',0.95)'; x.textAlign=Math.cos(mid)<0?'end':'start'; x.fillText((g.name||'').slice(0,12),lx,ly); x.globalAlpha=1; a=g.a1+gap; });
   const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
   if(GNT.chRibbons) paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
     if(chSel.size && !(chSel.has('p|'+p)||chSel.has('m|'+m))) return;   // aislar: solo cintas de los arcos seleccionados
     const [x1,y1]=P(pa,rin),[x2,y2]=P(pa+span,rin),[x3,y3]=P(ma,rin),[x4,y4]=P(ma+span,rin);
-    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x4,y4); x.lineTo(x3,y3); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
+    // rieles PARALELOS (país→marca por ambos bordes): antes cruzaba
+    // pa→ma+span y ma→pa+span, lo que retorcía la cinta en forma de moño.
+    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x3,y3); x.lineTo(x4,y4); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
   x.textAlign='left'; x.textBaseline='alphabetic';
   if(W>360){ x.textAlign='center'; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.5)';
     x.fillText(chSel.size? (chSel.size+' AISLADO'+(chSel.size!=1?'S':'')+' · CLIC EN VACÍO = LIMPIAR') : 'CLIC EN UN ARCO PARA AISLAR SUS CINTAS', cx, H-6); x.textAlign='left'; }
