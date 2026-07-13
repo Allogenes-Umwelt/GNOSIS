@@ -413,6 +413,13 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   border: 1px solid var(--line-2); cursor: pointer; touch-action: none;
   background: color-mix(in srgb, var(--bg) 80%, transparent); }
 
+/* Histograma de facetas (P4): distribución de precios con brush → resalta el
+   rango en el lienzo (linked view). Anclado abajo-izquierda. */
+.gr-histo { position: absolute; left: 10px; bottom: 10px; z-index: 5; cursor: crosshair;
+  touch-action: none; border: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--bg) 85%, transparent); }
+.gr-histo[hidden] { display: none; }
+
 /* Modo tabla (A3): la vista accesible del grafo de datos — cubre el lienzo,
    teclado y lector de pantalla nativos, columnas ordenables. */
 .gr-tabla { position: absolute; inset: 0; z-index: 6; overflow: auto; background: var(--bg); padding: 4px; }

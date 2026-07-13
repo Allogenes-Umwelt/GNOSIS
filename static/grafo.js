@@ -925,6 +925,7 @@
 
       dibujarGuias();   // líneas guía + reposición de las tarjetas callout
       dibujarMini();    // panorámica L1
+      dibujarHisto();   // histograma de facetas P4
     }
 
     // ── gestos ───────────────────────────────────────────────────────
@@ -1186,6 +1187,98 @@
       vistaManual = true;
       vista.x = -mx * vista.k;
       vista.y = -my * vista.k;
+      if (!animando) dibujar(0);
+    });
+
+    // ── Histograma de facetas (P4): distribución de precios de vehículos con
+    // brush → resalta los del rango (linked view). El histograma refleja la
+    // selección múltiple (bidireccional). Toggle desde la paleta. ──────────
+    var HB = 190, HBH = 96, N_BINS = 14;
+    var histoVisible = false, histoBrush = null;   // [x0px, x1px] mientras se arrastra
+    var histoCanvas = document.createElement('canvas');
+    histoCanvas.className = 'gr-histo';
+    histoCanvas.hidden = true;
+    histoCanvas.setAttribute('aria-hidden', 'true');
+    cont.appendChild(histoCanvas);
+    var hctx = histoCanvas.getContext('2d');
+    var histoBins = null;   // {min, max, bins:[{n, ids:[]}], pad}
+
+    function calcularBins() {
+      var precios = [];
+      nodosRaw.forEach(function (n) {
+        if (n.kind === 'vehiculo' && n.extra && +n.extra.precio > 0) precios.push(n);
+      });
+      if (precios.length < 2) { histoBins = null; return; }
+      var vals = precios.map(function (n) { return +n.extra.precio; });
+      var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+      if (max <= min) { histoBins = null; return; }
+      var bins = [];
+      for (var i = 0; i < N_BINS; i++) bins.push({ n: 0, ids: [] });
+      precios.forEach(function (n) {
+        var idx = Math.min(N_BINS - 1, Math.floor((+n.extra.precio - min) / (max - min) * N_BINS));
+        bins[idx].n++; bins[idx].ids.push(n.id);
+      });
+      histoBins = { min: min, max: max, bins: bins, pad: 8, maxN: Math.max.apply(null, bins.map(function (b) { return b.n; })) };
+    }
+    function dibujarHisto() {
+      if (!histoVisible || !hctx) return;
+      calcularBins();
+      var dprm = window.devicePixelRatio || 1;
+      if (histoCanvas.width !== Math.round(HB * dprm)) {
+        histoCanvas.width = Math.round(HB * dprm); histoCanvas.height = Math.round(HBH * dprm);
+        histoCanvas.style.width = HB + 'px'; histoCanvas.style.height = HBH + 'px';
+      }
+      hctx.setTransform(dprm, 0, 0, dprm, 0, 0);
+      hctx.clearRect(0, 0, HB, HBH);
+      hctx.fillStyle = colores.t3;
+      hctx.font = '8px "JetBrains Mono", monospace'; hctx.textAlign = 'left';
+      if (!histoBins) { hctx.fillText('sin precios para histograma', 8, HBH / 2); return; }
+      hctx.fillText('PRECIO · ' + histoBins.bins.reduce(function (a, b) { return a + b.n; }, 0) + ' VEHÍCULOS', 8, 12);
+      var pad = histoBins.pad, gW = HB - pad * 2, gH = HBH - 28, bw = gW / N_BINS;
+      histoBins.bins.forEach(function (b, i) {
+        var bh = histoBins.maxN ? (b.n / histoBins.maxN) * gH : 0;
+        var x = pad + i * bw, y = HBH - 10 - bh;
+        // ¿algún vehículo de este bin está en la multi-selección? (bidireccional)
+        var enSel = b.ids.some(function (id) { return multiSel[id]; });
+        hctx.fillStyle = enSel ? colores.acc : conAlfa(colores.acc, 0.32);
+        hctx.fillRect(x, y, Math.max(1, bw - 1), bh);
+      });
+      if (histoBrush) {
+        var x0 = Math.min(histoBrush[0], histoBrush[1]), x1 = Math.max(histoBrush[0], histoBrush[1]);
+        hctx.strokeStyle = colores.acc; hctx.globalAlpha = 0.9; hctx.setLineDash([3, 3]);
+        hctx.strokeRect(x0, HBH - 10 - gH, x1 - x0, gH); hctx.setLineDash([]); hctx.globalAlpha = 1;
+      }
+    }
+    function brushAPrecio(px) {
+      if (!histoBins) return histoBins;
+      var pad = histoBins.pad, gW = HB - pad * 2;
+      var frac = Math.max(0, Math.min(1, (px - pad) / gW));
+      return histoBins.min + frac * (histoBins.max - histoBins.min);
+    }
+    var hArr = false;
+    histoCanvas.addEventListener('pointerdown', function (ev) {
+      if (!histoBins) return;
+      ev.preventDefault(); histoCanvas.setPointerCapture(ev.pointerId);
+      var x = ev.clientX - histoCanvas.getBoundingClientRect().left;
+      histoBrush = [x, x]; hArr = true; dibujarHisto();
+    });
+    histoCanvas.addEventListener('pointermove', function (ev) {
+      if (!hArr || !histoBrush) return;
+      histoBrush[1] = ev.clientX - histoCanvas.getBoundingClientRect().left;
+      dibujarHisto();
+    });
+    histoCanvas.addEventListener('pointerup', function () {
+      if (!hArr || !histoBrush || !histoBins) { hArr = false; return; }
+      hArr = false;
+      var p0 = brushAPrecio(Math.min(histoBrush[0], histoBrush[1]));
+      var p1 = brushAPrecio(Math.max(histoBrush[0], histoBrush[1]));
+      multiSel = {};
+      nodosRaw.forEach(function (n) {
+        if (n.kind === 'vehiculo' && n.extra && +n.extra.precio >= p0 && +n.extra.precio <= p1) {
+          if (porId[n.id]) multiSel[n.id] = true;   // solo los visibles se resaltan
+        }
+      });
+      resumenMultiSel();
       if (!animando) dibujar(0);
     });
 
@@ -1950,6 +2043,11 @@
         run: function () { guardarInvestigacion(); } });
       cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'export', run: exportarExhibit });
       cmds.push({ et: 'Copiar enlace de esta vista', hint: 'export', run: copiarEnlaceVista });
+      cmds.push({ et: (histoVisible ? 'Ocultar' : 'Mostrar') + ' histograma de precios', hint: 'facetas',
+        run: function () {
+          histoVisible = !histoVisible; histoCanvas.hidden = !histoVisible;
+          if (histoVisible) dibujarHisto();
+        } });
       var nSel = Object.keys(multiSel).length;
       if (nSel) {
         cmds.push({ et: 'Aislar la selección (' + nSel + ')', hint: 'grupo',
