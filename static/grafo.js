@@ -1869,6 +1869,27 @@
         cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
+      // search-around tipado (P2): aísla los vecinos de un kind del nodo activo
+      if (sel && vecinos[sel.id]) {
+        var kindsVec = {};
+        Object.keys(vecinos[sel.id]).forEach(function (id) {
+          var v = porId[id]; if (v && v.kind !== 'fragmento') kindsVec[v.kind] = true;
+        });
+        Object.keys(kindsVec).sort().forEach(function (kk) {
+          cmds.push({ et: 'Vecinos ' + kk + ' de ' + sel.etiqueta, hint: 'search-around',
+            run: (function (k, n) { return function () {
+              var rn = {}, re = {}; rn[n.id] = true;
+              Object.keys(vecinos[n.id] || {}).forEach(function (id) {
+                var v = porId[id]; if (v && v.kind === k) rn[id] = true;
+              });
+              enlaces.forEach(function (e) {
+                if ((e.source === n.id && rn[e.target]) || (e.target === n.id && rn[e.source])) re[e.id] = true;
+              });
+              resalte = { nodos: rn, enlaces: re };
+              if (!animando) dibujar(0);
+            }; })(kk, sel) });
+        });
+      }
       cmds.push({ et: 'Guardar investigación', hint: 'P1',
         run: function () { guardarInvestigacion(); } });
       var nSel = Object.keys(multiSel).length;
