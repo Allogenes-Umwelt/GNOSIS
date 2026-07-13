@@ -113,7 +113,8 @@
       if (n.kind === 'pais') return colores.cobalt;
       if (n.kind === 'artefacto' || n.kind === 'entidad') return colores.acc;
       if (n.kind === 'vehiculo' || n.kind === 'fragmento') return colores.linea2;
-      return colores.t1;   // nucleo, pedimento, marca, producto (Frame)
+      if (n.kind === 'pedimento') return colores.acc;   // dardo Anubis (mock v2)
+      return colores.t1;   // nucleo, marca, producto (Frame)
     }
     // color del núcleo incandescente: cian salvo país (cobalt) y Δ (severidad)
     function nucleoDe(n) {
@@ -123,13 +124,142 @@
       if (n.kind === 'pais') return colores.cobalt;
       return colores.acc;
     }
+    // ── hojas fin-funnel (GRAFO II · mock v2 aprobado: α-1 corona + P-2 dardo) ──
+    // Silueta cuchillo 1:8 con muesca de filo (ν Gundam) y variante asimétrica
+    // con hombro escalonado doble (Anubis). x = fracción del semiancho,
+    // y = fracción del largo (−0.5 punta … +0.5 cola); se espeja en x.
+    var DARDO_PTS = [[0, -0.50], [0.40, -0.26], [0.40, -0.16], [1.0, 0.00],
+                     [0.80, 0.08], [1.0, 0.12], [0.78, 0.36], [0.92, 0.50],
+                     [0.32, 0.40], [0, 0.46]];
+    var DARDO_SK = 0.14;   // cizalla del barrido asimétrico
+    // agrega el path de la hoja al path actual, en coords ya trasladadas/rotadas
+    function trazarHoja(L, sk) {
+      var w = L * 0.065;   // semiancho (hoja 1:8)
+      function P(px, py) { return [px * w + py * L * sk, py * L]; }
+      var q = P(DARDO_PTS[0][0], DARDO_PTS[0][1]);
+      ctx.moveTo(q[0], q[1]);
+      for (var i = 1; i < DARDO_PTS.length; i++) {
+        q = P(DARDO_PTS[i][0], DARDO_PTS[i][1]); ctx.lineTo(q[0], q[1]);
+      }
+      for (var j = DARDO_PTS.length - 2; j >= 1; j--) {
+        q = P(-DARDO_PTS[j][0], DARDO_PTS[j][1]); ctx.lineTo(q[0], q[1]);
+      }
+      ctx.closePath();
+    }
+    // orientación del dardo: la punta apunta ALEJÁNDOSE de su ancla (el
+    // nucleo o el vecino más pesado) — el funnel vuela hacia afuera del mando
+    function anguloDardo(n) {
+      var ids = Object.keys(vecinos[n.id] || {}), ancla = null, mejor = -1;
+      for (var i = 0; i < ids.length; i++) {
+        var v = porId[ids[i]]; if (!v) continue;
+        var peso = v.kind === 'nucleo' ? 1e6 : radioDe(v);
+        if (peso > mejor) { mejor = peso; ancla = v; }
+      }
+      if (!ancla) return 0;
+      return Math.atan2(n.y - ancla.y, n.x - ancla.x) + Math.PI / 2;
+    }
+    function largoDardo(r) { return r * 3.1; }
+    // pedimento = dardo Anubis orientado, con ranura incandescente; el
+    // detalle mecha (doble trazo, panel lines, verniers) solo con zoom (LOD)
+    function dibujarDardo(n, r, col, esFoco, detalle) {
+      var L = largoDardo(r), ang = anguloDardo(n);
+      ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(ang);
+      ctx.beginPath(); trazarHoja(L, DARDO_SK);
+      ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+      ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = esFoco ? 2.0 : Math.max(1, L * 0.014);
+      ctx.stroke();
+      if (detalle) {
+        ctx.save(); ctx.beginPath(); trazarHoja(L, DARDO_SK); ctx.clip();
+        ctx.beginPath(); trazarHoja(L * 0.90, DARDO_SK);      // doble trazo
+        ctx.strokeStyle = conAlfa(col, 0.4); ctx.lineWidth = 0.7; ctx.stroke();
+        ctx.strokeStyle = conAlfa(col, 0.30); ctx.lineWidth = 0.6;   // panel lines
+        var cortes = [[-0.13, 0.55], [0.10, 0.8], [0.24, 0.7]];
+        for (var c = 0; c < cortes.length; c++) {
+          var yy = cortes[c][0] * L, half = L * 0.065 * cortes[c][1];
+          ctx.beginPath(); ctx.moveTo(-half + DARDO_SK * yy, yy);
+          ctx.lineTo(half * 0.2 + DARDO_SK * yy, yy + L * 0.03);
+          ctx.lineTo(half + DARDO_SK * yy, yy); ctx.stroke();
+        }
+        ctx.fillStyle = conAlfa(col, 0.75);                   // verniers gemelos
+        var vs = [[-0.22, 0.40], [0.22, 0.40]];
+        for (var k = 0; k < vs.length; k++) {
+          var vx = vs[k][0] * L * 0.065 + DARDO_SK * vs[k][1] * L, vy = vs[k][1] * L;
+          ctx.fillRect(vx - L * 0.007, vy, L * 0.014, L * 0.05);
+        }
+        ctx.restore();
+      }
+      // ranura incandescente — la ÚNICA fuente de glow del dardo
+      var g = ctx.createLinearGradient(0, -L * 0.30, 0, L * 0.16);
+      g.addColorStop(0, conAlfa(colores.acc, 0));
+      g.addColorStop(0.45, conAlfa(colores.acc, 0.95));
+      g.addColorStop(1, conAlfa(colores.acc, 0));
+      ctx.strokeStyle = g; ctx.lineWidth = Math.max(0.6, L * 0.012);
+      ctx.shadowColor = colores.acc; ctx.shadowBlur = L * 0.10;
+      ctx.beginPath(); ctx.moveTo(DARDO_SK * -L * 0.12, -L * 0.30);
+      ctx.lineTo(DARDO_SK * L * 0.16, L * 0.16); ctx.stroke();
+      ctx.shadowBlur = 0; ctx.restore();
+    }
+    // α = corona: dial con ticks de instrumento (hereda la respiración del
+    // halo) + núcleo contenido (disco + anillo, no bola difusa) + 3 cuchillos
+    // desplegados puntas afuera girando lentísimo (estático bajo reduced-motion)
+    function dibujarCorona(n, r, ts, esFoco, detalle) {
+      var S = r * 1.85;
+      ctx.save(); ctx.translate(n.x, n.y);
+      var aDial = (reduce || !latiendo) ? 0.35 : 0.22 + 0.26 * fase(3500, ts);
+      ctx.globalAlpha = aDial; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, S * 0.60, 0, 6.283); ctx.stroke();
+      for (var i = 0; i < 12; i++) {
+        var a = i * 0.5236, tk = (i % 3 === 0) ? S * 0.055 : S * 0.028;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * (S * 0.60 - tk), Math.sin(a) * (S * 0.60 - tk));
+        ctx.lineTo(Math.cos(a) * (S * 0.60 + tk), Math.sin(a) * (S * 0.60 + tk));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = colores.t1; ctx.lineWidth = esFoco ? 2.0 : 1.2;
+      ctx.beginPath(); ctx.arc(0, 0, S * 0.16, 0, 6.283); ctx.stroke();
+      var g = ctx.createRadialGradient(0, 0, 0, 0, 0, S * 0.13);
+      g.addColorStop(0, conAlfa(colores.t1, 0.9));
+      g.addColorStop(0.5, conAlfa(colores.acc, 0.65));
+      g.addColorStop(1, conAlfa(colores.acc, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, S * 0.13, 0, 6.283); ctx.fill();
+      var giro = (reduce || !latiendo) ? 0 : ((ts || 0) / 52000) * 6.283;
+      for (var b = 0; b < 3; b++) {
+        var ab = -Math.PI / 2 + b * 2.094 + giro;
+        ctx.save();
+        ctx.translate(Math.cos(ab) * S * 0.86, Math.sin(ab) * S * 0.86);
+        ctx.rotate(ab + Math.PI / 2);
+        var L = S * 0.88;
+        ctx.beginPath(); trazarHoja(L, 0);
+        ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+        ctx.fill();
+        ctx.strokeStyle = colores.acc; ctx.lineWidth = Math.max(1, L * 0.016);
+        ctx.stroke();
+        if (detalle) {
+          ctx.beginPath(); trazarHoja(L * 0.90, 0);
+          ctx.strokeStyle = conAlfa(colores.acc, 0.4); ctx.lineWidth = 0.7; ctx.stroke();
+        }
+        var gs = ctx.createLinearGradient(0, -L * 0.30, 0, L * 0.16);
+        gs.addColorStop(0, conAlfa(colores.acc, 0));
+        gs.addColorStop(0.45, conAlfa(colores.acc, 0.95));
+        gs.addColorStop(1, conAlfa(colores.acc, 0));
+        ctx.strokeStyle = gs; ctx.lineWidth = Math.max(0.6, L * 0.012);
+        ctx.shadowColor = colores.acc; ctx.shadowBlur = L * 0.10;
+        ctx.beginPath(); ctx.moveTo(0, -L * 0.30); ctx.lineTo(0, L * 0.16); ctx.stroke();
+        ctx.shadowBlur = 0; ctx.restore();
+      }
+      ctx.restore();
+    }
+
     function trazarForma(n, r) {
       ctx.beginPath();
       if (n.kind === 'artefacto' || n.kind === 'fragmento') {
         ctx.rect(n.x - r, n.y - r, r * 2, r * 2);            // Frame: documental
       } else if (n.kind === 'pedimento') {
-        ctx.moveTo(n.x, n.y - r); ctx.lineTo(n.x + r, n.y);
-        ctx.lineTo(n.x, n.y + r); ctx.lineTo(n.x - r, n.y); ctx.closePath();
+        // silueta del dardo (para modo tenue/apagado), misma orientación
+        ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(anguloDardo(n));
+        trazarHoja(largoDardo(r), DARDO_SK); ctx.restore();
       } else if (n.kind === 'anomalia') {                    // Δ: triángulo de alerta
         ctx.moveTo(n.x, n.y - r); ctx.lineTo(n.x + r * 0.92, n.y + r * 0.72);
         ctx.lineTo(n.x - r * 0.92, n.y + r * 0.72); ctx.closePath();
@@ -180,16 +310,6 @@
         ctx.fillStyle = g;
         ctx.beginPath(); ctx.arc(n.x, n.y, rg, 0, 6.283); ctx.fill();
       }
-      ctx.restore();
-    }
-
-    // Halo del sujeto α (S1S1R1 §3.3): anillo exterior que respira; pulsa
-    // solo mientras el latido corre (hay actividad), estático si no.
-    function haloAlfa(n, r, ts) {
-      var a = (reduce || !latiendo) ? 0.3 : 0.18 + 0.27 * fase(3500, ts);
-      ctx.save();
-      ctx.globalAlpha = a; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(n.x, n.y, r + 14, 0, 6.283); ctx.stroke();
       ctx.restore();
     }
 
@@ -614,11 +734,17 @@
         ctx.globalAlpha = 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
 
-        // efectos DETRÁS del nodo: glow/burn de la alerta, halo del sujeto
+        // efectos DETRÁS del nodo: glow/burn de la alerta
         if (n.kind === 'anomalia' && n.severidad) glowBurn(n, r, ts);
-        if (n.kind === 'nucleo') haloAlfa(n, r, ts);
 
-        if (tier === 'hub') {
+        var detalle = r * vista.k >= 13;   // LOD: el detalle mecha se apaga de lejos
+        if (n.kind === 'nucleo') {
+          // α · corona de funnels (dial + núcleo contenido + 3 cuchillos)
+          dibujarCorona(n, r, ts, n === foco, detalle);
+        } else if (n.kind === 'pedimento') {
+          // pedimento · dardo Anubis orientado a su ancla
+          dibujarDardo(n, r, col, n === foco, detalle);
+        } else if (tier === 'hub') {
           // carcasa (anillo exterior) + mecanizado (anillo medio) + iris
           // (marcas radiales) + núcleo incandescente = el ojo-sensor
           ctx.strokeStyle = col; ctx.globalAlpha = 0.9;
@@ -657,7 +783,7 @@
 
         // puente de articulación (PANOPTES §4.2): el nodo cuyo retiro parte
         // el caso en dos — oro analítico, se enfatiza con un doble anillo
-        if (n.puente) {
+        if (n.puente && n.kind !== 'nucleo') {   // la corona ya marca al sujeto
           ctx.globalAlpha = 0.6; ctx.strokeStyle = col; ctx.lineWidth = 0.8;
           ctx.beginPath(); ctx.arc(n.x, n.y, r + 4, 0, 6.283); ctx.stroke();
           ctx.globalAlpha = 1;
@@ -678,7 +804,9 @@
         // pantalla ≥ 7px y no es hoja; nombra la clase del objeto. Sobre el
         // relleno vivo (entidad) va en --t1 para contrastar; el triángulo Δ
         // baja el glifo a su centro geométrico.
-        if (n.glifo && r * vista.k >= 7 && tier !== 'hoja') {
+        // (α y pedimento ya no llevan glifo central: la silueta ES su identidad)
+        if (n.glifo && r * vista.k >= 7 && tier !== 'hoja'
+            && n.kind !== 'nucleo' && n.kind !== 'pedimento') {
           var dyG = n.kind === 'anomalia' ? r * 0.26 : r * 0.02;
           ctx.font = '700 ' + (r * 1.15) + 'px "JetBrains Mono", monospace';
           ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -756,6 +884,7 @@
       nodos.forEach(function (n) {
         var dx = n.x - m[0], dy = n.y - m[1], d = dx * dx + dy * dy;
         var alcance = Math.max(radioDe(n) + 6, 12 / vista.k);
+        if (n.kind === 'pedimento') alcance = Math.max(alcance, largoDardo(radioDe(n)) / 2);
         if (d < alcance * alcance && d < mejorD) { mejor = n; mejorD = d; }
       });
       return mejor;
