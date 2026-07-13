@@ -71,6 +71,7 @@
     var whatif = null;           // {id, r} — simulación de caída (P3, DECIDIR)
     var estadoPendiente = null;  // estado del deep-link a aplicar tras la 1ª carga (L1)
     var primeraCarga = true;
+    var histFoco = [], histIdx = -1, navegandoHist = false;   // historial de foco (L1)
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
@@ -1304,6 +1305,7 @@
     }
     function abrirTarjeta(n) {
       if (!n || n.kind === 'fragmento') return;
+      registrarFoco(n.id);   // historial de foco (L1)
       if (tarjetas.some(function (t) { return t.nodo.id === n.id; })) return;
       // retira la activa (no fijada) previa y respeta el tope de 2
       tarjetas = tarjetas.filter(function (t) {
@@ -1498,6 +1500,8 @@
     // teclado: Esc sale de cualquier modo (camino, aislar, resalte, selección)
     canvas.setAttribute('tabindex', '0');
     canvas.addEventListener('keydown', function (ev) {
+      if (ev.altKey && ev.key === 'ArrowLeft') { ev.preventDefault(); irHistorial(-1); return; }
+      if (ev.altKey && ev.key === 'ArrowRight') { ev.preventDefault(); irHistorial(1); return; }
       if (ev.key === 'Escape') {
         modoCamino = null; canvas.style.cursor = 'grab';
         kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null;
@@ -1658,13 +1662,37 @@
       if (typeof pintarLeyenda === 'function') pintarLeyenda();
       if (!animando) dibujar(0);
     }
+    // Historial de foco (L1): pila de nodos enfocados, con atrás/adelante
+    // (Alt+←/→ o la paleta). Registrar desde el embudo común abrirTarjeta;
+    // navegar el historial NO re-registra (navegandoHist).
+    function registrarFoco(id) {
+      if (navegandoHist || !id) return;
+      if (histFoco[histIdx] === id) return;   // mismo nodo: no duplica
+      histFoco = histFoco.slice(0, histIdx + 1);
+      histFoco.push(id);
+      histIdx = histFoco.length - 1;
+    }
+    function irHistorial(delta) {
+      var i = histIdx + delta;
+      if (i < 0 || i >= histFoco.length) return;
+      var n = porId[histFoco[i]];
+      if (!n) return;
+      histIdx = i;
+      navegandoHist = true;
+      sel = n; resalte = null; whatif = null; pintarInspector(n); abrirTarjeta(n);
+      vistaManual = true; vista.k = Math.max(vista.k, 1.6);
+      vista.x = -n.x * vista.k; vista.y = -n.y * vista.k;
+      if (!animando) dibujar(0);
+      arrancarLatido();
+      navegandoHist = false;
+    }
     var ultimoHash = null;
     function guardarEstado() {
       var s = serializarEstado();
       if (s === ultimoHash) return;
       ultimoHash = s;
       try { history.replaceState(null, '', location.pathname + location.search + '#' + s); }
-      catch (err) { /* algunos navegadores bloquean replaceState en local file */ }
+      catch { /* algunos navegadores bloquean replaceState en local file */ }
     }
 
     // ── Paleta de comandos (P7): Ctrl/Cmd+K — toda acción sin ratón ────
@@ -1708,6 +1736,11 @@
         cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
+      if (histIdx > 0) cmds.push({ et: 'Atrás en el foco', hint: 'historial · alt+←',
+        run: function () { irHistorial(-1); } });
+      if (histIdx >= 0 && histIdx < histFoco.length - 1) cmds.push({
+        et: 'Adelante en el foco', hint: 'historial · alt+→',
+        run: function () { irHistorial(1); } });
       return cmds;
     }
     function comandosNodo(texto) {
