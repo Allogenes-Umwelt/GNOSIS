@@ -282,6 +282,51 @@
       return cards.join('');
     }
 
+    // ── Mapa esquemático de flujos (P6) ───────────────────────────────
+    // Geografía empaquetada (coordenadas, cero tiles externos — ley
+    // local-first). Arcos origen→México ponderados por volumen MEDIDO. Es un
+    // diagrama con geografía de fondo, NO un GIS (se declara esquemático).
+    var COORDS = {
+      DEU: [51, 10], ESP: [40, -4], USA: [39, -98], MEX: [23, -102], JPN: [36, 138],
+      FRA: [46, 2], ITA: [42, 12], GBR: [54, -2], CHN: [35, 105], KOR: [37, 127],
+      BRA: [-10, -55], CAN: [56, -106], NLD: [52, 5], BEL: [50, 4], CZE: [50, 15],
+      SVK: [48, 19], PRT: [39, -8], AUT: [47, 13], ARG: [-38, -63], IND: [22, 79]
+    };
+    function dibujarMapa(origenes) {
+      var cv = document.getElementById('vn-mapa');
+      if (!cv || !origenes) return;
+      var cs = getComputedStyle(document.documentElement);
+      var acc = cs.getPropertyValue('--acc-text').trim() || '#00D4FF';
+      var cob = cs.getPropertyValue('--cobalt-on').trim() || '#8C9EFF';
+      var t3 = cs.getPropertyValue('--t3').trim() || '#AAA';
+      var dpr = window.devicePixelRatio || 1, W = 300, H = 150;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      var ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, W, H);
+      // ventana lon −130..30, lat 70..−10 (América + Europa)
+      function P(code) {
+        var c = COORDS[code]; if (!c) return null;
+        var x = (c[1] + 130) / 160 * W, y = (70 - c[0]) / 80 * H;
+        return [Math.max(8, Math.min(W - 8, x)), Math.max(10, Math.min(H - 8, y))];
+      }
+      var mex = P('MEX'); if (!mex) return;
+      var maxU = Math.max.apply(null, origenes.map(function (o) { return o.unidades; }).concat([1]));
+      origenes.forEach(function (o) {
+        var p = P(o.nombre); if (!p) return;
+        ctx.strokeStyle = acc; ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 0.6 + (o.unidades / maxU) * 2.6;
+        var mx = (p[0] + mex[0]) / 2, my = Math.min(p[1], mex[1]) - 26;
+        ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.quadraticCurveTo(mx, my, mex[0], mex[1]); ctx.stroke();
+        ctx.globalAlpha = 1; ctx.fillStyle = cob;
+        ctx.beginPath(); ctx.arc(p[0], p[1], 2.5, 0, 6.283); ctx.fill();
+        ctx.fillStyle = t3; ctx.font = '8px "JetBrains Mono", monospace'; ctx.textAlign = 'center';
+        ctx.fillText(o.nombre, p[0], p[1] - 5);
+      });
+      ctx.fillStyle = acc; ctx.beginPath(); ctx.arc(mex[0], mex[1], 3.5, 0, 6.283); ctx.fill();
+      ctx.fillStyle = t3; ctx.textAlign = 'center'; ctx.fillText('MÉXICO', mex[0], mex[1] + 11);
+    }
+
     function cargarSesiones() {
       var sel = document.getElementById('vn-deriva');
       if (!sel) return;
@@ -317,6 +362,7 @@
           }
           analisisEl.innerHTML = tarjetasDe(a) ||
             '<p class="gr-vacio">Sin métricas para esta marca.</p>';
+          dibujarMapa(a.marca && a.marca.origenes);
         })
         .catch(function () {
           analisisEl.innerHTML = '<p class="gr-vacio">Sin conexión con el sustrato.</p>';

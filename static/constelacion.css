@@ -393,6 +393,8 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   font-family: var(--font-mono); font-size: .62rem; color: var(--t3);
   text-transform: uppercase; letter-spacing: 1px; }
 .vn-deriva select { flex: 1; }
+.vn-mapa { width: 100%; max-width: 300px; border: 1px solid var(--line-2);
+  background: color-mix(in srgb, var(--bg) 85%, transparent); display: block; }
 .vn-tar { border: 1px solid var(--line-2); border-left: 2px solid var(--acc-text);
   background: linear-gradient(180deg, var(--surface), var(--surface-2)); padding: 9px 11px; }
 .vn-tar-tit { font-family: var(--font-mono); font-size: .58rem; letter-spacing: 1.6px;
