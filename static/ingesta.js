@@ -97,9 +97,8 @@
       (function siguiente(i) {
         if (i >= total) {
           enCola = false;
-          var extra = imgs ? ' · ' + imgs + ' imagen(es) omitida(s)' : '';
           aviso('Ingesta lista · ' + ok + ' dockeado(s)' +
-                (err ? ' · ' + err + ' con error' : '') + extra, err ? 'error' : 'ok');
+                (err ? ' · ' + err + ' con error' : ''), err ? 'error' : 'ok');
           pintarArtefactos(); recargarMapa();
           return;
         }
