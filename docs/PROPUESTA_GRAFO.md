@@ -65,6 +65,9 @@ P4/P6 son las fases caras y van al final.
   `topologia.py`; `analisis_vw.py` + `GET /api/v1/autogenes/analisis`.
 - **I2** — panel VW en `/autogenes/vinculos`: la red de flujo traducida a
   negocio con la gramática de tarjeta obligatoria. Verificado en vivo.
+- **L1** — navegación: estado deep-linkable en el hash (reproduce la vista
+  exacta; el snapshot que P1 guardará), minimapa con rectángulo de viewport,
+  e historial de foco (Alt+←/→). Los tres verificados en vivo.
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -80,8 +83,8 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** L1 (deep-link + historial de foco + minimapa) — prerrequisito de
-P1; luego A1/A2/A3 (accesibilidad) y P1.
+**Siguiente:** A1/A2/A3 (accesibilidad: teclado completo, aria-live, modo
+tabla) y P1 (investigaciones guardadas, ya desbloqueada por L1).
 
 ---
 
