@@ -75,6 +75,9 @@ def test_urgencias_van_al_riel_lateral_no_a_la_via(conn):
     assert tipos == {"vencimiento", "negocio"}
     venc = next(u for u in m["urgencias"] if u["tipo"] == "vencimiento")
     assert venc["critico"] is True and "en 5 días" in venc["sub"]
+    # el vencimiento carga su id de evento: habilita "Resolver" inline (T2)
+    assert venc["id"] and venc["id"] == conn.execute(
+        "SELECT id FROM ag_eventos WHERE session_id = 1").fetchone()["id"]
 
 
 def test_caso_vacio_no_truena(conn):

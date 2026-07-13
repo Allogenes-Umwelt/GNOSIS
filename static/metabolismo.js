@@ -301,32 +301,136 @@
       if (!animando) dibujar(0);
     });
 
+    // ── triage inline: resolver una fuga/urgencia SIN salir del radar ──
+    var entidadesCache = null, verbosCache = [];
+
+    function cargarEntidades(cb) {
+      if (entidadesCache) { cb(); return; }
+      fetch('/api/v1/autogenes/entidades')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          entidadesCache = (j && j.entidades) || [];
+          verbosCache = (j && j.verbos) || [];
+          cb();
+        }).catch(function () { entidadesCache = []; cb(); });
+    }
+
+    function botonAccion(texto, onClick) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'tr-accion'; b.textContent = texto;
+      b.addEventListener('click', onClick);
+      return b;
+    }
+
+    function refrescarTras(mensaje) {
+      // el cache de entidades/verbos cambió (una relación nueva, un verbo nuevo)
+      entidadesCache = null;
+      sel = null;
+      recargarDatos(function () {
+        if (detalle) detalle.innerHTML = '<div class="gr-kind">RESUELTO</div>' +
+          '<p class="tr-ok">' + esc(mensaje) + '</p>';
+      });
+    }
+
+    // Vincular una entidad huérfana con otra de la sesión (HITL dos pasos):
+    // typeahead de entidades reales + verbo de una lista DERIVADA. Escribe
+    // vía POST /relacion con origen=operador.
+    function abrirVincular(huerfana) {
+      cargarEntidades(function () {
+        var opciones = entidadesCache.filter(function (e) { return e.id !== huerfana.id; });
+        var opts = '<option value="">— elige una entidad —</option>';
+        opciones.forEach(function (e) {
+          opts += '<option value="' + esc(e.id) + '">' + esc(e.nombre.slice(0, 34)) + '</option>';
+        });
+        var dl = '';
+        verbosCache.forEach(function (v) { dl += '<option value="' + esc(v) + '">'; });
+        detalle.innerHTML =
+          '<div class="gr-kind">VINCULAR · ' + esc(huerfana.nombre.slice(0, 22)) + '</div>' +
+          '<label class="tr-lbl">Con la entidad<select id="tr-dest" class="tr-input">' +
+          opts + '</select></label>' +
+          '<label class="tr-lbl">Relación<input id="tr-verbo" class="tr-input" list="tr-verbos"' +
+          ' placeholder="p. ej. opera en" maxlength="40" autocomplete="off">' +
+          '<datalist id="tr-verbos">' + dl + '</datalist></label>' +
+          '<p class="gr-vacio">Se guarda con tu autoría (operador) en la bitácora.</p>';
+        var fila = document.createElement('div'); fila.className = 'tr-acciones';
+        fila.appendChild(botonAccion('Crear relación', function () {
+          var dest = document.getElementById('tr-dest').value;
+          var verbo = (document.getElementById('tr-verbo').value || '').trim();
+          if (!dest || !verbo) { avisoTriage('Elige entidad y verbo'); return; }
+          this.disabled = true;
+          fetch('/api/v1/autogenes/relacion', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ desde_id: huerfana.id, hasta_id: dest, tipo: verbo })
+          }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+              if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
+              refrescarTras(huerfana.nombre + ' vinculada · fuga de vinculación −1');
+            }).catch(function () { avisoTriage('Sin conexión'); });
+        }));
+        fila.appendChild(botonAccion('Cancelar', pintarDetalle));
+        detalle.appendChild(fila);
+      });
+    }
+
+    // Resolver (eliminar) un vencimiento: DELETE /evento, dos pasos.
+    function abrirResolverEvento(u) {
+      detalle.innerHTML =
+        '<div class="gr-kind">RESOLVER · ' + esc(u.titulo.slice(0, 22)) + '</div>' +
+        '<p class="gr-vacio">' + esc(u.sub) + '. Elimina el vencimiento del radar' +
+        ' (irreversible).</p>';
+      var fila = document.createElement('div'); fila.className = 'tr-acciones';
+      fila.appendChild(botonAccion('Confirmar', function () {
+        this.disabled = true;
+        fetch('/api/v1/autogenes/evento/' + encodeURIComponent(u.id), { method: 'DELETE' })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
+            refrescarTras('Vencimiento resuelto');
+          }).catch(function () { avisoTriage('Sin conexión'); });
+      }));
+      fila.appendChild(botonAccion('Cancelar', pintarDetalle));
+      detalle.appendChild(fila);
+    }
+
+    function avisoTriage(texto) {
+      var p = detalle.querySelector('.tr-aviso');
+      if (!p) { p = document.createElement('p'); p.className = 'tr-aviso'; detalle.appendChild(p); }
+      p.textContent = texto;
+    }
+
     function pintarDetalle() {
       if (!detalle) return;
       if (!sel) {
         detalle.innerHTML = '<p class="gr-vacio">Toca lo que aparece en rojo para ' +
-          'ver qué quedó pendiente y cómo resolverlo.</p>';
+          'ver qué quedó pendiente y resolverlo aquí mismo.</p>';
         return;
       }
       var r = sel.rc.r;
-      var html = '<div class="gr-kind">PENDIENTE · ' + esc(r.nombre.toUpperCase()) +
+      detalle.innerHTML = '<div class="gr-kind">PENDIENTE · ' + esc(r.nombre.toUpperCase()) +
         ' · ' + esc(r.fuga) + ' ' + esc(r.senal || '') + '</div>';
       if (r.items && r.items.length) {
         r.items.slice(0, 12).forEach(function (it) {
-          html += '<div class="gr-fila"><span>' +
-            esc((it.nombre || it.titulo || '—').slice(0, 22)) + '</span><b>' +
-            esc(it.kind || it.tipo || '') + '</b></div>';
+          var fila = document.createElement('div'); fila.className = 'gr-fila tr-item';
+          fila.innerHTML = '<span>' + esc((it.nombre || it.titulo || '—').slice(0, 20)) +
+            '</span><b>' + esc(it.kind || it.tipo || '') + '</b>';
+          if (r.clave === 'vinculacion' && it.id) {
+            fila.appendChild(botonAccion('Vincular ▸', function () { abrirVincular(it); }));
+          }
+          detalle.appendChild(fila);
         });
       } else {
-        html += '<p class="gr-vacio">' + esc(r.fuga) + ' elementos sin pasar a la ' +
-          'etapa siguiente.</p>';
+        var vacio = document.createElement('p'); vacio.className = 'gr-vacio';
+        vacio.textContent = r.fuga + ' elementos sin pasar a la etapa siguiente.';
+        detalle.appendChild(vacio);
       }
+      // fallback: si la fuga tiene superficie propia (aún no inline), su enlace
       var ruta = rutaSegura(r.accion);
-      if (ruta) {
-        html += '<a class="ag-volver" style="margin-top:10px" href="' + esc(ruta) +
-          '">Resolver ▸</a>';
+      if (ruta && r.clave !== 'vinculacion') {
+        var a = document.createElement('a');
+        a.className = 'ag-volver'; a.style.marginTop = '10px';
+        a.href = ruta; a.textContent = 'Resolver en su página ▸';
+        detalle.appendChild(a);
       }
-      detalle.innerHTML = html;
     }
 
     function pintarUrgencias() {
@@ -335,13 +439,19 @@
       ul.innerHTML = '';
       (datos.urgencias || []).forEach(function (u) {
         var li = document.createElement('li');
-        var a = document.createElement('a');
         var ruta = rutaSegura(u.accion);
-        a.href = ruta || '#';
-        if (!ruta) a.style.pointerEvents = 'none';
-        a.innerHTML = '<span style="color:' + (u.critico ? 'var(--danger)' : 'var(--t2)') +
+        var fila = document.createElement(u.tipo === 'vencimiento' ? 'button' : 'a');
+        fila.className = 'tr-urg';
+        fila.innerHTML = '<span style="color:' + (u.critico ? 'var(--danger)' : 'var(--t2)') +
           '">' + esc(u.titulo.slice(0, 30)) + '</span><span class="dato">' + esc(u.sub) + '</span>';
-        li.appendChild(a);
+        if (u.tipo === 'vencimiento' && u.id) {
+          fila.type = 'button';
+          fila.addEventListener('click', function () { abrirResolverEvento(u); });
+        } else {
+          fila.href = ruta || '#';
+          if (!ruta) fila.style.pointerEvents = 'none';
+        }
+        li.appendChild(fila);
         ul.appendChild(li);
       });
       if (!(datos.urgencias || []).length) {
@@ -350,24 +460,26 @@
       }
     }
 
-    function cargar() {
+    function recargarDatos(despues) {
       fetch('/api/v1/autogenes/metabolismo')
         .then(function (r) { return r.json(); })
         .then(function (m) {
           if (!m || m.error) { if (info) info.textContent = (m && m.error) || 'SIN DATOS'; return; }
           datos = m;
           calcularLayout();
-          pintarDetalle();
           pintarUrgencias();
           if (info) {
             info.textContent = 'AVANCE DEL CASO ' +
               (m.salud == null ? '—' : m.salud + '%') + ' · ' + m.total_fugas +
               ' PENDIENTES · HOY ' + m.hoy;
           }
+          if (despues) { despues(); } else { pintarDetalle(); }
           animar();
         })
         .catch(function () { if (info) info.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
     }
+
+    function cargar() { recargarDatos(null); }
 
     leerColores();
     tamano();

@@ -545,8 +545,30 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .in-frag p { margin: 6px 0 2px; font-size: .72rem; color: var(--t2);
   line-height: 1.5; overflow-wrap: anywhere; }
 
+/* ── Triage inline del Radar (T2): acciones sin salir de la página ── */
+.tr-urg { display: flex; justify-content: space-between; gap: 10px; width: 100%;
+  background: none; border: 0; text-align: left; cursor: pointer;
+  font-family: inherit; padding: 0; }
+button.tr-urg { align-items: baseline; }
+.tr-item { align-items: center; }
+.tr-accion { font-family: var(--font-mono); font-size: .66rem; letter-spacing: .5px;
+  color: var(--acc-text); background: none; border: 1px solid var(--line-2);
+  border-radius: 3px; padding: 3px 8px; margin-left: 8px; cursor: pointer;
+  white-space: nowrap; }
+.tr-accion:hover { border-color: var(--acc-text); background: var(--acc-weak, transparent); }
+.tr-lbl { display: block; font-family: var(--font-mono); font-size: .66rem;
+  color: var(--t3); text-transform: uppercase; letter-spacing: 1px; margin: 10px 0 2px; }
+.tr-input { display: block; width: 100%; margin-top: 4px; padding: 7px 8px;
+  font-family: var(--font-mono); font-size: .76rem; color: var(--t1);
+  background: var(--bg); border: 1px solid var(--line-2); border-radius: 3px; }
+.tr-input:focus { outline: 2px solid var(--acc-text); outline-offset: 1px; }
+.tr-acciones { display: flex; gap: 8px; margin-top: 12px; }
+.tr-acciones .tr-accion { margin-left: 0; flex: 1; text-align: center; padding: 8px; }
+.tr-ok { color: var(--acc-text); font-size: .78rem; margin-top: 6px; }
+.tr-aviso { color: var(--danger); font-size: .72rem; margin-top: 8px; }
+
 /* ── Puntero grueso: objetivos tactiles al minimo de la ley (48px) ── */
 @media (pointer: coarse) {
   .ag-plegar { min-width: 48px; min-height: 48px; }
-  .gr-input { min-height: 48px; }
+  .gr-input, .tr-input, .tr-accion { min-height: 48px; }
 }

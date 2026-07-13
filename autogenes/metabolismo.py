@@ -118,7 +118,9 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
     for v in sen["vencimientos"]:
         urgencias.append({"tipo": "vencimiento", "titulo": v["titulo"],
                           "sub": v["fecha"] + " · en " + str(v["dias"]) + " días",
-                          "critico": v["dias"] <= 7, "accion": None})
+                          "critico": v["dias"] <= 7, "accion": None,
+                          # el id del evento habilita "Resolver" inline (T2)
+                          "id": v["id"]})
     if sen["negocio"]["faltantes"]:
         urgencias.append({"tipo": "negocio",
                           "titulo": str(sen["negocio"]["faltantes"]) + " facturas faltantes",

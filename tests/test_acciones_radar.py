@@ -143,3 +143,16 @@ def test_delete_evento_resuelve_vencimiento(cliente_sembrado):
     # idempotente: repetir no truena
     r2 = c["cli"].delete(f"/api/v1/autogenes/evento/{c['evento']}?session_id={c['sid']}")
     assert r2.status_code == 200
+
+
+def test_entidades_lista_y_verbos_derivados(cliente_sembrado):
+    c = cliente_sembrado
+    # crea una relación para que su verbo aparezca en la lista derivada
+    c["cli"].post(f"/api/v1/autogenes/relacion?session_id={c['sid']}",
+                  json={"desde_id": c["e1"], "hasta_id": c["e2"], "tipo": "opera en"})
+    r = c["cli"].get(f"/api/v1/autogenes/entidades?session_id={c['sid']}")
+    assert r.status_code == 200
+    j = r.get_json()
+    nombres = {e["nombre"] for e in j["entidades"]}
+    assert {"Origen", "Destino"} <= nombres
+    assert "opera en" in j["verbos"]     # verbo DERIVADO, no inventado

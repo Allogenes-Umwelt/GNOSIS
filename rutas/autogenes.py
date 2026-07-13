@@ -963,6 +963,28 @@ def api_autogenes_relacion():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/entidades', methods=['GET'])
+def api_autogenes_entidades():
+    """Entidades de la sesión (id, nombre, tipo) y los verbos de relación ya
+    usados — alimenta el typeahead de 'Vincular' del triage del Radar. Los
+    verbos son DERIVADOS (los que ya existen), nunca una lista inventada."""
+    def handler(conn, session_id):
+        entidades = [
+            {'id': r['id'], 'nombre': r['nombre'], 'tipo': r['tipo']}
+            for r in conn.execute(
+                "SELECT id, nombre, tipo FROM ag_entidades WHERE session_id = ?"
+                " ORDER BY nombre", (session_id,))
+        ]
+        verbos = [r['tipo'] for r in conn.execute(
+            "SELECT DISTINCT tipo FROM ag_relaciones WHERE session_id = ?"
+            " ORDER BY tipo", (session_id,))]
+        return jsonify({'entidades': entidades, 'verbos': verbos})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/evento/<evento_id>', methods=['DELETE'])
 def api_autogenes_evento_delete(evento_id):
     """Resuelve (elimina) un vencimiento del Radar. Escribe por Sustrato
