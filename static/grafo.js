@@ -72,6 +72,7 @@
     var estadoPendiente = null;  // estado del deep-link a aplicar tras la 1ª carga (L1)
     var primeraCarga = true;
     var histFoco = [], histIdx = -1, navegandoHist = false;   // historial de foco (L1)
+    var multiSel = {}, lasso = null;   // selección múltiple + lazo rectangular (P2)
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
@@ -875,6 +876,15 @@
           ctx.fillText(String(n.etiqueta || '').slice(0, 26), n.x, n.y + r + 11 / vista.k);
         }
       });
+      // selección múltiple (P2): anillo acento sobre cada nodo seleccionado
+      if (Object.keys(multiSel).length) {
+        ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.6; ctx.globalAlpha = 0.9;
+        nodos.forEach(function (n) {
+          if (!multiSel[n.id]) return;
+          ctx.beginPath(); ctx.arc(n.x, n.y, radioDe(n) + 5, 0, 6.283); ctx.stroke();
+        });
+        ctx.globalAlpha = 1;
+      }
       ctx.restore();
 
       // brackets de esquina (chasis del instrumento)
@@ -886,6 +896,16 @@
           ctx.lineTo(c[4], c[5]); ctx.stroke();
         });
       ctx.globalAlpha = 1;
+
+      // lazo de selección en curso (P2, espacio de pantalla)
+      if (lasso) {
+        var lrx = Math.min(lasso.x0, lasso.x1), lry = Math.min(lasso.y0, lasso.y1);
+        var lrw = Math.abs(lasso.x1 - lasso.x0), lrh = Math.abs(lasso.y1 - lasso.y0);
+        ctx.setLineDash([4, 4]); ctx.globalAlpha = 0.9;
+        ctx.strokeStyle = colores.acc; ctx.lineWidth = 1; ctx.strokeRect(lrx, lry, lrw, lrh);
+        ctx.fillStyle = conAlfa(colores.acc, 0.08); ctx.fillRect(lrx, lry, lrw, lrh);
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
 
       dibujarGuias();   // líneas guía + reposición de las tarjetas callout
       dibujarMini();    // panorámica L1
@@ -914,6 +934,26 @@
       return [ev.clientX - caja.left, ev.clientY - caja.top];
     }
 
+    // resumen MEDIDO de la selección múltiple en la línea de estado (P2):
+    // cuenta nodos, y suma vehículos y su valor real (los agregados ν×N traen
+    // su conteo y valor; los vehículos sueltos, su precio). Sin doble conteo:
+    // marca/país ya son agregados, así que no suman al total de vehículos.
+    function resumenMultiSel() {
+      if (!estadoLinea) return;
+      var ids = Object.keys(multiSel);
+      if (!ids.length) { colapsar(); return; }   // repinta la línea de estado normal
+      var veh = 0, suma = 0;
+      ids.forEach(function (id) {
+        var n = porId[id]; if (!n) return;
+        if (n.meta) { veh += n.conteo || 0; suma += (n.extra ? +n.extra.valor : 0) || 0; }
+        else if (n.kind === 'vehiculo') { veh++; suma += (n.extra ? +n.extra.precio : 0) || 0; }
+      });
+      var txt = ids.length + ' SELECCIONADOS';
+      if (veh) txt += ' · ' + veh + ' VEHÍCULOS';
+      if (suma) txt += ' · $' + Math.round(suma).toLocaleString('es-MX');
+      estadoLinea.textContent = txt + ' · ESC LIMPIA';
+    }
+
     canvas.addEventListener('pointerdown', function (ev) {
       canvas.setPointerCapture(ev.pointerId);
       punteros[ev.pointerId] = xy(ev);
@@ -922,7 +962,13 @@
       arrastre.activo = true; arrastre.movido = false;
       arrastre.nodo = nodoEn(p[0], p[1]);
       arrastre.panX = p[0]; arrastre.panY = p[1];
-      if (arrastre.nodo && sim) { sim.alfa(Math.max(sim.alfa(), 0.25)); if (!reduce) animar(); }
+      arrastre.lasso = false;
+      if (ev.shiftKey && !arrastre.nodo) {   // shift + arrastre en vacío = lazo (P2)
+        arrastre.lasso = true;
+        lasso = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+      } else if (arrastre.nodo && sim) {
+        sim.alfa(Math.max(sim.alfa(), 0.25)); if (!reduce) animar();
+      }
     });
     canvas.addEventListener('pointermove', function (ev) {
       if (punteros[ev.pointerId]) punteros[ev.pointerId] = xy(ev);
@@ -957,6 +1003,11 @@
       var p = xy(ev);
       var dx = p[0] - arrastre.panX, dy = p[1] - arrastre.panY;
       if (Math.abs(dx) + Math.abs(dy) > 3) arrastre.movido = true;
+      if (arrastre.lasso && lasso) {          // dibuja el lazo mientras se arrastra
+        lasso.x1 = p[0]; lasso.y1 = p[1];
+        if (!animando) dibujar(0);
+        return;
+      }
       if (arrastre.nodo) {
         var m = aMundo(p[0], p[1]);
         arrastre.nodo.fx = m[0]; arrastre.nodo.fy = m[1];
@@ -972,6 +1023,18 @@
       delete punteros[ev.pointerId];
       arrastre.pinchD = null; arrastre.pinchMX = 0; arrastre.pinchMY = 0;
       if (!arrastre.activo) return;
+      if (arrastre.lasso && lasso) {                   // cierra el lazo: selecciona lo que encierra (P2)
+        var lx0 = Math.min(lasso.x0, lasso.x1), lx1 = Math.max(lasso.x0, lasso.x1);
+        var ly0 = Math.min(lasso.y0, lasso.y1), ly1 = Math.max(lasso.y0, lasso.y1);
+        nodos.forEach(function (n) {
+          if (leyOculta(n.kind)) return;
+          var sp = pantallaDe(n);
+          if (sp[0] >= lx0 && sp[0] <= lx1 && sp[1] >= ly0 && sp[1] <= ly1) multiSel[n.id] = true;
+        });
+        lasso = null; arrastre.lasso = false; arrastre.activo = false;
+        resumenMultiSel(); if (!animando) dibujar(0);
+        return;
+      }
       if (!arrastre.movido) {                          // tap
         var p = xy(ev);
         var golpe = nodoEn(p[0], p[1]);
@@ -984,6 +1047,10 @@
           sel = null; hover = null; pintarInspector(null); replegarFunnel(false);
           vistaManual = false;
           colapsar(); reconstruirSim();
+        } else if (ev.shiftKey && golpe) {             // shift-clic: alterna en la multi-selección (P2)
+          if (multiSel[golpe.id]) delete multiSel[golpe.id]; else multiSel[golpe.id] = true;
+          resumenMultiSel();
+          if (!animando) dibujar(0);
         } else {                                       // seleccionar
           sel = golpe;
           pintarInspector(sel);
@@ -1507,7 +1574,7 @@
       if (ev.key === '0') { ev.preventDefault(); vistaManual = false; encuadrar(); if (!animando) dibujar(0); return; }
       if (ev.key === 'Escape') {
         modoCamino = null; canvas.style.cursor = 'grab';
-        kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null;
+        kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null; multiSel = {};
         sel = null; pintarInspector(null); cerrarActivas(); replegarFunnel(true);
         if (typeof pintarLeyenda === 'function') pintarLeyenda();
         colapsar(); if (!animando) dibujar(0);
@@ -1804,6 +1871,18 @@
       }
       cmds.push({ et: 'Guardar investigación', hint: 'P1',
         run: function () { guardarInvestigacion(); } });
+      var nSel = Object.keys(multiSel).length;
+      if (nSel) {
+        cmds.push({ et: 'Aislar la selección (' + nSel + ')', hint: 'grupo',
+          run: function () {
+            var rn = {};
+            Object.keys(multiSel).forEach(function (id) { rn[id] = true; });
+            resalte = { nodos: rn, enlaces: {} };
+            if (!animando) dibujar(0);
+          } });
+        cmds.push({ et: 'Limpiar la selección', hint: 'grupo',
+          run: function () { multiSel = {}; resalte = null; resumenMultiSel(); if (!animando) dibujar(0); } });
+      }
       if (histIdx > 0) cmds.push({ et: 'Atrás en el foco', hint: 'historial · alt+←',
         run: function () { irHistorial(-1); } });
       if (histIdx >= 0 && histIdx < histFoco.length - 1) cmds.push({
