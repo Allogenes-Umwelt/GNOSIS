@@ -22,6 +22,9 @@
     var info = document.querySelector(cont.getAttribute('data-info') || '') || null;
     var colores = {}, datos = null, layout = null, hover = null, sel = null;
     var cssW = 0, cssH = 0, cx = 0, cy = 0, R = 0, rIn = 0, arcW = 0;
+    // C4 · pirotecnia disciplinada (toda apagada con prefers-reduced-motion)
+    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var animando = false, entrada = null, idsPrevios = null;
 
     function conAlfa(hex, a) {
       var h = (hex || '#00D4FF').replace('#', '');
@@ -135,10 +138,27 @@
       ctx.closePath();
     }
 
-    function dibujar() {
+    function puntoBezier(p0, c, p2, t) {
+      var u = 1 - t;
+      return [u * u * p0[0] + 2 * u * t * c[0] + t * t * p2[0],
+              u * u * p0[1] + 2 * u * t * c[1] + t * t * p2[1]];
+    }
+
+    function dibujar(ts) {
       if (!layout) return;
       ctx.clearRect(0, 0, cssW, cssH);
       var hid = hover ? hover.id : (sel ? sel.id : null);
+      // k de entrada: los arcos nuevos barren su ángulo una sola vez
+      var kEnt = 1;
+      if (entrada) {
+        if (entrada.inicio == null) entrada.inicio = ts || 0;
+        kEnt = Math.min(1, ((ts || 0) - entrada.inicio) / 600);
+        kEnt = 1 - Math.pow(1 - kEnt, 3);
+        if (kEnt >= 1) entrada = null;
+      }
+      function angFin(n) {
+        return (entrada && entrada.ids[n.id]) ? n.a0 + (n.a1 - n.a0) * kEnt : n.a1;
+      }
 
       // ── cintas primero (bajo los arcos) ──
       layout.cintas.forEach(function (cn) {
@@ -154,33 +174,72 @@
         }
       });
 
+      // ── flux en hover: partículas recorriendo las cintas del arco ──
+      if (!reduce && hover) {
+        layout.cintas.forEach(function (cn, idx) {
+          if (cn.A.id !== hid && cn.E.id !== hid) return;
+          var p0 = punto((cn.aA0 + cn.aA1) / 2, rIn);
+          var p2 = punto((cn.aE0 + cn.aE1) / 2, rIn);
+          var np = 3;
+          for (var q = 0; q < np; q++) {
+            var t = (((ts || 0) / 1800) + q / np + idx * 0.11) % 1;
+            var pt = puntoBezier(p0, [cx, cy], p2, t);
+            ctx.beginPath();
+            ctx.fillStyle = colores.acc;
+            ctx.globalAlpha = 0.35 + 0.5 * Math.sin(t * Math.PI);
+            ctx.arc(pt[0], pt[1], 1.7, 0, 6.283);
+            ctx.fill();
+          }
+        });
+        ctx.globalAlpha = 1;
+      }
+
       // ── arcos + etiquetas ──
       var minLabel = 13 / (R + 26);     // umbral angular anti-colisión
       layout.arcos.forEach(function (n) {
         var esHover = n.id === hid;
         var fria = n.lado === 'art' && n.fria;
         var col = fria ? colores.danger : colores.acc;
-        // arco
+        var a1 = angFin(n);
+        if (a1 <= n.a0) return;         // aún no entra (barrido en curso)
+        // glow tokenizado en arcos vivos (no fríos): profundidad, no ruido
+        if (!fria) { ctx.shadowColor = conAlfa(colores.acc, esHover ? 0.9 : 0.5);
+          ctx.shadowBlur = esHover ? 14 : 8; }
         ctx.beginPath();
-        ctx.arc(cx, cy, R + arcW / 2, n.a0, n.a1);
+        ctx.arc(cx, cy, R + arcW / 2, n.a0, a1);
         ctx.strokeStyle = esHover ? col : conAlfa(col, fria ? 0.9 : 0.8);
         ctx.lineWidth = esHover ? arcW + 3 : arcW;
         ctx.stroke();
+        ctx.shadowBlur = 0;
         // anillo punteado de frío (la ausencia hecha visible)
         if (fria) {
           ctx.beginPath();
-          ctx.arc(cx, cy, R + arcW + 3, n.a0, n.a1);
+          ctx.arc(cx, cy, R + arcW + 3, n.a0, a1);
           ctx.strokeStyle = conAlfa(colores.danger, 0.7);
           ctx.lineWidth = 1.4; ctx.setLineDash([2, 3]);
           ctx.stroke(); ctx.setLineDash([]);
         }
-        // etiqueta radial fuera del anillo (o en hover)
-        if ((n.a1 - n.a0) >= minLabel || esHover) {
+        // etiqueta radial fuera del anillo (o en hover) — solo si ya entró
+        if (kEnt >= 1 && ((n.a1 - n.a0) >= minLabel || esHover)) {
           dibujarEtiqueta(n, esHover);
         }
       });
       ctx.lineWidth = 1;
       dibujarNucleo();
+    }
+
+    // rAF: corre solo con hover (flux) o entrada en curso, y con la pestaña
+    // visible; estático absoluto con prefers-reduced-motion.
+    function animar() {
+      if (reduce || (!hover && !entrada)) { dibujar(0); return; }
+      if (animando) return;
+      animando = true;
+      (function paso(ts) {
+        if (document.hidden) { animando = false; return; }
+        dibujar(ts);
+        if (!hover && !entrada) { animando = false; return; }
+        requestAnimationFrame(paso);
+      })(0);
     }
 
     function dibujarEtiqueta(n, esHover) {
@@ -235,10 +294,13 @@
       var cambio = (!!n !== !!hover) || (n && hover && n.id !== hover.id);
       hover = n;
       canvas.style.cursor = n ? 'pointer' : 'default';
-      if (cambio) { dibujar(); pintarInfo(n); }
+      if (cambio) { animar(); pintarInfo(n); }
     });
     canvas.addEventListener('mouseleave', function () {
-      if (hover) { hover = null; dibujar(); pintarInfo(null); }
+      if (hover) { hover = null; dibujar(0); pintarInfo(null); }
+    });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && (hover || entrada)) animar();
     });
     canvas.addEventListener('click', function (ev) {
       if (!layout) return;
@@ -276,18 +338,29 @@
           if (!j || j.error) { if (info) info.textContent = (j && j.error) || 'SIN DATOS'; return; }
           datos = j;
           calcularLayout();
-          dibujar();
+          // barrido de entrada solo para arcos NUEVOS respecto a la carga previa
+          var idsAhora = {};
+          layout.arcos.forEach(function (n) { idsAhora[n.id] = true; });
+          if (!reduce && idsPrevios) {
+            var nuevos = {}, hay = false;
+            Object.keys(idsAhora).forEach(function (id) {
+              if (!idsPrevios[id]) { nuevos[id] = true; hay = true; }
+            });
+            entrada = hay ? { ids: nuevos, inicio: null } : null;
+          }
+          idsPrevios = idsAhora;
           pintarInfo(null);
+          animar();
         })
         .catch(function () { if (info) info.textContent = 'SIN CONEXIÓN'; });
     }
 
     leerColores();
     tamano();
-    window.addEventListener('resize', function () { tamano(); calcularLayout(); dibujar(); });
+    window.addEventListener('resize', function () { tamano(); calcularLayout(); dibujar(0); });
     var alternador = document.getElementById('theme-toggle');
     if (alternador) alternador.addEventListener('click', function () {
-      setTimeout(function () { leerColores(); dibujar(); }, 60);
+      setTimeout(function () { leerColores(); dibujar(0); }, 60);
     });
     cont.chordAPI = { recargar: cargar };
     cargar();

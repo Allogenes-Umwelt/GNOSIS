@@ -32,15 +32,15 @@ lienzo central; el flujo HITL de extracción (saneo doble, quórum); la puerta
 
 ## 0.1 Estado de ejecución (vivo — actualícese al cerrar cada fase)
 
-| Fase | Estado | Commit |
-|------|--------|--------|
-| C1 · Proyección chord | pendiente | — |
-| C2 · Render chord AAA | pendiente | — |
-| C3 · Dossier del artefacto | pendiente | — |
-| T1 · API de acciones + procedencia de relación | pendiente | — |
-| T2 · Triage inline en el radar | pendiente | — |
-| T3 · Feedback vivo post-acción | pendiente | — |
-| C4 · Pirotecnia disciplinada | pendiente | — |
+| Fase | Estado | Nota |
+|------|--------|------|
+| C1 · Proyección chord | HECHO | doble corrida; sin nodos aduanales |
+| C2 · Render chord AAA | HECHO | AAA computado (acc 11.5/7.5, danger 8.2/7.3); dendro.js retirado (huérfano) |
+| C3 · Dossier del artefacto | HECHO | resumen por defecto + dossier; mata la pantalla muerta |
+| T1 · API de acciones + procedencia de relación | HECHO | ag_relaciones.origen (migración aditiva); POST /relacion, DELETE /evento |
+| T2 · Triage inline en el radar | HECHO | vincular+resolver verificados en vivo; extraer+sintetizar inline (camino de error verificado; éxito requiere LLM) |
+| T3 · Feedback vivo post-acción | HECHO | transición única 600ms + contador de visita; reduced-motion estático |
+| C4 · Pirotecnia disciplinada | HECHO | glow estático + flux en hover + barrido de entrada. **Rotación idle DESCARTADA** (degradaba etiquetas radiales; sospecha confirmada) |
 | C5 · Bandeja v2 + dedupe por hash | pendiente | — |
 | C6 · Merge-preview de extracción | pendiente | — |
 | T4 · Gauge con benchmark + detalle por defecto | pendiente | — |
