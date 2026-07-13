@@ -42,7 +42,7 @@ def cliente(tmp_path_factory):
 # ── Páginas (render de plantilla · 200) ──────────────────────────────
 
 PAGINAS = [
-    "/", "/welcome", "/procesar", "/gnosisia",
+    "/", "/welcome", "/gnosisia",
     "/autogenes", "/autogenes/grafo", "/autogenes/vinculos",
     "/autogenes/ingesta", "/autogenes/radar", "/autogenes/sintesis",
     "/autogenes/concilia", "/autogenes/validacion", "/autogenes/sinapsis",
@@ -58,6 +58,14 @@ PAGINAS = [
 @pytest.mark.parametrize("ruta", PAGINAS)
 def test_pagina_renderiza(cliente, ruta):
     assert cliente.get(ruta).status_code == 200
+
+
+def test_procesar_redirige_al_cockpit(cliente):
+    """La carga vive en una sola página; /procesar redirige a / (menú «Áreas»
+    y el link «Pipeline completo» siguen funcionando, sin página duplicada)."""
+    r = cliente.get("/procesar")
+    assert r.status_code in (301, 302)
+    assert r.headers["Location"] in ("/", "http://localhost/")
 
 
 # ── APIs GET con sesión activa (200) ─────────────────────────────────
@@ -88,7 +96,7 @@ def test_api_get_con_sesion(cliente, ruta):
 # ── Rutas POST-only: registradas ⇒ un GET da 405, jamás 404 ──────────
 
 SOLO_POST = [
-    "/processing", "/procesar/fase1", "/procesar/pipeline",
+    "/procesar/fase1", "/procesar/pipeline",
     "/api/v1/chat", "/api/v1/chat/reset",
     "/api/v1/autogenes/ingestar", "/api/v1/autogenes/extraer",
     "/api/v1/autogenes/sintetizar",
