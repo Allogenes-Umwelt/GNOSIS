@@ -94,7 +94,8 @@ from database.persistence import (
     create_session, update_session_stats, save_catalogo_vehiculos,
     save_extraccion, save_concentrado2, save_estadistico_results,
     save_facturas_errors, save_facturas_faltantes, copy_insumos_to_persistent,
-    migrate_add_error_message, get_errores_session, get_latest_session_id
+    migrate_add_error_message, migrate_add_artefacto_hash,
+    get_errores_session, get_latest_session_id
 )
 from database.backup import backup_database
 
@@ -144,6 +145,7 @@ app.register_blueprint(autogenes_bp)
 # Inicializar base de datos SQLite al arrancar
 init_db()
 migrate_add_error_message()
+migrate_add_artefacto_hash()
 
 
 @app.route('/health')

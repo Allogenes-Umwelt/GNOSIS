@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS ag_artefactos (
     nombre      TEXT NOT NULL,
     paginas     INTEGER,
     blob_ref    TEXT,
+    hash        TEXT,
     created_at  TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );

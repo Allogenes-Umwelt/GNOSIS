@@ -44,6 +44,7 @@ class Artefacto(BaseModel):
     nombre: str = Field(min_length=1)
     paginas: Optional[int] = Field(default=None, ge=0)
     blob_ref: Optional[str] = None
+    hash: Optional[str] = None
     created_at: str
 
 

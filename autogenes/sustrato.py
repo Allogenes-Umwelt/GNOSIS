@@ -136,12 +136,13 @@ class Sustrato:
         nombre: str,
         paginas: Optional[int] = None,
         blob_ref: Optional[str] = None,
+        hash: Optional[str] = None,
     ) -> Artefacto:
         aid = _uuid()
         self.conn.execute(
-            "INSERT INTO ag_artefactos (id, session_id, kind, nombre, paginas, blob_ref)"
-            " VALUES (?, ?, ?, ?, ?, ?)",
-            (aid, self.session_id, kind, nombre, paginas, blob_ref),
+            "INSERT INTO ag_artefactos (id, session_id, kind, nombre, paginas,"
+            " blob_ref, hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (aid, self.session_id, kind, nombre, paginas, blob_ref, hash),
         )
         self._registrar("dockear-fuente", f"Fuente dockeada: {nombre}")
         self._commit()

@@ -378,6 +378,21 @@ def migrate_add_error_message():
     conn.close()
 
 
+def migrate_add_artefacto_hash():
+    """Adds ag_artefactos.hash if missing (content-hash dedupe, C5). Guarded
+    ADD COLUMN — FK-safe (ag_fragmentos references ag_artefactos), unlike a
+    recreate. Fresh DBs already have it from AG_SCHEMA_SQL; this covers the
+    ones created before the column existed."""
+    conn = get_connection()
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(ag_artefactos)").fetchall()]
+        if cols and 'hash' not in cols:
+            conn.execute("ALTER TABLE ag_artefactos ADD COLUMN hash TEXT")
+            conn.commit()
+    finally:
+        conn.close()
+
+
 def save_facturas_errors(session_id, error_list, errores_detalle=None):
     """Persists list of PDF filenames that failed extraction.
     errores_detalle: dict {filename: {'categoria': ..., 'mensaje': ...}} from PDFs_to_excel

@@ -320,7 +320,7 @@ def api_autogenes_ingestar():
                 zf = zipfile.ZipFile(io.BytesIO(contenido))
             except zipfile.BadZipFile:
                 return jsonify({'error': 'El ZIP está dañado'}), 400
-            ok, err, frags = [], [], 0
+            ok, err, dup, frags = [], [], [], 0
             for info in zf.infolist():
                 if info.is_dir() or info.filename.startswith('__MACOSX'):
                     continue
@@ -328,7 +328,9 @@ def api_autogenes_ingestar():
                 if not interno:
                     continue
                 r = ingestar_archivo(conn, session_id, interno, zf.read(info))
-                if 'error' in r:
+                if 'duplicado' in r:
+                    dup.append(interno)
+                elif 'error' in r:
                     err.append(interno)
                 else:
                     ok.append(interno)
@@ -337,9 +339,13 @@ def api_autogenes_ingestar():
                 _snapshot_telemetria(conn, session_id)
             return jsonify({'status': 'ok', 'lote': True,
                             'ingeridos': len(ok), 'fallidos': len(err),
-                            'fragmentos': frags, 'errores': err})
+                            'duplicados': len(dup), 'fragmentos': frags,
+                            'errores': err})
         # ── archivo suelto ──
         r = ingestar_archivo(conn, session_id, nombre, contenido)
+        if 'duplicado' in r:
+            return jsonify({'error': 'Ya ingerido en esta sesión: ' + r['duplicado'],
+                            'duplicado': r['duplicado']}), 409
         if 'error' in r:
             return jsonify(r), 422
         _snapshot_telemetria(conn, session_id)

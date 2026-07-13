@@ -567,6 +567,15 @@ button.tr-urg { align-items: baseline; }
 .tr-ok { color: var(--acc-text); font-size: .78rem; margin-top: 6px; }
 .tr-aviso { color: var(--danger); font-size: .72rem; margin-top: 8px; }
 
+/* ── Bandeja v2 (C5): frío visible, filtrable, nombres sin recortar ── */
+.in-arte-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.in-frias-lbl { font-family: var(--font-mono); font-size: .6rem; letter-spacing: .5px;
+  text-transform: none; color: var(--t3); cursor: pointer; display: inline-flex;
+  align-items: center; gap: 4px; }
+.in-nom { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.in-fria a { border-left: 2px solid var(--danger); padding-left: 6px; }
+.in-frio { color: var(--danger); }
+
 /* ── Puntero grueso: objetivos tactiles al minimo de la ley (48px) ── */
 @media (pointer: coarse) {
   .ag-plegar { min-width: 48px; min-height: 48px; }

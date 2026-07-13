@@ -128,33 +128,47 @@
     });
     pintarResumen();
 
-    // ── bandeja ──────────────────────────────────────────────────────
+    // ── bandeja: frías primero, filtrables, nombres sin recortar ──────
+    var soloFrias = document.getElementById('in-solo-frias');
+    function pintarLista() {
+      var solo = soloFrias && soloFrias.checked;
+      // orden estable: frías primero (la señal accionable), luego como vino
+      var arte = artefactosCache.slice().sort(function (a, b) {
+        return (b.fria ? 1 : 0) - (a.fria ? 1 : 0);
+      }).filter(function (a) { return !solo || a.fria; });
+      lista.innerHTML = '';
+      arte.forEach(function (a) {
+        var li = document.createElement('li');
+        if (a.fria) li.className = 'in-fria';
+        var enlace = document.createElement('a');
+        enlace.href = '#';
+        enlace.title = a.nombre;    // nombre completo en el tooltip (sin recorte)
+        enlace.innerHTML = '<span class="in-nom">' + esc(a.nombre) + '</span>' +
+          '<span class="dato">' + esc(a.fragmentos) + ' frag · ' +
+          (a.fria ? '<b class="in-frio">fría</b>' : esc(a.entidades) + ' ent') +
+          ' · extraer ▸</span>';
+        enlace.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          extraer(a.id, a.nombre);
+        });
+        li.appendChild(enlace);
+        lista.appendChild(li);
+      });
+      if (!arte.length) {
+        lista.innerHTML = '<li><span class="gr-vacio" style="padding:8px">' +
+          (solo ? 'Ninguna fuente fría.' : 'Sin artefactos aún — suelta el primero arriba.') +
+          '</span></li>';
+      }
+      if (extraerTodoBtn) extraerTodoBtn.hidden = artefactosCache.length < 2;
+    }
+    if (soloFrias) soloFrias.addEventListener('change', pintarLista);
+
     function pintarArtefactos() {
-      fetch('/api/v1/autogenes/artefactos')
+      return fetch('/api/v1/autogenes/artefactos')
         .then(function (r) { return r.json(); })
         .then(function (j) {
           artefactosCache = j.artefactos || [];
-          lista.innerHTML = '';
-          artefactosCache.forEach(function (a) {
-            var li = document.createElement('li');
-            var enlace = document.createElement('a');
-            enlace.href = '#';
-            enlace.innerHTML = '<span>' + esc(a.nombre.slice(0, 20)) + '</span>' +
-              '<span class="dato">' + esc(a.fragmentos) + ' frag · ' +
-              esc(a.entidades) + ' ent · extraer ▸</span>';
-            enlace.addEventListener('click', function (ev) {
-              ev.preventDefault();
-              extraer(a.id, a.nombre);
-            });
-            li.appendChild(enlace);
-            lista.appendChild(li);
-          });
-          if (!artefactosCache.length) {
-            lista.innerHTML = '<li><span class="gr-vacio" style="padding:8px">' +
-              'Sin artefactos aún — suelta el primero arriba.</span></li>';
-          }
-          // "Extraer todo" solo tiene sentido con 2+ artefactos
-          if (extraerTodoBtn) extraerTodoBtn.hidden = artefactosCache.length < 2;
+          pintarLista();
         }).catch(function () {});
     }
 
@@ -182,21 +196,23 @@
       }
       if (enCola) return;
       enCola = true;
-      var ok = 0, err = 0, total = aceptados.length;
+      var ok = 0, err = 0, dup = 0, total = aceptados.length;
       (function siguiente(i) {
         if (i >= total) {
           enCola = false;
           aviso('Ingesta lista · ' + ok + ' dockeado(s)' +
+                (dup ? ' · ' + dup + ' duplicado(s)' : '') +
                 (err ? ' · ' + err + ' con error' : ''), err ? 'error' : 'ok');
+          // un solo redibujo al terminar el lote (no O(archivos))
           pintarArtefactos(); recargarMapa();
           return;
         }
         aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' + aceptados[i].name + '…');
         subirUno(aceptados[i]).then(function (res) {
           // un ZIP devuelve un resumen de lote; un archivo suelto, uno solo
-          if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); }
+          if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); dup += (res.j.duplicados || 0); }
+          else if (res.j && res.j.duplicado) { dup++; }
           else { err++; }
-          if (res.ok) { pintarArtefactos(); recargarMapa(); }
           siguiente(i + 1);
         }).catch(function () { err++; siguiente(i + 1); });
       })(0);

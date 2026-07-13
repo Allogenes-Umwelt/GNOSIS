@@ -5,12 +5,27 @@ Un documento entra como Artefacto y su texto se parte en Fragmentos
 GNOSIS ya usa), texto plano por bloques de párrafos. Todo pasa por
 Sustrato — bitácora incluida.
 """
+import hashlib
 import sqlite3
-from typing import Any
+from typing import Any, Optional
 
 from autogenes.sustrato import Sustrato
 
 MAX_BLOQUE = 1600
+
+
+def _hash(contenido: bytes) -> str:
+    """sha256 del binario — la huella de contenido para el dedupe."""
+    return hashlib.sha256(contenido).hexdigest()
+
+
+def artefacto_por_hash(conn: sqlite3.Connection, session_id: int,
+                       h: str) -> Optional[str]:
+    """El nombre del artefacto de la sesión con ese hash, si ya existe."""
+    r = conn.execute(
+        "SELECT nombre FROM ag_artefactos WHERE session_id = ? AND hash = ?",
+        (session_id, h)).fetchone()
+    return r["nombre"] if r else None
 
 
 def partir_texto(texto: str, max_bloque: int = MAX_BLOQUE) -> list[str]:
@@ -39,13 +54,13 @@ def partir_texto(texto: str, max_bloque: int = MAX_BLOQUE) -> list[str]:
 
 
 def ingestar_texto(conn: sqlite3.Connection, session_id: int,
-                   nombre: str, texto: str) -> dict[str, Any]:
+                   nombre: str, texto: str, hash: Optional[str] = None) -> dict[str, Any]:
     texto = (texto or "").strip()
     if not texto:
         return {"error": "El documento no trae texto legible"}
     bloques = partir_texto(texto)
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("nota", nombre)
+    art = s.crear_artefacto("nota", nombre, hash=hash)
     frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
@@ -84,7 +99,7 @@ def _ocr_paginas_pdf(contenido: bytes, saltar: set[int]) -> list[tuple[int, str]
 
 
 def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
-                 nombre: str, contenido: bytes) -> dict[str, Any]:
+                 nombre: str, contenido: bytes, hash: Optional[str] = None) -> dict[str, Any]:
     """PDF → fragmentos por página, híbrido: usa la capa de texto (pdfplumber,
     rápido) y para las páginas escaneadas (sin texto) cae a OCR (Tesseract).
     Así entran facturas digitales Y escaneadas por igual."""
@@ -115,13 +130,13 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
                          "(¿dañado, protegido, o falta Tesseract en el despliegue?)"}
     paginas.sort(key=lambda t: t[0])
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("pdf", nombre, paginas=len(paginas))
+    art = s.crear_artefacto("pdf", nombre, paginas=len(paginas), hash=hash)
     frags = s.agregar_fragmentos(art.id, paginas)
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
 def ingestar_imagen(conn: sqlite3.Connection, session_id: int,
-                    nombre: str, contenido: bytes) -> dict[str, Any]:
+                    nombre: str, contenido: bytes, hash: Optional[str] = None) -> dict[str, Any]:
     """Imagen (foto/escaneo de una factura) → OCR (Tesseract) → fragmentos."""
     try:
         import io
@@ -143,13 +158,13 @@ def ingestar_imagen(conn: sqlite3.Connection, session_id: int,
                          "(¿foto borrosa, muy chica, o sin texto?)"}
     bloques = partir_texto(texto)
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("imagen", nombre)
+    art = s.crear_artefacto("imagen", nombre, hash=hash)
     frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
 def ingestar_tabla(conn: sqlite3.Connection, session_id: int,
-                   nombre: str, contenido: bytes) -> dict[str, Any]:
+                   nombre: str, contenido: bytes, hash: Optional[str] = None) -> dict[str, Any]:
     """Hoja de cálculo (XLS/XLSX/CSV) → bloques de filas como fragmentos
     citables (kind 'estructurado'). Cada bloque cita su hoja y su rango."""
     try:
@@ -182,7 +197,7 @@ def ingestar_tabla(conn: sqlite3.Connection, session_id: int,
     if not fragmentos:
         return {"error": "La hoja de cálculo no trae filas legibles"}
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("estructurado", nombre)
+    art = s.crear_artefacto("estructurado", nombre, hash=hash)
     frags = s.agregar_fragmentos(art.id, fragmentos)
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
@@ -194,17 +209,24 @@ _IMAGENES = (".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", 
 def ingestar_archivo(conn: sqlite3.Connection, session_id: int,
                      nombre: str, contenido: bytes) -> dict[str, Any]:
     """Dispatcher por extensión: PDF (con capa de texto y/o escaneado vía OCR),
-    texto (txt/md/xml), tabla (xls/xlsx/csv) e imagen (jpg/png… vía OCR)."""
+    texto (txt/md/xml), tabla (xls/xlsx/csv) e imagen (jpg/png… vía OCR).
+
+    Dedupe por contenido: si la sesión ya tiene un artefacto con el mismo
+    sha256, se rechaza (evita duplicar fragmentos y contaminar la cobertura)."""
     bajo = nombre.lower()
+    h = _hash(contenido)
+    ya = artefacto_por_hash(conn, session_id, h)
+    if ya:
+        return {"duplicado": ya}
     if bajo.endswith(".pdf"):
-        return ingestar_pdf(conn, session_id, nombre, contenido)
+        return ingestar_pdf(conn, session_id, nombre, contenido, hash=h)
     if bajo.endswith((".txt", ".md", ".xml")):
         return ingestar_texto(conn, session_id, nombre,
-                              contenido.decode("utf-8", errors="replace"))
+                              contenido.decode("utf-8", errors="replace"), hash=h)
     if bajo.endswith((".xls", ".xlsx", ".csv")):
-        return ingestar_tabla(conn, session_id, nombre, contenido)
+        return ingestar_tabla(conn, session_id, nombre, contenido, hash=h)
     if bajo.endswith(_IMAGENES):
-        return ingestar_imagen(conn, session_id, nombre, contenido)
+        return ingestar_imagen(conn, session_id, nombre, contenido, hash=h)
     return {"error": f"Formato no soportado: {nombre}. "
                      "Usa PDF, TXT, XML, Excel (xls/xlsx/csv) o imagen (jpg/png)."}
 
@@ -238,4 +260,7 @@ def listar_artefactos(conn: sqlite3.Connection, session_id: int) -> list[dict[st
         for aid in artes:
             if aid:
                 conteo[aid] = conteo.get(aid, 0) + 1
-    return [{**dict(f), "entidades": conteo.get(f["id"], 0)} for f in filas]
+    return [{**dict(f), "entidades": conteo.get(f["id"], 0),
+             # fría: tiene fragmentos pero ninguna entidad la cita (señal C5)
+             "fria": bool(f["fragmentos"]) and conteo.get(f["id"], 0) == 0}
+            for f in filas]
