@@ -73,6 +73,7 @@
     var primeraCarga = true;
     var histFoco = [], histIdx = -1, navegandoHist = false;   // historial de foco (L1)
     var multiSel = {}, lasso = null;   // selección múltiple + lazo rectangular (P2)
+    var vigilados = {};   // watchlist de nodos vigilados (P8), persistida por sesión
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
@@ -374,7 +375,7 @@
         colapsar();          // deriva nodos/enlaces visibles + estado
         reconstruirSim();
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
-        if (primeraCarga) { primeraCarga = false; aplicarEstadoPendiente(); }
+        if (primeraCarga) { primeraCarga = false; cargarVigilados(); aplicarEstadoPendiente(); }
       }).catch(function () {
         if (mia !== reqSeq) return;
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
@@ -900,6 +901,15 @@
           ctx.beginPath(); ctx.arc(n.x, n.y, radioDe(n) + 5, 0, 6.283); ctx.stroke();
         });
         ctx.globalAlpha = 1;
+      }
+      // watchlist (P8): anillo warn punteado sobre los nodos vigilados
+      if (Object.keys(vigilados).length) {
+        ctx.strokeStyle = colores.warn; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.85; ctx.setLineDash([2, 3]);
+        nodos.forEach(function (n) {
+          if (!vigilados[n.id]) return;
+          ctx.beginPath(); ctx.arc(n.x, n.y, radioDe(n) + 8, 0, 6.283); ctx.stroke();
+        });
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
       }
       ctx.restore();
 
@@ -1972,6 +1982,22 @@
         }).catch(function () { /* clipboard bloqueado: sin efecto */ });
       }
     }
+    // Watchlist (P8): nodos vigilados, persistidos por sesión (localStorage).
+    // Para marcas, el delta medido entre sesiones lo da la deriva (P5/I4); aquí
+    // se mantiene la marca visual persistente para seguirles la pista.
+    function claveVigilados() { return 'gr-vigilados-' + (sesionId || '0'); }
+    function cargarVigilados() {
+      try { vigilados = JSON.parse(localStorage.getItem(claveVigilados()) || '{}'); }
+      catch { vigilados = {}; }
+    }
+    function alternarVigilado(n) {
+      if (!n) return;
+      if (vigilados[n.id]) delete vigilados[n.id]; else vigilados[n.id] = n.etiqueta || n.id;
+      try { localStorage.setItem(claveVigilados(), JSON.stringify(vigilados)); } catch { /* bloqueado */ }
+      if (estadoLinea) estadoLinea.textContent = (vigilados[n.id] ? 'VIGILANDO ' : 'YA NO VIGILAS ') +
+        (n.etiqueta || n.id).toUpperCase().slice(0, 24);
+      if (!animando) dibujar(0);
+    }
     if (invBtn) invBtn.addEventListener('click', guardarInvestigacion);
     if (invLista) invLista.addEventListener('change', function () {
       if (invLista.value) aplicarEstadoTexto(invLista.value);
@@ -2018,6 +2044,8 @@
         cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
+      if (sel) cmds.push({ et: (vigilados[sel.id] ? 'Dejar de vigilar ' : 'Vigilar ') + sel.etiqueta,
+        hint: 'watchlist', run: (function (n) { return function () { alternarVigilado(n); }; })(sel) });
       // search-around tipado (P2): aísla los vecinos de un kind del nodo activo
       if (sel && vecinos[sel.id]) {
         var kindsVec = {};
