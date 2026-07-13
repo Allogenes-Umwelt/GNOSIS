@@ -1188,3 +1188,24 @@ def api_autogenes_arbol():
         return jsonify({'session_id': session_id, 'arbol': arbol})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/chord_ingesta', methods=['GET'])
+def api_autogenes_chord_ingesta():
+    """El mapa de ingesta como chord bipartito: fuentes -> entidades, con las
+    fuentes frias (que nadie cita) visibles como arcos sin cintas."""
+    from database import get_connection
+    from database.persistence import get_latest_session_id
+    from autogenes.chord_ingesta import chord_ingesta
+    try:
+        conn = get_connection()
+        try:
+            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
+            if not session_id:
+                return jsonify({'error': 'No hay sesiones procesadas'}), 404
+            chord = chord_ingesta(conn, session_id)
+        finally:
+            conn.close()
+        return jsonify(chord)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
