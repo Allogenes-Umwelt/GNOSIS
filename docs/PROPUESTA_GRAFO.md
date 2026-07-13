@@ -52,6 +52,39 @@ P4/P6 son las fases caras y van al final.
 
 ---
 
+## 0.1 Estado de ejecución (vivo — actualícese al cerrar cada fase)
+
+**Completado** (rama `claude/gnosis-autogenes-i-85bwsd`):
+- **Sesión 0** — `CLAUDE.md` + gates ruff/ESLint sin build step; y el bug de
+  `ingesta.js` (ReferenceError de `imgs`) que el linter atrapó.
+- **P3** — what-if de caída en el lienzo (surfacea `cascada.py`, ya hecho):
+  nodo que arde + aristas que caen + veredicto medido, ambos temas AAA.
+- **P7** — paleta de comandos Ctrl/Cmd+K, operación sin ratón.
+- **I1** — red de flujo derivada país→aduana→marca + `intermediacion`
+  (Brandes) y `min_corte` (Edmonds–Karp) puras y deterministas en
+  `topologia.py`; `analisis_vw.py` + `GET /api/v1/autogenes/analisis`.
+- **I2** — panel VW en `/autogenes/vinculos`: la red de flujo traducida a
+  negocio con la gramática de tarjeta obligatoria. Verificado en vivo.
+
+**Decisiones de ejecución (concurridas por el operador):**
+- **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
+  Razón medida al ejecutar I1: las métricas de flujo (intermediación, corte,
+  HHI) viven en la red DERIVADA cuyos nodos (`aduana:*`, `marca:<nombre>`) no
+  existen en el lienzo de procedencia (sin nodos aduana, `marca:<id>`), así que
+  no mapean. Y las únicas métricas que el lienzo sí tiene —grado, centralidad,
+  comunidad— ya se codifican por tamaño (centralidad) y posición (comunidad):
+  recolorearlas es re-decir en color lo que el ojo ya recibe, sin responder
+  ninguna pregunta de negocio nueva. Se re-evalúa solo si el lienzo gana
+  métricas nuevas por nodo (p. ej. lift Δ proyectado) o si la red de flujo se
+  dibuja como vista propia.
+- **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
+  suelto de pulido — no necesita el aparato del selector para existir.
+
+**Siguiente:** L1 (deep-link + historial de foco + minimapa) — prerrequisito de
+P1; luego A1/A2/A3 (accesibilidad) y P1.
+
+---
+
 ## 1. Autocríticas — v1 y v2, porque el documento debe practicar lo que exige
 
 **v1** (resumen; detalle en historia git): auditoría sólida, entregable débil —
@@ -198,6 +231,7 @@ describen "los flujos medidos de esta sesión" y la UI lo dice textual.
 | k-core, asortatividad | No mapean a ninguna decisión del operador |
 | FDEB / bundling jerárquico | Caro y engañoso: sugiere flujos agregados que no existen como dato |
 | WebGL por defecto | Solo si el presupuesto de frame (§2) se viola tras L3 |
+| Selector de lente estructural en el lienzo | Descartado al ejecutar I1 (ver §0.1): las métricas de flujo no mapean a los nodos del lienzo, y las del lienzo ya se codifican por tamaño/posición. Re-codificar en color no responde ninguna pregunta nueva |
 | GIS real, multi-analista, escala petabyte | Fuera por diseño — ver `BENCHMARK_PALANTIR.md` §4 |
 
 ---
@@ -222,13 +256,14 @@ estructura degenerada → "estructura insuficiente" declarado; suite verde.
 **Riesgos:** grafo degenerado (degradación declarada); confundir red derivada
 con procedencia — se documenta como vista estructural, no evidencia primaria.
 
-### I2 · El surfacing: lente + panel VW [M]
+### I2 · El surfacing: panel VW [M] · HECHO
 
-(a) Selector de lente en `/autogenes/grafo`: recolorea/redimensiona por
-métrica (grado ponderado / centralidad / intermediación / comunidad / lift Δ),
-generalizando `radioDe` (`grafo.js:19-28`); rampa CVD-safe por tokens nuevos;
-la leyenda explica la lente activa. (b) Panel VW en `/autogenes/vinculos` con
-la **gramática obligatoria de tarjeta**:
+> **Nota de ejecución.** La parte (a), el selector de lente en el lienzo, se
+> DESCARTÓ (§0.1, §4.2): las métricas de flujo no mapean a los nodos del
+> lienzo. El corazón de I2 —el panel VW que traduce la red de flujo a
+> negocio— se entregó completo. Lo de abajo describe (b), lo construido.
+
+Panel VW en `/autogenes/vinculos` con la **gramática obligatoria de tarjeta**:
 
 > **CIFRA** (unidad, periodo) contra **BENCHMARK** → **SO WHAT** (una frase)
 > → **NOW WHAT** (acción derivable: "auditar los 3 pedimentos de la aduana
