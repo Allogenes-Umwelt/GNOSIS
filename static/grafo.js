@@ -416,12 +416,23 @@
             v.x = ped.x + Math.cos(a) * 30; v.y = ped.y + Math.sin(a) * 30;
           }
         });
+        // agrega precio/tipo de los miembros para el dossier del racimo
+        var mVal = 0, mMin = Infinity, mMax = -Infinity, mTipos = {};
+        vehs.forEach(function (vid) {
+          var v = porIdRaw[vid]; if (!v) return;
+          var pr = v.extra ? +v.extra.precio : 0;
+          if (pr) { mVal += pr; if (pr < mMin) mMin = pr; if (pr > mMax) mMax = pr; }
+          if (v.tipo) mTipos[v.tipo] = (mTipos[v.tipo] || 0) + 1;
+        });
+        var mTipo = Object.keys(mTipos).sort(function (a, b) { return mTipos[b] - mTipos[a]; })[0] || null;
         metaNodos.push({
           id: metaId, kind: 'vehiculo', meta: true, abierto: abierto,
           conteo: vehs.length, glifo: 'ν', etiqueta: vehs.length + ' vehículos',
           ped: pedId, comunidad: ped ? ped.comunidad : 0, centralidad: 0.35,
           seed: (ped ? ped.seed : 0) || 0,
-          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined
+          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined,
+          extra: { valor: mVal || null, precio_min: isFinite(mMin) ? mMin : null,
+                   precio_max: isFinite(mMax) ? mMax : null, tipo: mTipo }
         });
       });
 
@@ -1002,18 +1013,14 @@
         inspector.innerHTML = '<p class="gr-vacio">Toca un nodo para abrir su expediente.</p>';
         return;
       }
-      var extra = n.extra || {};
-      var filas = Object.keys(extra)
-        .filter(function (k) { return extra[k] != null && extra[k] !== '' && k !== 'virtual'; })
-        .map(function (k) {
-          return '<div class="gr-fila"><span>' + esc(k) + '</span><b>' + esc(extra[k]) + '</b></div>';
-        })
-        .join('');
+      // mismo dossier por-tipo que la tarjeta callout (consistencia), sin los
+      // controles flotantes; el panel es la vista fija del expediente.
+      var f = fichaDossier(n);
       inspector.innerHTML =
-        '<div class="gr-kind">' + esc(n.kind.toUpperCase()) + (n.tipo ? ' · ' + esc(n.tipo) : '') +
-        (extra.virtual ? ' · VIRTUAL' : '') + '</div>' +
+        '<div class="gr-kind">' + esc(n.meta ? 'RACIMO · ν×N' : n.kind.toUpperCase()) + '</div>' +
         '<div class="gr-nombre">' + esc(n.etiqueta) + '</div>' +
-        '<div class="gr-fila"><span>conexiones</span><b>' + (n.grado || 0) + '</b></div>' + filas;
+        (f.sub ? '<div class="gr-tar-sub">' + esc(f.sub) + '</div>' : '') +
+        f.cuerpo;
     }
 
     // ── tarjetas callout (PANOPTES §6) ────────────────────────────────
@@ -1028,17 +1035,55 @@
       var w = canvas.clientWidth, h = canvas.clientHeight;
       return [w / 2 + vista.x + n.x * vista.k, h / 2 + vista.y + n.y * vista.k];
     }
-    function filasTarjeta(n) {
-      var filas = [['conexiones', n.grado || 0]];
-      if (n.severidad) filas.push(['severidad', n.severidad]);
-      var extra = n.extra || {};
-      Object.keys(extra).forEach(function (k) {
-        if (extra[k] != null && extra[k] !== '' && k !== 'virtual') filas.push([k, extra[k]]);
-      });
-      return filas.map(function (f) {
-        return '<div class="gr-fila"><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>';
-      }).join('');
+    // ── helpers del dossier (contenido por TIPO de nodo) ──────────────
+    function fNum(v) { return (+v || 0).toLocaleString('es-MX'); }
+    function fMon(v) { v = +v || 0; if (!v) return null;
+      if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+      if (v >= 1e3) return '$' + Math.round(v / 1e3) + 'k'; return '$' + Math.round(v); }
+    function ex(n, k) { return (n.extra && n.extra[k] != null && n.extra[k] !== '') ? n.extra[k] : null; }
+    function fila(label, val, hi) { if (val == null || val === '') return '';
+      return '<div class="gr-fila"><span>' + esc(label) + '</span><b' + (hi ? ' class="hi"' : '') +
+        '>' + esc(val) + '</b></div>'; }
+    function hero(big, sub, cls) { return '<div class="gr-tar-hero"><div class="gr-tar-big' +
+      (cls ? ' ' + cls : '') + '">' + esc(big) + '</div><div class="gr-tar-unit">' + sub + '</div></div>'; }
+    function barraJN(j, n) { j = +j || 0; n = +n || 0; var t = j + n; if (!t) return '';
+      var jp = Math.round(j / t * 100);
+      return '<div class="gr-jn"><i class="j" style="width:' + jp + '%"></i>' +
+        '<i class="n" style="width:' + (100 - jp) + '%"></i></div>' +
+        '<div class="gr-jnlab"><span>J · ' + jp + '%</span><span>N · ' + (100 - jp) + '%</span></div>'; }
+    // vecinos VISIBLES de un kind dado (deriva ficha sin red)
+    function vecinosKind(n, kind) { var out = [], vs = vecinos[n.id] || {};
+      Object.keys(vs).forEach(function (id) { var v = porId[id]; if (v && v.kind === kind) out.push(v); });
+      return out; }
+    function statsEntidad(n) { var rel = 0, conf = 0, arts = vecinosKind(n, 'artefacto');
+      enlaces.forEach(function (e) {
+        if (e.kind === 'relacion' && (e.source === n.id || e.target === n.id)) {
+          rel++; conf = Math.max(conf, e.peso || 0); } });
+      return { rel: rel, conf: conf, arts: arts }; }
+    // totales del caso sobre el payload RAW (no depende del colapso)
+    function totalesCaso() { var t = { veh: 0, anom: 0, marca: 0, pais: 0, art: 0 };
+      nodosRaw.forEach(function (n) {
+        if (n.kind === 'vehiculo') t.veh++; else if (n.kind === 'anomalia') t.anom++;
+        else if (n.kind === 'marca') t.marca++; else if (n.kind === 'pais') t.pais++;
+        else if (n.kind === 'artefacto') t.art++; });
+      return t; }
+    function volumenTotalMarcas() { var s = 0;
+      nodosRaw.forEach(function (n) { if (n.kind === 'marca' && n.extra) s += (+n.extra.volumen || 0); });
+      return s; }
+    function botonAccion(a) {
+      var lab = { vecindario: 'Vecindario', camino: 'Camino a…', centrar: 'Centrar',
+        afectados: 'Ver afectados', expandir: 'Expandir' }[a] || a;
+      var key = (a === 'vecindario' || a === 'afectados' || a === 'expandir') ? ' key' : '';
+      return '<button type="button" class="gr-tar-accion' + key + '" data-accion="' + a + '">' + esc(lab) + '</button>';
     }
+    function filasBasicas(n) { var out = fila('conexiones', n.grado || 0), extra = n.extra || {};
+      Object.keys(extra).forEach(function (kk) {
+        if (extra[kk] != null && extra[kk] !== '' && kk !== 'virtual') out += fila(kk, extra[kk]); });
+      return out; }
+    function claseCard(n) {
+      if (n.kind === 'anomalia') return n.severidad === 'danger' ? 'gr-dng' : 'gr-warn';
+      if (n.kind === 'pais') return 'gr-cob';
+      return ''; }
     // sección dueña de un nodo, para el deep-link "Abrir en"
     function destinoDe(n) {
       if (n.kind === 'artefacto') return ['/autogenes/ingesta', 'Ingesta'];
@@ -1051,23 +1096,104 @@
       if (n.kind === 'producto') return ['/autogenes/sintesis', 'Síntesis'];
       return null;
     }
+    // ficha por TIPO (compartida por la tarjeta callout y el inspector lateral)
+    function fichaDossier(n) {
+      var k = n.kind, cuerpo = '', acc = [], sub = '';
+
+      if (n.meta) {                                   // racimo ν×N
+        sub = 'colapsados bajo un pedimento';
+        cuerpo = hero(fNum(n.conteo), 'UNIDADES' + (ex(n, 'tipo') ? '<br>' + esc(ex(n, 'tipo')) : ''));
+        var rango = (ex(n, 'precio_min') != null) ? fMon(ex(n, 'precio_min')) + '–' + fMon(ex(n, 'precio_max')) : null;
+        cuerpo += fila('rango precio', rango) + fila('valor Σ', fMon(ex(n, 'valor')), true);
+        acc = ['expandir', 'centrar'];
+      } else if (k === 'nucleo') {                    // α · caso
+        var t = totalesCaso();
+        sub = 'una sola fuente de la verdad';
+        cuerpo = hero(fNum(t.veh), 'VEHÍCULOS<br>en el caso');
+        cuerpo += fila('anomalías', t.anom ? fNum(t.anom) + ' · a revisar' : 'sin anomalías', t.anom > 0);
+        cuerpo += fila('marcas · países', t.marca + ' · ' + t.pais);
+        cuerpo += fila('fuentes', t.art || null);
+        cuerpo += fila('nodos · enlaces', nodosRaw.length + ' · ' + enlacesRaw.length);
+        acc = ['centrar'];
+      } else if (k === 'marca') {
+        var vt = volumenTotalMarcas(), vol = +ex(n, 'volumen') || 0;
+        sub = ex(n, 'modelos') ? (ex(n, 'modelos') + ' modelos distintos') : '';
+        cuerpo = hero(fNum(vol), 'UNIDADES' + (vt ? '<br>' + Math.round(vol / vt * 100) + '% del volumen' : ''));
+        cuerpo += barraJN(ex(n, 'pref_j'), ex(n, 'pref_n'));
+        cuerpo += fila('modelo líder', ex(n, 'modelo_lider') ? ex(n, 'modelo_lider') + ' · ' + fNum(ex(n, 'lider_n')) : null, true);
+        cuerpo += fila('orígenes', ex(n, 'origenes'));
+        cuerpo += fila('valor Σ', fMon(ex(n, 'valor_sigma')));
+        acc = ['vecindario', 'camino', 'centrar'];
+      } else if (k === 'pais') {
+        sub = ex(n, 'marcas') ? (ex(n, 'marcas') + ' marcas de origen') : '';
+        cuerpo = hero(fNum(ex(n, 'volumen') || 0), 'UNIDADES<br>importadas');
+        cuerpo += barraJN(ex(n, 'pref_j'), ex(n, 'pref_n'));
+        cuerpo += fila('marcas', ex(n, 'marcas'), true);
+        cuerpo += fila('valor Σ', fMon(ex(n, 'valor_sigma')));
+        acc = ['vecindario', 'camino', 'centrar'];
+      } else if (k === 'pedimento') {
+        sub = (ex(n, 'patente') ? 'patente ' + ex(n, 'patente') : '') +
+              (ex(n, 'aduana') ? ' · ' + ex(n, 'aduana') : '');
+        cuerpo = hero(fNum(ex(n, 'n_vehiculos') || 0), 'VEHÍCULOS' + (ex(n, 'valor') ? '<br>' + fMon(ex(n, 'valor')) + ' valor' : ''));
+        cuerpo += fila('aduana', ex(n, 'aduana')) + fila('fecha', ex(n, 'fecha'));
+        acc = ['vecindario', 'centrar'];
+      } else if (k === 'vehiculo') {
+        var mv = vecinosKind(n, 'marca')[0], pv = vecinosKind(n, 'pais')[0];
+        sub = 'chasis · unidad de la flota';
+        cuerpo = fila('modelo', n.tipo) + fila('marca', mv ? mv.etiqueta : null) +
+                 fila('origen', pv ? pv.etiqueta : null) +
+                 fila('precio', fMon(ex(n, 'precio')), true) + fila('preferencia', ex(n, 'j_y_n'));
+        acc = ['vecindario', 'centrar'];
+      } else if (k === 'anomalia') {
+        var sev = n.severidad === 'danger';
+        sub = 'motor ' + (ex(n, 'motor') || '—');
+        cuerpo = '<span class="gr-chip ' + (sev ? 'crit' : 'warn') + '">● ' +
+          (sev ? 'Crítico' : 'Revisar') + ' · ' + esc(n.severidad || 'warn') + '</span>';
+        if (ex(n, 'detalle')) cuerpo += '<div class="gr-diag">' + esc(ex(n, 'detalle')) + '</div>';
+        cuerpo += fila('motor', ex(n, 'motor')) + fila('regla', ex(n, 'regla_id')) +
+                  fila('afectados', ex(n, 'n_unidades') ? fNum(ex(n, 'n_unidades')) + ' unidades' : null, true);
+        acc = ['afectados', 'camino'];
+      } else if (k === 'entidad') {
+        var st = statsEntidad(n);
+        sub = 'memoria · ' + (ex(n, 'origen') || n.tipo || 'entidad');
+        cuerpo = fila('tipo', n.tipo) + fila('procedencia', ex(n, 'origen')) +
+                 fila('relaciones', st.rel || null, st.rel > 0) +
+                 fila('confianza', st.conf ? st.conf.toFixed(2) : null);
+        if (st.arts.length) cuerpo += '<div class="gr-prov">CITA · ' + st.arts.length + ' fuente' +
+          (st.arts.length !== 1 ? 's' : '') + '<br>' + st.arts.slice(0, 3).map(function (a) {
+            return '<span class="gr-frag">Σ ' + esc(a.etiqueta) + '</span>'; }).join('') + '</div>';
+        acc = ['vecindario', 'centrar'];
+      } else if (k === 'artefacto') {
+        sub = (n.tipo ? n.tipo.toUpperCase() : 'FUENTE') + (ex(n, 'virtual') ? ' · virtual' : '');
+        cuerpo = fila('fragmentos', badgeFrag[n.id] ? fNum(badgeFrag[n.id]) : null, true) +
+                 fila('entidades citadas', vecinosKind(n, 'entidad').length || null);
+        acc = ['vecindario', 'centrar'];
+      } else if (k === 'producto') {
+        sub = 'producto dockeado' + (n.tipo ? ' · ' + n.tipo : '');
+        cuerpo = fila('clase', n.tipo) + fila('entidades', vecinosKind(n, 'entidad').length || null) +
+                 fila('fuentes', vecinosKind(n, 'artefacto').length || null);
+        acc = ['vecindario', 'centrar'];
+      } else {
+        cuerpo = filasBasicas(n);
+        acc = ['vecindario', 'centrar'];
+      }
+      return { sub: sub, cuerpo: cuerpo, acc: acc };
+    }
     function contenidoTarjeta(n) {
-      var dest = destinoDe(n);
-      return '<div class="gr-tar-head">' +
+      var dest = destinoDe(n), f = fichaDossier(n);
+      var accHTML = f.acc.map(botonAccion).join('') +
+        (dest ? '<button type="button" class="gr-tar-accion" data-accion="abrir">Abrir en ' + esc(dest[1]) + '</button>' : '');
+      return '<div class="gr-tar-accent"></div>' +
+        '<div class="gr-tar-head">' +
         '<span class="gr-tar-glifo" style="color:' + colorNodo(n) + '">' + esc(n.glifo || '·') + '</span>' +
-        '<span class="gr-tar-kind">' + esc((n.meta ? 'racimo' : n.kind)) +
-          (n.tipo ? ' · ' + esc(n.tipo) : '') + ((n.extra && n.extra.virtual) ? ' · virtual' : '') + '</span>' +
+        '<span class="gr-tar-kind">' + esc(n.meta ? 'racimo · ν×N' : n.kind) + '</span>' +
         '<button type="button" class="gr-tar-btn" data-pin aria-pressed="false" aria-label="Fijar tarjeta">⇱</button>' +
         '<button type="button" class="gr-tar-btn" data-x aria-label="Cerrar tarjeta">×</button>' +
         '</div>' +
         '<div class="gr-tar-nombre">' + esc(n.etiqueta) + '</div>' +
-        filasTarjeta(n) +
-        '<div class="gr-tar-acciones">' +
-        '<button type="button" class="gr-tar-accion" data-accion="vecindario">Vecindario</button>' +
-        '<button type="button" class="gr-tar-accion" data-accion="camino">Camino a…</button>' +
-        '<button type="button" class="gr-tar-accion" data-accion="centrar">Centrar</button>' +
-        (dest ? '<button type="button" class="gr-tar-accion" data-accion="abrir">Abrir en ' + esc(dest[1]) + '</button>' : '') +
-        '</div>';
+        (f.sub ? '<div class="gr-tar-sub">' + esc(f.sub) + '</div>' : '') +
+        f.cuerpo +
+        '<div class="gr-tar-acciones">' + accHTML + '</div>';
     }
     function accionTarjeta(a, n) {
       if (a === 'centrar') {
@@ -1093,6 +1219,11 @@
         resalte = (resalte && resalte.nodos[n.id] && Object.keys(resalte.nodos).length === Object.keys(rn).length)
           ? null : { nodos: rn, enlaces: re };
         if (!animando) dibujar(0);
+      } else if (a === 'afectados') {
+        accionTarjeta('vecindario', n);   // los Δ citan a sus unidades afectadas
+      } else if (a === 'expandir' && n.ped) {
+        expandidos[n.ped] = !expandidos[n.ped];   // despliega el racimo ν×N
+        colapsar(); if (!animando) dibujar(0);
       }
     }
     function abrirTarjeta(n) {
@@ -1105,7 +1236,7 @@
       });
       while (tarjetas.length >= 2) { capaTarjetas.removeChild(tarjetas.shift().el); }
       var el = document.createElement('div');
-      el.className = 'gr-tarjeta';
+      el.className = 'gr-tarjeta ' + claseCard(n);
       el.innerHTML = contenidoTarjeta(n);
       capaTarjetas.appendChild(el);
       var card = { nodo: n, el: el, fijada: false };

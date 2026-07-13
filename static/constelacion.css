@@ -356,17 +356,54 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
    lineart. HTML sobre el lienzo: texto nítido, seleccionable, accesible. ── */
 .gr-capa-tarjetas { position: absolute; inset: 0; pointer-events: none; z-index: 4; }
 .gr-tarjeta {
-  position: absolute; width: 264px; max-width: 80%; pointer-events: auto;
-  background: var(--surface); border: 1px solid var(--line-2);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, .5);
-  padding: 11px 13px 10px; animation: gr-tarjeta-in var(--e4u-rapido, .12s) ease-out;
+  position: absolute; width: 288px; max-width: 82%; pointer-events: auto;
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line-2); box-shadow: 0 10px 34px rgba(0, 0, 0, .55);
+  padding: 11px 13px 12px; animation: gr-tarjeta-in var(--e4u-rapido, .12s) ease-out;
+  --card-acc: var(--acc-text);
 }
+/* marco de instrumento: corchetes en dos esquinas (lenguaje del lineart) */
+.gr-tarjeta::before, .gr-tarjeta::after {
+  content: ""; position: absolute; width: 11px; height: 11px; border: 1.5px solid var(--card-acc); opacity: .7;
+}
+.gr-tarjeta::before { left: -1px; top: -1px; border-right: none; border-bottom: none; }
+.gr-tarjeta::after { right: -1px; bottom: -1px; border-left: none; border-top: none; }
+.gr-tarjeta.gr-dng { --card-acc: var(--danger); }
+.gr-tarjeta.gr-warn { --card-acc: var(--warn); }
+.gr-tarjeta.gr-cob { --card-acc: var(--cobalt-on); }
+/* barra de acento superior · rompe el padding para ir de borde a borde */
+.gr-tar-accent { height: 2px; background: var(--card-acc); margin: -11px -13px 9px; }
 @keyframes gr-tarjeta-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .gr-tarjeta { animation: none; } }
-.gr-tarjeta.fijada { border-color: var(--acc-text); }
-.gr-tar-head { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
-.gr-tar-glifo { font-family: var(--font-mono); font-weight: 700; font-size: 1rem; line-height: 1; }
-.gr-tar-kind { font-family: var(--font-mono); font-size: .58rem; letter-spacing: 2px; color: var(--acc-text); flex: 1; text-transform: uppercase; }
+.gr-tarjeta.fijada { border-color: var(--card-acc); }
+.gr-tar-head { display: flex; align-items: center; gap: 7px; margin-bottom: 3px; }
+.gr-tar-glifo { font-family: var(--font-mono); font-weight: 700; font-size: .95rem; line-height: 1;
+  color: var(--card-acc); border: 1px solid color-mix(in srgb, var(--card-acc) 40%, transparent);
+  min-width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+.gr-tar-kind { font-family: var(--font-mono); font-size: .58rem; letter-spacing: 2px; color: var(--card-acc); flex: 1; text-transform: uppercase; }
+.gr-tar-sub { font-family: var(--font-mono); font-size: .62rem; color: var(--t3); letter-spacing: .4px; margin: 0 0 8px; overflow-wrap: anywhere; }
+/* hero-readout: la cifra que importa por tipo */
+.gr-tar-hero { display: flex; align-items: flex-end; gap: 10px; margin: 6px 0 5px; }
+.gr-tar-big { font-family: var(--font-d); font-weight: 700; font-size: 1.85rem; color: var(--t1); line-height: .9; }
+.gr-tar-big.acc { color: var(--acc-text); } .gr-tar-big.dng { color: var(--danger); }
+.gr-tar-unit { font-family: var(--font-mono); font-size: .58rem; color: var(--t3); letter-spacing: .8px; line-height: 1.35; padding-bottom: 2px; text-transform: uppercase; }
+/* barra preferencia J/N */
+.gr-jn { display: flex; height: 8px; margin: 8px 0 3px; border: 1px solid var(--line-ghost); }
+.gr-jn i { display: block; height: 100%; }
+.gr-jn i.j { background: var(--acc-text); } .gr-jn i.n { background: var(--warn); }
+.gr-jnlab { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: .56rem; color: var(--t3); letter-spacing: .5px; }
+/* chip de severidad */
+.gr-chip { display: inline-block; font-family: var(--font-mono); font-size: .56rem; letter-spacing: 1.4px;
+  text-transform: uppercase; padding: 3px 8px; border: 1px solid; margin: 3px 0 2px; }
+.gr-chip.crit { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.gr-chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+/* diagnóstico de la Δ: qué falló, en prosa */
+.gr-diag { font-size: .72rem; color: var(--t2); line-height: 1.4; margin: 8px 0 2px;
+  border-left: 2px solid var(--card-acc); padding: 2px 0 2px 9px; background: color-mix(in srgb, var(--card-acc) 8%, transparent); }
+/* procedencia (cita a fuentes) */
+.gr-prov { font-family: var(--font-mono); font-size: .62rem; color: var(--t3); margin: 8px 0 0; line-height: 1.5; }
+.gr-frag { display: inline-block; font-size: .58rem; color: var(--acc-text);
+  border: 1px solid color-mix(in srgb, var(--acc-text) 35%, transparent); padding: 1px 5px; margin: 3px 3px 0 0; overflow-wrap: anywhere; }
 .gr-tar-btn {
   font-family: var(--font-mono); font-size: .72rem; line-height: 1; color: var(--t3);
   background: none; border: 1px solid var(--line); padding: 3px 6px; cursor: pointer;
@@ -382,6 +419,8 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   min-height: 30px;
 }
 .gr-tar-accion:hover { color: var(--acc-text); border-color: var(--acc-text); }
+.gr-tar-accion.key { color: var(--acc-text); border-color: color-mix(in srgb, var(--acc-text) 50%, transparent); }
+.gr-dng .gr-tar-accion.key { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 
 /* móvil: la tarjeta se dockea como hoja inferior; la línea guía se omite */
 @media (max-width: 640px) {

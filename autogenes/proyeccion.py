@@ -237,24 +237,76 @@ def construir_grafo(
     )
     nodos.append(_nodo(nucleo_id, "nucleo", etiqueta_ses))
 
+    # Agregados por pedimento (para el dossier de la tarjeta · aditivo,
+    # read-only): nº de vehículos y valor Σ de la fila que cuelga del pedimento.
+    ped_agg: dict[Any, dict] = {}
+    for r in _q(conn, """SELECT pedimento_id AS pid, COUNT(*) AS n,
+                   COALESCE(SUM(precio), 0) AS valor FROM importaciones
+                   WHERE session_id = ? AND pedimento_id IS NOT NULL
+                   GROUP BY pedimento_id""", (session_id,)):
+        ped_agg[r["pid"]] = {"n_vehiculos": r["n"], "valor": r["valor"]}
+
     # ── pedimentos ────────────────────────────────────────────────────
     for r in _q(conn, "SELECT * FROM pedimentos WHERE session_id = ?", (session_id,)):
         pid = f"ped:{r['id']}"
+        extra = {"patente": r["patente"], "aduana": r["aduana"],
+                 "fecha": r["fecha_pedimento"]}
+        extra.update(ped_agg.get(r["id"], {}))
         nodos.append(_nodo(pid, "pedimento", r["numero_pedimento"] or "pedimento",
-                           extra={"patente": r["patente"], "aduana": r["aduana"],
-                                  "fecha": r["fecha_pedimento"]}))
+                           extra=extra))
         enlaces.append(_enlace(f"cita-{nucleo_id}-{pid}", nucleo_id, pid, "cita", 0.6))
 
     # ── marcas y paises presentes en la sesión (hubs agregadores) ────
+    # Agregados por marca/país para la tarjeta dossier (aditivo · read-only):
+    # volumen, valor Σ, split de preferencia J/N, modelos y orígenes distintos.
+    marca_agg: dict[Any, dict] = {}
+    for r in _q(conn, """
+            SELECT m.id AS mid, COUNT(*) AS vol, COALESCE(SUM(i.precio), 0) AS valor,
+                   SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'J' THEN 1 ELSE 0 END) AS j,
+                   SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'N' THEN 1 ELSE 0 END) AS n,
+                   COUNT(DISTINCT c.tipo) AS modelos,
+                   COUNT(DISTINCT i.pais_code) AS paises
+            FROM importaciones i JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+            JOIN marcas m ON c.marca_id = m.id WHERE i.session_id = ?
+            GROUP BY m.id""", (session_id,)):
+        marca_agg[r["mid"]] = {"volumen": r["vol"], "valor_sigma": r["valor"],
+                               "pref_j": r["j"], "pref_n": r["n"],
+                               "modelos": r["modelos"], "origenes": r["paises"]}
+    # modelo líder por marca: el tipo con más unidades (orden global desc ⇒ la
+    # primera fila por marca es su máximo; desempate por nombre = determinista).
+    for r in _q(conn, """
+            SELECT m.id AS mid, c.tipo AS tipo, COUNT(*) AS n
+            FROM importaciones i JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+            JOIN marcas m ON c.marca_id = m.id
+            WHERE i.session_id = ? AND c.tipo IS NOT NULL
+            GROUP BY m.id, c.tipo ORDER BY n DESC, c.tipo""", (session_id,)):
+        d = marca_agg.get(r["mid"])
+        if d is not None and "modelo_lider" not in d:
+            d["modelo_lider"] = r["tipo"]
+            d["lider_n"] = r["n"]
     for r in _q(conn, """
             SELECT DISTINCT m.id AS mid, m.nombre AS nombre
             FROM importaciones i JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
             JOIN marcas m ON c.marca_id = m.id WHERE i.session_id = ?""", (session_id,)):
-        nodos.append(_nodo(f"marca:{r['mid']}", "marca", r["nombre"]))
+        nodos.append(_nodo(f"marca:{r['mid']}", "marca", r["nombre"],
+                           extra=marca_agg.get(r["mid"])))
+
+    pais_agg: dict[Any, dict] = {}
+    for r in _q(conn, """
+            SELECT i.pais_code AS pc, COUNT(*) AS vol, COALESCE(SUM(i.precio), 0) AS valor,
+                   SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'J' THEN 1 ELSE 0 END) AS j,
+                   SUM(CASE WHEN UPPER(COALESCE(i.j_y_n, '')) = 'N' THEN 1 ELSE 0 END) AS n,
+                   COUNT(DISTINCT c.marca_id) AS marcas
+            FROM importaciones i LEFT JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
+            WHERE i.session_id = ? AND i.pais_code IS NOT NULL
+            GROUP BY i.pais_code""", (session_id,)):
+        pais_agg[r["pc"]] = {"volumen": r["vol"], "valor_sigma": r["valor"],
+                             "pref_j": r["j"], "pref_n": r["n"], "marcas": r["marcas"]}
     for r in _q(conn, """
             SELECT DISTINCT pais_code FROM importaciones
             WHERE session_id = ? AND pais_code IS NOT NULL""", (session_id,)):
-        nodos.append(_nodo(f"pais:{r['pais_code']}", "pais", r["pais_code"]))
+        nodos.append(_nodo(f"pais:{r['pais_code']}", "pais", r["pais_code"],
+                           extra=pais_agg.get(r["pais_code"])))
 
     # ── vehiculos (la fila del JOIN tri-fuente, con el PDF que lo ampara) ──
     limit_clause = f" LIMIT {int(limite_vehiculos)}" if limite_vehiculos else ""
