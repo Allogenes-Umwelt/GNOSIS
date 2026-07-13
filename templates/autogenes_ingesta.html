@@ -44,15 +44,17 @@
           <button type="button" class="ag-plegar" data-panel="cen" aria-label="Plegar el mapa">◧</button>
         </span>
       </div>
-      <div class="ch-lienzo gr-lienzo" data-info="#ch-info">
-        <canvas aria-label="Chord de ingesta: fuentes a la izquierda, entidades a la derecha, cintas por citas" role="img"></canvas>
+      <div class="ch-lienzo gr-lienzo" data-info="#ch-info" data-tabla="#ch-tabla">
+        <canvas tabindex="0" aria-label="Chord de ingesta: fuentes a la izquierda, entidades a la derecha, cintas por citas. Usa las flechas para recorrer los arcos, Enter para abrir su dossier." role="img"></canvas>
       </div>
+      <div id="ch-tabla" class="ch-tabla" hidden></div>
       <ul class="ag-leyenda" style="margin-top:8px">
         <li><b style="color:var(--acc-text)">◜</b> fuente</li>
         <li><b style="color:var(--acc-text)">◝</b> entidad</li>
         <li><b style="color:var(--danger)">◠</b> fuente fría (nadie la cita)</li>
+        <li><button type="button" id="ch-tabla-btn" class="ag-modo-tabla" aria-pressed="false">Ver como tabla</button></li>
         <li><span id="ch-info" role="status">CARGANDO…</span></li>
-        <li style="margin-left:auto;color:var(--t3)">clic en un arco: abre su dossier</li>
+        <li style="margin-left:auto;color:var(--t3)">flechas: recorre arcos · Enter: dossier</li>
       </ul>
     </section>
 

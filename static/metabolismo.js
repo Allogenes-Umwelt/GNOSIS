@@ -359,6 +359,20 @@
       return b;
     }
 
+    // A11y del triage: al abrir un formulario, foco al primer control; Escape
+    // cancela. El panel ya es aria-live, así que el resultado se anuncia.
+    function enfocarTriage() {
+      if (!detalle) return;
+      var el = detalle.querySelector('.tr-input, input, .tr-accion, button');
+      if (el) el.focus();
+    }
+    if (detalle) detalle.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape' && detalle.querySelector('.tr-acciones')) {
+        ev.preventDefault();
+        pintarDetalle();
+      }
+    });
+
     function refrescarTras(mensaje) {
       // el cache de entidades/verbos cambió (una relación nueva, un verbo nuevo)
       entidadesCache = null;
@@ -407,6 +421,7 @@
         }));
         fila.appendChild(botonAccion('Cancelar', pintarDetalle));
         detalle.appendChild(fila);
+        enfocarTriage();
       });
     }
 
@@ -428,6 +443,7 @@
       }));
       fila.appendChild(botonAccion('Cancelar', pintarDetalle));
       detalle.appendChild(fila);
+      enfocarTriage();
     }
 
     function avisoTriage(texto) {

@@ -20,7 +20,9 @@
     var canvas = cont.querySelector('canvas');
     var ctx = canvas.getContext('2d');
     var info = document.querySelector(cont.getAttribute('data-info') || '') || null;
+    var tablaCont = document.querySelector(cont.getAttribute('data-tabla') || '') || null;
     var colores = {}, datos = null, layout = null, hover = null, sel = null;
+    var foco = -1;      // índice del arco con foco de TECLADO (A11y)
     var cssW = 0, cssH = 0, cx = 0, cy = 0, R = 0, rIn = 0, arcW = 0;
     // C4 · pirotecnia disciplinada (toda apagada con prefers-reduced-motion)
     var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -144,10 +146,14 @@
               u * u * p0[1] + 2 * u * t * c[1] + t * t * p2[1]];
     }
 
+    function focoId() {
+      return (foco >= 0 && layout && layout.arcos[foco]) ? layout.arcos[foco].id : null;
+    }
+
     function dibujar(ts) {
       if (!layout) return;
       ctx.clearRect(0, 0, cssW, cssH);
-      var hid = hover ? hover.id : (sel ? sel.id : null);
+      var hid = hover ? hover.id : (focoId() || (sel ? sel.id : null));
       // k de entrada: los arcos nuevos barren su ángulo una sola vez
       var kEnt = 1;
       if (entrada) {
@@ -302,16 +308,67 @@
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden && (hover || entrada)) animar();
     });
-    canvas.addEventListener('click', function (ev) {
-      if (!layout) return;
-      var caja = canvas.getBoundingClientRect();
-      var n = arcoEn(ev.clientX - caja.left, ev.clientY - caja.top);
+    function emitirSel(n) {
       sel = n;
-      dibujar();
       cont.dispatchEvent(new CustomEvent('chord-select', {
         detail: n ? { id: n.id, lado: n.lado, nombre: n.nombre,
                       agregado: !!n.agregado } : null
       }));
+    }
+    canvas.addEventListener('click', function (ev) {
+      if (!layout) return;
+      var caja = canvas.getBoundingClientRect();
+      var n = arcoEn(ev.clientX - caja.left, ev.clientY - caja.top);
+      emitirSel(n);
+      dibujar(0);
+    });
+
+    // ── teclado (A11y): flechas recorren arcos, Enter abre el dossier ──
+    canvas.addEventListener('keydown', function (ev) {
+      if (!layout || !layout.arcos.length) return;
+      var k = ev.key;
+      if (k === 'ArrowRight' || k === 'ArrowDown') {
+        foco = (foco + 1) % layout.arcos.length;
+      } else if (k === 'ArrowLeft' || k === 'ArrowUp') {
+        foco = (foco <= 0 ? layout.arcos.length : foco) - 1;
+      } else if (k === 'Enter' || k === ' ') {
+        if (foco >= 0) emitirSel(layout.arcos[foco]);
+      } else if (k === 'Escape') {
+        foco = -1; emitirSel(null);
+      } else { return; }
+      ev.preventDefault();
+      pintarInfo(foco >= 0 ? layout.arcos[foco] : null);
+      dibujar(0);
+    });
+    canvas.addEventListener('blur', function () { foco = -1; dibujar(0); });
+
+    // ── tabla accesible: los mismos datos que el chord, para lectores ──
+    var tablaBtn = document.getElementById('ch-tabla-btn');
+    function construirTabla() {
+      if (!tablaCont || !datos) return;
+      function esc2(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+      }
+      var f = datos.artefactos.map(function (a) {
+        return '<tr><th scope="row">' + esc2(a.nombre) + '</th><td>' + esc2(a.grupo) +
+          '</td><td>' + (a.agregado ? a.n : a.fragmentos) + '</td><td>' +
+          (a.agregado ? '—' : a.entidades) + '</td><td>' +
+          (a.fria ? 'fría' : 'metabolizada') + '</td></tr>';
+      }).join('');
+      tablaCont.innerHTML =
+        '<table><caption>Fuentes de la sesión · cobertura ' + datos.resumen.cobertura +
+        '%</caption><thead><tr><th scope="col">Fuente</th><th scope="col">Tipo</th>' +
+        '<th scope="col">Fragmentos</th><th scope="col">Entidades</th>' +
+        '<th scope="col">Estado</th></tr></thead><tbody>' + f + '</tbody></table>';
+    }
+    if (tablaBtn) tablaBtn.addEventListener('click', function () {
+      var mostrar = tablaCont.hidden;
+      if (mostrar) construirTabla();
+      tablaCont.hidden = !mostrar;
+      tablaBtn.setAttribute('aria-pressed', String(mostrar));
+      tablaBtn.textContent = mostrar ? 'Ver como chord' : 'Ver como tabla';
     });
 
     function pintarInfo(n) {

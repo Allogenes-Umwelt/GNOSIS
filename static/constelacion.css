@@ -582,6 +582,22 @@ button.tr-urg { align-items: baseline; }
 .in-nueva { color: var(--acc-text); border: 1px solid var(--line-2); }
 .in-existe { color: var(--t3); border: 1px solid var(--line); }
 
+/* ── Accesibilidad (C7): tabla alternativa del chord + botón de modo ── */
+.ag-modo-tabla { font-family: var(--font-mono); font-size: .62rem; letter-spacing: .5px;
+  color: var(--acc-text); background: none; border: 1px solid var(--line-2);
+  border-radius: 3px; padding: 2px 8px; cursor: pointer; }
+.ag-modo-tabla:hover, .ag-modo-tabla:focus-visible { border-color: var(--acc-text); }
+.ch-tabla { max-height: 420px; overflow: auto; margin-top: 8px; }
+.ch-tabla table { width: 100%; border-collapse: collapse; font-family: var(--font-mono);
+  font-size: .72rem; color: var(--t2); }
+.ch-tabla caption { text-align: left; color: var(--t3); font-size: .66rem;
+  text-transform: uppercase; letter-spacing: 1px; padding: 4px 0; }
+.ch-tabla th, .ch-tabla td { text-align: left; padding: 5px 8px;
+  border-bottom: 1px solid var(--line-ghost); }
+.ch-tabla thead th { color: var(--t3); text-transform: uppercase; font-size: .62rem;
+  letter-spacing: 1px; position: sticky; top: 0; background: var(--bg); }
+.ch-tabla tbody th { color: var(--t1); font-weight: 400; }
+
 /* ── Puntero grueso: objetivos tactiles al minimo de la ley (48px) ── */
 @media (pointer: coarse) {
   .ag-plegar { min-width: 48px; min-height: 48px; }
