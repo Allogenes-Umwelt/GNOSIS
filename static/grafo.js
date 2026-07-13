@@ -69,6 +69,8 @@
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
     var whatif = null;           // {id, r} — simulación de caída (P3, DECIDIR)
+    var estadoPendiente = null;  // estado del deep-link a aplicar tras la 1ª carga (L1)
+    var primeraCarga = true;
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
@@ -370,6 +372,7 @@
         colapsar();          // deriva nodos/enlaces visibles + estado
         reconstruirSim();
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
+        if (primeraCarga) { primeraCarga = false; aplicarEstadoPendiente(); }
       }).catch(function () {
         if (mia !== reqSeq) return;
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
@@ -1536,6 +1539,67 @@
       }
     };
 
+    // ── Deep-link del estado del grafo (L1) ───────────────────────────
+    // El estado visual vive en el hash de la URL: pegar la URL reproduce la
+    // vista EXACTA (viewport, selección, filtros, racimos, fragmentos). Las
+    // posiciones son deterministas, así que la cámara guardada las reencuentra.
+    // Se escribe por sondeo con replaceState — no inunda el historial del
+    // navegador; es el snapshot que P1 (investigaciones) guardará.
+    function serializarEstado() {
+      var p = [];
+      if (sesionId) p.push('s=' + sesionId);
+      p.push('k=' + vista.k.toFixed(3));
+      p.push('x=' + Math.round(vista.x));
+      p.push('y=' + Math.round(vista.y));
+      if (sel) p.push('n=' + encodeURIComponent(sel.id));
+      if (kindAislado) p.push('a=' + encodeURIComponent(kindAislado));
+      var aten = Object.keys(kindsAtenuados).filter(function (k) { return kindsAtenuados[k]; });
+      if (aten.length) p.push('f=' + aten.map(encodeURIComponent).join(','));
+      var exp = Object.keys(expandidos).filter(function (k) { return expandidos[k]; });
+      if (exp.length) p.push('e=' + exp.map(encodeURIComponent).join(','));
+      if (mostrarFragmentos) p.push('g=1');
+      return p.join('&');
+    }
+    function parsearHash() {
+      var h = (location.hash || '').replace(/^#/, '');
+      if (!h) return null;
+      var o = {};
+      h.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i > 0) o[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+      });
+      return o;
+    }
+    function leerEstadoInicial() {
+      var o = parsearHash();
+      if (!o) return;
+      // pre-carga: estos afectan el colapso, así que se fijan ANTES de cargar
+      if (o.g === '1') mostrarFragmentos = true;
+      if (o.e) o.e.split(',').forEach(function (id) { expandidos[id] = true; });
+      if (o.a) kindAislado = o.a;
+      if (o.f) o.f.split(',').forEach(function (k) { kindsAtenuados[k] = true; });
+      estadoPendiente = { k: parseFloat(o.k), x: parseFloat(o.x),
+                          y: parseFloat(o.y), n: o.n || null };
+    }
+    function aplicarEstadoPendiente() {
+      if (!estadoPendiente) return;
+      var e = estadoPendiente; estadoPendiente = null;
+      if (isFinite(e.k) && isFinite(e.x) && isFinite(e.y)) {
+        vista.k = e.k; vista.x = e.x; vista.y = e.y; vistaManual = true;
+      }
+      if (e.n && porId[e.n]) { sel = porId[e.n]; pintarInspector(sel); arrancarLatido(); }
+      if (typeof pintarLeyenda === 'function') pintarLeyenda();
+      if (!animando) dibujar(0);
+    }
+    var ultimoHash = null;
+    function guardarEstado() {
+      var s = serializarEstado();
+      if (s === ultimoHash) return;
+      ultimoHash = s;
+      try { history.replaceState(null, '', location.pathname + location.search + '#' + s); }
+      catch (err) { /* algunos navegadores bloquean replaceState en local file */ }
+    }
+
     // ── Paleta de comandos (P7): Ctrl/Cmd+K — toda acción sin ratón ────
     // Búsqueda de nodos (reusa el índice del lienzo) + acciones nombradas en
     // español. Keyboard-first: flechas navegan, Enter ejecuta, Escape cierra.
@@ -1665,7 +1729,9 @@
     if (alternador) alternador.addEventListener('click', function () {
       setTimeout(function () { leerColores(); if (!animando) dibujar(0); }, 60);
     });
+    leerEstadoInicial();          // aplica el hash de la URL antes de la 1ª carga (L1)
     cargar(cap && cap.value ? cap.value : 150);
+    setInterval(guardarEstado, 700);   // vuelca el estado al hash (deep-link vivo)
   }
 
   document.addEventListener('DOMContentLoaded', function () {
