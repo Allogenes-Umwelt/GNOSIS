@@ -71,6 +71,10 @@ P4/P6 son las fases caras y van al final.
 - **A1/A2/A3** — accesibilidad: modo tabla (la alternativa WCAG real —
   payload como tabla ordenable, canvas aria-hidden mientras está activa),
   controles de vista por teclado (+/−/0), y la región viva del inspector.
+- **P1** — investigaciones guardadas: el estado del lienzo + nota del
+  operador como `Producto{investigacion}` por la puerta del Sustrato
+  (procedencia/WORM), reabrible; migración del CHECK de `ag_productos`;
+  excluidas de la proyección (son meta, no hallazgo). Verificado en vivo.
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -86,9 +90,8 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** P1 (investigaciones guardadas, ya desbloqueada por L1): el
-snapshot del deep-link + notas del operador + tarjetas fijadas, persistido
-como `Producto{clase:'investigacion'}` por la puerta del Sustrato.
+**Siguiente:** P2 (search-around tipado + selección múltiple con lasso),
+luego P5 (diff visual de sesiones, sobre I4) y las fases caras P4/P6/P8.
 
 ---
 
