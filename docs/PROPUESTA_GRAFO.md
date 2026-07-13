@@ -68,6 +68,9 @@ P4/P6 son las fases caras y van al final.
 - **L1** — navegación: estado deep-linkable en el hash (reproduce la vista
   exacta; el snapshot que P1 guardará), minimapa con rectángulo de viewport,
   e historial de foco (Alt+←/→). Los tres verificados en vivo.
+- **A1/A2/A3** — accesibilidad: modo tabla (la alternativa WCAG real —
+  payload como tabla ordenable, canvas aria-hidden mientras está activa),
+  controles de vista por teclado (+/−/0), y la región viva del inspector.
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -83,8 +86,9 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** A1/A2/A3 (accesibilidad: teclado completo, aria-live, modo
-tabla) y P1 (investigaciones guardadas, ya desbloqueada por L1).
+**Siguiente:** P1 (investigaciones guardadas, ya desbloqueada por L1): el
+snapshot del deep-link + notas del operador + tarjetas fijadas, persistido
+como `Producto{clase:'investigacion'}` por la puerta del Sustrato.
 
 ---
 
