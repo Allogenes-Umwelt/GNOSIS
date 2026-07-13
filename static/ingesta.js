@@ -207,7 +207,8 @@
           pintarArtefactos(); recargarMapa();
           return;
         }
-        aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' + aceptados[i].name + '…');
+        aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' +
+              aceptados[i].name.slice(0, 24) + '…');
         subirUno(aceptados[i]).then(function (res) {
           // un ZIP devuelve un resumen de lote; un archivo suelto, uno solo
           if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); dup += (res.j.duplicados || 0); }
@@ -285,7 +286,8 @@
           }
           return;
         }
-        aviso('Extrayendo ' + (i + 1) + '/' + total + ' · ' + cola[i].nombre + '…');
+        aviso('Extrayendo ' + (i + 1) + '/' + total + ' · ' +
+              cola[i].nombre.slice(0, 24) + '…');
         fetch('/api/v1/autogenes/extraer', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ artefacto_id: cola[i].id, quorum: quorumChk.checked })

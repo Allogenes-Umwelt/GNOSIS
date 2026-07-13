@@ -364,11 +364,15 @@
         '<th scope="col">Estado</th></tr></thead><tbody>' + f + '</tbody></table>';
     }
     if (tablaBtn) tablaBtn.addEventListener('click', function () {
-      var mostrar = tablaCont.hidden;
-      if (mostrar) construirTabla();
-      tablaCont.hidden = !mostrar;
-      tablaBtn.setAttribute('aria-pressed', String(mostrar));
-      tablaBtn.textContent = mostrar ? 'Ver como chord' : 'Ver como tabla';
+      var aTabla = tablaCont.hidden;      // vamos a MOSTRAR la tabla
+      if (aTabla) construirTabla();
+      tablaCont.hidden = !aTabla;
+      cont.hidden = aTabla;               // oculta el chord: nunca los dos a la vez
+      tablaBtn.setAttribute('aria-pressed', String(aTabla));
+      tablaBtn.textContent = aTabla ? 'Ver como chord' : 'Ver como tabla';
+      // al volver al chord hay que re-medir: mientras estuvo oculto el canvas
+      // no tenía dimensiones y un resize lo habría dejado en 0.
+      if (!aTabla) { tamano(); calcularLayout(); dibujar(0); }
     });
 
     function pintarInfo(n) {

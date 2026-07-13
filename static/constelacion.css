@@ -237,7 +237,10 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .ag-subir:disabled { opacity: .45; cursor: default; }
 .ag-archivo { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: .72rem; color: var(--t2); border: 1px solid var(--line-ghost); padding: 7px 9px; }
 .ag-archivo .tipo { color: var(--acc-text); border: 1px solid var(--line); padding: 1px 5px; font-size: .62rem; }
-.ag-msj { font-family: var(--font-mono); font-size: .72rem; color: var(--t3); min-height: 1em; }
+.ag-msj { font-family: var(--font-mono); font-size: .72rem; color: var(--t3); min-height: 1em;
+  /* un nombre de archivo largo durante la carga masiva no debe desbordar ni
+     encimarse con la etiqueta de abajo: una sola línea, recortada. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ag-msj.ok { color: var(--ok); } .ag-msj.error { color: var(--danger); }
 
 /* barra de estado regulatoria */
