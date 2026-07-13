@@ -373,14 +373,35 @@
       }
     });
 
-    function refrescarTras(mensaje) {
+    function refrescarTras(mensaje, undo) {
       // el cache de entidades/verbos cambió (una relación nueva, un verbo nuevo)
       entidadesCache = null;
       sel = null;
       resueltas += 1;
       recargarDatos(function () {
-        if (detalle) detalle.innerHTML = '<div class="gr-kind">RESUELTO</div>' +
+        if (!detalle) return;
+        detalle.innerHTML = '<div class="gr-kind">RESUELTO</div>' +
           '<p class="tr-ok">' + esc(mensaje) + '</p>';
+        // deshacer la última acción (solo esta visita): corta la relación creada
+        if (undo && undo.tipo === 'relacion' && undo.id) {
+          var fila = document.createElement('div'); fila.className = 'tr-acciones';
+          fila.appendChild(botonAccion('Deshacer', function () {
+            this.disabled = true;
+            fetch('/api/v1/autogenes/relacion/' + encodeURIComponent(undo.id),
+                  { method: 'DELETE' })
+              .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+              .then(function (res) {
+                if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
+                resueltas = Math.max(0, resueltas - 1);
+                sel = null;
+                recargarDatos(function () {
+                  detalle.innerHTML = '<div class="gr-kind">DESHECHO</div>' +
+                    '<p class="gr-vacio">La relación se cortó.</p>';
+                });
+              }).catch(function () { avisoTriage('Sin conexión'); });
+          }));
+          detalle.appendChild(fila);
+        }
       });
     }
 
@@ -416,7 +437,9 @@
           }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
               if (!res.ok) { avisoTriage(res.j.error || 'Falló'); return; }
-              refrescarTras(huerfana.nombre + ' vinculada · fuga de vinculación −1');
+              var rel = res.j.relacion || {};
+              refrescarTras(huerfana.nombre + ' vinculada · fuga de vinculación −1',
+                            { tipo: 'relacion', id: rel.id });
             }).catch(function () { avisoTriage('Sin conexión'); });
         }));
         fila.appendChild(botonAccion('Cancelar', pintarDetalle));

@@ -969,6 +969,22 @@ def api_autogenes_relacion():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/relacion/<relacion_id>', methods=['DELETE'])
+def api_autogenes_relacion_delete(relacion_id):
+    """Deshace (corta) una relación — el 'deshacer' del triage (T6). Escribe
+    por Sustrato (bitácora WORM). Idempotente: si ya no está, responde ok."""
+    from autogenes.sustrato import Sustrato
+
+    def handler(conn, session_id):
+        Sustrato(conn, session_id).cortar_relacion(relacion_id)
+        _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok'})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/entidades', methods=['GET'])
 def api_autogenes_entidades():
     """Entidades de la sesión (id, nombre, tipo) y los verbos de relación ya

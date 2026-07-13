@@ -145,6 +145,24 @@ def test_delete_evento_resuelve_vencimiento(cliente_sembrado):
     assert r2.status_code == 200
 
 
+def test_delete_relacion_deshace_el_vinculo(cliente_sembrado):
+    c = cliente_sembrado
+    # crear una relación y luego deshacerla (T6)
+    r = c["cli"].post(f"/api/v1/autogenes/relacion?session_id={c['sid']}",
+                      json={"desde_id": c["e1"], "hasta_id": c["e2"], "tipo": "deshazme"})
+    rid = r.get_json()["relacion"]["id"]
+    d = c["cli"].delete(f"/api/v1/autogenes/relacion/{rid}?session_id={c['sid']}")
+    assert d.status_code == 200
+    # ya no existe; idempotente al repetir
+    from database import get_connection
+    conn = get_connection()
+    assert conn.execute("SELECT COUNT(*) FROM ag_relaciones WHERE id = ?",
+                        (rid,)).fetchone()[0] == 0
+    conn.close()
+    assert c["cli"].delete(
+        f"/api/v1/autogenes/relacion/{rid}?session_id={c['sid']}").status_code == 200
+
+
 def test_entidades_lista_y_verbos_derivados(cliente_sembrado):
     c = cliente_sembrado
     # crea una relación para que su verbo aparezca en la lista derivada

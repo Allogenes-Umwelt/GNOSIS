@@ -41,11 +41,18 @@ lienzo central; el flujo HITL de extracción (saneo doble, quórum); la puerta
 | T2 · Triage inline en el radar | HECHO | vincular+resolver verificados en vivo; extraer+sintetizar inline (camino de error verificado; éxito requiere LLM) |
 | T3 · Feedback vivo post-acción | HECHO | transición única 600ms + contador de visita; reduced-motion estático |
 | C4 · Pirotecnia disciplinada | HECHO | glow estático + flux en hover + barrido de entrada. **Rotación idle DESCARTADA** (degradaba etiquetas radiales; sospecha confirmada) |
-| C5 · Bandeja v2 + dedupe por hash | pendiente | — |
-| C6 · Merge-preview de extracción | pendiente | — |
-| T4 · Gauge con benchmark + detalle por defecto | pendiente | — |
-| C7/T5 · Accesibilidad (tabla, teclado, aria) | pendiente | — |
-| T6 · Deshacer última acción (opcional) | pendiente | — |
+| C5 · Bandeja v2 + dedupe por hash | HECHO | frío ordenable/filtrable; dedupe sha256 con 409; migración guarded FK-safe |
+| C6 · Merge-preview de extracción | HECHO | marca NUEVA/YA EXISTE con el mismo _norm de la integración; sin scores |
+| T4 · Gauge con benchmark + detalle por defecto | HECHO | ▲/▼ vs sesión previa (misma fórmula) o "sin base previa"; detalle abre la fuga mayor |
+| C7/T5 · Accesibilidad (tabla, teclado, aria) | HECHO | tabla alternativa del chord + teclado (flechas/Enter/Escape); triage con foco+Escape+aria-live |
+| T6 · Deshacer última acción (opcional) | HECHO | deshacer del Vincular (DELETE /relacion, cortar_relacion). Evento irreversible; informe requiere LLM — fuera de alcance verificable |
+
+**Plan completo.** 18 commits; gates verdes por fase (ruff · eslint 0 errores ·
+pytest 369+ · capturas AAA ambos temas). Único límite honesto: los caminos de
+ÉXITO de extraer/sintetizar inline (T2b) requieren un proveedor LLM
+(DEEPSEEK_API_KEY o el fallback de Claude), ausente en este entorno — se
+verificó su disparo y su degradación con gracia; el resto está verificado en
+vivo end-to-end.
 
 ## 1. Autocrítica de v1 y decisiones fijadas
 
