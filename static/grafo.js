@@ -1536,6 +1536,124 @@
       }
     };
 
+    // ── Paleta de comandos (P7): Ctrl/Cmd+K — toda acción sin ratón ────
+    // Búsqueda de nodos (reusa el índice del lienzo) + acciones nombradas en
+    // español. Keyboard-first: flechas navegan, Enter ejecuta, Escape cierra.
+    var paleta = document.createElement('div');
+    paleta.className = 'gr-paleta';
+    paleta.hidden = true;
+    paleta.setAttribute('role', 'dialog');
+    paleta.setAttribute('aria-modal', 'true');
+    paleta.setAttribute('aria-label', 'Paleta de comandos');
+    paleta.innerHTML =
+      '<div class="gr-paleta-caja">' +
+      '<input class="gr-paleta-input" type="text" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Buscar comando o nodo…" aria-label="Buscar comando o nodo" ' +
+      'role="combobox" aria-controls="gr-paleta-lista" aria-expanded="true">' +
+      '<ul class="gr-paleta-lista" id="gr-paleta-lista" role="listbox"></ul>' +
+      '</div>';
+    cont.appendChild(paleta);
+    var paletaInput = paleta.querySelector('.gr-paleta-input');
+    var paletaLista = paleta.querySelector('.gr-paleta-lista');
+    var paletaItems = [], paletaIdx = 0, paletaAbierta = false;
+
+    function comandosGlobales() {
+      var cmds = [
+        { et: 'Reencuadrar el grafo', hint: 'vista',
+          run: function () { vistaManual = false; encuadrar(); if (!animando) dibujar(0); } },
+        { et: 'Acercar', hint: 'zoom', run: function () { zoomCentro(1.35); } },
+        { et: 'Alejar', hint: 'zoom', run: function () { zoomCentro(1 / 1.35); } },
+        { et: 'Mostrar u ocultar fragmentos σ', hint: 'filtro',
+          run: function () { if (frag) frag.click(); } },
+        { et: 'Limpiar selección y modos', hint: 'salir', run: function () {
+            modoCamino = null; canvas.style.cursor = 'grab';
+            kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null;
+            sel = null; pintarInspector(null); cerrarActivas(); replegarFunnel(true);
+            if (typeof pintarLeyenda === 'function') pintarLeyenda();
+            colapsar(); if (!animando) dibujar(0);
+          } }
+      ];
+      if (sel && (sel.kind === 'marca' || sel.kind === 'pais' || sel.kind === 'pedimento')) {
+        cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
+          run: (function (n) { return function () { simularCaida(n); }; })(sel) });
+      }
+      return cmds;
+    }
+    function comandosNodo(texto) {
+      var out = [], vistos = {};
+      for (var i = 0; i < nodos.length && out.length < 40; i++) {
+        var n = nodos[i];
+        if (!n.etiqueta || n.kind === 'fragmento' || vistos[n.etiqueta]) continue;
+        if (texto && n.etiqueta.toLowerCase().indexOf(texto) < 0) continue;
+        vistos[n.etiqueta] = true;
+        out.push({ et: n.etiqueta, hint: 'ir a · ' + n.kind,
+          run: (function (nn) { return function () {
+            sel = nn; resalte = null; whatif = null; pintarInspector(nn); abrirTarjeta(nn);
+            vistaManual = true; vista.k = Math.max(vista.k, 1.8);
+            vista.x = -nn.x * vista.k; vista.y = -nn.y * vista.k;
+            if (!animando) dibujar(0); arrancarLatido();
+          }; })(n) });
+      }
+      return out;
+    }
+    function pintarPaleta(texto) {
+      texto = (texto || '').trim().toLowerCase();
+      var globs = comandosGlobales().filter(function (c) {
+        return !texto || c.et.toLowerCase().indexOf(texto) >= 0;
+      });
+      paletaItems = globs.concat(comandosNodo(texto));
+      paletaIdx = 0;
+      paletaLista.innerHTML = paletaItems.length
+        ? paletaItems.map(function (c, i) {
+            return '<li class="gr-paleta-item' + (i === 0 ? ' sel' : '') + '" role="option"' +
+              ' aria-selected="' + (i === 0 ? 'true' : 'false') + '" data-i="' + i + '">' +
+              '<span>' + esc(c.et) + '</span><em>' + esc(c.hint) + '</em></li>';
+          }).join('')
+        : '<li class="gr-paleta-vacio">Sin coincidencias</li>';
+    }
+    function marcarPaleta() {
+      paletaLista.querySelectorAll('.gr-paleta-item').forEach(function (el, i) {
+        var s = i === paletaIdx;
+        el.classList.toggle('sel', s);
+        el.setAttribute('aria-selected', s ? 'true' : 'false');
+        if (s) el.scrollIntoView({ block: 'nearest' });
+      });
+    }
+    function ejecutarPaleta(i) {
+      var c = paletaItems[i];
+      cerrarPaleta();
+      if (c) c.run();
+    }
+    function abrirPaleta() {
+      paletaAbierta = true; paleta.hidden = false;
+      paletaInput.value = ''; pintarPaleta('');
+      paletaInput.focus();
+    }
+    function cerrarPaleta() {
+      paletaAbierta = false; paleta.hidden = true;
+      if (canvas.focus) canvas.focus();
+    }
+    paletaInput.addEventListener('input', function () { pintarPaleta(paletaInput.value); });
+    paletaInput.addEventListener('keydown', function (ev) {
+      if (ev.key === 'ArrowDown') { ev.preventDefault(); paletaIdx = Math.min(paletaIdx + 1, paletaItems.length - 1); marcarPaleta(); }
+      else if (ev.key === 'ArrowUp') { ev.preventDefault(); paletaIdx = Math.max(paletaIdx - 1, 0); marcarPaleta(); }
+      else if (ev.key === 'Enter') { ev.preventDefault(); ejecutarPaleta(paletaIdx); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); cerrarPaleta(); }
+    });
+    paletaLista.addEventListener('click', function (ev) {
+      var li = ev.target.closest('[data-i]');
+      if (li) ejecutarPaleta(+li.getAttribute('data-i'));
+    });
+    paleta.addEventListener('click', function (ev) {
+      if (ev.target === paleta) cerrarPaleta();   // clic en el velo cierra
+    });
+    document.addEventListener('keydown', function (ev) {
+      if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'k' || ev.key === 'K')) {
+        ev.preventDefault();
+        if (paletaAbierta) cerrarPaleta(); else abrirPaleta();
+      }
+    });
+
     leerColores();
     tamano();
     window.addEventListener('resize', function () {

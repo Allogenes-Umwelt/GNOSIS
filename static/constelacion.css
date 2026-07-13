@@ -361,6 +361,30 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   line-height: 1.5; letter-spacing: .3px; margin: 10px 0 2px;
   border-left: 2px solid color-mix(in srgb, var(--danger) 45%, transparent); padding-left: 8px; }
 
+/* Paleta de comandos (P7): overlay keyboard-first sobre el lienzo (Ctrl/Cmd+K).
+   Velo tenue + caja de instrumento; el ítem activo se marca con el acento. */
+.gr-paleta { position: absolute; inset: 0; z-index: 10; display: flex;
+  justify-content: center; align-items: flex-start; padding-top: 7%;
+  background: color-mix(in srgb, var(--bg) 68%, transparent); backdrop-filter: blur(2px); }
+.gr-paleta[hidden] { display: none; }
+.gr-paleta-caja { width: 460px; max-width: 88%;
+  background: linear-gradient(180deg, var(--surface), var(--surface-2));
+  border: 1px solid var(--line-2); box-shadow: 0 18px 50px rgba(0, 0, 0, .55);
+  display: flex; flex-direction: column; overflow: hidden; }
+.gr-paleta-input { font-family: var(--font-mono); font-size: .9rem; color: var(--t1);
+  background: transparent; border: 0; border-bottom: 1px solid var(--line-2);
+  padding: 13px 15px; outline: none; }
+.gr-paleta-input::placeholder { color: var(--t3); }
+.gr-paleta-lista { list-style: none; margin: 0; padding: 4px; max-height: 340px; overflow-y: auto; }
+.gr-paleta-item { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 8px 11px; cursor: pointer; font-family: var(--font-mono); font-size: .78rem; color: var(--t2); }
+.gr-paleta-item em { color: var(--t3); font-style: normal; font-size: .62rem;
+  letter-spacing: 1px; text-transform: uppercase; }
+.gr-paleta-item.sel { background: var(--acc-subtle); color: var(--t1); box-shadow: inset 2px 0 0 var(--acc-text); }
+.gr-paleta-item.sel em { color: var(--acc-text); }
+.gr-paleta-vacio { padding: 12px 14px; color: var(--t3); font-family: var(--font-mono); font-size: .74rem; }
+@media (prefers-reduced-motion: reduce) { .gr-paleta { backdrop-filter: none; } }
+
 /* ── Tarjetas callout del grafo (PANOPTES §6): ficha técnica anclada al
    nodo por una línea guía en el canvas — el lenguaje de anotación del
    lineart. HTML sobre el lienzo: texto nítido, seleccionable, accesible. ── */
