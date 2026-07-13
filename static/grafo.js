@@ -566,9 +566,9 @@
                       x0: n.x, y0: n.y });
       });
       if (!orbita.length) return;
-      var ids = {};
-      orbita.forEach(function (o) { ids[o.n.id] = true; });
-      despliegue = { centro: centro, orbita: orbita, ids: ids, t: reduce ? 1 : 0 };
+      var idSet = {};
+      orbita.forEach(function (o) { idSet[o.n.id] = true; });
+      despliegue = { centro: centro, orbita: orbita, ids: idSet, t: reduce ? 1 : 0 };
       centro.fx = centro.x; centro.fy = centro.y;      // ancla el centro
       if (reduce) orbita.forEach(function (o) { o.n.fx = o.tx; o.n.fy = o.ty; o.n.x = o.tx; o.n.y = o.ty; });
     }

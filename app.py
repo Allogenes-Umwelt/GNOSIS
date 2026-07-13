@@ -10,7 +10,7 @@ import zipfile
 
 import pandas as pd
 from flask import (  # type: ignore
-    Flask, request, render_template, redirect, url_for, send_from_directory,
+    Flask, request, render_template, redirect, send_from_directory,
     send_file, jsonify, session,
 )
 from werkzeug.utils import secure_filename

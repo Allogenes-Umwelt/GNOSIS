@@ -1,5 +1,28 @@
-# Ruff config. Los defaults (E4/E7/E9/F) aplican en todo el repo; solo
-# declaramos las excepciones deliberadas por archivo.
+# Ruff config. Los defaults (E4/E7/E9/F) aplican al código MANTENIDO; el
+# pipelegado y los scripts legados de raíz quedan fuera del lint a propósito
+# (LEY: el pipelegado no se toca, así que no debe generar ruido permanente).
+
+# El árbol vivo que sí linteamos: app.py + los paquetes autogenes/, rutas/,
+# tableros/, database/, jarvis/, y tests/. Todo lo de abajo se excluye.
+exclude = [
+    # ── pipelegado intocable (LEY) ──
+    "concentrado1.py",
+    "concentrado2.py",
+    "Estadistico.py",
+    "PDFs_Final_v3.py",
+    "PDFs_v2.py",
+    # ── scripts legados de raíz (no mantenidos) ──
+    "archivos.py",
+    "boat_analysis.py",
+    "celda.py",
+    "envtest.py",
+    "newestadistico.py",
+    "preprocesoCORRECTO.py",
+    "preprocesoIncrementablesDivisionesDEPRECACTED.py",
+    "test.py",
+    # ── notebooks de exploración (no son código de producción) ──
+    "*.ipynb",
+]
 
 [lint.per-file-ignores]
 # app.py llama load_dotenv() ANTES de importar módulos que leen variables

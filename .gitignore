@@ -12,3 +12,7 @@ uploads/
 .env.*
 !.env.example
 *.pyc
+
+# Tooling de lint JS (ESLint corre vía npx; no vendorizamos la toolchain)
+node_modules/
+package-lock.json

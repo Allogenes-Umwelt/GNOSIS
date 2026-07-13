@@ -1,4 +1,8 @@
-import os, hashlib, socket, subprocess, tempfile
+import os
+import hashlib
+import socket
+import subprocess
+import tempfile
 from pathlib import Path
 
 RCLONE_REMOTE  = "proton"
@@ -12,9 +16,12 @@ SKIP_EXTENSIONS = {'.ds_store', '.pyc', '.tmp'}
 
 def _file_type(filename):
     ext = Path(filename).suffix.lower()
-    if ext == '.pdf':                      return 'pdf'
-    if ext in ('.xlsx', '.xls', '.csv'):  return 'excel'
-    if ext == '.txt':                      return 'txt'
+    if ext == '.pdf':
+        return 'pdf'
+    if ext in ('.xlsx', '.xls', '.csv'):
+        return 'excel'
+    if ext == '.txt':
+        return 'txt'
     return 'otro'
 
 

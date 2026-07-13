@@ -53,7 +53,8 @@ def test_dispatcher_rutea_imagen_a_ocr(sesion):
     'las imágenes aún no se ingieren'."""
     from autogenes import ingesta
     conn, sid = sesion
-    png = io.BytesIO(); _imagen().save(png, "PNG")
+    png = io.BytesIO()
+    _imagen().save(png, "PNG")
     r = ingesta.ingestar_archivo(conn, sid, "algo.png", png.getvalue())
     # con tesseract: fragmentos; sin tesseract: error de OCR no-disponible.
     # En NINGÚN caso el viejo mensaje de rechazo por formato/imagen.
@@ -65,7 +66,8 @@ def test_dispatcher_rutea_imagen_a_ocr(sesion):
 def test_imagen_ocr_produce_fragmentos(sesion):
     from autogenes import ingesta
     conn, sid = sesion
-    png = io.BytesIO(); _imagen().save(png, "PNG")
+    png = io.BytesIO()
+    _imagen().save(png, "PNG")
     r = ingesta.ingestar_imagen(conn, sid, "factura_foto.png", png.getvalue())
     assert "error" not in r and r["fragmentos"] >= 1
     frag = conn.execute("SELECT texto FROM ag_fragmentos WHERE artefacto_id = ?",
@@ -79,7 +81,8 @@ def test_pdf_escaneado_ocr_relleno():
     """Un PDF de imagen pura (escaneado): _ocr_paginas_pdf lo rasteriza y OCRea,
     y respeta las páginas que ya traen texto (`saltar`)."""
     from autogenes.ingesta import _ocr_paginas_pdf
-    pdf = io.BytesIO(); _imagen().save(pdf, "PDF")
+    pdf = io.BytesIO()
+    _imagen().save(pdf, "PDF")
     paginas = _ocr_paginas_pdf(pdf.getvalue(), saltar=set())
     assert paginas and "FACTURA" in paginas[0][1].upper() and "AUDI" in paginas[0][1].upper()
     assert _ocr_paginas_pdf(pdf.getvalue(), saltar={1}) == []
