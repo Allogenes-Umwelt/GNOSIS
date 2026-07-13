@@ -85,3 +85,30 @@ def test_caso_vacio_no_truena(conn):
     assert m["salud"] is None          # sin sustrato, sin rendimiento definido
     assert m["total_fugas"] == 0 and m["urgencias"] == []
     assert all(p["total"] == 0 for p in m["pools"])
+    assert m["benchmark"] is None       # sin sesión previa
+
+
+def test_benchmark_vs_sesion_previa(conn):
+    # sesión 1 (previa): un fragmento sin citar → salud baja
+    s1 = Sustrato(conn, 1)
+    a1 = s1.crear_artefacto("pdf", "prev.pdf")
+    s1.agregar_fragmentos(a1.id, [(1, "nadie")])
+    salud_prev = metabolismo_de_sesion(conn, 1, hoy="2026-07-10")["salud"]
+
+    # sesión 2 (activa): todo metabolizado → salud alta
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-08-10', 8, 2026)")
+    s2 = Sustrato(conn, 2)
+    a2 = s2.crear_artefacto("pdf", "hot.pdf")
+    fr = s2.agregar_fragmentos(a2.id, [(1, "x")])
+    e1 = s2.upsert_entidad("A", "organizacion", "synesis", evidencia=[fr[0].id])
+    e2 = s2.upsert_entidad("B", "lugar", "operador", evidencia=[fr[0].id])
+    s2.agregar_relacion(e1.id, e2.id, "opera en", 0.8, [fr[0].id])
+    s2.dockear_producto("informe", "R", "sintesis", {}, entidades=[e1.id, e2.id],
+                        evidencia=[fr[0].id])
+
+    m2 = metabolismo_de_sesion(conn, 2, hoy="2026-08-10")
+    assert m2["benchmark"] is not None
+    assert m2["benchmark"]["prev_id"] == 1
+    assert m2["benchmark"]["prev_salud"] == salud_prev
+    assert m2["benchmark"]["delta"] == m2["salud"] - salud_prev

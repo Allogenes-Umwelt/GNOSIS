@@ -23,7 +23,7 @@
     var colores = {}, datos = null, layout = null, sel = null, animando = false;
     // T3 · feedback vivo: una transición ÚNICA de la vía al resolver algo
     // (la banda crece, la gota encoge) y el conteo de la visita.
-    var transicion = null, resueltas = 0;
+    var transicion = null, resueltas = 0, primeraCarga = true;
     var DUR_TRANS = 600;
 
     // Ítems pendientes traen nombres de origen documental: escapar SIEMPRE.
@@ -116,6 +116,17 @@
       ctx.fillStyle = colores.t3;
       ctx.fillText('AVANCE DEL CASO', cx, cy + R + 18);
       ctx.fillText(datos.total_fugas + ' PENDIENTES', cx, cy + R + 32);
+      // benchmark honesto vs la sesión previa (o su ausencia, declarada)
+      var b = datos.benchmark;
+      if (b) {
+        var d = b.delta;
+        var flecha = d > 0 ? '▲' : d < 0 ? '▼' : '=';
+        ctx.fillStyle = d > 0 ? colores.acc : d < 0 ? colores.danger : colores.t3;
+        ctx.fillText(flecha + ' ' + Math.abs(d) + ' pts vs sesión previa', cx, cy + R + 46);
+      } else {
+        ctx.fillStyle = colores.t3;
+        ctx.fillText('sin base previa', cx, cy + R + 46);
+      }
     }
 
     function dibujar(ts) {
@@ -640,6 +651,15 @@
               ' PENDIENTES · HOY ' + m.hoy +
               (resueltas ? ' · ' + resueltas + ' RESUELTAS EN ESTA VISITA' : '');
           }
+          // al primer cargado, el detalle abre la fuga mayor (estado útil)
+          if (primeraCarga && !sel && layout.reacciones.length) {
+            var mejor = null;
+            layout.reacciones.forEach(function (rc) {
+              if (rc.r.fuga > 0 && (!mejor || rc.r.fuga > mejor.r.fuga)) mejor = rc;
+            });
+            if (mejor) sel = { tipo: 'fuga', rc: mejor };
+          }
+          primeraCarga = false;
           if (despues) { despues(); } else { pintarDetalle(); }
           animar();
         })

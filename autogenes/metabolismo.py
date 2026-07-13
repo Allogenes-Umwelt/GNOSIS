@@ -43,6 +43,32 @@ def _count(conn: sqlite3.Connection, tabla: str, session_id: int) -> int:
     ).fetchone()[0]
 
 
+def _salud_de_sesion(conn: sqlite3.Connection, session_id: int) -> Optional[int]:
+    """Solo el avance (0-100) de una sesión — misma fórmula que abajo, para
+    el benchmark. Media de procesado/potencial sobre las uniones de
+    conocimiento con sustrato; None si no hay sustrato."""
+    fragmentos = _count(conn, "ag_fragmentos", session_id)
+    entidades = _count(conn, "ag_entidades", session_id)
+    frag_reales = {r["id"] for r in conn.execute(
+        "SELECT id FROM ag_fragmentos WHERE session_id = ?", (session_id,))}
+    frag_citados = _ids_evidencia(conn, "ag_entidades", "evidencia", session_id) & frag_reales
+    conectadas = {r[0] for r in conn.execute(
+        "SELECT desde_id FROM ag_relaciones WHERE session_id = ?"
+        " UNION SELECT hasta_id FROM ag_relaciones WHERE session_id = ?",
+        (session_id, session_id))}
+    ent_reales = {r["id"] for r in conn.execute(
+        "SELECT id FROM ag_entidades WHERE session_id = ?", (session_id,))}
+    ent_conectadas = conectadas & ent_reales
+    ent_en_producto = _ids_evidencia(conn, "ag_productos", "entidades", session_id) & ent_reales
+    partes = []
+    if fragmentos:
+        partes.append(len(frag_citados) / fragmentos)
+    if entidades:
+        partes.append(len(ent_conectadas) / entidades)
+        partes.append(len(ent_en_producto) / entidades)
+    return round(100 * sum(partes) / len(partes)) if partes else None
+
+
 def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
                           hoy: Optional[str] = None) -> dict[str, Any]:
     artefactos = _count(conn, "ag_artefactos", session_id)
@@ -148,10 +174,23 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
             "accion": "/autogenes/validacion",
         })
 
+    # Benchmark honesto: el avance de la sesión previa (misma fórmula). Sin
+    # sesión previa → None (se declara "sin base previa", no se inventa).
+    benchmark = None
+    prev = conn.execute(
+        "SELECT id FROM processing_sessions WHERE id < ? ORDER BY id DESC LIMIT 1",
+        (session_id,)).fetchone()
+    if prev is not None and salud is not None:
+        prev_salud = _salud_de_sesion(conn, prev["id"])
+        if prev_salud is not None:
+            benchmark = {"prev_id": prev["id"], "prev_salud": prev_salud,
+                         "delta": salud - prev_salud}
+
     return {
         "session_id": session_id,
         "hoy": sen["hoy"],
         "salud": salud,
+        "benchmark": benchmark,
         "pools": pools,
         "reacciones": reacciones,
         "urgencias": urgencias,
