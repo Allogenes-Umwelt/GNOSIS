@@ -88,6 +88,19 @@ P4/P6 son las fases caras y van al final.
 - **P5** — diff de sesiones: selector de referencia + tarjeta de deriva en el
   panel VW (no en el lienzo — las rutas de flujo no mapean a la procedencia,
   como el selector de lente). Verificado con una BD de dos sesiones.
+- **L3 + §7** — culling por viewport, halos de etiqueta (E1), alfa de arista
+  por peso (E3), números tabulares (E5), export de exhibit PNG con pie (E8).
+- **P4** — histograma de precios vinculado con brush (linked views): el rango
+  resalta los vehículos y los bins reflejan la selección (bidireccional).
+- **P8** — watchlist de nodos vigilados, persistida por sesión, con anillo
+  propio (el delta medido de marcas lo da P5).
+- **P6** — mapa esquemático de flujos origen→México, geografía empaquetada
+  (local-first), arcos ponderados por volumen. Última fase.
+
+**Plan completo.** Descartes documentados y concurridos: selector de lente
+estructural (§4.2), WebGL por defecto, FDEB, persistencia de posiciones
+(beneficio marginal: el layout ya es determinista y converge rápido), y el
+spike de zoom semántico (no evaluado — el LOD existente cubre la legibilidad).
 
 **Decisiones de ejecución (concurridas por el operador):**
 - **El selector de lente estructural del lienzo se DESCARTA** (se mueve a §4.2).
@@ -103,9 +116,10 @@ P4/P6 son las fases caras y van al final.
 - **E2 (rampa cromática CVD-safe de comunidad) se reubica a L2** como un commit
   suelto de pulido — no necesita el aparato del selector para existir.
 
-**Siguiente:** L3 (culling + persistencia de posiciones) y el pulido §7
-(halos, alfa por peso, rampa E2), luego las fases caras P4 (facetas +
-histograma), P6 (mapa esquemático) y P8 (vigilancia, sobre P1+I4).
+**Siguiente:** el plan está completo. Refinamientos abiertos de menor valor:
+la rampa cromática de comunidad E2 (reubicada a este pulido, aún pendiente),
+más facetas en P4 (hoy solo precio), y el diff visual sobre el lienzo si algún
+día la red de flujo se dibuja como vista propia.
 
 ---
 
