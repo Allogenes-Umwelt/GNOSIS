@@ -887,6 +887,7 @@
       ctx.globalAlpha = 1;
 
       dibujarGuias();   // líneas guía + reposición de las tarjetas callout
+      dibujarMini();    // panorámica L1
     }
 
     // ── gestos ───────────────────────────────────────────────────────
@@ -1037,6 +1038,72 @@
     capaTarjetas = document.createElement('div');
     capaTarjetas.className = 'gr-capa-tarjetas';
     cont.appendChild(capaTarjetas);
+
+    // ── Minimapa (L1): panorámica a escala + rectángulo del viewport ──
+    // Comparte las posiciones de nodos; clic salta la cámara. Se pinta al
+    // final de dibujar (barato: puntos). Chrome por tokens; sigue el tema.
+    // No es la vía accesible del grafo — esa es el modo tabla (A3, pendiente).
+    var MINI_W = 150, MINI_H = 104;
+    var miniCanvas = document.createElement('canvas');
+    miniCanvas.className = 'gr-minimapa';
+    miniCanvas.setAttribute('aria-hidden', 'true');
+    cont.appendChild(miniCanvas);
+    var miniCtx = miniCanvas.getContext('2d');
+    var miniBox = null;   // {esc, ox, oy} de la última proyección mundo→mini
+
+    function dibujarMini() {
+      if (!miniCtx || !nodos.length) return;
+      var dprm = window.devicePixelRatio || 1;
+      if (miniCanvas.width !== Math.round(MINI_W * dprm)) {
+        miniCanvas.width = Math.round(MINI_W * dprm);
+        miniCanvas.height = Math.round(MINI_H * dprm);
+        miniCanvas.style.width = MINI_W + 'px';
+        miniCanvas.style.height = MINI_H + 'px';
+      }
+      miniCtx.setTransform(dprm, 0, 0, dprm, 0, 0);
+      miniCtx.clearRect(0, 0, MINI_W, MINI_H);
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      nodos.forEach(function (n) {
+        if (n.x < minX) minX = n.x;
+        if (n.x > maxX) maxX = n.x;
+        if (n.y < minY) minY = n.y;
+        if (n.y > maxY) maxY = n.y;
+      });
+      if (!isFinite(minX)) return;
+      var pad = 8, w = maxX - minX || 1, h = maxY - minY || 1;
+      var esc = Math.min((MINI_W - pad * 2) / w, (MINI_H - pad * 2) / h);
+      var ox = (MINI_W - w * esc) / 2 - minX * esc;
+      var oy = (MINI_H - h * esc) / 2 - minY * esc;
+      miniBox = { esc: esc, ox: ox, oy: oy };
+      nodos.forEach(function (n) {
+        if (leyOculta(n.kind)) return;
+        var foco = n === sel;
+        miniCtx.fillStyle = foco ? colores.acc : conAlfa(colores.linea2, 0.7);
+        miniCtx.beginPath();
+        miniCtx.arc(n.x * esc + ox, n.y * esc + oy, foco ? 2.4 : 1.1, 0, 6.283);
+        miniCtx.fill();
+      });
+      // rectángulo del viewport actual (qué porción del mundo se ve)
+      var cw = canvas.clientWidth, ch = canvas.clientHeight;
+      var vx0 = (-cw / 2 - vista.x) / vista.k, vx1 = (cw / 2 - vista.x) / vista.k;
+      var vy0 = (-ch / 2 - vista.y) / vista.k, vy1 = (ch / 2 - vista.y) / vista.k;
+      miniCtx.strokeStyle = colores.acc;
+      miniCtx.lineWidth = 1;
+      miniCtx.globalAlpha = 0.9;
+      miniCtx.strokeRect(vx0 * esc + ox, vy0 * esc + oy, (vx1 - vx0) * esc, (vy1 - vy0) * esc);
+      miniCtx.globalAlpha = 1;
+    }
+    miniCanvas.addEventListener('pointerdown', function (ev) {
+      if (!miniBox) return;
+      ev.preventDefault();
+      var r = miniCanvas.getBoundingClientRect();
+      var mx = (ev.clientX - r.left - miniBox.ox) / miniBox.esc;
+      var my = (ev.clientY - r.top - miniBox.oy) / miniBox.esc;
+      vistaManual = true;
+      vista.x = -mx * vista.k;
+      vista.y = -my * vista.k;
+      if (!animando) dibujar(0);
+    });
 
     function pantallaDe(n) {
       var w = canvas.clientWidth, h = canvas.clientHeight;
