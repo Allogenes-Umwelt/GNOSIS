@@ -38,7 +38,7 @@ lienzo central; el flujo HITL de extracción (saneo doble, quórum); la puerta
 | C2 · Render chord AAA | HECHO | AAA computado (acc 11.5/7.5, danger 8.2/7.3); dendro.js retirado (huérfano) |
 | C3 · Dossier del artefacto | HECHO | resumen por defecto + dossier; mata la pantalla muerta |
 | T1 · API de acciones + procedencia de relación | HECHO | ag_relaciones.origen (migración aditiva); POST /relacion, DELETE /evento |
-| T2 · Triage inline en el radar | HECHO | vincular+resolver verificados en vivo; extraer+sintetizar inline (camino de error verificado; éxito requiere LLM) |
+| T2 · Triage inline en el radar | HECHO | vincular+resolver+extraer+sintetizar verificados en vivo end-to-end (extraer/sintetizar con DeepSeek real: extraer→merge-preview→integrar y generar informe→dockear) |
 | T3 · Feedback vivo post-acción | HECHO | transición única 600ms + contador de visita; reduced-motion estático |
 | C4 · Pirotecnia disciplinada | HECHO | glow estático + flux en hover + barrido de entrada. **Rotación idle DESCARTADA** (degradaba etiquetas radiales; sospecha confirmada) |
 | C5 · Bandeja v2 + dedupe por hash | HECHO | frío ordenable/filtrable; dedupe sha256 con 409; migración guarded FK-safe |
@@ -48,11 +48,14 @@ lienzo central; el flujo HITL de extracción (saneo doble, quórum); la puerta
 | T6 · Deshacer última acción (opcional) | HECHO | deshacer del Vincular (DELETE /relacion, cortar_relacion). Evento irreversible; informe requiere LLM — fuera de alcance verificable |
 
 **Plan completo.** 18 commits; gates verdes por fase (ruff · eslint 0 errores ·
-pytest 369+ · capturas AAA ambos temas). Único límite honesto: los caminos de
-ÉXITO de extraer/sintetizar inline (T2b) requieren un proveedor LLM
-(DEEPSEEK_API_KEY o el fallback de Claude), ausente en este entorno — se
-verificó su disparo y su degradación con gracia; el resto está verificado en
-vivo end-to-end.
+pytest 370 · capturas AAA ambos temas). TODO verificado en vivo end-to-end,
+incluidos los caminos de extraer/sintetizar inline con un proveedor DeepSeek
+real: extraer una fuente fría → merge-preview (8 NUEVA / 0 YA-EXISTE con datos
+del modelo) → integrar (entidades 8→16, la fuente deja de estar fría) y generar
+informe citado → dockear (productos 1→2). El bucle completo de la cabina llevó
+el avance del caso de 54% a 76% sin salir del radar. Procedencia correcta: la
+extracción escribe origen=synesis (propuesta del modelo, aprobada por HITL); el
+Vincular manual, origen=operador.
 
 ## 1. Autocrítica de v1 y decisiones fijadas
 
