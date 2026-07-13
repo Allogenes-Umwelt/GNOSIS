@@ -17,7 +17,7 @@
     var propTitulo = document.getElementById('in-prop-titulo');
     var integrarBtn = document.getElementById('in-integrar');
     var quorumChk = document.getElementById('in-quorum');
-    var dendro = document.querySelector('.dn-lienzo');
+    var chord = document.querySelector('.ch-lienzo');
     var extraerTodoBtn = document.getElementById('in-extraer-todo');
     var propuestaActual = null;
     var extraccionEnVuelo = false;   // un doble clic no debe costar dos extracciones
@@ -36,7 +36,7 @@
     }
 
     function recargarMapa() {
-      if (dendro && dendro.dendroAPI) dendro.dendroAPI.recargar();
+      if (chord && chord.chordAPI) chord.chordAPI.recargar();
     }
 
     // ── bandeja ──────────────────────────────────────────────────────

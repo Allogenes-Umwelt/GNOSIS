@@ -33,22 +33,24 @@
       <ul class="ag-nav" id="in-artefactos"></ul>
     </aside>
 
-    <!-- CENTRO · Dendrograma (colapsable) -->
+    <!-- CENTRO · Chord de ingesta (fuentes → entidades) -->
     <section class="ag-centro gr-centro" id="ag-centro-mapa" aria-label="Mapa de ingesta">
       <div class="ag-centro-head">
-        <span class="t">◆ Mapa de Ingesta</span>
+        <span class="t">◆ Vía de Ingesta</span>
         <span class="ag-centro-tools">
           <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
           <button type="button" class="ag-plegar" data-panel="cen" aria-label="Plegar el mapa">◧</button>
         </span>
       </div>
-      <div class="dn-lienzo gr-lienzo" data-info="#dn-info">
-        <canvas aria-label="Dendrograma de la ontología de la sesión" role="img"></canvas>
+      <div class="ch-lienzo gr-lienzo" data-info="#ch-info">
+        <canvas aria-label="Chord de ingesta: fuentes a la izquierda, entidades a la derecha, cintas por citas" role="img"></canvas>
       </div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>●</b> entidad</li><li><b>□</b> artefacto</li><li><b>◇</b> fragmento</li>
-        <li><span id="dn-info" role="status">CARGANDO…</span></li>
-        <li style="margin-left:auto;color:var(--t3)">clic en un nodo: abre/cierra su rama</li>
+        <li><b style="color:var(--acc-text)">◜</b> fuente</li>
+        <li><b style="color:var(--acc-text)">◝</b> entidad</li>
+        <li><b style="color:var(--danger)">◠</b> fuente fría (nadie la cita)</li>
+        <li><span id="ch-info" role="status">CARGANDO…</span></li>
+        <li style="margin-left:auto;color:var(--t3)">clic en un arco: abre su dossier</li>
       </ul>
     </section>
 
@@ -71,7 +73,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='dendro.js') }}"></script>
+<script src="{{ url_for('static', filename='chord.js') }}"></script>
 <script src="{{ url_for('static', filename='ingesta.js') }}"></script>
 <script>
 // Colapso de los tres paneles (izq · centro · der).
