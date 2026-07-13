@@ -8,6 +8,7 @@ El pipeline legado (concentrado1.Concentrado) NO se toca: fuerza
 formatos procesen y el archivo equivocado dé un error accionable.
 """
 import os
+import shutil
 
 import pandas as pd
 import pytest
@@ -38,10 +39,14 @@ def test_xlsx_nuevo_pasa_sin_cambios(helpers, tmp_path):
     assert helpers._preparar_divisiones(str(p)) == str(p)
 
 
-def test_xls_viejo_se_normaliza_y_lo_lee_openpyxl(helpers):
+def test_xls_viejo_se_normaliza_y_lo_lee_openpyxl(helpers, tmp_path):
     """El .xls viejo se lee (xlrd) y se reescribe a .xlsx; el pipeline, que
-    SIEMPRE usa openpyxl, ahora sí lo lee con sus 7 columnas y CLAVES intacta."""
-    salida = helpers._preparar_divisiones(os.path.join(FIXTURES, "divisiones_legacy.xls"))
+    SIEMPRE usa openpyxl, ahora sí lo lee con sus 7 columnas y CLAVES intacta.
+    Se copia el fixture a tmp: la normalización escribe el .norm.xlsx junto al
+    origen y no debe ensuciar el árbol de fuentes."""
+    origen = tmp_path / "divisiones_legacy.xls"
+    shutil.copy(os.path.join(FIXTURES, "divisiones_legacy.xls"), origen)
+    salida = helpers._preparar_divisiones(str(origen))
     assert salida.endswith(".xlsx")
     df = pd.read_excel(salida, engine="openpyxl")   # el engine del pipelegado
     assert list(df.columns) == helpers._COLS_DIVISIONES
