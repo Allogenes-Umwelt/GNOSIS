@@ -925,6 +925,60 @@ def api_autogenes_metabolismo():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/relacion', methods=['POST'])
+def api_autogenes_relacion():
+    """Crea UNA relación tipada entre dos entidades de la sesión (triage del
+    Radar). Puerta única: escribe por Sustrato con origen='operador'. Valida
+    que ambos extremos existen; la evidencia se sanea contra fragmentos
+    reales (nunca ids fabricados; vacía es válida — es una afirmación del
+    operador)."""
+    from autogenes.sustrato import Sustrato
+    data = request.get_json(silent=True) or {}
+    desde_id = (data.get('desde_id') or '').strip()
+    hasta_id = (data.get('hasta_id') or '').strip()
+    tipo = (data.get('tipo') or '').strip()
+    if not desde_id or not hasta_id or not tipo:
+        return jsonify({'error': 'Faltan desde_id, hasta_id o tipo'}), 400
+    if desde_id == hasta_id:
+        return jsonify({'error': 'Una relación no puede unir una entidad consigo misma'}), 422
+
+    def handler(conn, session_id):
+        s = Sustrato(conn, session_id)
+        if not s.entidad_por_id(desde_id) or not s.entidad_por_id(hasta_id):
+            return jsonify({'error': 'Una de las entidades no existe en la sesión'}), 422
+        reales = s.fragmento_ids()
+        evidencia = [x for x in (data.get('evidencia') or []) if x in reales]
+        try:
+            peso = float(data.get('peso', 0.5))
+        except (TypeError, ValueError):
+            peso = 0.5
+        peso = min(1.0, max(0.0, peso))
+        rel = s.agregar_relacion(desde_id, hasta_id, tipo, peso, evidencia,
+                                 origen='operador')
+        _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok', 'relacion': rel.model_dump()})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/evento/<evento_id>', methods=['DELETE'])
+def api_autogenes_evento_delete(evento_id):
+    """Resuelve (elimina) un vencimiento del Radar. Escribe por Sustrato
+    (bitácora WORM incluida). Idempotente: si ya no está, responde ok."""
+    from autogenes.sustrato import Sustrato
+
+    def handler(conn, session_id):
+        Sustrato(conn, session_id).quitar_evento(evento_id)
+        _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok'})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/autogenes/vinculos')
 def autogenes_vinculos():
     """Vínculos (F3): camino más corto citado, vecindario y hubs."""

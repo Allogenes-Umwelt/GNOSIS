@@ -101,6 +101,7 @@ SOLO_POST = [
     "/api/v1/autogenes/ingestar", "/api/v1/autogenes/extraer",
     "/api/v1/autogenes/sintetizar",
     "/api/v1/autogenes/integrar", "/api/v1/autogenes/nomos/regla",
+    "/api/v1/autogenes/relacion",
 ]
 
 

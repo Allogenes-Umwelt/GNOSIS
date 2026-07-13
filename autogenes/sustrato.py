@@ -288,12 +288,14 @@ class Sustrato:
         tipo: str,
         peso: float = 0.5,
         evidencia: Optional[list[str]] = None,
+        origen: str = "synesis",
     ) -> Relacion:
         rid = _uuid()
         self.conn.execute(
             "INSERT INTO ag_relaciones (id, session_id, desde_id, hasta_id, tipo, peso,"
-            " evidencia) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (rid, self.session_id, desde_id, hasta_id, tipo, peso, _js(evidencia or [])),
+            " evidencia, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (rid, self.session_id, desde_id, hasta_id, tipo, peso,
+             _js(evidencia or []), origen),
         )
         self._registrar("relacion", f"Relación: {tipo}")
         self._commit()

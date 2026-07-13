@@ -7,7 +7,7 @@ import pytest
 
 from autogenes.sustrato import Sustrato
 from database import models, models_autogenes
-from database.migrations import apply_migrations
+from database.migrations import MIGRATIONS, apply_migrations
 
 # El schema VIEJO de ag_productos (solo informe/camino), para probar la migración.
 SCHEMA_VIEJO = """
@@ -16,6 +16,11 @@ CREATE TABLE ag_productos (
     clase TEXT NOT NULL CHECK (clase IN ('informe','camino')),
     titulo TEXT NOT NULL, unidad TEXT NOT NULL, cuerpo TEXT,
     entidades TEXT NOT NULL DEFAULT '[]', evidencia TEXT NOT NULL DEFAULT '[]',
+    created_at TEXT DEFAULT (datetime('now')));
+CREATE TABLE ag_relaciones (
+    id TEXT PRIMARY KEY, session_id INTEGER NOT NULL, desde_id TEXT NOT NULL,
+    hasta_id TEXT NOT NULL, tipo TEXT NOT NULL,
+    peso REAL NOT NULL DEFAULT 0.5, evidencia TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (datetime('now')));
 """
 
@@ -102,4 +107,4 @@ def test_migracion_es_idempotente():
     c.executescript(SCHEMA_VIEJO)
     apply_migrations(c)
     apply_migrations(c)   # segunda vez: no-op, no explota
-    assert c.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == 1
+    assert c.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0] == len(MIGRATIONS)

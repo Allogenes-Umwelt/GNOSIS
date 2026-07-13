@@ -77,6 +77,7 @@ class Relacion(BaseModel):
     tipo: str = Field(min_length=1)
     peso: float = Field(default=0.5, ge=0, le=1)
     evidencia: list[str] = Field(default_factory=list)
+    origen: str = "synesis"
     created_at: str
 
 

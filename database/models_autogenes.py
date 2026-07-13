@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS ag_relaciones (
     tipo        TEXT NOT NULL,
     peso        REAL NOT NULL DEFAULT 0.5 CHECK (peso >= 0 AND peso <= 1),
     evidencia   TEXT NOT NULL DEFAULT '[]',
+    origen      TEXT NOT NULL DEFAULT 'synesis',
     created_at  TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
     FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
