@@ -7,7 +7,29 @@ import sqlite3
 
 # (version, name, list of SQL statements)
 MIGRATIONS: list[tuple[int, str, list[str]]] = [
-    # (1, "example_add_column", ["ALTER TABLE x ADD COLUMN y TEXT"]),
+    # Widen ag_productos.clase to allow 'investigacion' (P1 · saved
+    # investigations). SQLite can't ALTER a CHECK constraint, so the table is
+    # recreated and copied. Safe: nothing references ag_productos by FK.
+    (1, "ag_productos_add_investigacion", [
+        """CREATE TABLE ag_productos_new (
+            id          TEXT PRIMARY KEY,
+            session_id  INTEGER NOT NULL,
+            clase       TEXT NOT NULL CHECK (clase IN ('informe','camino','investigacion')),
+            titulo      TEXT NOT NULL,
+            unidad      TEXT NOT NULL,
+            cuerpo      TEXT,
+            entidades   TEXT NOT NULL DEFAULT '[]',
+            evidencia   TEXT NOT NULL DEFAULT '[]',
+            created_at  TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+        )""",
+        "INSERT INTO ag_productos_new (id, session_id, clase, titulo, unidad,"
+        " cuerpo, entidades, evidencia, created_at) SELECT id, session_id, clase,"
+        " titulo, unidad, cuerpo, entidades, evidencia, created_at FROM ag_productos",
+        "DROP TABLE ag_productos",
+        "ALTER TABLE ag_productos_new RENAME TO ag_productos",
+        "CREATE INDEX IF NOT EXISTS idx_ag_productos_session ON ag_productos(session_id)",
+    ]),
 ]
 
 

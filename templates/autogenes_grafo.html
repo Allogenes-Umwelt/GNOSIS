@@ -30,6 +30,11 @@
           <button type="button" id="gr-reset" class="ag-plegar" style="min-width:auto;padding:0 10px" aria-label="Reencuadrar el grafo">⌖ centrar</button>
           <button type="button" id="gr-tabla-btn" class="ag-plegar" style="min-width:auto;padding:0 10px"
                   aria-pressed="false" aria-label="Ver los nodos como tabla accesible">▦ tabla</button>
+          <button type="button" id="gr-inv-guardar" class="ag-plegar" style="min-width:auto;padding:0 10px"
+                  aria-label="Guardar esta vista como investigación">◈ guardar</button>
+          <select id="gr-investigaciones" class="gr-input" aria-label="Abrir una investigación guardada">
+            <option value="">investigaciones…</option>
+          </select>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
@@ -37,7 +42,8 @@
            data-buscar="#gr-buscar" data-reset="#gr-reset" data-cap="#gr-cap"
            data-frag="#gr-frag" data-zmas="#gr-zmas" data-zmenos="#gr-zmenos"
            data-leyenda="#gr-leyenda" data-aislado="#gr-aislado"
-           data-tabla="#gr-tabla" data-tabla-btn="#gr-tabla-btn">
+           data-tabla="#gr-tabla" data-tabla-btn="#gr-tabla-btn"
+           data-inv-guardar="#gr-inv-guardar" data-inv-lista="#gr-investigaciones">
         <canvas aria-label="Lienzo de fuerzas del grafo de la sesión" role="img"></canvas>
         <div id="gr-tabla" class="gr-tabla" hidden aria-label="Nodos del caso, tabla accesible"></div>
       </div>

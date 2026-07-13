@@ -1035,6 +1035,79 @@ def api_autogenes_camino_dockear():
         return jsonify({'error': str(e)}), 500
 
 
+# ── P1 · Investigaciones guardadas ──────────────────────────────────
+
+
+@bp.route('/api/v1/autogenes/investigacion', methods=['POST'])
+def api_autogenes_investigacion_guardar():
+    """Guarda el estado del lienzo como Producto{investigacion} reabrible: el
+    snapshot semántico (deep-link de L1) y la nota del operador. La escritura
+    pasa por Sustrato — procedencia y bitácora WORM; el cuerpo guarda estado
+    semántico (ids, filtros, viewport), nunca píxeles."""
+    from autogenes.sustrato import Sustrato
+    data = request.get_json(silent=True) or {}
+    titulo = (data.get('titulo') or '').strip()
+    estado = data.get('estado')
+    if not titulo:
+        return jsonify({'error': 'Falta el título de la investigación'}), 400
+    if not isinstance(estado, str) or not estado:
+        return jsonify({'error': 'Falta el estado del lienzo'}), 400
+
+    def handler(conn, session_id):
+        cuerpo = {'estado': estado, 'nota': str(data.get('nota') or '')[:4000],
+                  'titulo': titulo}
+        p = Sustrato(conn, session_id).dockear_producto(
+            'investigacion', titulo, 'grafo', cuerpo)
+        _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok', 'producto_id': p.id, 'titulo': p.titulo})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/investigaciones', methods=['GET'])
+def api_autogenes_investigaciones():
+    """Las investigaciones guardadas de la sesión, con su estado embebido para
+    reabrir sin otra llamada."""
+    import json as _json
+
+    def handler(conn, session_id):
+        out = []
+        for r in conn.execute(
+                "SELECT id, titulo, cuerpo, created_at FROM ag_productos"
+                " WHERE session_id = ? AND clase = 'investigacion'"
+                " ORDER BY created_at DESC, id", (session_id,)):
+            cuerpo = _json.loads(r["cuerpo"]) if r["cuerpo"] else {}
+            out.append({'id': r["id"], 'titulo': r["titulo"],
+                        'created_at': r["created_at"],
+                        'estado': cuerpo.get('estado', ''),
+                        'nota': cuerpo.get('nota', '')})
+        return jsonify({'session_id': session_id, 'investigaciones': out})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/investigacion/<producto_id>', methods=['DELETE'])
+def api_autogenes_investigacion_borrar(producto_id):
+    """Retira una investigación (Producto). No toca evidencia: un producto no
+    es procedencia."""
+    from autogenes.sustrato import Sustrato
+
+    def handler(conn, session_id):
+        try:
+            Sustrato(conn, session_id).quitar_producto(producto_id)
+        except Exception:
+            return jsonify({'error': 'No se encontró la investigación'}), 404
+        return jsonify({'status': 'ok'})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/analisis', methods=['GET'])
 def api_autogenes_analisis():
     """Análisis de red de negocio (I1): la red de flujo derivada

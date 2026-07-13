@@ -424,8 +424,12 @@ def construir_grafo(
             enlaces.append(_enlace(r["id"], r["desde_id"], r["hasta_id"],
                                    "relacion", r["peso"], tipo=r["tipo"]))
 
-    # Productos: docked deliverables cite their anchors.
+    # Productos: docked deliverables cite their anchors. Las investigaciones
+    # (P1) son META — un snapshot de navegación sobre el propio grafo, no un
+    # hallazgo del caso: no se proyectan como nodo (ensuciarían el lienzo).
     for p in productos:
+        if p["clase"] == "investigacion":
+            continue
         nodos.append(_nodo(p["id"], "producto", p["titulo"], tipo=p["clase"]))
         for eid in _json.loads(p["entidades"] or "[]"):
             if eid in ids_entidad:

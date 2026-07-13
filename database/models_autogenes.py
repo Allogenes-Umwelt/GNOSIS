@@ -95,7 +95,7 @@ CREATE INDEX IF NOT EXISTS idx_ag_eventos_fecha ON ag_eventos(session_id, fecha)
 CREATE TABLE IF NOT EXISTS ag_productos (
     id          TEXT PRIMARY KEY,
     session_id  INTEGER NOT NULL,
-    clase       TEXT NOT NULL CHECK (clase IN ('informe','camino')),
+    clase       TEXT NOT NULL CHECK (clase IN ('informe','camino','investigacion')),
     titulo      TEXT NOT NULL,
     unidad      TEXT NOT NULL,
     cuerpo      TEXT,

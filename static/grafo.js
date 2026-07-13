@@ -1698,6 +1698,69 @@
       catch { /* algunos navegadores bloquean replaceState en local file */ }
     }
 
+    // ── Investigaciones guardadas (P1) ────────────────────────────────
+    // Guarda el estado del lienzo (el snapshot de L1) + una nota como
+    // Producto{investigacion} por la puerta del Sustrato; reabrir aplica el
+    // estado en caliente. El caso deja de ser efímero.
+    var invBtn = q(cont.getAttribute('data-inv-guardar'));
+    var invLista = q(cont.getAttribute('data-inv-lista'));
+
+    function aplicarEstadoTexto(s) {
+      var o = {};
+      s.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i > 0) o[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+      });
+      mostrarFragmentos = (o.g === '1');
+      expandidos = {};
+      if (o.e) o.e.split(',').forEach(function (id) { expandidos[id] = true; });
+      kindAislado = o.a || null;
+      kindsAtenuados = {};
+      if (o.f) o.f.split(',').forEach(function (k) { kindsAtenuados[k] = true; });
+      colapsar(); reconstruirSim();   // re-deriva con los filtros/racimos del estado
+      var k = parseFloat(o.k), x = parseFloat(o.x), y = parseFloat(o.y);
+      if (isFinite(k) && isFinite(x) && isFinite(y)) {
+        vista.k = k; vista.x = x; vista.y = y; vistaManual = true;
+      }
+      sel = (o.n && porId[o.n]) ? porId[o.n] : null;
+      pintarInspector(sel);
+      if (typeof pintarLeyenda === 'function') pintarLeyenda();
+      if (!animando) dibujar(0);
+      arrancarLatido();
+    }
+    function cargarInvestigaciones() {
+      if (!invLista) return;
+      fetch('/api/v1/autogenes/investigaciones').then(function (r) { return r.json(); })
+        .then(function (j) {
+          var invs = (j && j.investigaciones) || [];
+          invLista.innerHTML = '<option value="">investigaciones… (' + invs.length + ')</option>' +
+            invs.map(function (inv) {
+              return '<option value="' + esc(inv.estado) + '">' + esc(inv.titulo) + '</option>';
+            }).join('');
+        }).catch(function () { /* sin sustrato: la lista queda vacía */ });
+    }
+    function guardarInvestigacion() {
+      var titulo = (window.prompt('Título de la investigación:') || '').trim();
+      if (!titulo) return;
+      var nota = (window.prompt('Nota del operador (opcional):') || '').trim();
+      fetch('/api/v1/autogenes/investigacion', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titulo: titulo, estado: serializarEstado(), nota: nota })
+      }).then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (estadoLinea) {
+            estadoLinea.textContent = j && j.error ? j.error.toUpperCase()
+              : 'INVESTIGACIÓN GUARDADA · ' + titulo.toUpperCase().slice(0, 30);
+          }
+          cargarInvestigaciones();
+        })
+        .catch(function () { if (estadoLinea) estadoLinea.textContent = 'ERROR AL GUARDAR'; });
+    }
+    if (invBtn) invBtn.addEventListener('click', guardarInvestigacion);
+    if (invLista) invLista.addEventListener('change', function () {
+      if (invLista.value) aplicarEstadoTexto(invLista.value);
+    });
+
     // ── Paleta de comandos (P7): Ctrl/Cmd+K — toda acción sin ratón ────
     // Búsqueda de nodos (reusa el índice del lienzo) + acciones nombradas en
     // español. Keyboard-first: flechas navegan, Enter ejecuta, Escape cierra.
@@ -1739,6 +1802,8 @@
         cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
+      cmds.push({ et: 'Guardar investigación', hint: 'P1',
+        run: function () { guardarInvestigacion(); } });
       if (histIdx > 0) cmds.push({ et: 'Atrás en el foco', hint: 'historial · alt+←',
         run: function () { irHistorial(-1); } });
       if (histIdx >= 0 && histIdx < histFoco.length - 1) cmds.push({
@@ -1926,6 +1991,7 @@
     });
     leerEstadoInicial();          // aplica el hash de la URL antes de la 1ª carga (L1)
     cargar(cap && cap.value ? cap.value : 150);
+    cargarInvestigaciones();      // puebla el selector de investigaciones (P1)
     setInterval(guardarEstado, 700);   // vuelca el estado al hash (deep-link vivo)
   }
 

@@ -28,7 +28,7 @@ Origen = Literal["operador", "synesis"]
 
 PrecisionFecha = Literal["dia", "mes", "anio"]
 
-ClaseProducto = Literal["informe", "camino"]
+ClaseProducto = Literal["informe", "camino", "investigacion"]
 
 FECHA_ISO = r"^\d{4}-\d{2}-\d{2}$"
 
