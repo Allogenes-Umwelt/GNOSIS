@@ -1035,6 +1035,24 @@ def api_autogenes_camino_dockear():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/analisis', methods=['GET'])
+def api_autogenes_analisis():
+    """Análisis de red de negocio (I1): la red de flujo derivada
+    país→aduana→marca y sus lentes — brokers por intermediación, corte
+    crítico y redundancia de rutas de la marca foco, y HHI de concentración.
+    Todo derivable y citable; ?marca=<nombre> fija el sujeto (default VW)."""
+    from autogenes import analisis_vw
+    marca = request.args.get('marca') or None
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id,
+                        **analisis_vw.analisis(conn, session_id, marca=marca)})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/grafo', methods=['GET'])
 def api_autogenes_grafo():
     """La ontologia de una sesion como {nodos, enlaces} (solo lectura).
