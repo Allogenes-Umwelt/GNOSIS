@@ -22,6 +22,7 @@ Contract (JSON-ready dicts, like proyeccion.py):
 """
 import json
 import math
+from collections import deque
 from typing import Any, Optional
 
 Red = dict[str, list]
@@ -466,6 +467,146 @@ def contribuciones_centralidad(red: Red, nodo_id: str, top: int = 3) -> list[dic
          "masa": masas.get(nid, 0.0), "aporte": aporte}
         for nid, aporte in orden
     ]
+
+
+# ── Family VI · flow & brokerage — brokers y cortes críticos ─────────
+
+
+def intermediacion(red: Red) -> dict[str, float]:
+    """Betweenness centrality (Brandes, unweighted shortest paths) — the
+    broker score: how often a node sits on the shortest path between other
+    pairs. In a país–aduana–marca flow network the aduanas are the only
+    país↔marca bridges, so this surfaces the customs points that broker the
+    flow. Deterministic: sources and neighbours are visited in sorted-id
+    order. Normalized so the top broker is 1 (like the other centralities);
+    all-zero when nothing brokers anything (a star's leaves, a clique)."""
+    ids = sorted(n["id"] for n in red["nodos"])
+    ady: dict[str, list[str]] = {i: [] for i in ids}
+    vistos: set[tuple] = set()
+    for e in red["enlaces"]:
+        a, b = e["origen"], e["destino"]
+        if a == b or a not in ady or b not in ady:
+            continue
+        clave = (a, b) if a < b else (b, a)
+        if clave in vistos:
+            continue          # una sola arista por par (grafo simple, no ponderado)
+        vistos.add(clave)
+        ady[a].append(b)
+        ady[b].append(a)
+    for i in ids:
+        ady[i].sort()
+
+    cb: dict[str, float] = {i: 0.0 for i in ids}
+    for s in ids:
+        pila: list[str] = []
+        pred: dict[str, list[str]] = {i: [] for i in ids}
+        sigma: dict[str, float] = {i: 0.0 for i in ids}
+        sigma[s] = 1.0
+        dist: dict[str, int] = {i: -1 for i in ids}
+        dist[s] = 0
+        cola = deque([s])
+        while cola:
+            v = cola.popleft()
+            pila.append(v)
+            for w in ady[v]:
+                if dist[w] < 0:
+                    dist[w] = dist[v] + 1
+                    cola.append(w)
+                if dist[w] == dist[v] + 1:
+                    sigma[w] += sigma[v]
+                    pred[w].append(v)
+        delta: dict[str, float] = {i: 0.0 for i in ids}
+        while pila:
+            w = pila.pop()
+            for v in pred[w]:
+                if sigma[w] > 0:
+                    delta[v] += (sigma[v] / sigma[w]) * (1.0 + delta[w])
+            if w != s:
+                cb[w] += delta[w]
+    for i in ids:
+        cb[i] /= 2.0                       # no dirigido: cada par se cuenta dos veces
+    mx = max([*cb.values(), 0.0])
+    return {i: (cb[i] / mx if mx > 0 else 0.0) for i in ids}
+
+
+def min_corte(red: Red, fuente: str, sumidero: str,
+              capacidad_unitaria: bool = False) -> dict[str, Any]:
+    """Max-flow / min-cut (Edmonds–Karp) between fuente and sumidero over the
+    undirected weighted network. Capacity = summed edge peso, or 1 per edge
+    when capacidad_unitaria (then the flow value is the number of
+    edge-disjoint routes — the supply redundancy). Returns the flow value,
+    the source-side partition, and the cut edges: the minimal set whose
+    removal disconnects sumidero from fuente. Deterministic: BFS visits
+    neighbours in sorted order. Describes THIS network's MEASURED flow — never
+    a prediction."""
+    idset = {n["id"] for n in red["nodos"]}
+    if fuente not in idset or sumidero not in idset or fuente == sumidero:
+        return {"valor": 0.0, "particion_fuente": [], "corte": []}
+    res: dict[str, dict[str, float]] = {i: {} for i in idset}
+    for e in red["enlaces"]:
+        a, b = e["origen"], e["destino"]
+        if a == b or a not in idset or b not in idset:
+            continue
+        w = 1.0 if capacidad_unitaria else float(e["peso"])
+        res[a][b] = res[a].get(b, 0.0) + w
+        res[b][a] = res[b].get(a, 0.0) + w
+
+    flujo = 0.0
+    while True:
+        padre: dict[str, str] = {fuente: fuente}
+        cola = deque([fuente])
+        while cola:
+            u = cola.popleft()
+            if u == sumidero:
+                break
+            for v in sorted(res[u]):
+                if v not in padre and res[u][v] > 1e-12:
+                    padre[v] = u
+                    cola.append(v)
+        if sumidero not in padre:
+            break
+        cuello = math.inf
+        v = sumidero
+        while v != fuente:
+            u = padre[v]
+            cuello = min(cuello, res[u][v])
+            v = u
+        v = sumidero
+        while v != fuente:
+            u = padre[v]
+            res[u][v] -= cuello
+            res[v][u] = res[v].get(u, 0.0) + cuello
+            v = u
+        flujo += cuello
+
+    alcanz: set[str] = {fuente}
+    cola = deque([fuente])
+    while cola:
+        u = cola.popleft()
+        for v in sorted(res[u]):
+            if v not in alcanz and res[u][v] > 1e-12:
+                alcanz.add(v)
+                cola.append(v)
+
+    etq = {n["id"]: n["etiqueta"] for n in red["nodos"]}
+    corte: list[dict] = []
+    vistos_corte: set[tuple] = set()
+    for e in red["enlaces"]:
+        a, b = e["origen"], e["destino"]
+        if a == b or a not in idset or b not in idset:
+            continue
+        if (a in alcanz) == (b in alcanz):
+            continue                       # no cruza el corte
+        clave = (a, b) if a < b else (b, a)
+        if clave in vistos_corte:
+            continue
+        vistos_corte.add(clave)
+        corte.append({"origen": a, "destino": b,
+                      "etiqueta_origen": etq.get(a, a),
+                      "etiqueta_destino": etq.get(b, b),
+                      "peso": e["peso"]})
+    corte.sort(key=lambda c: (c["origen"], c["destino"]))
+    return {"valor": round(flujo, 6), "particion_fuente": sorted(alcanz), "corte": corte}
 
 
 # ── the verifiable summary — what a reading must cite ────────────────

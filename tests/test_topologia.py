@@ -16,7 +16,9 @@ from autogenes.topologia import (
     escalera_renorm,
     grado_nodo,
     grado_ponderado,
+    intermediacion,
     matriz_adyacencia,
+    min_corte,
     ordenar_por_comunidad,
     persistencia_h0,
     puentes_articulacion,
@@ -254,3 +256,93 @@ def test_centralidad_sin_aristas_no_explota():
     red = _red(["a", "b"], [])
     masas = centralidad_vector_propio(red)
     assert set(masas) == {"a", "b"}
+
+
+# ── intermediacion (Brandes betweenness) ─────────────────────────────
+
+def test_intermediacion_el_puente_de_una_cadena_es_el_broker():
+    # a—b—c: b está en el ÚNICO camino a↔c; los extremos no intermedian nada
+    red = _red(["a", "b", "c"], [("a", "b", 1), ("b", "c", 1)])
+    bc = intermediacion(red)
+    assert bc["b"] == 1.0
+    assert bc["a"] == 0.0 and bc["c"] == 0.0
+
+
+def test_intermediacion_centro_de_estrella_manda_hojas_en_cero():
+    red = _red(["c", "x", "y", "z"],
+               [("c", "x", 1), ("c", "y", 1), ("c", "z", 1)])
+    bc = intermediacion(red)
+    assert bc["c"] == 1.0
+    assert bc["x"] == bc["y"] == bc["z"] == 0.0
+
+
+def test_intermediacion_clique_no_tiene_brokers():
+    # triángulo: nadie está en el camino más corto de otro par (todos adyacentes)
+    red = _red(["a", "b", "c"], [("a", "b", 1), ("b", "c", 1), ("a", "c", 1)])
+    bc = intermediacion(red)
+    assert all(v == 0.0 for v in bc.values())
+
+
+def test_intermediacion_es_determinista():
+    red = dos_cliques()
+    assert intermediacion(red) == intermediacion(red)
+
+
+def test_intermediacion_aduana_broker_pais_marca():
+    # país P —(aduana A)— marca M: A es el único puente, intermedia el flujo
+    red = _red(["P", "A", "M"], [("P", "A", 8), ("A", "M", 8)])
+    bc = intermediacion(red)
+    assert bc["A"] == 1.0
+    assert bc["P"] == 0.0 and bc["M"] == 0.0
+
+
+# ── min_corte (Edmonds–Karp max-flow / min-cut) ──────────────────────
+
+def test_min_corte_cadena_es_el_eslabon_mas_debil():
+    # a—b(3)—c: el max-flow a→c es 3 (el cuello); corte = la arista más débil
+    red = _red(["a", "b", "c"], [("a", "b", 3), ("b", "c", 5)])
+    r = min_corte(red, "a", "c")
+    assert r["valor"] == 3.0
+    assert len(r["corte"]) == 1
+    assert {r["corte"][0]["origen"], r["corte"][0]["destino"]} == {"a", "b"}
+
+
+def test_min_corte_suma_rutas_paralelas():
+    # dos rutas a→b→d y a→c→d, capacidad 2 c/u: max-flow = 4
+    red = _red(["a", "b", "c", "d"],
+               [("a", "b", 2), ("b", "d", 2), ("a", "c", 2), ("c", "d", 2)])
+    r = min_corte(red, "a", "d")
+    assert r["valor"] == 4.0
+
+
+def test_min_corte_unitario_cuenta_rutas_disjuntas():
+    # mismas dos rutas, capacidad unitaria: 2 rutas arista-disjuntas (redundancia)
+    red = _red(["a", "b", "c", "d"],
+               [("a", "b", 9), ("b", "d", 9), ("a", "c", 9), ("c", "d", 9)])
+    r = min_corte(red, "a", "d", capacidad_unitaria=True)
+    assert r["valor"] == 2.0
+
+
+def test_min_corte_una_sola_ruta_redundancia_uno():
+    red = _red(["a", "b", "c"], [("a", "b", 5), ("b", "c", 5)])
+    r = min_corte(red, "a", "c", capacidad_unitaria=True)
+    assert r["valor"] == 1.0             # una sola ruta: cero redundancia real
+
+
+def test_min_corte_particion_separa_fuente_de_sumidero():
+    red = _red(["a", "b", "c"], [("a", "b", 3), ("b", "c", 5)])
+    r = min_corte(red, "a", "c")
+    assert "a" in r["particion_fuente"]
+    assert "c" not in r["particion_fuente"]
+
+
+def test_min_corte_es_determinista():
+    red = _red(["a", "b", "c", "d"],
+               [("a", "b", 2), ("b", "d", 2), ("a", "c", 3), ("c", "d", 1)])
+    assert min_corte(red, "a", "d") == min_corte(red, "a", "d")
+
+
+def test_min_corte_nodos_desconocidos_o_iguales():
+    red = _red(["a", "b"], [("a", "b", 1)])
+    assert min_corte(red, "a", "no-existe")["valor"] == 0.0
+    assert min_corte(red, "a", "a")["valor"] == 0.0
