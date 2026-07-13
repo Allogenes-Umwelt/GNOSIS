@@ -92,6 +92,16 @@ def test_corte_critico_cubre_todo_el_suministro(conn):
     assert cc["volumen"] == 10
 
 
+def test_desglose_de_origenes_ordenado_por_volumen(conn):
+    # DEU=8 (80%), USA=2 (20%): el mayor origen primero, con su share medido
+    a = analisis_vw.analisis(conn, 1)
+    orig = a["marca"]["origenes"]
+    assert orig[0]["nombre"] == "DEU"
+    assert orig[0]["unidades"] == 8
+    assert orig[0]["pct"] == pytest.approx(0.8)
+    assert orig[1]["nombre"] == "USA"
+
+
 def test_marca_explicita_gana_al_defecto(conn):
     a = analisis_vw.analisis(conn, 1, marca="AUDI")
     assert a["marca"]["nombre"] == "AUDI"

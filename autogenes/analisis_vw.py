@@ -191,11 +191,18 @@ def analisis(conn: sqlite3.Connection, session_id: int,
         redun = topologia.min_corte(red_sub, ORIGEN, destino, capacidad_unitaria=True)
         vol_corte = sum(c["peso"] for c in corte["corte"])
 
+        def _desglose(d: dict[str, int]) -> list[dict]:
+            return [{"nombre": k, "unidades": u,
+                     "pct": round(u / vol_total, 4) if vol_total else 0.0}
+                    for k, u in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))]
+
         marca_foco.update({
             "volumen": vol_total,
             "valor_sigma": round(val_total, 2),
             "n_origenes": len(por_pais),
             "n_aduanas": len(por_aduana),
+            "origenes": _desglose(por_pais),
+            "aduanas": _desglose(por_aduana),
             "hhi_origenes": hhi(list(por_pais.values())),
             "hhi_aduanas": hhi(list(por_aduana.values())),
             "redundancia_rutas": int(redun["valor"]),

@@ -140,6 +140,110 @@
         });
     });
 
+    // ── Panel VW: análisis de red traducido a negocio (I2) ───────────
+    // Cada tarjeta cumple la gramática: cifra + unidad + benchmark → so what
+    // → now what (acción DERIVADA, nunca recomendación inventada) → fuente.
+    // Todo dato viene medido de /api/v1/autogenes/analisis; nada se estima.
+    var analisisEl = document.getElementById('vn-analisis');
+    var analisisTit = document.getElementById('vn-analisis-tit');
+
+    function pct(x) { return Math.round((x || 0) * 100) + '%'; }
+
+    function tarjeta(t) {
+      return '<div class="vn-tar">' +
+        '<div class="vn-tar-tit">' + esc(t.tit) + '</div>' +
+        '<div class="vn-tar-cifra">' + esc(t.cifra) +
+          (t.unidad ? '<span> ' + esc(t.unidad) + '</span>' : '') + '</div>' +
+        (t.bench ? '<div class="vn-tar-bench">' + esc(t.bench) + '</div>' : '') +
+        '<div class="vn-tar-sw">' + esc(t.sw) + '</div>' +
+        '<div class="vn-tar-nw">▸ ' + esc(t.nw) + '</div>' +
+        '<div class="vn-tar-fte">' + esc(t.fte) + '</div>' +
+        '</div>';
+    }
+
+    function tarjetasDe(a) {
+      var m = a.marca || {}, cards = [];
+      if (m.origenes && m.origenes.length) {
+        var o0 = m.origenes[0], ho = m.hhi_origenes || {};
+        var banda = (ho.banda || '');
+        cards.push(tarjeta({
+          tit: 'Concentración de origen',
+          cifra: pct(o0.pct), unidad: 'desde ' + o0.nombre,
+          bench: 'HHI ' + (ho.hhi != null ? ho.hhi : '—') + ' · ' + banda,
+          sw: banda.indexOf('alta') === 0 ? 'Dependencia alta de un solo origen.'
+            : banda.indexOf('moderada') === 0 ? 'Concentración moderada de orígenes.'
+            : 'Orígenes repartidos.',
+          nw: 'Exposición a ' + o0.nombre + ': ' + o0.unidades + ' de ' + m.volumen + ' unidades.',
+          fte: m.volumen + ' unidades · HHI sobre ' + m.n_origenes + ' orígenes medidos'
+        }));
+      }
+      if (m.redundancia_rutas != null) {
+        cards.push(tarjeta({
+          tit: 'Redundancia de suministro',
+          cifra: String(m.redundancia_rutas),
+          unidad: m.redundancia_rutas === 1 ? 'ruta independiente' : 'rutas independientes',
+          bench: m.n_origenes + ' orígenes · ' + m.n_aduanas + ' aduanas',
+          sw: m.redundancia_rutas <= 1 ? 'Una sola vía de suministro: sin holgura.'
+            : m.redundancia_rutas + ' vías de suministro disjuntas.',
+          nw: m.redundancia_rutas <= 1 ? 'Punto único de falla: toda la vía comparte un cuello.'
+            : 'Cada vía es independiente de las demás.',
+          fte: 'corte mínimo unitario sobre la subred de la marca'
+        }));
+      }
+      var cc = m.corte_critico;
+      if (cc) {
+        cards.push(tarjeta({
+          tit: 'Corte crítico de suministro',
+          cifra: pct(cc.pct_suministro), unidad: 'del suministro',
+          bench: 'en ' + cc.n_rutas + (cc.n_rutas === 1 ? ' ruta · ' : ' rutas · ') + cc.volumen + ' unidades',
+          sw: 'Si caen estas rutas, se interrumpe ese flujo.',
+          nw: 'Vigilar: ' + (cc.rutas || []).map(function (r) {
+            return r.de + '→' + r.a + ' (' + r.unidades + ')'; }).join(', '),
+          fte: 'max-flow / min-cut sobre volumen medido'
+        }));
+      }
+      if (a.brokers && a.brokers.length) {
+        var b0 = a.brokers[0];
+        var otras = a.brokers.slice(1).map(function (b) {
+          return esc(b.etiqueta) + ' (' + b.intermediacion + ')'; }).join(' · ');
+        cards.push(tarjeta({
+          tit: 'Broker aduanal',
+          cifra: b0.etiqueta, unidad: '',
+          bench: 'intermediación ' + b0.intermediacion + ' · ' + b0.unidades + ' unidades',
+          sw: 'La aduana que más intermedia el flujo del caso.',
+          nw: 'Auditar primero ' + b0.etiqueta + (otras ? '. Otras: ' + otras : '.'),
+          fte: 'betweenness sobre la red país→aduana→marca'
+        }));
+      }
+      return cards.join('');
+    }
+
+    function cargarAnalisisVW() {
+      if (!analisisEl) return;
+      fetch('/api/v1/autogenes/analisis')
+        .then(function (r) { return r.json(); })
+        .then(function (a) {
+          if (!a || a.error) {
+            analisisEl.innerHTML = '<p class="gr-vacio">' + esc(a && a.error || 'Sin análisis disponible.') + '</p>';
+            return;
+          }
+          if (!a.suficiente) {
+            analisisEl.innerHTML = '<p class="gr-vacio">' + esc(a.motivo || 'Estructura insuficiente para el análisis.') + '</p>';
+            return;
+          }
+          if (analisisTit && a.marca && a.marca.nombre) {
+            analisisTit.textContent = a.marca.nombre +
+              (a.marca.es_defecto ? '' : ' · marca de mayor volumen') + ' · lectura de negocio';
+          }
+          analisisEl.innerHTML = tarjetasDe(a) ||
+            '<p class="gr-vacio">Sin métricas para esta marca.</p>';
+        })
+        .catch(function () {
+          analisisEl.innerHTML = '<p class="gr-vacio">Sin conexión con el sustrato.</p>';
+        });
+    }
+    cargarAnalisisVW();
+
     // hubs: atajos de foco
     fetch('/api/v1/autogenes/hubs?top=8')
       .then(function (r) { return r.json(); })
