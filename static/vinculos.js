@@ -250,6 +250,21 @@
           fte: 'share medido en unidades sobre rutas idénticas · sin montos'
         }));
       }
+      var der = m.deriva;
+      if (der) {
+        var gan = der.rutas_ganadas || [], per = der.rutas_perdidas || [];
+        var ruta = function (r) { return r.pais + '×' + r.aduana; };
+        cards.push(tarjeta({
+          tit: 'Deriva vs sesión de referencia',
+          cifra: (der.delta_volumen >= 0 ? '+' : '') + der.delta_volumen,
+          unidad: 'unidades vs la referencia',
+          bench: der.volumen_actual + ' ahora · ' + der.volumen_ref + ' en la referencia',
+          sw: gan.length + ' ruta(s) ganada(s), ' + per.length + ' perdida(s).',
+          nw: (per.length ? 'Abandonadas: ' + per.map(ruta).join(', ') : 'Sin rutas abandonadas.') +
+            (gan.length ? ' · Nuevas: ' + gan.map(ruta).join(', ') : ''),
+          fte: 'comparación entre sesiones · no es time-travel del pipeline'
+        }));
+      }
       var aus = m.rutas_ausentes;
       if (aus && aus.length) {
         var r0 = aus[0];
@@ -267,9 +282,25 @@
       return cards.join('');
     }
 
-    function cargarAnalisisVW() {
+    function cargarSesiones() {
+      var sel = document.getElementById('vn-deriva');
+      if (!sel) return;
+      fetch('/api/v1/autogenes/sesiones').then(function (r) { return r.json(); })
+        .then(function (j) {
+          var ses = (j && j.sesiones) || [];
+          sel.innerHTML = '<option value="">— sin comparación —</option>' +
+            ses.map(function (s) {
+              return '<option value="' + s.id + '">' + esc(s.etiqueta) + ' (#' + s.id + ')</option>';
+            }).join('');
+          sel.addEventListener('change', function () { cargarAnalisisVW(sel.value || null); });
+        }).catch(function () { /* sin sustrato: el selector queda vacío */ });
+    }
+
+    function cargarAnalisisVW(sidRef) {
       if (!analisisEl) return;
-      fetch('/api/v1/autogenes/analisis')
+      var url = '/api/v1/autogenes/analisis' +
+        (sidRef ? '?deriva=' + encodeURIComponent(sidRef) : '');
+      fetch(url)
         .then(function (r) { return r.json(); })
         .then(function (a) {
           if (!a || a.error) {
@@ -292,6 +323,7 @@
         });
     }
     cargarAnalisisVW();
+    cargarSesiones();
 
     // hubs: atajos de foco
     fetch('/api/v1/autogenes/hubs?top=8')

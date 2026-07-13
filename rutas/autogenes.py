@@ -1035,6 +1035,24 @@ def api_autogenes_camino_dockear():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/sesiones', methods=['GET'])
+def api_autogenes_sesiones():
+    """Las sesiones procesadas (para el selector de deriva de P5)."""
+    from database import get_connection
+    try:
+        conn = get_connection()
+        try:
+            filas = [dict(r) for r in conn.execute(
+                "SELECT id, month_processed AS m, year_processed AS y FROM processing_sessions"
+                " ORDER BY year_processed DESC, month_processed DESC, id DESC")]
+        finally:
+            conn.close()
+        return jsonify({'sesiones': [
+            {'id': f['id'], 'etiqueta': f"{f['m']:02d}/{f['y']}"} for f in filas]})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 # ── P1 · Investigaciones guardadas ──────────────────────────────────
 
 

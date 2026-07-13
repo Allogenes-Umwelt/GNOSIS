@@ -389,6 +389,10 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
    negocio. Gramática visible: cifra grande + unidad → benchmark → so what →
    now what (acción derivada) → fuente. Todo dato es medido. */
 .vn-analisis { display: flex; flex-direction: column; gap: 8px; margin-bottom: 6px; }
+.vn-deriva { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  font-family: var(--font-mono); font-size: .62rem; color: var(--t3);
+  text-transform: uppercase; letter-spacing: 1px; }
+.vn-deriva select { flex: 1; }
 .vn-tar { border: 1px solid var(--line-2); border-left: 2px solid var(--acc-text);
   background: linear-gradient(180deg, var(--surface), var(--surface-2)); padding: 9px 11px; }
 .vn-tar-tit { font-family: var(--font-mono); font-size: .58rem; letter-spacing: 1.6px;
