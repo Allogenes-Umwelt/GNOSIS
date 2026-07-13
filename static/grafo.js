@@ -68,6 +68,7 @@
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
+    var whatif = null;           // {id, r} — simulación de caída (P3, DECIDIR)
     var tarjetas = [], capaTarjetas = null;   // callouts anclados (PANOPTES §6)
     var modoCamino = null;       // {desde} — esperando el nodo destino del camino
     var kindsAtenuados = {};     // clases atenuadas por la leyenda (filtro)
@@ -692,10 +693,11 @@
         var apagado = leyOculta(a.kind) || leyOculta(b.kind) ||
           (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
-        ctx.globalAlpha = apagado ? 0.07 : (e.kind === 'relacion' ? 0.8 : 0.3);
-        ctx.strokeStyle = e.kind === 'relacion' ? colores.acc : colores.linea2;
-        ctx.lineWidth = e.kind === 'relacion' ? 1.3 + (e.peso || 0.5) * 2 : 1.0;
-        ctx.setLineDash(e.kind === 'cita' ? [4, 6] : []);
+        var cae = whatif && resalte && resalte.enlaces[e.id];   // arista que muere en la simulación
+        ctx.globalAlpha = apagado ? 0.07 : (cae ? 0.85 : (e.kind === 'relacion' ? 0.8 : 0.3));
+        ctx.strokeStyle = cae ? colores.danger : (e.kind === 'relacion' ? colores.acc : colores.linea2);
+        ctx.lineWidth = cae ? 1.6 : (e.kind === 'relacion' ? 1.3 + (e.peso || 0.5) * 2 : 1.0);
+        ctx.setLineDash(cae ? [3, 4] : (e.kind === 'cita' ? [4, 6] : []));
         ctx.beginPath(); ctx.moveTo(a.x, a.y);
         // aristas inter-comunidad se curvan (PANOPTES §4.3): el punto de
         // control se desplaza perpendicular al vano, así los saltos entre
@@ -747,6 +749,8 @@
 
         // efectos DETRÁS del nodo: glow/burn de la alerta
         if (n.kind === 'anomalia' && n.severidad) glowBurn(n, r, ts);
+        // el nodo que se simula caer arde como alerta crítica (P3)
+        if (whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
 
         var detalle = r * vista.k >= 13;   // LOD: el detalle mecha se apaga de lejos
         if (n.kind === 'nucleo') {
@@ -1072,8 +1076,8 @@
       return s; }
     function botonAccion(a) {
       var lab = { vecindario: 'Vecindario', camino: 'Camino a…', centrar: 'Centrar',
-        afectados: 'Ver afectados', expandir: 'Expandir' }[a] || a;
-      var key = (a === 'vecindario' || a === 'afectados' || a === 'expandir') ? ' key' : '';
+        afectados: 'Ver afectados', expandir: 'Expandir', caida: 'Simular caída' }[a] || a;
+      var key = (a === 'vecindario' || a === 'afectados' || a === 'expandir' || a === 'caida') ? ' key' : '';
       return '<button type="button" class="gr-tar-accion' + key + '" data-accion="' + a + '">' + esc(lab) + '</button>';
     }
     function filasBasicas(n) { var out = fila('conexiones', n.grado || 0), extra = n.extra || {};
@@ -1123,20 +1127,20 @@
         cuerpo += fila('modelo líder', ex(n, 'modelo_lider') ? ex(n, 'modelo_lider') + ' · ' + fNum(ex(n, 'lider_n')) : null, true);
         cuerpo += fila('orígenes', ex(n, 'origenes'));
         cuerpo += fila('valor Σ', fMon(ex(n, 'valor_sigma')));
-        acc = ['vecindario', 'camino', 'centrar'];
+        acc = ['vecindario', 'camino', 'caida', 'centrar'];
       } else if (k === 'pais') {
         sub = ex(n, 'marcas') ? (ex(n, 'marcas') + ' marcas de origen') : '';
         cuerpo = hero(fNum(ex(n, 'volumen') || 0), 'UNIDADES<br>importadas');
         cuerpo += barraJN(ex(n, 'pref_j'), ex(n, 'pref_n'));
         cuerpo += fila('marcas', ex(n, 'marcas'), true);
         cuerpo += fila('valor Σ', fMon(ex(n, 'valor_sigma')));
-        acc = ['vecindario', 'camino', 'centrar'];
+        acc = ['vecindario', 'camino', 'caida', 'centrar'];
       } else if (k === 'pedimento') {
         sub = (ex(n, 'patente') ? 'patente ' + ex(n, 'patente') : '') +
               (ex(n, 'aduana') ? ' · ' + ex(n, 'aduana') : '');
         cuerpo = hero(fNum(ex(n, 'n_vehiculos') || 0), 'VEHÍCULOS' + (ex(n, 'valor') ? '<br>' + fMon(ex(n, 'valor')) + ' valor' : ''));
         cuerpo += fila('aduana', ex(n, 'aduana')) + fila('fecha', ex(n, 'fecha'));
-        acc = ['vecindario', 'centrar'];
+        acc = ['vecindario', 'caida', 'centrar'];
       } else if (k === 'vehiculo') {
         var mv = vecinosKind(n, 'marca')[0], pv = vecinosKind(n, 'pais')[0];
         sub = 'chasis · unidad de la flota';
@@ -1221,6 +1225,8 @@
         if (!animando) dibujar(0);
       } else if (a === 'afectados') {
         accionTarjeta('vecindario', n);   // los Δ citan a sus unidades afectadas
+      } else if (a === 'caida') {
+        simularCaida(n);
       } else if (a === 'expandir' && n.ped) {
         expandidos[n.ped] = !expandidos[n.ped];   // despliega el racimo ν×N
         colapsar(); if (!animando) dibujar(0);
@@ -1286,6 +1292,73 @@
           if (!animando) dibujar(0);
         })
         .catch(function () { if (estadoLinea) estadoLinea.textContent = 'ERROR AL TRAZAR EL CAMINO'; });
+    }
+
+    // ── what-if de caída (P3, DECIDIR) ────────────────────────────────
+    // El motor vive en el servidor (cascada.simular_caida vía qualia): mide,
+    // sobre la red de ESTA sesión, qué le hace al caso quitar un nodo. El
+    // cliente jamás dicta el número; solo lo surfacea. Copy honesto por ley:
+    // simula la red propia, no predice el mundo (cascada.py). Las cifras salen
+    // del grafo completo; el resalte visual sigue lo visible del lienzo.
+    function simularCaida(n) {
+      if (estadoLinea) estadoLinea.textContent = 'SIMULANDO LA CAÍDA DE ' +
+        (n.etiqueta || n.id).toUpperCase().slice(0, 24) + '…';
+      fetch('/api/v1/autogenes/qualia/cascada?caida=' + encodeURIComponent(n.id))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || d.error) {
+            if (estadoLinea) estadoLinea.textContent = d && d.error ? d.error.toUpperCase() : 'SIN SIMULACIÓN';
+            return;
+          }
+          whatif = { id: n.id, r: d };
+          // resalte = nodo caído + sus vecinos VISIBLES + las aristas que lo tocan
+          var rn = {}, re = {};
+          rn[n.id] = true;
+          Object.keys(vecinos[n.id] || {}).forEach(function (id) { rn[id] = true; });
+          enlaces.forEach(function (e) {
+            if (e.source === n.id || e.target === n.id) re[e.id] = true;
+          });
+          resalte = { nodos: rn, enlaces: re };
+          pintarWhatif(n, d);
+          if (estadoLinea) estadoLinea.textContent = 'SIMULACIÓN · CAÍDA DE ' +
+            (n.etiqueta || n.id).toUpperCase().slice(0, 24);
+          if (!animando) dibujar(0);
+        })
+        .catch(function () { if (estadoLinea) estadoLinea.textContent = 'ERROR EN LA SIMULACIÓN'; });
+    }
+    // el veredicto en lenguaje llano, cada cifra medida por el motor
+    function pintarWhatif(n, d) {
+      if (!inspector) return;
+      var pct = Math.round((d.peso_estructural || 0) * 100);
+      var pctTxt = pct < 1 ? '<1%' : pct + '%';
+      var directo = (d.ondas && d.ondas[1]) ? d.ondas[1].length : (d.relaciones_caidas || 0);
+      var parte = d.islas_despues > d.islas_antes;
+      var fragTxt = parte ? 'el caso se parte en ' + d.islas_despues + ' islas'
+                          : 'el caso no se fragmenta';
+      var desc = d.desconectados || [];
+      var aislTxt = desc.length
+        ? fNum(desc.length) + ' · ' + desc.slice(0, 3).map(function (x) {
+            return esc((x.etiqueta || x.id).slice(0, 18)); }).join(', ')
+        : 'ninguno · conservan otras citas';
+      inspector.innerHTML =
+        '<div class="gr-kind gr-kind-sim">SIMULACIÓN · CAÍDA</div>' +
+        '<div class="gr-nombre">' + esc(n.etiqueta) + '</div>' +
+        '<div class="gr-tar-sub">qué le hace al caso quitar este nodo</div>' +
+        hero(pctTxt, 'DE LA ESTRUCTURA<br>que carga este nodo') +
+        fila('vínculos que caen', fNum(d.relaciones_caidas || 0), true) +
+        fila('alcance directo', fNum(directo) + ' nodos') +
+        fila('fragmentación', fragTxt, parte) +
+        fila('quedan aislados', aislTxt, desc.length > 0) +
+        '<p class="gr-sim-nota">Simulación sobre la red de esta sesión — no predice el mundo.</p>' +
+        '<div class="gr-tar-acciones"><button type="button" class="gr-tar-accion key" data-sim-cerrar>Cerrar simulación</button></div>';
+      var btn = inspector.querySelector('[data-sim-cerrar]');
+      if (btn) btn.addEventListener('click', cerrarWhatif);
+    }
+    function cerrarWhatif() {
+      whatif = null; resalte = null;
+      if (estadoLinea) estadoLinea.textContent = '';
+      pintarInspector(sel);
+      if (!animando) dibujar(0);
     }
     // posiciona cada tarjeta en el cuadrante opuesto al nodo y traza su
     // línea guía (canvas, espacio de pantalla). Llamada desde dibujar().
@@ -1357,7 +1430,7 @@
     canvas.addEventListener('keydown', function (ev) {
       if (ev.key === 'Escape') {
         modoCamino = null; canvas.style.cursor = 'grab';
-        kindAislado = null; kindsAtenuados = {}; resalte = null;
+        kindAislado = null; kindsAtenuados = {}; resalte = null; whatif = null;
         sel = null; pintarInspector(null); cerrarActivas(); replegarFunnel(true);
         if (typeof pintarLeyenda === 'function') pintarLeyenda();
         colapsar(); if (!animando) dibujar(0);

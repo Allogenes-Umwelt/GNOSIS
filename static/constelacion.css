@@ -350,6 +350,16 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .gr-fila { display: flex; justify-content: space-between; gap: 10px; font-family: var(--font-mono); font-size: .72rem; border-bottom: 1px solid var(--line-ghost); padding: 5px 0; }
 .gr-fila span { color: var(--t3); text-transform: uppercase; letter-spacing: 1px; }
 .gr-fila b { color: var(--t2); overflow-wrap: anywhere; text-align: right; }
+.gr-fila b, .gr-tar-big { font-variant-numeric: tabular-nums; }
+
+/* Veredicto del what-if de caída (P3, DECIDIR): el inspector entra en modo
+   simulación. El encabezado arde en danger (disciplina de magenta vía
+   --danger); la nota declara honestamente el alcance del modelo — simula la
+   red de la sesión, no predice el mundo. */
+.gr-kind-sim { color: var(--danger); }
+.gr-sim-nota { font-family: var(--font-mono); font-size: .6rem; color: var(--t3);
+  line-height: 1.5; letter-spacing: .3px; margin: 10px 0 2px;
+  border-left: 2px solid color-mix(in srgb, var(--danger) 45%, transparent); padding-left: 8px; }
 
 /* ── Tarjetas callout del grafo (PANOPTES §6): ficha técnica anclada al
    nodo por una línea guía en el canvas — el lenguaje de anotación del
