@@ -149,6 +149,8 @@ class PuntoInforme(BaseModel):
     texto: str = Field(min_length=1)
     evidencia: list[str] = Field(default_factory=list)
     entidades: list[str] = Field(default_factory=list)
+    # Procedencia del cambio: True si el operador editó el texto (HITL, S3).
+    editado_por_operador: bool = False
 
     @field_validator("texto")
     @classmethod
@@ -203,7 +205,8 @@ def sanear_informe(informe: Informe, fragmento_ids: set[str],
             entidades = [n for n in p.entidades if n in nombres_entidad]
             if evidencia or entidades:
                 puntos.append(PuntoInforme(texto=p.texto, evidencia=evidencia,
-                                           entidades=entidades))
+                                           entidades=entidades,
+                                           editado_por_operador=p.editado_por_operador))
         if puntos:
             secciones.append(SeccionInforme(encabezado=s.encabezado, puntos=puntos))
     return Informe(titulo=informe.titulo, secciones=secciones)
@@ -389,11 +392,18 @@ def dockear_informe(conn: sqlite3.Connection, session_id: int,
         id_por_nombre[n] for n in nombres_citados if n in id_por_nombre))
     evidencia = list(dict.fromkeys(frag_citados))
 
+    # La ley de fidelidad aplica también al texto EDITADO por el operador: el
+    # cuerpo dockeado registra verificado/tokens_huerfanos por punto.
+    cuerpo = saneado.model_dump()
+    frag_texto = {f["id"]: f.get("texto") or "" for f in grafo["fragmentos"]}
+    hecho_valor = {h["id"]: h["cifra"] for h in hechos_medidos(conn, session_id)}
+    verificar_fidelidad(cuerpo, frag_texto, hecho_valor)
+
     producto = s.dockear_producto(
         clase="informe",
         titulo=saneado.titulo,
         unidad="autogenes",
-        cuerpo=saneado.model_dump(),
+        cuerpo=cuerpo,
         entidades=ent_ids,
         evidencia=evidencia,
     )

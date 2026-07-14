@@ -214,6 +214,33 @@
           pt.addEventListener('mouseenter', function () { activar(pt); });
           pt.addEventListener('focus', function () { activar(pt); });
           pt.addEventListener('click', function () { activar(pt); });
+          // HITL (S3): editar o descartar el punto antes de dockear. El texto
+          // editado se re-verifica en servidor (la ley aplica al operador).
+          var hitl = document.createElement('span');
+          hitl.className = 'sn-hitl';
+          hitl.innerHTML = '<button type="button" class="sn-h-ed">editar</button>' +
+            '<button type="button" class="sn-h-des">descartar</button>';
+          pt.appendChild(hitl);
+          var tx = pt.querySelector('.tx');
+          hitl.querySelector('.sn-h-ed').addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            tx.contentEditable = 'true'; tx.classList.add('editando'); tx.focus();
+          });
+          tx.addEventListener('blur', function () {
+            if (tx.contentEditable !== 'true') return;
+            tx.contentEditable = 'false'; tx.classList.remove('editando');
+            var nuevo = (tx.textContent || '').trim();
+            if (nuevo && nuevo !== p.texto) {
+              p.texto = nuevo; p.editado_por_operador = true;
+              pt.classList.add('sn-editado');
+            }
+          });
+          hitl.querySelector('.sn-h-des').addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            p._descartado = !p._descartado;
+            pt.classList.toggle('sn-descartado', p._descartado);
+            this.textContent = p._descartado ? 'restaurar' : 'descartar';
+          });
           sec.appendChild(pt);
         });
         elInforme.appendChild(sec);
@@ -472,13 +499,32 @@
             'Reintenta o revisa el proveedor LLM en admin.'));
         });
     }
+    // Informe a dockear: sin los puntos descartados, con el texto editado y su
+    // bandera de procedencia. El servidor re-sanea y re-verifica.
+    function informeParaDockear() {
+      return {
+        titulo: informeActual.titulo,
+        secciones: (informeActual.secciones || []).map(function (s) {
+          return {
+            encabezado: s.encabezado,
+            puntos: (s.puntos || []).filter(function (p) { return !p._descartado; })
+              .map(function (p) {
+                return {
+                  texto: p.texto, evidencia: p.evidencia, entidades: p.entidades,
+                  editado_por_operador: !!p.editado_por_operador
+                };
+              })
+          };
+        }).filter(function (s) { return s.puntos.length; })
+      };
+    }
     function dockear() {
       if (!informeActual) return;
       btnDock.disabled = true;
       elMsj.className = 'ag-msj'; elMsj.textContent = 'Dockeando…';
       fetch('/api/v1/autogenes/sintesis/dockear', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ informe: informeActual })
+        body: JSON.stringify({ informe: informeParaDockear() })
       }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
           elMsj.className = 'ag-msj ' + (res.ok ? 'ok' : 'error');

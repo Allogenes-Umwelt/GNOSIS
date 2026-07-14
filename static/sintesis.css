@@ -97,6 +97,16 @@
 /* Cifra sin rastro en la evidencia citada: alerta (--danger, único magenta). */
 .sn-chip.alerta { color: var(--danger); border-color: var(--danger); }
 .sn-punto.sn-no-verificado { border-left-color: var(--danger); }
+/* HITL por punto (S3): controles de editar/descartar, visibles al pasar. */
+.sn-hitl { display: inline-flex; gap: 6px; margin-left: 8px; opacity: 0; transition: opacity .12s; }
+.sn-punto:hover .sn-hitl, .sn-punto:focus-within .sn-hitl { opacity: 1; }
+.sn-hitl button { font-family: var(--font-mono); font-size: .58rem; letter-spacing: .4px;
+  color: var(--t3); background: transparent; border: 1px solid var(--line-ghost);
+  padding: 1px 6px; cursor: pointer; }
+.sn-hitl button:hover { color: var(--acc-text); border-color: var(--acc-text); }
+.sn-punto .tx.editando { outline: 1px solid var(--acc-text); background: var(--acc-subtle); padding: 0 3px; }
+.sn-punto.sn-editado .tx { border-bottom: 1px dashed var(--cobalt-on); }
+.sn-punto.sn-descartado { opacity: .4; text-decoration: line-through; }
 .sn-nodo.sn-hecho .k { color: var(--cobalt-on); }
 .sn-cita-hecho { border-left-color: var(--cobalt-on); }
 .sn-cita-hecho .fuente { color: var(--cobalt-on); }

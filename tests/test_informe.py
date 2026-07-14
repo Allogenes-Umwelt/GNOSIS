@@ -185,3 +185,29 @@ def test_formatear_fecha_mes_invalido_no_se_disfraza():
     """Mes 00 no debe renderizar 'DIC' (indexado -1): queda literal."""
     assert formatear_fecha_es("2024-00-12", "mes") == "00 2024"
     assert formatear_fecha_es("2024-13-12", "mes") == "13 2024"
+
+
+# ── S3: HITL con grano — editar/descartar por punto ───────────────────
+
+def test_dockear_marca_editado_y_reverifica_la_ley(conn):
+    """El texto EDITADO por el operador también pasa la ley de fidelidad: si
+    mete una cifra que su evidencia no sostiene, queda verificado=False."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "f.pdf")
+    frag = s.agregar_fragmentos(art.id, [(1, "La unidad ampara 60 unidades.")])[0]
+    crudo = {"titulo": "T", "secciones": [{"encabezado": "H", "puntos": [
+        {"texto": "El amparo cubre 90 unidades.", "evidencia": [frag.id],
+         "entidades": [], "editado_por_operador": True}]}]}
+    r = dockear_informe(conn, 1, crudo)
+    p = r["producto"]["cuerpo"]["secciones"][0]["puntos"][0]
+    assert p["editado_por_operador"] is True
+    assert p["verificado"] is False and "90" in p["tokens_huerfanos"]
+
+
+def test_dockear_informe_todo_descartado_no_dockea(conn):
+    """Si el operador descartó todos los puntos, el informe llega sin puntos
+    y no se dockea (error honesto, sin producto)."""
+    _sembrar_grafo(conn)
+    r = dockear_informe(conn, 1, {"titulo": "T", "secciones": []})
+    assert "error" in r
+    assert Sustrato(conn, 1).leer_grafo()["productos"] == []
