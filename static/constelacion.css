@@ -246,6 +246,11 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
      encimarse con la etiqueta de abajo: una sola línea, recortada. */
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ag-msj.ok { color: var(--ok); } .ag-msj.error { color: var(--danger); }
+/* un error lleva el MOTIVO del fallo (por qué un archivo no dockeó): es
+   diagnóstico, no progreso transitorio — debe leerse completo, envuelto, sin
+   recorte. La regla de una sola línea aplica solo al avance por archivo. */
+.ag-msj.error { white-space: normal; overflow: visible; text-overflow: clip;
+  line-height: 1.35; }
 
 /* barra de estado regulatoria */
 .ag-status {
