@@ -17,6 +17,7 @@
         <span class="qa-desig">
           <span class="cod">QLA-03 · AUTOGENES F7</span>
           <span class="nom">◆ Qualia · Cascada de bifurcación</span>
+          <span class="qa-pregunta">¿Qué se cae si esta entidad falla?</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia/maquina">máquina</a>
@@ -35,7 +36,7 @@
       </div>
       <div class="qa-lienzo" id="qc-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>✕</b> nodo caído — el pulso muestra qué pierde conexión</li>
+        <li><b>✕</b> entidad caída — al centro, todo irradia por profundidad de dependencia</li>
         <li><b>◌</b> huérfano — se queda sin un solo vínculo</li>
         <li><span id="qc-info" role="status">CARGANDO LA RED…</span></li>
       </ul>
@@ -47,15 +48,22 @@
         <h2>Impacto</h2>
         <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
       </div>
-      <p class="qa-base-hint" id="qc-hint">Modo caída: toca un nodo y el pulso
-      recorre lo que depende de él. Nada se escribe — es simulación en memoria
-      de tu propia red.</p>
+      <p class="qa-base-hint" id="qc-hint">Modo caída: toca una entidad; el sistema
+      la pone al centro y la onda recorre lo que depende de ella. Nada se escribe
+      — es simulación en memoria de tu propia red.</p>
       <div class="qa-sec">Impacto</div>
       <div class="qa-spec" id="qc-impacto"></div>
       <div class="qa-sec">Desconectados</div>
       <div class="qa-lista" id="qc-huerfanos"></div>
       <button type="button" id="qc-limpiar" class="qa-accion" style="margin-top:8px" disabled>limpiar</button>
       <div class="ag-msj" id="qc-msj" role="status"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>El radio es la profundidad de dependencia (frente BFS del motor de
+        cascada, determinista); el ángulo reparte el sub-árbol. «Peso en el
+        tejido» = grado del nodo / grado total. Todo se computa en memoria: no
+        muta el sustrato.</p>
+      </details>
       <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
     </aside>
   </div>
@@ -63,6 +71,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia_cascada.js') }}"></script>
 <script>
 (function () {
