@@ -168,6 +168,8 @@
 
     function dibujarReticula() {
       if (!ctx || !datos) return;
+      var cajaLienzo = canvas.parentElement.getBoundingClientRect();
+      if (cajaLienzo.width < 2 || cajaLienzo.height < 2) return;   // sin layout aún: pintar en un lienzo de 0 lo dejaría estirado y borroso
       leerColores();
       tamano();
       hits = [];
@@ -274,6 +276,18 @@
         }
       });
       window.addEventListener('resize', dibujarReticula);
+      // El lienzo vive en un panel flex (min-height variable) cuya caja cambia
+      // con el contenido, al plegar/expandir y al asentarse las fuentes — no
+      // solo con el viewport. Sin observar SU tamaño el canvas conservaba un
+      // backing store viejo y chico, estirado por CSS al alto real: el
+      // diamante borroso y deforme. El observer lo redibuja a su medida.
+      if (window.ResizeObserver) {
+        var raf = 0;
+        new window.ResizeObserver(function () {
+          if (raf) cancelAnimationFrame(raf);
+          raf = requestAnimationFrame(dibujarReticula);
+        }).observe(lienzo);
+      }
       var alternador = document.getElementById('theme-toggle');
       if (alternador) alternador.addEventListener('click', function () {
         setTimeout(dibujarReticula, 60);
