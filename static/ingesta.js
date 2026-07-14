@@ -196,7 +196,10 @@
       return fetch('/api/v1/autogenes/ingestar/zip', { method: 'POST', body: fd })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
-          if (!res.ok || !res.j.lote_id) { return { errores: 1, ingeridos: 0, duplicados: 0 }; }
+          if (!res.ok || !res.j.lote_id) {
+            return { errores: 1, ingeridos: 0, duplicados: 0,
+                     motivo: (res.j && res.j.error) || 'ZIP rechazado' };
+          }
           var loteId = res.j.lote_id;
           var url = '/api/v1/autogenes/ingestar/lote/' + encodeURIComponent(loteId);
           return new Promise(function (resolve) {
@@ -209,7 +212,7 @@
               fetch(url, { method: 'POST' })
                 .then(function (r) { return r.json(); })
                 .then(function (p) {
-                  if (p.error) { resolve({ errores: 1, ingeridos: 0, duplicados: 0 }); return; }
+                  if (p.error) { resolve({ errores: 1, ingeridos: 0, duplicados: 0, motivo: p.error }); return; }
                   if (onProgreso) onProgreso(p);
                   if (p.done) { resolve(p); } else { tanda(); }
                 })
@@ -237,7 +240,7 @@
       }
       if (enCola) return;
       enCola = true; cancelado = false;
-      var ok = 0, err = 0, dup = 0, total = aceptados.length;
+      var ok = 0, err = 0, dup = 0, total = aceptados.length, primerError = '';
       var enLote = total > 1;   // un archivo suelto conserva su snapshot inmediato
       var hayZip = aceptados.some(function (a) { return /\.zip$/i.test(a.name || ''); });
       // Cancelar disponible en cualquier carga larga: varios archivos o un ZIP.
@@ -254,7 +257,8 @@
         aviso(porCancelacion
           ? 'Carga cancelada · ' + resumen(i) +
             (restantes ? ' · ' + restantes + ' sin procesar (re-suelta para reanudar)' : '')
-          : 'Ingesta lista · ' + resumen(total),
+          : 'Ingesta lista · ' + resumen(total) +
+            (err && primerError ? ' · motivo: ' + primerError : ''),
           (err && !porCancelacion) ? 'error' : 'ok');
         // un solo redibujo (y un solo snapshot) al cerrar el lote — no O(archivos)
         var fin = enLote ? cerrarLote() : Promise.resolve();
@@ -274,6 +278,7 @@
                   (p.errores ? ' · ' + p.errores + ' err' : '') + '…');
           }).then(function (p) {
             ok += (p.ingeridos || 0); dup += (p.duplicados || 0); err += (p.errores || 0);
+            if (p.errores && !primerError) primerError = etiqueta + ': ' + (p.motivo || 'ZIP rechazado');
             siguiente(i + 1);
           }).catch(function () { err++; siguiente(i + 1); });
           return;
@@ -283,9 +288,16 @@
         subirUno(archivo, enLote).then(function (res) {
           if (res.ok) { ok += 1; dup += (res.j.duplicados || 0); }
           else if (res.j && res.j.duplicado) { dup++; }
-          else { err++; }
+          else {
+            err++;
+            if (!primerError) primerError = etiqueta + ': ' + ((res.j && res.j.error) || 'error del servidor');
+          }
           siguiente(i + 1);
-        }).catch(function () { err++; siguiente(i + 1); });
+        }).catch(function () {
+          err++;
+          if (!primerError) primerError = etiqueta + ': sin conexión con el servidor';
+          siguiente(i + 1);
+        });
       })(0);
     }
     if (cancelarBtn) {
@@ -306,8 +318,45 @@
     ['dragleave', 'drop'].forEach(function (ev) {
       drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('arrastrando'); });
     });
+    // Soltar una CARPETA no llena dataTransfer.files (el navegador no recursa):
+    // hay que leer las entradas con webkitGetAsEntry y bajar por los directorios.
+    // Sin esto, soltar una carpeta era un no-op silencioso.
+    function archivosDeDrop(dt) {
+      var items = dt.items;
+      var puedeRecursar = items && items.length &&
+        window.DataTransferItem && window.DataTransferItem.prototype.webkitGetAsEntry;
+      if (!puedeRecursar) {
+        return Promise.resolve(Array.prototype.slice.call(dt.files || []));
+      }
+      var entradas = [];
+      for (var i = 0; i < items.length; i++) {
+        var en = items[i].webkitGetAsEntry();   // debe llamarse SÍNCRONO en el drop
+        if (en) entradas.push(en);
+      }
+      if (!entradas.length) return Promise.resolve(Array.prototype.slice.call(dt.files || []));
+      var out = [];
+      function leer(entry) {
+        return new Promise(function (resolve) {
+          if (entry.isFile) {
+            entry.file(function (f) { out.push(f); resolve(); }, function () { resolve(); });
+          } else if (entry.isDirectory) {
+            var reader = entry.createReader(), todas = [];
+            (function paso() {
+              reader.readEntries(function (lote) {
+                if (!lote.length) { Promise.all(todas.map(leer)).then(function () { resolve(); }); }
+                else { todas = todas.concat(Array.prototype.slice.call(lote)); paso(); }
+              }, function () { resolve(); });
+            })();
+          } else { resolve(); }
+        });
+      }
+      return Promise.all(entradas.map(leer)).then(function () { return out; });
+    }
     drop.addEventListener('drop', function (e) {
-      if (e.dataTransfer.files.length) subirLote(e.dataTransfer.files);
+      archivosDeDrop(e.dataTransfer).then(function (files) {
+        if (files.length) subirLote(files);
+        else aviso('No encontré archivos en lo que soltaste (¿carpeta vacía?)', 'error');
+      });
     });
 
     // ── extracción + revisión HITL ───────────────────────────────────
