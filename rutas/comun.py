@@ -24,6 +24,26 @@ def _etiqueta_sesion():
     return f"{ses['month_processed']:02d}/{ses['year_processed']}" if ses else '—'
 
 
+def _asegurar_sesion():
+    """Garantiza una sesión activa para las rutas de ESCRITURA del sustrato.
+
+    Dockear evidencia (Ingesta) es local-first e independiente del pipeline
+    aduanal mensual: exigir que ya se haya procesado un mes antes de poder
+    anclar un contrato o una factura es el error que dejaba la carga en blanco
+    con «No hay sesiones procesadas». Si no existe ninguna sesión, se crea aquí
+    una de trabajo (mes/año en curso) — el MISMO patrón que usa `app.py` al
+    ingerir el primer PDF. Reutiliza la última si ya existe: no fragmenta la
+    evidencia en una sesión aparte."""
+    import datetime
+
+    from database.persistence import create_session
+    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    if session_id:
+        return session_id
+    now = datetime.datetime.now()
+    return create_session(now.month, now.year)
+
+
 def _con_sesion(handler):
     """Patrón común de los endpoints: conexión + sesión activa verificada
     (una sesión inexistente es 404, no un 500 críptico)."""

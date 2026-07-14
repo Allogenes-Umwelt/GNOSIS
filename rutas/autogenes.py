@@ -6,7 +6,7 @@ ruta fabrica evidencia ni estima montos."""
 from flask import Blueprint, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 
-from rutas.comun import _sesion_activa, _etiqueta_sesion, _con_sesion
+from rutas.comun import _sesion_activa, _etiqueta_sesion, _con_sesion, _asegurar_sesion
 
 bp = Blueprint('autogenes', __name__)
 
@@ -366,6 +366,7 @@ def api_autogenes_ingestar():
             _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', **r})
     try:
+        _asegurar_sesion()   # dockear evidencia no exige un mes ya procesado
         return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -422,6 +423,7 @@ def api_autogenes_ingestar_zip():
                 pass
         return jsonify({'status': 'ok', **r})
     try:
+        _asegurar_sesion()   # dockear evidencia no exige un mes ya procesado
         return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
