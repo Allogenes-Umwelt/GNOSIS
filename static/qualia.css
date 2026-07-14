@@ -18,6 +18,14 @@
 /* la pregunta de negocio que responde el instrumento (Q3 uplift) */
 .qa-pregunta { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .5px; color: var(--t3); margin-top: 2px; }
 
+/* sello del Terreno: certificado de estado (calma cian / desviaciones magenta) */
+.qt-sello {
+  border: 1px solid var(--acc-text); color: var(--acc-text);
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px;
+  text-transform: uppercase; text-align: center; padding: 8px; margin: 8px 0 12px;
+}
+.qt-sello.alerta { border-color: var(--danger); color: var(--danger); }
+
 /* ficha técnica plegable: la matemática se DECLARA, no se grita */
 .qa-ficha-tec { margin-top: 14px; border-top: 1px solid var(--line-ghost); padding-top: 10px; }
 .qa-ficha-tec summary { font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); cursor: pointer; }
