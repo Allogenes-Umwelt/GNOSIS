@@ -63,9 +63,7 @@ JERGA_PROHIBIDA = [
 #    (no se deja cuarentena muerta). Meta de Q3: {} vacío. ───────────────
 CUARENTENA = {
     "templates/autogenes_qualia.html": {"espectral", "renormaliz"},
-    "templates/autogenes_qualia_orbe.html": {"monolito"},
     "static/qualia.js": {"espectral", "renormaliz", "fiedler"},
-    "static/qualia_orbe.js": {"monolito"},
     "static/qualia_maquina.js": {"monolito"},
 }
 

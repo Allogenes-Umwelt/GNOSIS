@@ -15,6 +15,14 @@
 .qa-desig .nom { white-space: nowrap; }
 .qa-desig .cod { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; color: var(--acc-text); }
 .qa-desig .nom { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; letter-spacing: .5px; color: var(--t1); text-transform: uppercase; }
+/* la pregunta de negocio que responde el instrumento (Q3 uplift) */
+.qa-pregunta { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .5px; color: var(--t3); margin-top: 2px; }
+
+/* ficha técnica plegable: la matemática se DECLARA, no se grita */
+.qa-ficha-tec { margin-top: 14px; border-top: 1px solid var(--line-ghost); padding-top: 10px; }
+.qa-ficha-tec summary { font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); cursor: pointer; }
+.qa-ficha-tec summary:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+.qa-ficha-tec p { color: var(--t3); font-size: .72rem; line-height: 1.5; margin: 8px 0 0; }
 
 /* pestañas de instrumento: red · terreno · cascada · horizonte */
 .qa-tabs { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); }

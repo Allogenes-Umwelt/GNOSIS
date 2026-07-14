@@ -17,6 +17,7 @@
         <span class="qa-desig">
           <span class="cod">QLA-05 · AUTOGENES F7</span>
           <span class="nom">◆ Qualia · Orbe gravitacional</span>
+          <span class="qa-pregunta">¿Qué entidades concentran el caso?</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia/maquina">máquina</a>
@@ -31,8 +32,8 @@
       </div>
       <div class="qa-lienzo" id="qo-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>▮</b> monolito — los tres cuerpos de mayor centralidad</li>
-        <li><b>●</b> cuerpo — masa = centralidad · órbita = rango · plano = comunidad</li>
+        <li><b>▮</b> concentrador — los tres de mayor peso en la red</li>
+        <li><b>●</b> cuerpo — peso en la red · órbita = rango · plano = comunidad</li>
         <li><span id="qo-info" role="status">CARGANDO EL ORBE…</span></li>
       </ul>
     </section>
@@ -45,12 +46,19 @@
       </div>
       <div class="qa-sec" style="margin-top:0">Por qué pesa</div>
       <div id="qo-detalle" class="gr-inspector" aria-live="polite">
-        <p class="qa-base-hint">Toca un cuerpo. Su masa es literalmente la suma
-        de las masas de sus vecinos por el peso del vínculo — la explicación
-        honesta ES esa suma.</p>
+        <p class="qa-base-hint">Toca un cuerpo. Su peso es la suma de los pesos
+        de sus vecinos por la fuerza del vínculo — la explicación honesta ES esa
+        suma.</p>
       </div>
-      <div class="qa-sec">Masas</div>
+      <div class="qa-sec">Peso en la red</div>
       <div class="qa-lista" id="qo-masas"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>«Peso en la red» = centralidad de vector propio (iteración de
+        potencia sobre la matriz de adyacencia, normalizada al máximo).
+        «Órbita» = rango por peso; «plano» = comunidad. Todo determinista: la
+        misma sesión abre idéntica.</p>
+      </details>
       <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
     </aside>
   </div>
@@ -58,6 +66,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia_orbe.js') }}"></script>
 <script>
 (function () {
