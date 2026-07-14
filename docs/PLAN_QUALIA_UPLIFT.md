@@ -134,18 +134,17 @@ instrumento** (mock/captura → visto bueno → construir).
   obsoleta también falla → fuerza la limpieza).
 - Corregir el doc drift de `RUTA_CRITICA` (tablas fantasma `lotes`/`fusiones`).
 
-### Q1 · Cimientos [M] — sin rediseño visual
-- `static/qualia_comun.js`: extraer `esc/alfa/leerColores/tamano`, DPR, brackets
-  y la relectura de tema — hoy duplicados 7×. `leerColores` con fallbacks
-  **por tema** (no la paleta oscura hardcodeada que hoy pintaría mal en
-  Daylight ante un fallo de token).
-- Gramática de gestos única: hover = vista previa · click = seleccionar+ficha ·
-  Enter/doble = abrir dossier · rueda = zoom · arrastre = pan. Clamps y márgenes
-  unificados.
-- Accesibilidad: `aria-label` por `<canvas>` + **modo tabla** por instrumento
-  (la vara AAA del benchmark) + navegación por teclado sobre las listas ya
-  existentes.
-- Tests de ruta HTTP para las 8 APIs qualia (hoy: cero cobertura de ruta).
+### Q1 · Cimientos [M]
+- **Tests de ruta HTTP para las 8 APIs qualia** (hoy: cero cobertura de ruta) —
+  `tests/test_qualia_rutas.py`. Ganancia pura, independiente del rediseño.
+- **Refinamiento de secuencia (aprendido al leer el código):** la extracción a
+  `static/qualia_comun.js` (`esc/alfa/leerColores`/DPR/brackets/relectura de
+  tema, hoy duplicados 7× y enredados en el closure de cada IIFE), la **gramática
+  de gestos única** y el **modo tabla / a11y** se hacen **dentro de Q3, al
+  rediseñar cada instrumento** — extraer al reescribir es natural y evita el
+  retrabajo de refactorizar 7 archivos que Q3 va a reescribir igual. `leerColores`
+  ganará fallbacks **por tema** (no la paleta oscura hardcodeada de hoy) cuando se
+  centralice. Nada de esto bloquea Q2 (backend puro).
 
 ### Q2 · Lente de negocio [M] — el fix estructural
 - Proyección QUALIA sin fontanería documental por default; toggle declarado
@@ -156,8 +155,11 @@ instrumento** (mock/captura → visto bueno → construir).
   a entidades de negocio.
 
 ### Q3 · Uplift visual por instrumento [L→XL] — la fase pirotécnica
-Aplica la gramática del chord. **Orden por severidad de la auditoría visual**,
-cada uno con checkpoint del operador:
+Aplica la gramática del chord. **Cada instrumento, al rediseñarse, extrae sus
+helpers estables a `static/qualia_comun.js`** (dedup + fallbacks por tema) y
+adopta la gramática de gestos y el modo tabla/a11y — el trabajo que Q1 dejó aquí
+a propósito. **Orden por severidad de la auditoría visual**, cada uno con
+checkpoint del operador:
 1. **Orbe** — monumental (≥85%), profundidad real, los tres concentradores con
    etiquetas guiadas sin colisión. Enciende `contribuciones_centralidad` (el
    "por qué pesa", hoy motor muerto).
