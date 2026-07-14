@@ -91,6 +91,17 @@
 }
 .sn-chip.frag { border-color: var(--line); }
 .sn-chip.ent { color: var(--acc-text); border-color: var(--acc-text); }
+/* Hecho medido: acento cobalto (AAA en ambos temas), distinto del fragmento
+   (neutro) y de la entidad (--acc-text); nunca magenta. */
+.sn-chip.hecho { color: var(--cobalt-on); border-color: var(--cobalt-on); }
+.sn-nodo.sn-hecho .k { color: var(--cobalt-on); }
+.sn-cita-hecho { border-left-color: var(--cobalt-on); }
+.sn-cita-hecho .fuente { color: var(--cobalt-on); }
+.sn-cobertura {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: .5px;
+  color: var(--t3); margin: 0 0 12px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-ghost);
+}
 .sn-punto.activo .sn-chip { border-color: var(--acc-text); color: var(--acc-text); }
 
 /* Estado vacío / cargando: sección honesta, no un párrafo suelto. */

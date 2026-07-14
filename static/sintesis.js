@@ -23,6 +23,7 @@
     var panelIzq = document.getElementById('ag-panel-izq');
     var elEnt = document.getElementById('sn-entidades');
     var elFrag = document.getElementById('sn-fragmentos');
+    var elHechos = document.getElementById('sn-hechos');
     var elInforme = document.getElementById('sn-informe');
     var elCita = document.getElementById('sn-cita');
     var elInfo = document.getElementById('sn-info');
@@ -32,7 +33,7 @@
 
     var acc = '#00D4FF';
     var digesto = null, informeActual = null;
-    var nodoPorFrag = {}, nodoPorEnt = {}, fragPorId = {};
+    var nodoPorFrag = {}, nodoPorEnt = {}, fragPorId = {}, hechoPorId = {};
     var puntosPorFrag = {}, puntosPorEnt = {};
     var activo = null;        // punto del informe con foco
     var nodoActivo = null;    // nodo del digesto con foco (circuito inverso)
@@ -83,7 +84,23 @@
     // ── digesto (columna izquierda) ──────────────────────────────────
     function pintarDigesto(d) {
       elEnt.innerHTML = ''; elFrag.innerHTML = '';
-      nodoPorEnt = {}; nodoPorFrag = {}; fragPorId = {};
+      if (elHechos) elHechos.innerHTML = '';
+      nodoPorEnt = {}; nodoPorFrag = {}; fragPorId = {}; hechoPorId = {};
+      // Hechos medidos: la columna vertebral del informe. Son cifras de los
+      // motores ya citadas a su fuente; se listan y su procedencia se muestra
+      // en el panel de Cita cuando un punto los cita.
+      (d.hechos_medidos || []).forEach(function (h) {
+        hechoPorId[h.id] = h;
+        if (!elHechos) return;
+        var li = document.createElement('li');
+        li.className = 'sn-nodo sn-hecho';
+        var cifra = (h.cifra != null ? esc(String(h.cifra)) +
+          (h.unidad ? ' ' + esc(h.unidad) : '') : '');
+        li.innerHTML = '<span class="k">◆</span><span class="n">' + esc(h.texto) +
+          '</span>' + (cifra ? '<span class="t">' + cifra + '</span>' : '');
+        li.title = h.fuente;
+        elHechos.appendChild(li);
+      });
       (d.entidades || []).forEach(function (e) {
         var li = document.createElement('li');
         li.className = 'sn-nodo sn-ent';
@@ -133,6 +150,18 @@
       h.className = 'sn-titulo';
       h.textContent = inf.titulo || 'Informe del caso';
       elInforme.appendChild(h);
+      // Cobertura declarada: cuánto del caso ve realmente el modelo. El
+      // silencio también es una cifra — se hace explícita (zero snake oil).
+      var cob = digesto && digesto.cobertura;
+      if (cob) {
+        var cl = document.createElement('div');
+        cl.className = 'sn-cobertura';
+        cl.textContent = 'Cobertura del digesto · hechos ' +
+          cob.hechos.incluidos + '/' + cob.hechos.total +
+          ' · entidades ' + cob.entidades.incluidas + '/' + cob.entidades.total +
+          ' · fragmentos ' + cob.fragmentos.incluidos + '/' + cob.fragmentos.total;
+        elInforme.appendChild(cl);
+      }
       if (!contarPuntos(inf)) {
         elInforme.appendChild(vacio('El modelo no produjo un solo punto citable — nada que anclar.'));
         return;
@@ -150,6 +179,12 @@
           pt.tabIndex = 0;
           var chips = '';
           (p.evidencia || []).forEach(function (fid) {
+            var h = hechoPorId[fid];
+            if (h) {   // cita a un hecho medido (◆), no a un fragmento
+              chips += '<span class="sn-chip hecho" title="' + esc(h.fuente) +
+                '">◆ ' + esc(h.texto.slice(0, 40)) + '</span>';
+              return;
+            }
             var f = fragPorId[fid];
             var etq = f ? f.fuente : 'fragmento';
             chips += '<span class="sn-chip frag" title="' + esc(etq) + '">▬ ' + esc(etq) + '</span>';
@@ -233,6 +268,8 @@
     function pintarCita(p) {
       elCita.innerHTML = '';
       (p.evidencia || []).forEach(function (fid) {
+        var h = hechoPorId[fid];
+        if (h) { elCita.appendChild(citaHecho(h)); return; }
         var f = fragPorId[fid];
         if (!f) return;
         elCita.appendChild(citaFrag(f));
@@ -266,6 +303,17 @@
       d.innerHTML = '<span class="fuente">' + esc(f.fuente) +
         (f.pagina ? ' · p.' + f.pagina : '') + '</span>' +
         '<span class="cuerpo">' + esc(corto) + '</span>';
+      return d;
+    }
+    // Procedencia de un hecho medido: su cifra y el motor/fuente que la derivó.
+    function citaHecho(h) {
+      var d = document.createElement('div');
+      d.className = 'sn-cita-frag sn-cita-hecho';
+      var cifra = (h.cifra != null ? esc(String(h.cifra)) +
+        (h.unidad ? ' ' + esc(h.unidad) : '') : '');
+      d.innerHTML = '<span class="fuente">◆ ' + esc(h.fuente) + '</span>' +
+        '<span class="cuerpo">' + esc(h.texto) +
+        (cifra ? ' <b>' + cifra + '</b>' : '') + '</span>';
       return d;
     }
 

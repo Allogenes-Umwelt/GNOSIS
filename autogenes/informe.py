@@ -65,10 +65,15 @@ def construir_digesto(
     entidades: list[dict],
     relaciones: list[dict],
     eventos: list[dict],
+    hechos: Optional[list[dict]] = None,
 ) -> dict[str, Any]:
     """Proyección compacta y acotada del grafo completo. El muestreo de
     fragmentos es round-robin por fuente: ningún documento acapara el
-    digesto y los fragmentos vacíos se saltan."""
+    digesto y los fragmentos vacíos se saltan. `hechos` son los hechos
+    medidos de los motores (columna vertebral del informe, ver hechos.py):
+    entran al digesto acotados y con cobertura declarada."""
+    from autogenes.hechos import MAX_HECHOS_DIGESTO
+    hechos = hechos or []
     nombre_de = {e["id"]: e["nombre"] for e in entidades}
     artefacto_por_id = {a["id"]: a for a in artefactos}
 
@@ -77,6 +82,7 @@ def construir_digesto(
         if not (f.get("texto") or "").strip():
             continue
         por_fuente.setdefault(f["artefacto_id"], []).append(f)
+    total_frag_legibles = sum(len(v) for v in por_fuente.values())
 
     muestra: list[dict] = []
     rondas = list(por_fuente.values())
@@ -98,6 +104,8 @@ def construir_digesto(
         if desde and hasta:
             relaciones_txt.append(f"{desde} —{r['tipo']}→ {hasta}")
 
+    hechos_digesto = hechos[:MAX_HECHOS_DIGESTO]
+
     return {
         "entidades": [
             {"nombre": e["nombre"], "tipo": e["tipo"],
@@ -117,6 +125,19 @@ def construir_digesto(
              "texto": (f.get("texto") or "").strip()[:MAX_TEXTO_FRAGMENTO]}
             for f in muestra
         ],
+        "hechos_medidos": [
+            {"id": h["id"], "texto": h["texto"], "cifra": h["cifra"],
+             "unidad": h["unidad"], "fuente": h["fuente"]}
+            for h in hechos_digesto
+        ],
+        # Cobertura declarada: cuánto del caso REALMENTE ve el modelo. El
+        # silencio también es una cifra — se hace explícito (zero snake oil).
+        "cobertura": {
+            "entidades": {"incluidas": min(len(entidades), MAX_ENTIDADES),
+                          "total": len(entidades)},
+            "fragmentos": {"incluidos": len(muestra), "total": total_frag_legibles},
+            "hechos": {"incluidos": len(hechos_digesto), "total": len(hechos)},
+        },
     }
 
 
@@ -165,15 +186,19 @@ class Informe(BaseModel):
 
 
 def sanear_informe(informe: Informe, fragmento_ids: set[str],
-                   nombres_entidad: set[str]) -> Informe:
-    """Aplica la ley de procedencia: poda ids de fragmento y nombres de
-    entidad fabricados; un punto sin nada que citar muere, y una sección
-    sin puntos también. Nunca inventa una cita."""
+                   nombres_entidad: set[str],
+                   hecho_ids: Optional[set[str]] = None) -> Informe:
+    """Aplica la ley de procedencia: poda ids de fragmento, ids de hecho
+    medido y nombres de entidad fabricados; un punto sin nada que citar
+    muere, y una sección sin puntos también. Nunca inventa una cita — un
+    `hecho:<id>` solo sobrevive si es un hecho REAL del caso."""
+    hecho_ids = hecho_ids or set()
     secciones = []
     for s in informe.secciones:
         puntos = []
         for p in s.puntos:
-            evidencia = [x for x in p.evidencia if x in fragmento_ids]
+            evidencia = [x for x in p.evidencia
+                         if x in fragmento_ids or x in hecho_ids]
             entidades = [n for n in p.entidades if n in nombres_entidad]
             if evidencia or entidades:
                 puntos.append(PuntoInforme(texto=p.texto, evidencia=evidencia,
@@ -187,17 +212,22 @@ def sanear_informe(informe: Informe, fragmento_ids: set[str],
 
 PROMPT_SISTEMA = (
     "Eres el redactor de informes ejecutivos de GNOSIS (comercio exterior "
-    "automotriz, México). Recibes un DIGESTO del grafo del caso: entidades, "
-    "relaciones, eventos fechados y fragmentos numerados de las fuentes. "
+    "automotriz, México). Recibes un DIGESTO del grafo del caso: HECHOS "
+    "MEDIDOS por los motores (cada uno con su id 'hecho:...', su cifra y su "
+    "fuente), entidades, relaciones, eventos fechados y fragmentos numerados. "
+    "Los HECHOS MEDIDOS son la columna vertebral del informe: tejelos y "
+    "contextualízalos, pero NO alteres sus cifras ni las inventes. "
     "Redacta un informe ejecutivo breve y accionable para el operador. "
     "REGLAS ABSOLUTAS: 1) Responde ÚNICAMENTE un objeto JSON válido, sin "
     "prosa ni markdown. 2) Cada punto DEBE citar en 'evidencia' los ids "
-    "EXACTOS de los fragmentos que lo sustentan y/o en 'entidades' los "
-    "nombres EXACTOS de las entidades del digesto — un punto sin ninguna "
-    "cita real se descarta. 3) No inventes hechos, cifras ni nombres que no "
-    "estén en el digesto. Formato: {\"titulo\": str, \"secciones\": "
-    "[{\"encabezado\": str, \"puntos\": [{\"texto\": str, \"evidencia\": "
-    "[ids de fragmento], \"entidades\": [nombres exactos]}]}]}"
+    "EXACTOS — de fragmentos y/o de hechos medidos ('hecho:...') — que lo "
+    "sustentan, y/o en 'entidades' los nombres EXACTOS de las entidades del "
+    "digesto. Un punto sin ninguna cita real se descarta. 3) No inventes "
+    "hechos, cifras ni nombres que no estén en el digesto; toda cifra que "
+    "cites debe venir de un hecho medido o de un fragmento. Formato: "
+    "{\"titulo\": str, \"secciones\": [{\"encabezado\": str, \"puntos\": "
+    "[{\"texto\": str, \"evidencia\": [ids de fragmento o de hecho], "
+    "\"entidades\": [nombres exactos]}]}]}"
 )
 
 
@@ -211,16 +241,18 @@ def redactar_informe(conn: sqlite3.Connection, session_id: int,
     """Genera el informe ejecutivo citado del caso (NO dockea). Lee el
     grafo, arma el digesto, llama al proveedor activo y SANEA en servidor
     contra los ids/nombres reales antes de devolver."""
+    from autogenes.hechos import hechos_medidos
     from autogenes.sustrato import Sustrato
     from jarvis.llm_interface import seleccionar_proveedor
 
     grafo = Sustrato(conn, session_id).leer_grafo()
-    if not grafo["fragmentos"] and not grafo["entidades"]:
-        return {"error": "El caso no tiene fragmentos ni entidades que sintetizar"}
+    hechos = hechos_medidos(conn, session_id)
+    if not grafo["fragmentos"] and not grafo["entidades"] and not hechos:
+        return {"error": "El caso no tiene fragmentos, entidades ni hechos que sintetizar"}
 
     digesto = construir_digesto(grafo["artefactos"], grafo["fragmentos"],
                                 grafo["entidades"], grafo["relaciones"],
-                                grafo["eventos"])
+                                grafo["eventos"], hechos)
     config = config or {}
     _, proveedor = seleccionar_proveedor(config)
     respuesta = proveedor.chat(
@@ -238,12 +270,15 @@ def redactar_informe(conn: sqlite3.Connection, session_id: int,
 
     frag_reales = {f["id"] for f in grafo["fragmentos"]}
     nombres_reales = {e["nombre"] for e in grafo["entidades"]}
-    saneado = sanear_informe(informe, frag_reales, nombres_reales)
+    # solo los hechos que REALMENTE entraron al digesto son citables
+    hecho_ids = {h["id"] for h in digesto["hechos_medidos"]}
+    saneado = sanear_informe(informe, frag_reales, nombres_reales, hecho_ids)
 
     return {
         "session_id": session_id,
         "informe": saneado.model_dump(),
         "digesto": digesto,
+        "hechos": hechos,
         "fuentes": len(grafo["artefactos"]),
         "fragmentos": len(grafo["fragmentos"]),
         "entidades": len(grafo["entidades"]),
@@ -255,26 +290,31 @@ def dockear_informe(conn: sqlite3.Connection, session_id: int,
     """Dockea el informe revisado como Producto{clase:"informe"}. Vuelve a
     sanear contra el grafo real y ancla la evidencia (fragmentos) y las
     entidades citadas por id, para que la cascada de procedencia opere."""
+    from autogenes.hechos import hechos_medidos
     from autogenes.sustrato import Sustrato
 
     s = Sustrato(conn, session_id)
     grafo = s.leer_grafo()
     frag_reales = {f["id"] for f in grafo["fragmentos"]}
     id_por_nombre = {e["nombre"]: e["id"] for e in grafo["entidades"]}
+    hecho_ids = {h["id"] for h in hechos_medidos(conn, session_id)}
 
     try:
         informe = Informe.model_validate(informe_crudo)
     except Exception:
         return {"error": "El informe está malformado"}
-    saneado = sanear_informe(informe, frag_reales, set(id_por_nombre))
+    saneado = sanear_informe(informe, frag_reales, set(id_por_nombre), hecho_ids)
     if not saneado.secciones:
         return {"error": "El informe no tiene un solo punto citado — nada que dockear"}
 
+    # El Producto ancla SOLO procedencia real (fragmentos + entidades) para
+    # que la cascada opere; un `hecho:<id>` es cita válida en la narrativa
+    # pero no se ancla como fragmento (no fabrica evidencia).
     frag_citados: list[str] = []
     nombres_citados: list[str] = []
     for sec in saneado.secciones:
         for p in sec.puntos:
-            frag_citados.extend(p.evidencia)
+            frag_citados.extend(x for x in p.evidencia if x in frag_reales)
             nombres_citados.extend(p.entidades)
     ent_ids = list(dict.fromkeys(
         id_por_nombre[n] for n in nombres_citados if n in id_por_nombre))
