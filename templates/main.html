@@ -357,7 +357,10 @@
     flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
     max-width: none; padding: 0; overflow: hidden;
   }
-  #gnosis-inicio { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 52px; }
+  /* :not([hidden]) — el display:flex incondicional vencía a [hidden] y la
+     celda seguía ocupando su franja al abrir la consola de Áreas (sin depender
+     del reset de Bootstrap por CDN, bloqueado en local-first). */
+  #gnosis-inicio:not([hidden]) { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding-bottom: 52px; }
   /* grid-template-rows acota la fila al alto del stage: sin esto, el riel
      de KPIs (contenido alto) estira la fila y descentra el hexágono. */
   .cel-stage { display: grid; grid-template-columns: 1fr 320px; grid-template-rows: minmax(0, 1fr); flex: 1; min-height: 0; }
