@@ -71,31 +71,65 @@ def ingestar_texto(conn: sqlite3.Connection, session_id: int,
 # contenedor — el documento nunca sale a la red. spa+eng cubre facturas MX.
 _OCR_LANG = "spa+eng"
 _OCR_DPI = 250
+# Rasterizar TODO el PDF de golpe era una bomba de RAM: 300 páginas a 250 DPI
+# son varios GB de imágenes simultáneas -> el worker moría. Se rasteriza por
+# TANDAS, liberando cada una antes de la siguiente (RAM acotada a la tanda).
+_OCR_LOTE_PAGINAS = 8
+# Tope de seguridad: un PDF escaneado con miles de páginas no debe monopolizar
+# un worker. Más allá de esto no se OCR-ea; la truncación se declara (aviso).
+MAX_OCR_PAGINAS = 300
 
 
-def _ocr_paginas_pdf(contenido: bytes, saltar: set[int]) -> list[tuple[int, str]]:
-    """Rasteriza el PDF y corre OCR SOLO en las páginas sin capa de texto
-    (`saltar` = las que ya trajeron texto). Devuelve [] si faltan los deps de
-    OCR o si el render falla — el llamador degrada con gracia."""
+def _pdf_num_paginas(contenido: bytes) -> int:
+    """Cuenta las páginas SIN rasterizar (poppler/pdfinfo). 0 si no se puede
+    — el llamador degrada a la detección por tanda corta."""
+    try:
+        from pdf2image import pdfinfo_from_bytes
+        return int(pdfinfo_from_bytes(contenido).get("Pages", 0))
+    except Exception:
+        return 0
+
+
+def _ocr_paginas_pdf(contenido: bytes, saltar: set[int],
+                     max_paginas: int = MAX_OCR_PAGINAS) -> list[tuple[int, str]]:
+    """Rasteriza el PDF por TANDAS y corre OCR SOLO en las páginas sin capa de
+    texto (`saltar` = las que ya trajeron texto). Acota la RAM a una tanda y no
+    pasa de `max_paginas`. Devuelve [] si faltan los deps de OCR o si el render
+    falla — el llamador degrada con gracia."""
     try:
         import pytesseract
         from pdf2image import convert_from_bytes
     except ImportError:
         return []
-    try:
-        imagenes = convert_from_bytes(contenido, dpi=_OCR_DPI)
-    except Exception:
-        return []
+    total = _pdf_num_paginas(contenido)
+    tope = min(total, max_paginas) if total > 0 else max_paginas
     out: list[tuple[int, str]] = []
-    for i, img in enumerate(imagenes, 1):
-        if i in saltar:
-            continue
+    primera = 1
+    while primera <= tope:
+        ultima = min(primera + _OCR_LOTE_PAGINAS - 1, tope)
         try:
-            texto = pytesseract.image_to_string(img, lang=_OCR_LANG).strip()
+            imagenes = convert_from_bytes(contenido, dpi=_OCR_DPI,
+                                          first_page=primera, last_page=ultima)
         except Exception:
-            texto = ""
-        if texto:
-            out.append((i, texto[:12000]))
+            break
+        if not imagenes:
+            break
+        for k, img in enumerate(imagenes):
+            pagina = primera + k
+            if pagina in saltar:
+                continue
+            try:
+                texto = pytesseract.image_to_string(img, lang=_OCR_LANG).strip()
+            except Exception:
+                texto = ""
+            if texto:
+                out.append((pagina, texto[:12000]))
+        obtenidas = len(imagenes)
+        del imagenes   # liberar la tanda antes de rasterizar la siguiente
+        # tanda corta = fin del PDF (cuando pdfinfo no dio el total)
+        if obtenidas < (ultima - primera + 1):
+            break
+        primera += _OCR_LOTE_PAGINAS
     return out
 
 
@@ -123,9 +157,16 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
         # un PDF 100% imagen (escaneado) puede fallar en pdfplumber pero SÍ en OCR
         pass
     # OCR de relleno para las páginas sin capa de texto (o el PDF entero)
+    truncado = 0
     if len(paginas) < n_paginas or n_paginas == 0:
         con_texto = {p for p, _ in paginas}
         paginas.extend(_ocr_paginas_pdf(contenido, con_texto))
+        # Truncación honesta: si el escaneo necesitaba OCR de más páginas que el
+        # tope, se declara (zero snake oil: no ocultamos páginas sin leer).
+        n_total = n_paginas or _pdf_num_paginas(contenido)
+        por_ocr = (n_total - len(con_texto)) if n_total else 0
+        if por_ocr > MAX_OCR_PAGINAS:
+            truncado = por_ocr - MAX_OCR_PAGINAS
     if not paginas:
         return {"error": "El PDF no trae texto ni pudo leerse por OCR "
                          "(¿dañado, protegido, o falta Tesseract en el despliegue?)"}
@@ -134,7 +175,13 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
     with s.atomico():   # artefacto y fragmentos en un solo commit (o nada)
         art = s.crear_artefacto("pdf", nombre, paginas=len(paginas), hash=hash)
         frags = s.agregar_fragmentos(art.id, paginas)
-    return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
+    resultado: dict[str, Any] = {"artefacto_id": art.id, "nombre": art.nombre,
+                                 "fragmentos": len(frags)}
+    if truncado:
+        resultado["aviso"] = (f"Escaneo extenso: se leyeron por OCR las primeras "
+                              f"{MAX_OCR_PAGINAS} páginas; {truncado} sin leer "
+                              "(tope de seguridad).")
+    return resultado
 
 
 def ingestar_imagen(conn: sqlite3.Connection, session_id: int,
