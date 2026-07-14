@@ -49,19 +49,22 @@
 
   /* COL CHAT — cabecera HUD */
   .app-shell .col-chat { border-right: none; background: var(--bg); }
-  .col-chat .chat-wrapper { height: 100%; }
-  .col-chat .chat-header { padding: 0 22px; min-height: 53px; background: transparent; border-bottom: 1px solid var(--line); }
+  /* Flex-column: cabecera y terminal fijos; SOLO los mensajes hacen scroll
+     interno (sin esto el hilo desborda la columna y el header se "atora"). */
+  .col-chat .chat-wrapper { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+  .col-chat .chat-header { padding: 0 22px; min-height: 53px; background: transparent; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
   .col-chat .chat-header h2 { display: flex; align-items: center; gap: 9px; font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t2); }
   .col-chat .chat-header h2 b { color: var(--acc-text); }
   .col-chat .chat-header .status-dot { width: 7px; height: 7px; background: var(--acc-solid); box-shadow: 0 0 8px var(--acc-solid); }
-  .col-chat .chat-messages { background: transparent; padding: 24px; }
-  .col-chat .suggestions { background: transparent; padding: 0 24px 4px; }
+  .col-chat .chat-messages { background: transparent; padding: 24px; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+  .col-chat .suggestions { background: transparent; padding: 0 24px 4px; flex: 0 0 auto; }
   .col-chat .suggestion-btn { display: inline-flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px; padding: 8px 12px; font-family: var(--font-mono); font-size: .625rem; letter-spacing: .5px; }
   .col-chat .suggestion-btn::before { content: '›'; color: var(--acc-text); font-family: var(--font-b); }
   .col-chat .suggestion-btn:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
 
   /* TERMINAL input */
-  .col-chat .chat-input-area { display: block; padding: 0 22px 22px; background: transparent; border-top: none; }
+  .col-chat .chat-input-area { display: block; padding: 0 22px 22px; background: transparent; border-top: none; flex: 0 0 auto; }
+  .col-chat .typing-indicator { flex: 0 0 auto; }
   .axt { border: 1px solid var(--line); background: var(--surface-2); position: relative; }
   .axt::before, .axt::after { content: ''; position: absolute; width: 9px; height: 9px; border-color: var(--acc); border-style: solid; pointer-events: none; opacity: .7; }
   .axt::before { top: 5px; left: 5px; border-width: 1px 0 0 1px; }
