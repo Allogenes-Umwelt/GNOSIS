@@ -1516,13 +1516,17 @@ function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[
   if(GNT.chRibbons) paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
     if(chSel.size && !(chSel.has('p|'+p)||chSel.has('m|'+m))) return;   // aislar: solo cintas de los arcos seleccionados
     // La cinta HUGGEA el anillo en ambas bases (arco al radio rin, como el
-    // chord de ingesta). El borde recto (lineTo) colapsaba los arcos anchos
-    // —Volkswagen, España— en cuñas triangulares que casi tocaban el centro:
-    // dos arcos-base + dos curvas al centro dan una cinta que nace del bloque.
-    const [px0,py0]=P(pa,rin),[qx,qy]=P(ma+span,rin);
-    x.beginPath(); x.moveTo(px0,py0); x.arc(cx,cy,rin,pa,pa+span);
-    x.quadraticCurveTo(cx,cy,qx,qy); x.arc(cx,cy,rin,ma+span,ma,true);
-    x.quadraticCurveTo(cx,cy,px0,py0); x.closePath();
+    // chord de ingesta). Rieles en CÚBICA con control a medio camino del
+    // centro (no AL centro): una curva al centro exacto colapsaba las cintas
+    // anchas —Volkswagen— en un bloque de tarta. A medio camino la cinta
+    // conserva cintura y fluye, naciendo del bloque como una cuerda real.
+    const ps=P(pa,rin), pe=P(pa+span,rin), ms=P(ma,rin), me=P(ma+span,rin);
+    const H=q=>[(q[0]+cx)/2,(q[1]+cy)/2];   // punto de control a mitad hacia el centro
+    const pe2=H(pe),me2=H(me),ms2=H(ms),ps2=H(ps);
+    x.beginPath(); x.moveTo(ps[0],ps[1]); x.arc(cx,cy,rin,pa,pa+span);
+    x.bezierCurveTo(pe2[0],pe2[1],me2[0],me2[1],me[0],me[1]);
+    x.arc(cx,cy,rin,ma+span,ma,true);
+    x.bezierCurveTo(ms2[0],ms2[1],ps2[0],ps2[1],ps[0],ps[1]); x.closePath();
     x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
   x.textAlign='left'; x.textBaseline='alphabetic';
   if(W>360){ x.textAlign='center'; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.5)';
