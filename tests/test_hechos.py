@@ -95,3 +95,30 @@ def test_regla_nomos_monetizada_va_primero(conn):
 def test_sesion_vacia_no_inventa_hechos(conn):
     # sin DWH ni grafo: cero hechos, jamás relleno
     assert hechos_medidos(conn, 1) == []
+
+
+def test_informe_declara_hechos_no_cubiertos(conn, monkeypatch):
+    """S5: el informe declara qué hechos medidos NO teje (la sombra del
+    resumen). Un modelo que cita un solo hecho deja el resto 'no cubierto'."""
+    import json
+
+    from autogenes import informe as I
+    _sembrar_flujo(conn)
+    hechos = hechos_medidos(conn, 1)
+    assert len(hechos) >= 2
+    hid = hechos[0]["id"]
+    payload = json.dumps({"titulo": "T", "secciones": [{"encabezado": "H", "puntos": [
+        {"texto": "Un solo punto citado.", "evidencia": [hid], "entidades": []}]}]})
+
+    class Guion:
+        def chat(self, m, tools=None, system=None):
+            return {"content": payload, "tool_calls": [], "stop_reason": "e",
+                    "tokens_input": 0, "tokens_output": 0}
+    monkeypatch.setattr("jarvis.llm_interface.seleccionar_proveedor",
+                        lambda config=None: ("g", Guion()))
+
+    r = I.redactar_informe(conn, 1)
+    assert r["cobertura_informe"] == {"cubiertos": 1, "total": len(hechos)}
+    ids_no = {h["id"] for h in r["hechos_no_cubiertos"]}
+    assert hid not in ids_no                       # el citado no está en la sombra
+    assert len(r["hechos_no_cubiertos"]) == len(hechos) - 1

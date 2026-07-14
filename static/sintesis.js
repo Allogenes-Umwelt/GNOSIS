@@ -246,6 +246,43 @@
         elInforme.appendChild(sec);
       });
     }
+    // S5: la sombra del resumen — hechos medidos que el informe NO teje. El
+    // silencio sobre un hallazgo (p.ej. monetizado) es dato duro, no ausencia.
+    function pintarNoCubierto(lista, cob) {
+      if (!cob || !cob.total) return;   // sin hechos medidos, no hay sombra
+      var box = document.createElement('div');
+      box.className = 'sn-nocubierto';
+      var h = document.createElement('div');
+      h.className = 'sn-nc-tit';
+      h.textContent = 'Lo que el informe no cubre · teje ' + cob.cubiertos +
+        ' de ' + cob.total + ' hechos medidos';
+      box.appendChild(h);
+      if (!lista.length) {
+        var ok = document.createElement('p');
+        ok.className = 'gr-vacio';
+        ok.textContent = 'El informe cubre todos los hechos medidos — 0 fuera.';
+        box.appendChild(ok);
+      } else {
+        lista.forEach(function (hc) {
+          var it = document.createElement('div');
+          it.className = 'sn-nc-item' + (hc.monetizado ? ' monetizado' : '');
+          it.tabIndex = 0;
+          var cifra = (hc.cifra != null ? esc(String(hc.cifra)) +
+            (hc.unidad ? ' ' + esc(hc.unidad) : '') : '');
+          it.innerHTML = '<span class="k">◆</span><span class="n">' + esc(hc.texto) +
+            '</span>' + (cifra ? '<span class="t">' + cifra + '</span>' : '');
+          it.title = hc.fuente;
+          var mostrar = function () { elCita.innerHTML = ''; elCita.appendChild(citaHecho(hc)); };
+          it.addEventListener('click', mostrar);
+          it.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); mostrar(); }
+          });
+          box.appendChild(it);
+        });
+      }
+      elInforme.appendChild(box);
+    }
+
     function vacio(texto, cargando) {
       var d = document.createElement('div');
       d.className = 'sn-vacio';
@@ -485,6 +522,7 @@
           informeActual = res.j.informe;
           pintarDigesto(digesto);
           pintarInforme(informeActual);
+          pintarNoCubierto(res.j.hechos_no_cubiertos || [], res.j.cobertura_informe);
           var np = contarPuntos(informeActual);
           elInfo.textContent = np + ' PUNTOS · ' + res.j.fragmentos + ' FRAGMENTOS · ' +
             res.j.entidades + ' ENTIDADES';

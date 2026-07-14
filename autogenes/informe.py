@@ -346,11 +346,24 @@ def redactar_informe(conn: sqlite3.Connection, session_id: int,
     if config.get("sintesis_estricta"):
         informe_dump = podar_no_verificados(informe_dump)
 
+    # S5: la sombra del resumen — qué hechos MEDIDOS no teje el informe. El
+    # silencio del modelo sobre un hallazgo (p.ej. monetizado) es dato duro.
+    citados = {cid for sec in informe_dump["secciones"] for p in sec["puntos"]
+               for cid in p["evidencia"] if str(cid).startswith("hecho:")}
+    no_cubiertos = [
+        {"id": h["id"], "texto": h["texto"], "cifra": h["cifra"],
+         "unidad": h["unidad"], "fuente": h["fuente"], "monetizado": h["monetizado"]}
+        for h in hechos if h["id"] not in citados
+    ]
+
     return {
         "session_id": session_id,
         "informe": informe_dump,
         "digesto": digesto,
         "hechos": hechos,
+        "hechos_no_cubiertos": no_cubiertos,
+        "cobertura_informe": {"cubiertos": len(hechos) - len(no_cubiertos),
+                              "total": len(hechos)},
         "fuentes": len(grafo["artefactos"]),
         "fragmentos": len(grafo["fragmentos"]),
         "entidades": len(grafo["entidades"]),
