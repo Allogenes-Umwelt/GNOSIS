@@ -994,9 +994,12 @@ def api_qualia_red():
     from autogenes.qualia import red_de_sesion
     nivel = request.args.get('nivel', default=0, type=int)
     con_espectral = request.args.get('espectral', default=0, type=int)
+    # lente=negocio (default) oculta la fontanería documental; lente=completa
+    # muestra la capa de artefactos/fragmentos (el toggle del instrumento Red).
+    lente = 'completa' if request.args.get('lente') == 'completa' else 'negocio'
 
     def handler(conn, session_id):
-        red = red_de_sesion(conn, session_id)
+        red = red_de_sesion(conn, session_id, lente=lente)
         escalera = topologia.escalera_renorm(red)
         if not 0 <= nivel < len(escalera):
             return jsonify({'error': f'Nivel fuera de la escalera (0–{len(escalera) - 1})'}), 400

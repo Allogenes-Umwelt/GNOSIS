@@ -26,20 +26,44 @@ from autogenes.anomalias import detectar_anomalias, drift_topologico, tomar_snap
 
 MAX_SNAPSHOTS = 200
 
+# La lente de negocio (Q2 del PLAN_QUALIA_UPLIFT): QUALIA lee la topología
+# ESTRUCTURAL del caso, no la fontanería de CÓMO se sabe. Los artefactos y
+# fragmentos son evidencia (el "porqué se cree"), no protagonistas de la red:
+# cada entidad los cita, así que dominan la centralidad por construcción — es
+# la razón de que hoy el "concentrador" y el "monolito" sean un nombre de PDF.
+# La lente los oculta por default; la capa documental queda a un clic
+# (lente="completa"). Ocultar es honesto: no fabrica enlaces, solo deja de
+# contar la plomería. El núcleo aduanal (nucleo/pedimento/vehiculo/marca/país)
+# NO es plomería y se conserva.
+FONTANERIA_DOCUMENTAL = frozenset({"artefacto", "fragmento"})
+
 
 def red_de_sesion(conn: sqlite3.Connection, session_id: int,
-                  limite_vehiculos: Optional[int] = None) -> dict[str, list]:
+                  limite_vehiculos: Optional[int] = None,
+                  lente: str = "negocio") -> dict[str, list]:
     """The session ontology as a generic weighted network. Rides the F2
-    read-time projection — never rebuilds it, never writes."""
+    read-time projection — never rebuilds it, never writes.
+
+    lente="negocio" (default) oculta la fontanería documental
+    (artefactos/fragmentos) para que hubs, puentes y monolitos sean
+    entidades de negocio; lente="completa" incluye la capa documental."""
     from autogenes.proyeccion import construir_grafo
 
     g = construir_grafo(conn, session_id, limite_vehiculos=limite_vehiculos)
+    nodos, enlaces = g["nodos"], g["enlaces"]
+    if lente == "negocio":
+        ocultos = {n["id"] for n in nodos
+                   if n.get("kind") in FONTANERIA_DOCUMENTAL}
+        if ocultos:
+            nodos = [n for n in nodos if n["id"] not in ocultos]
+            enlaces = [e for e in enlaces
+                       if e["source"] not in ocultos and e["target"] not in ocultos]
     return {
         "nodos": [{"id": n["id"], "etiqueta": n["etiqueta"], "kind": n.get("kind")}
-                  for n in g["nodos"]],
+                  for n in nodos],
         "enlaces": [{"origen": e["source"], "destino": e["target"],
                      "peso": e.get("peso") or 0.5}
-                    for e in g["enlaces"]],
+                    for e in enlaces],
     }
 
 

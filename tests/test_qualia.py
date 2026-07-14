@@ -153,3 +153,47 @@ def test_cadencia_estable_no_dispara_rafaga(conn):
         _bitacora_dia(conn, f"2026-07-{k + 1:02d}", 3)
     r = qualia.anomalias_de_sesion(conn, SID)
     assert all(h["detector"] not in ("rafaga", "ritmo") for h in r["hallazgos"])
+
+
+# ── lente de negocio (Q2 del PLAN_QUALIA_UPLIFT) ──────────────────────
+
+def test_lente_negocio_oculta_fontaneria_y_deja_el_resto(conn):
+    """Por default QUALIA oculta artefactos/fragmentos; la capa documental
+    sigue disponible con lente='completa'. Ningún enlace queda colgando de
+    un nodo oculto."""
+    completa = qualia.red_de_sesion(conn, SID, lente="completa")
+    negocio = qualia.red_de_sesion(conn, SID, lente="negocio")
+    kinds_completa = {n["kind"] for n in completa["nodos"]}
+    kinds_negocio = {n["kind"] for n in negocio["nodos"]}
+    assert {"artefacto", "fragmento"} <= kinds_completa
+    assert not ({"artefacto", "fragmento"} & kinds_negocio)
+    assert len(negocio["nodos"]) < len(completa["nodos"])
+    ids = {n["id"] for n in negocio["nodos"]}
+    assert all(e["origen"] in ids and e["destino"] in ids for e in negocio["enlaces"])
+
+
+def test_lente_negocio_los_hubs_dejan_de_ser_documentos(conn):
+    """La patología que motiva la lente: cuando muchas entidades citan el
+    MISMO PDF, bajo la lente completa el PDF domina la centralidad (el hub
+    ES un nombre de archivo). Bajo la lente de negocio, no."""
+    from autogenes.topologia import resumen_red
+    s = Sustrato(conn, SID)
+    frag = conn.execute(
+        "SELECT id FROM ag_fragmentos WHERE session_id = ? LIMIT 1", (SID,)
+    ).fetchone()[0]
+    for nombre in ("AUDI", "SEAT", "PORSCHE", "CUPRA"):
+        s.upsert_entidad(nombre, "organizacion", "synesis", evidencia=[frag])
+    hub_completa = resumen_red(
+        qualia.red_de_sesion(conn, SID, lente="completa"))["hubs"][0]
+    hub_negocio = resumen_red(
+        qualia.red_de_sesion(conn, SID, lente="negocio"))["hubs"][0]
+    assert hub_completa["etiqueta"] == "contrato.pdf"      # el documento manda
+    assert hub_negocio["etiqueta"] != "contrato.pdf"       # ya no
+
+
+def test_lente_negocio_determinista_doble_corrida(conn):
+    """Métrica nueva → doble corrida idéntica (LEY de determinismo)."""
+    from autogenes.topologia import resumen_red
+    a = resumen_red(qualia.red_de_sesion(conn, SID, lente="negocio"))
+    b = resumen_red(qualia.red_de_sesion(conn, SID, lente="negocio"))
+    assert a == b

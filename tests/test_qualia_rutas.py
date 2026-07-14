@@ -85,6 +85,17 @@ def test_red_espectral_incluye_embedding(cliente):
     assert "espectral" in r.get_json()
 
 
+def test_red_lente_completa_incluye_mas_nodos_que_negocio(cliente):
+    neg = cliente.get(
+        f"/api/v1/autogenes/qualia/red?session_id={_sid(cliente)}").get_json()
+    com = cliente.get(
+        f"/api/v1/autogenes/qualia/red?lente=completa&session_id={_sid(cliente)}"
+    ).get_json()
+    assert len(com["red"]["nodos"]) >= len(neg["red"]["nodos"])
+    kinds = {n.get("kind") for n in com["red"]["nodos"]}
+    assert "artefacto" in kinds       # la capa documental reaparece
+
+
 def test_red_nivel_fuera_de_escalera_400(cliente):
     r = cliente.get(f"/api/v1/autogenes/qualia/red?nivel=999&session_id={_sid(cliente)}")
     assert r.status_code == 400
