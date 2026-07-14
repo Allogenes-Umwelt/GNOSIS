@@ -312,6 +312,11 @@ def api_autogenes_ingestar():
         return jsonify({'error': 'Falta el archivo (campo documento)'}), 400
     nombre = secure_filename(archivo.filename)
     contenido = archivo.read()
+    # En una carga masiva (carpeta/lote), el cliente marca lote=1: el snapshot
+    # QUALIA reconstruye toda la red de la sesión, así que hacerlo por archivo
+    # es O(n^2). Se difiere a un único snapshot al cerrar el lote
+    # (endpoint telemetria/snapshot).
+    en_lote = request.form.get('lote') in ('1', 'true', 'on')
 
     def handler(conn, session_id):
         # ── ZIP: ingerir cada archivo interno, resumen agregado ──
@@ -348,8 +353,23 @@ def api_autogenes_ingestar():
                             'duplicado': r['duplicado']}), 409
         if 'error' in r:
             return jsonify(r), 422
-        _snapshot_telemetria(conn, session_id)
+        if not en_lote:
+            _snapshot_telemetria(conn, session_id)
         return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/telemetria/snapshot', methods=['POST'])
+def api_autogenes_telemetria_snapshot():
+    """Cierra un lote de ingesta con UN solo snapshot QUALIA — el cliente lo
+    llama al terminar la carga masiva (que subió con lote=1, sin snapshot por
+    archivo). Best-effort: nunca es un error duro para el operador."""
+    def handler(conn, session_id):
+        _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok'})
     try:
         return _con_sesion(handler)
     except Exception as e:

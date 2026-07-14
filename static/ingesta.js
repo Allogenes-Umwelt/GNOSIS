@@ -19,6 +19,7 @@
     var quorumChk = document.getElementById('in-quorum');
     var chord = document.querySelector('.ch-lienzo');
     var extraerTodoBtn = document.getElementById('in-extraer-todo');
+    var cancelarBtn = document.getElementById('in-cancelar');
     var propuestaActual = null;
     var extraccionEnVuelo = false;   // un doble clic no debe costar dos extracciones
     var artefactosCache = [];        // último listado, para "extraer todo"
@@ -173,17 +174,26 @@
     }
 
     // ── ingesta ──────────────────────────────────────────────────────
-    function subirUno(archivo) {
+    // enLote=1 difiere el snapshot QUALIA (lo dispara telemetria/snapshot al
+    // cerrar el lote): hacerlo por archivo es O(n^2) en una carpeta grande.
+    function subirUno(archivo, enLote) {
       var fd = new FormData();
       fd.append('documento', archivo);
+      if (enLote) fd.append('lote', '1');
       return fetch('/api/v1/autogenes/ingestar', { method: 'POST', body: fd })
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); });
     }
+    function cerrarLote() {   // un solo snapshot al terminar la carga masiva
+      return fetch('/api/v1/autogenes/telemetria/snapshot', { method: 'POST' })
+        .catch(function () {});
+    }
     // Cola secuencial: varios PDFs (o una carpeta soltada) entran uno por
-    // uno para no saturar el servidor ni perder el orden de dockeo.
-    // Imágenes y PDFs escaneados entran vía OCR en el servidor (Tesseract).
+    // uno para no saturar el servidor ni perder el orden de dockeo. El
+    // operador puede cancelar: se detiene en el siguiente archivo (el que ya
+    // entró, quedó; re-soltar la carpeta reanuda por dedupe de contenido).
     var ACEPTA = /\.(pdf|txt|md|xml|csv|xls|xlsx|zip|jpe?g|png|gif|bmp|webp|tiff?|heic)$/;
     var enCola = false;
+    var cancelado = false;
     function subirLote(archivos) {
       var aceptados = [];
       for (var i = 0; i < archivos.length; i++) {
@@ -195,21 +205,34 @@
         return;
       }
       if (enCola) return;
-      enCola = true;
+      enCola = true; cancelado = false;
       var ok = 0, err = 0, dup = 0, total = aceptados.length;
+      var enLote = total > 1;   // un archivo suelto conserva su snapshot inmediato
+      if (enLote && cancelarBtn) cancelarBtn.hidden = false;
+      function resumen(hechos) {
+        return hechos + '/' + total + ' · ' + ok + ' dockeado(s)' +
+               (dup ? ' · ' + dup + ' duplicado(s)' : '') +
+               (err ? ' · ' + err + ' con error' : '');
+      }
+      function terminar(i, porCancelacion) {
+        enCola = false;
+        if (cancelarBtn) cancelarBtn.hidden = true;
+        var restantes = total - i;
+        aviso(porCancelacion
+          ? 'Carga cancelada · ' + resumen(i) +
+            (restantes ? ' · ' + restantes + ' sin procesar (re-suelta para reanudar)' : '')
+          : 'Ingesta lista · ' + resumen(total),
+          (err && !porCancelacion) ? 'error' : 'ok');
+        // un solo redibujo (y un solo snapshot) al cerrar el lote — no O(archivos)
+        var fin = enLote ? cerrarLote() : Promise.resolve();
+        fin.then(function () { pintarArtefactos(); recargarMapa(); });
+      }
       (function siguiente(i) {
-        if (i >= total) {
-          enCola = false;
-          aviso('Ingesta lista · ' + ok + ' dockeado(s)' +
-                (dup ? ' · ' + dup + ' duplicado(s)' : '') +
-                (err ? ' · ' + err + ' con error' : ''), err ? 'error' : 'ok');
-          // un solo redibujo al terminar el lote (no O(archivos))
-          pintarArtefactos(); recargarMapa();
-          return;
-        }
+        if (cancelado) { terminar(i, true); return; }
+        if (i >= total) { terminar(total, false); return; }
         aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' +
-              aceptados[i].name.slice(0, 24) + '…');
-        subirUno(aceptados[i]).then(function (res) {
+              aceptados[i].name.slice(0, 24) + '… (' + resumen(i) + ')');
+        subirUno(aceptados[i], enLote).then(function (res) {
           // un ZIP devuelve un resumen de lote; un archivo suelto, uno solo
           if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); dup += (res.j.duplicados || 0); }
           else if (res.j && res.j.duplicado) { dup++; }
@@ -217,6 +240,14 @@
           siguiente(i + 1);
         }).catch(function () { err++; siguiente(i + 1); });
       })(0);
+    }
+    if (cancelarBtn) {
+      cancelarBtn.addEventListener('click', function () {
+        cancelado = true;
+        cancelarBtn.disabled = true;
+        aviso('Cancelando al terminar el archivo en curso…');
+        setTimeout(function () { cancelarBtn.disabled = false; }, 1500);
+      });
     }
     file.addEventListener('change', function () {
       if (file.files.length) subirLote(file.files);

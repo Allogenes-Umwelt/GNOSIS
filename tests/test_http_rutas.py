@@ -101,7 +101,7 @@ SOLO_POST = [
     "/api/v1/autogenes/ingestar", "/api/v1/autogenes/extraer",
     "/api/v1/autogenes/sintetizar",
     "/api/v1/autogenes/integrar", "/api/v1/autogenes/nomos/regla",
-    "/api/v1/autogenes/relacion",
+    "/api/v1/autogenes/relacion", "/api/v1/autogenes/telemetria/snapshot",
 ]
 
 
@@ -110,6 +110,49 @@ def test_post_only_esta_registrada(cliente, ruta):
     # 405 (método no permitido) prueba que la ruta EXISTE; 404 sería que
     # se cayó del registro al mover blueprints.
     assert cliente.get(ruta).status_code == 405
+
+
+# ── Ingesta masiva: el snapshot QUALIA se difiere en modo lote ───────
+
+def test_ingesta_en_lote_difiere_el_snapshot(cliente, monkeypatch):
+    """En una carga masiva (lote=1) el snapshot QUALIA NO corre por archivo
+    —reconstruye toda la red, así que por archivo es O(n^2)—: corre UNA sola
+    vez cuando el cliente cierra el lote vía telemetria/snapshot."""
+    import io
+
+    import rutas.autogenes as ra
+    llamadas = []
+    monkeypatch.setattr(ra, "_snapshot_telemetria",
+                        lambda *a, **k: llamadas.append(1))
+
+    for i in range(3):
+        data = {"documento": (io.BytesIO(f"documento de lote numero {i}".encode()),
+                              f"lote{i}.txt"),
+                "lote": "1"}
+        r = cliente.post("/api/v1/autogenes/ingestar", data=data,
+                         content_type="multipart/form-data")
+        assert r.status_code == 200
+    assert llamadas == [], "el snapshot no debe correr por archivo en modo lote"
+
+    r = cliente.post("/api/v1/autogenes/telemetria/snapshot")
+    assert r.status_code == 200
+    assert len(llamadas) == 1, "el snapshot corre UNA vez al cerrar el lote"
+
+
+def test_ingesta_suelta_conserva_snapshot_inmediato(cliente, monkeypatch):
+    """Un archivo suelto (sin lote) conserva su snapshot inmediato: la
+    optimización de lote no debe cambiar el comportamiento de una sola carga."""
+    import io
+
+    import rutas.autogenes as ra
+    llamadas = []
+    monkeypatch.setattr(ra, "_snapshot_telemetria",
+                        lambda *a, **k: llamadas.append(1))
+    data = {"documento": (io.BytesIO(b"un documento suelto y distinto"), "suelto.txt")}
+    r = cliente.post("/api/v1/autogenes/ingestar", data=data,
+                     content_type="multipart/form-data")
+    assert r.status_code == 200
+    assert len(llamadas) == 1
 
 
 # ── Contrato de errores endurecido ───────────────────────────────────

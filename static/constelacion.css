@@ -235,6 +235,10 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 }
 .ag-subir:hover { background: var(--acc-subtle); }
 .ag-subir:disabled { opacity: .45; cursor: default; }
+/* Cancelar es una acción de detención: se marca con --danger (única vía del
+   magenta permitida), sin robar el acento a la carga misma. */
+.in-cancelar { border-color: var(--danger); color: var(--danger); margin-top: 6px; }
+.in-cancelar:hover { background: var(--danger); color: var(--bg); }
 .ag-archivo { display: flex; gap: 8px; align-items: center; font-family: var(--font-mono); font-size: .72rem; color: var(--t2); border: 1px solid var(--line-ghost); padding: 7px 9px; }
 .ag-archivo .tipo { color: var(--acc-text); border: 1px solid var(--line); padding: 1px 5px; font-size: .62rem; }
 .ag-msj { font-family: var(--font-mono); font-size: .72rem; color: var(--t3); min-height: 1em;
