@@ -30,9 +30,10 @@
     var elMsj = document.getElementById('sn-msj');
     var btnRed = document.getElementById('sn-redactar');
     var btnDock = document.getElementById('sn-dockear');
+    var btnImprimir = document.getElementById('sn-imprimir');
 
     var acc = '#00D4FF';
-    var digesto = null, informeActual = null;
+    var digesto = null, informeActual = null, sessionId = null;
     var nodoPorFrag = {}, nodoPorEnt = {}, fragPorId = {}, hechoPorId = {};
     var puntosPorFrag = {}, puntosPorEnt = {};
     var activo = null;        // punto del informe con foco
@@ -520,6 +521,7 @@
           }
           digesto = res.j.digesto || { entidades: [], fragmentos: [] };
           informeActual = res.j.informe;
+          sessionId = res.j.session_id;
           pintarDigesto(digesto);
           pintarInforme(informeActual);
           pintarNoCubierto(res.j.hechos_no_cubiertos || [], res.j.cobertura_informe);
@@ -527,6 +529,7 @@
           elInfo.textContent = np + ' PUNTOS · ' + res.j.fragmentos + ' FRAGMENTOS · ' +
             res.j.entidades + ' ENTIDADES';
           btnDock.disabled = np === 0;
+          if (btnImprimir) btnImprimir.disabled = np === 0;
           tamano(); redibujar();
         })
         .catch(function () {
@@ -577,6 +580,51 @@
           btnDock.disabled = false;
         });
     }
+
+    // ── imprimir con sello re-derivable (S4) ─────────────────────────
+    // El cuerpo canónico se serializa en orden fijo; el sello es
+    // SHA-256(cuerpo|session_id): quien tenga el informe impreso lo re-deriva
+    // y confirma que no fue alterado. Se calcula sobre lo que se IMPRIME (ya
+    // con ediciones/descartes), así que el sello siempre casa con el papel.
+    function cuerpoCanonico(inf) {
+      return {
+        titulo: inf.titulo || '',
+        secciones: (inf.secciones || []).map(function (s) {
+          return {
+            encabezado: s.encabezado,
+            puntos: (s.puntos || []).filter(function (p) { return !p._descartado; })
+              .map(function (p) {
+                return { texto: p.texto, evidencia: p.evidencia || [],
+                         entidades: p.entidades || [] };
+              })
+          };
+        })
+      };
+    }
+    function calcularSello(inf, sid) {
+      if (!(window.crypto && window.crypto.subtle)) return Promise.resolve(null);
+      var canon = JSON.stringify(cuerpoCanonico(inf)) + '|' + sid;
+      return window.crypto.subtle.digest('SHA-256', new window.TextEncoder().encode(canon))
+        .then(function (buf) {
+          var arr = new Uint8Array(buf), hex = '';
+          for (var i = 0; i < arr.length; i++) hex += ('0' + arr[i].toString(16)).slice(-2);
+          return hex;
+        }).catch(function () { return null; });
+    }
+    function imprimir() {
+      if (!informeActual) return;
+      var pie = document.getElementById('sn-print-pie');
+      calcularSello(informeActual, sessionId).then(function (hash) {
+        if (pie) {
+          pie.innerHTML = 'Sello SHA-256( cuerpo citado | sesión ' +
+            esc(String(sessionId == null ? '—' : sessionId)) + ' ) — re-derivable: ' +
+            (hash ? '<b>' + esc(hash) + '</b>'
+                  : 'no disponible (contexto inseguro)');
+        }
+        window.print();
+      });
+    }
+    if (btnImprimir) btnImprimir.addEventListener('click', imprimir);
 
     btnRed.addEventListener('click', redactar);
     btnDock.addEventListener('click', dockear);

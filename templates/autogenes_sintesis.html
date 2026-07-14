@@ -35,9 +35,11 @@
         <span class="gr-controles">
           <button type="button" id="sn-redactar" class="sn-accion">redactar</button>
           <button type="button" id="sn-dockear" class="sn-accion" disabled>dockear</button>
+          <button type="button" id="sn-imprimir" class="sn-accion" disabled>imprimir</button>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
+      <div class="sn-print-cab" aria-hidden="true">GNOSIS · Síntesis · Informe citado del caso — Sesión {{ sesion_etiqueta }}</div>
       <div class="sn-informe" id="sn-informe" aria-live="polite">
         <div class="sn-vacio">
           <span class="marca" aria-hidden="true">◆</span>
@@ -53,6 +55,7 @@
         <li><b>◆</b> cita a hecho medido</li>
         <li><span id="sn-info" role="status">—</span></li>
       </ul>
+      <div class="sn-print-pie" id="sn-print-pie" aria-hidden="true"></div>
     </section>
 
     <!-- Derecha: cita / procedencia -->

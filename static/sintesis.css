@@ -161,3 +161,33 @@
   .sn-marco.izq-off.der-off { grid-template-columns: 1fr; }
   .sn-trazas { display: none; }
 }
+
+/* ── S4: impresión — el informe citado con su sello re-derivable ────────
+   Se calcula sobre el navegador (local-first, sin PDF de servidor). */
+.sn-print-cab, .sn-print-pie { display: none; }
+@media print {
+  /* fuera el chrome: cabecera del sitio, paneles, lienzo, controles, HUD */
+  .gstl-header, .gstl-footer, .ag-panel, .sn-trazas, .ag-centro-head,
+  .ag-leyenda, .sn-hitl, .sn-cam-tabs, .sn-cam-comp,
+  #sn-redactar, #sn-dockear, #sn-imprimir { display: none !important; }
+  html, body { background: #fff !important; }
+  .ag-wrap, .ag-landing, .ag-centro, .sn-marco {
+    display: block !important; position: static !important;
+    width: auto !important; height: auto !important; background: #fff !important; }
+  #sn-informe { position: static !important; overflow: visible !important;
+    height: auto !important; max-height: none !important; padding: 0 !important; }
+  /* todo a negro sobre blanco, con bordes visibles al imprimir */
+  .sn-informe, .sn-titulo, .sn-eyebrow, .sn-enc, .sn-punto, .sn-punto .tx,
+  .sn-cobertura, .sn-nc-tit, .sn-nc-item, .sn-nc-item .n, .sn-nc-item .t,
+  .sn-print-cab, .sn-print-pie {
+    color: #000 !important; background: #fff !important; }
+  .sn-chip { color: #000 !important; border: 1px solid #000 !important; background: #fff !important; }
+  .sn-punto { border-left: 2px solid #000 !important; break-inside: avoid; }
+  /* marcadores textuales (el color no siempre imprime) */
+  .sn-punto.sn-no-verificado .tx::after { content: '  [cifra sin rastro en la evidencia]'; font-size: 9px; }
+  .sn-punto.sn-editado .tx::after { content: '  [editado por el operador]'; font-size: 9px; }
+  .sn-print-cab { display: block !important; font-family: var(--font-mono); font-size: 11px;
+    letter-spacing: .5px; border-bottom: 1px solid #000; padding-bottom: 6px; margin-bottom: 12px; }
+  .sn-print-pie { display: block !important; font-family: var(--font-mono); font-size: 9.5px;
+    border-top: 1px solid #000; padding-top: 6px; margin-top: 20px; word-break: break-all; }
+}
