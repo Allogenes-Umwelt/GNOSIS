@@ -1111,8 +1111,14 @@
         } else {                                       // seleccionar
           sel = golpe;
           pintarInspector(sel);
-          if (sel) { resalte = null; abrirTarjeta(sel); desplegarFunnel(sel); }
-          else { cerrarActivas(); replegarFunnel(true); }
+          if (sel) {
+            resalte = null; abrirTarjeta(sel); desplegarFunnel(sel);
+            // Aditivo: avisa a las vistas que montan el lienzo. Vínculos lo usa
+            // para fijar los extremos del camino con clics, sin teclear. No
+            // altera el inspector ni la tarjeta — solo notifica.
+            cont.dispatchEvent(new CustomEvent('grafo:nodo', { detail:
+              { id: sel.id, etiqueta: sel.etiqueta, kind: sel.kind } }));
+          } else { cerrarActivas(); replegarFunnel(true); }
           if (!animando) dibujar(0);
           arrancarLatido();                            // afterburn + funnel
         }

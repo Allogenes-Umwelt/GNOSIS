@@ -49,6 +49,28 @@
       return porEtiqueta[(texto || '').trim().toLowerCase()] || null;
     }
 
+    // Clic en un nodo del lienzo: fija los extremos sin teclear (el gesto
+    // central de Gotham). 1º = origen, 2º = destino + traza; el 3º reinicia.
+    lienzo.addEventListener('grafo:nodo', function (ev) {
+      var n = ev.detail;
+      if (!n || n.kind === 'fragmento') return;   // el ruido de fragmentos no es extremo
+      var val = n.etiqueta + ' · ' + n.kind;
+      if (!desdeIn.value || (desdeIn.value && hastaIn.value)) {
+        desdeIn.value = val; hastaIn.value = '';
+        msj.className = 'ag-msj';
+        msj.textContent = 'Origen fijado en el lienzo — elige el destino.';
+      } else if (val.toLowerCase() !== desdeIn.value.toLowerCase()) {
+        hastaIn.value = val;
+        trazar();
+      }
+    });
+
+    var invertir = document.getElementById('vn-invertir');
+    if (invertir) invertir.addEventListener('click', function () {
+      var a = desdeIn.value; desdeIn.value = hastaIn.value; hastaIn.value = a;
+      if (desdeIn.value && hastaIn.value) trazar();
+    });
+
     function pintarCamino(cam) {
       panel.innerHTML = '';
       var cab = document.createElement('div');
