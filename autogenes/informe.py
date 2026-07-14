@@ -20,6 +20,7 @@ El quórum (dos modelos) se reserva para extracción y hallazgos, donde el
 acuerdo se mide por entidad; un informe es una narrativa unitaria, así
 que se redacta con el proveedor activo.
 """
+import re
 import sqlite3
 from typing import Any, Optional
 
@@ -208,6 +209,66 @@ def sanear_informe(informe: Informe, fragmento_ids: set[str],
     return Informe(titulo=informe.titulo, secciones=secciones)
 
 
+# ── verificación de fidelidad (S2): la cita debe SUSTENTAR, no solo existir ─
+# El saneo prueba que la cita es real; esto prueba que la cifra del punto está
+# EN esa cita. Determinista (sin segundo LLM): reproducible, testeable, gratis.
+_NUM_RE = re.compile(r"\d[\d.,]*")
+# VIN ISO 3779: 17 alfanuméricos sin I/O/Q (se acepta en cualquier caja).
+_VIN_RE = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b", re.IGNORECASE)
+
+
+def _digitos_enteros(numstr: str) -> str:
+    """Normaliza un número a sus dígitos enteros: quita separadores de miles y
+    la parte decimal, para que '1,400,000' y '1400000' comparen igual."""
+    entero = numstr.replace(",", "").replace(" ", "").split(".")[0]
+    return re.sub(r"\D", "", entero)
+
+
+def _tokens_duros(texto: str) -> tuple[set[str], set[str]]:
+    """Cifras duras de un texto: números de >=2 dígitos (montos, conteos) y
+    VINs de 17. Los de 1 dígito se omiten (ruido: 'una ruta', '3 aduanas')."""
+    nums = set()
+    for m in _NUM_RE.findall(texto):
+        d = _digitos_enteros(m)
+        if len(d) >= 2:
+            nums.add(d)
+    vins = {v.upper() for v in _VIN_RE.findall(texto)}
+    return nums, vins
+
+
+def verificar_fidelidad(informe: dict[str, Any], frag_texto: dict[str, str],
+                        hecho_valor: dict[str, Any]) -> dict[str, Any]:
+    """Marca cada punto: `verificado=False` (con la lista de `tokens_huerfanos`)
+    si contiene una cifra dura que NO aparece en la evidencia que el punto CITA
+    (el texto de sus fragmentos o el valor de sus hechos). Un punto sin cifras
+    duras se considera verificado. Muta y devuelve el dict del informe."""
+    for sec in informe.get("secciones", []):
+        for p in sec.get("puntos", []):
+            corpus = []
+            for cid in p.get("evidencia", []):
+                if cid in frag_texto:
+                    corpus.append(frag_texto[cid] or "")
+                elif hecho_valor.get(cid) is not None:
+                    corpus.append(str(hecho_valor[cid]))
+            c_nums, c_vins = _tokens_duros(" ".join(corpus))
+            p_nums, p_vins = _tokens_duros(p.get("texto", ""))
+            huerfanos = sorted((p_nums - c_nums) | (p_vins - c_vins))
+            p["verificado"] = not huerfanos
+            p["tokens_huerfanos"] = huerfanos
+    return informe
+
+
+def podar_no_verificados(informe: dict[str, Any]) -> dict[str, Any]:
+    """Modo estricto: descarta los puntos no verificados y las secciones que
+    quedan vacías. Deja el informe solo con afirmaciones rastreables."""
+    secciones = []
+    for sec in informe.get("secciones", []):
+        puntos = [p for p in sec.get("puntos", []) if p.get("verificado", True)]
+        if puntos:
+            secciones.append({**sec, "puntos": puntos})
+    return {**informe, "secciones": secciones}
+
+
 # ── orquestación: redactar y dockear ──────────────────────────────────
 
 PROMPT_SISTEMA = (
@@ -274,9 +335,17 @@ def redactar_informe(conn: sqlite3.Connection, session_id: int,
     hecho_ids = {h["id"] for h in digesto["hechos_medidos"]}
     saneado = sanear_informe(informe, frag_reales, nombres_reales, hecho_ids)
 
+    # Fidelidad: cada cifra dura del punto debe estar en la evidencia que cita.
+    informe_dump = saneado.model_dump()
+    frag_texto = {f["id"]: f.get("texto") or "" for f in grafo["fragmentos"]}
+    hecho_valor = {h["id"]: h["cifra"] for h in hechos}
+    verificar_fidelidad(informe_dump, frag_texto, hecho_valor)
+    if config.get("sintesis_estricta"):
+        informe_dump = podar_no_verificados(informe_dump)
+
     return {
         "session_id": session_id,
-        "informe": saneado.model_dump(),
+        "informe": informe_dump,
         "digesto": digesto,
         "hechos": hechos,
         "fuentes": len(grafo["artefactos"]),

@@ -192,6 +192,15 @@
           (p.entidades || []).forEach(function (n) {
             chips += '<span class="sn-chip ent" title="' + esc(n) + '">◇ ' + esc(n) + '</span>';
           });
+          // Fidelidad (S2): una cifra del punto no rastreable a su evidencia
+          // se marca — honesto, no se borra (el operador decide).
+          if (p.verificado === false) {
+            pt.classList.add('sn-no-verificado');
+            var orf = (p.tokens_huerfanos || []).join(', ');
+            chips += '<span class="sn-chip alerta" title="Cifra(s) no halladas en la ' +
+              'evidencia citada: ' + esc(orf) + '">⚠ cifra sin rastro' +
+              (orf ? ': ' + esc(orf) : '') + '</span>';
+          }
           pt.innerHTML = '<span class="tx">' + esc(p.texto) + '</span>' +
             '<span class="ci">' + chips + '</span>';
           pt._p = p;

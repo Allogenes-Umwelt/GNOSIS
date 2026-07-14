@@ -94,6 +94,9 @@
 /* Hecho medido: acento cobalto (AAA en ambos temas), distinto del fragmento
    (neutro) y de la entidad (--acc-text); nunca magenta. */
 .sn-chip.hecho { color: var(--cobalt-on); border-color: var(--cobalt-on); }
+/* Cifra sin rastro en la evidencia citada: alerta (--danger, único magenta). */
+.sn-chip.alerta { color: var(--danger); border-color: var(--danger); }
+.sn-punto.sn-no-verificado { border-left-color: var(--danger); }
 .sn-nodo.sn-hecho .k { color: var(--cobalt-on); }
 .sn-cita-hecho { border-left-color: var(--cobalt-on); }
 .sn-cita-hecho .fuente { color: var(--cobalt-on); }
