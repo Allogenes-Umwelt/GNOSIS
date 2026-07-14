@@ -25,6 +25,28 @@ docker/
 
 ---
 
+## Requisitos de disco (medidos)
+
+Números reales de una construcción de este `Containerfile` (build validado:
+compila, `requirements.txt` instala, la imagen arranca y sirve `/health`):
+
+| Concepto | Tamaño |
+|---|---|
+| **Imagen construida** (en disco) | **~1.2 GB** — venv Python ~763 MB · Java 17 ~184 MB · OCR (tesseract+poppler) + base Debian slim |
+| Pico transitorio durante el build (caché de capas, recuperable) | ~2–3 GB |
+| Máquina Podman (VM Linux en macOS) — **solo la primera vez** | ~2–3 GB |
+| Datos de trabajo (BD, facturas) — crece con el uso | desde ~0.5 GB |
+
+**Recomendación de espacio libre:**
+- Con Podman/Docker ya instalado: **~5–6 GB**.
+- Instalando Podman de cero (suma la VM): **~8 GB**.
+
+Tras el primer build, recupera el transitorio con `podman system prune`
+(la imagen estable queda en ~1.2 GB). El primer build tarda varios minutos
+(descarga Java, OCR y las libs Python); los siguientes usan caché.
+
+---
+
 ## Instalación rápida (un comando)
 
 Desde la raíz del repo:
@@ -121,6 +143,46 @@ loginctl enable-linger "$USER"     # arranca sin sesión abierta
 > instala Podman con Homebrew, arranca la `podman machine` y usa
 > `./docker/install.sh`. Con Podman Desktop puedes marcar el contenedor como
 > *autostart* desde la interfaz.
+
+---
+
+## Empaquetar para otra máquina (Mac / otro equipo)
+
+Cuando alguien pide "un contenedor de GNOSIS para probar en su máquina", la
+vía correcta es **enviar el fuente y construir allá**, NO una imagen ya hecha.
+
+**Por qué fuente y no imagen pre-construida:**
+- La imagen es específica de arquitectura. Una imagen construida en **amd64**
+  (Intel/servidor) corre **emulada** en un Mac **Apple Silicon (arm64)** —
+  lenta y a veces rota. Construir en la máquina destino da la imagen nativa.
+- El fuente pesa ~2–3 MB; una imagen exportada (`podman save`) pesa ~400 MB
+  comprimida (~1.2 GB al cargar). Transferir el fuente es más liviano y correcto.
+- El build en destino usa el internet normal de esa máquina (sin proxies/CA
+  raros) y hornea la imagen que le toca.
+
+**Cómo armar el bundle de fuente** (solo lo versionado, sin `.git`, datos ni
+artefactos — respeta `.gitignore`):
+
+```bash
+git archive --format=zip --prefix=GNOSIS/ -o GNOSIS-$(git rev-parse --short HEAD).zip HEAD
+```
+
+El destinatario:
+
+```bash
+unzip GNOSIS-*.zip && cd GNOSIS
+./docker/install.sh          # crea .env, construye NATIVO y levanta
+# → http://127.0.0.1:5001
+```
+
+Disco necesario en su máquina: ver «Requisitos de disco» arriba (~5–6 GB con
+Podman ya instalado; ~8 GB de cero).
+
+> **Excepción — Intel/mismo arch:** si el destino es Intel (amd64) igual que
+> donde construyes, sí puedes enviar la imagen ya hecha:
+> `podman save gnosis:local | gzip > gnosis.tar.gz` → allá
+> `gunzip -c gnosis.tar.gz | podman load`. Para Apple Silicon: no lo hagas,
+> construye en el Mac.
 
 ---
 
