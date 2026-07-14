@@ -690,6 +690,11 @@
       ctx.translate(w / 2 + vista.x, h / 2 + vista.y);
       ctx.scale(vista.k, vista.k);
 
+      // anti-colisión de etiquetas: cajas ya dibujadas (en pantalla) este
+      // frame; una etiqueta que chocaría se omite (los hubs estructurales se
+      // dibujan primero y ganan; al zoom las posiciones se separan).
+      var lblBoxes = [];
+
       var foco = sel || hover;
       var visibles = foco ? vecinos[foco.id] || {} : null;
       if (resalte) { visibles = null; }
@@ -889,19 +894,33 @@
           || (vista.k > 3 && esHoja)      // hojas: solo con zoom muy alto (inspección)
           || ((n.centralidad || 0) >= 0.5 && vista.k >= 0.8 && !esHoja);
         if (conEtiqueta) {
-          // piso de legibilidad: la etiqueta nunca baja de 10px en pantalla
-          ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
-          ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
-          ctx.textAlign = 'center';
           // etiqueta defensiva: un null de datos reales no puede tirar el frame
           var etq = String(n.etiqueta || '').slice(0, 26);
-          // halo (E1): trazo del color de fondo detrás del texto — legible sobre
-          // zonas densas de aristas sin depender del contraste del cableado
-          ctx.lineWidth = 3 / vista.k;
-          ctx.strokeStyle = conAlfa(colores.bg, 0.85);
-          ctx.lineJoin = 'round';
-          ctx.strokeText(etq, n.x, n.y + r + 11 / vista.k);
-          ctx.fillText(etq, n.x, n.y + r + 11 / vista.k);
+          // anti-colisión: no apilar etiquetas (el centro se llenaba de
+          // marcas/países/pedimentos encimados). Caja aproximada EN PANTALLA;
+          // si choca con una ya puesta se omite — salvo el foco/resalte, con
+          // prioridad. Al hacer zoom las posiciones se separan y salen más.
+          var lblPri = n === foco || (resalte && resalte.nodos[n.id]);
+          var lsx = w / 2 + vista.x + n.x * vista.k;
+          var lsy = h / 2 + vista.y + (n.y + r + 11 / vista.k) * vista.k;
+          var ltw = etq.length * 6 + 4;
+          var choca = !lblPri && lblBoxes.some(function (b) {
+            return Math.abs(b.x - lsx) < (b.w + ltw) / 2 && Math.abs(b.y - lsy) < 11;
+          });
+          if (!choca) {
+            lblBoxes.push({ x: lsx, y: lsy, w: ltw });
+            // piso de legibilidad: la etiqueta nunca baja de 10px en pantalla
+            ctx.font = (10 / vista.k) + 'px "JetBrains Mono", monospace';
+            ctx.fillStyle = n === foco ? colores.t1 : colores.t3;
+            ctx.textAlign = 'center';
+            // halo (E1): trazo del color de fondo detrás del texto — legible
+            // sobre zonas densas de aristas sin depender del contraste
+            ctx.lineWidth = 3 / vista.k;
+            ctx.strokeStyle = conAlfa(colores.bg, 0.85);
+            ctx.lineJoin = 'round';
+            ctx.strokeText(etq, n.x, n.y + r + 11 / vista.k);
+            ctx.fillText(etq, n.x, n.y + r + 11 / vista.k);
+          }
         }
       });
       // selección múltiple (P2): anillo acento sobre cada nodo seleccionado
