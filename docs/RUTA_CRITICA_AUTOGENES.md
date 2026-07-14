@@ -153,8 +153,10 @@ importa) + este documento. Commit `0070860`.
 - `capacidades/signature` (topología: comunidades, puentes, renormalización,
   persistencia H0) y `capacidades/anomalias` (9 detectores) → Python sobre
   NetworkX + numpy/scipy.
-- Store propio (`ag_qualia_*`: lotes, telemetría, baseline, fusiones) +
-  endpoint narrativo con saneador.
+- Store propio (`ag_qualia_*`: telemetría en `ag_qualia_snapshots`, baseline
+  del operador en `ag_qualia_base`) + endpoint narrativo con saneador.
+  (Nota v1.2: las tablas `lotes`/`fusiones` que este plan preveía NO se
+  portaron — vestigio de la referencia KARELEN; el store real son esas dos.)
 - Los 8 lienzos (Red/Topología, Terreno, Orbe, Cascada, Horizonte, Cuerdas,
   Espectral, Máquina C2) → vanilla JS, en ese orden de prioridad.
 - **Enhancements servidor:** (a) snapshots automáticos tras cada
