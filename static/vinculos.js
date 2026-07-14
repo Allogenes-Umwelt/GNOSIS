@@ -101,6 +101,16 @@
             ? 'vía independiente' : 'comparte aristas');
         det.appendChild(comp);
       }
+      // Contexto de volumen en los extremos país/marca: CUÁNTO mueve el nodo,
+      // medido en la sesión — NO es el costo del camino (que es topológico).
+      [cam.desde, cam.hasta].forEach(function (n) {
+        if (!n || !n.volumen) return;
+        var v = document.createElement('div');
+        v.className = 'vn-cam-vol';
+        v.textContent = esc(n.etiqueta || '') + ' mueve ' + n.volumen.unidades +
+          ' unidades · ' + n.volumen.fuente;
+        det.appendChild(v);
+      });
       cam.saltos.forEach(function (s) {
         var fila = document.createElement('div');
         fila.className = 'gr-fila';

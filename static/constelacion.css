@@ -431,6 +431,9 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .vn-cam-tab:hover { color: var(--t1); }
 .vn-cam-comp { font-family: var(--font-mono); font-size: .6rem; color: var(--t3);
   letter-spacing: .3px; margin: 2px 0 6px; }
+/* Volumen medido del extremo (contexto, no costo): acento cobalto. */
+.vn-cam-vol { font-family: var(--font-mono); font-size: .6rem; color: var(--cobalt-on);
+  letter-spacing: .3px; margin: 1px 0; }
 
 /* Minimapa (L1): panorámica anclada abajo-derecha del lienzo; clic salta la
    cámara. Chrome discreto por tokens; el rectángulo del viewport va en acento. */

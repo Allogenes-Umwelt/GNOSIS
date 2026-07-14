@@ -56,6 +56,19 @@ def _filas_flujo(conn: sqlite3.Connection, session_id: int) -> list[dict]:
              "j": r["j"], "n": r["n"]} for r in filas]
 
 
+def volumenes_por_nodo(conn: sqlite3.Connection, session_id: int) -> dict[str, dict]:
+    """Volumen MEDIDO (unidades) por país y por marca en la sesión, desde las
+    filas de flujo. Contexto citable para anotar los extremos de un camino —
+    NO es costo de ruta. Determinista (COUNT de filas)."""
+    filas = _filas_flujo(conn, session_id)
+    por_pais: dict[str, int] = {}
+    por_marca: dict[str, int] = {}
+    for f in filas:
+        por_pais[f["pais"]] = por_pais.get(f["pais"], 0) + f["unidades"]
+        por_marca[f["marca"]] = por_marca.get(f["marca"], 0) + f["unidades"]
+    return {"pais": por_pais, "marca": por_marca}
+
+
 def _pais_id(c: str) -> str: return f"pais:{c}"
 def _aduana_id(a: str) -> str: return f"aduana:{a}"
 def _marca_id(m: str) -> str: return f"marca:{m}"

@@ -221,6 +221,30 @@ def comparar_caminos(lista: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return lista
 
 
+def anotar_volumen_extremos(lista: list[dict[str, Any]],
+                            volumenes: dict[str, dict]) -> list[dict[str, Any]]:
+    """Anota los extremos país/marca de cada camino con su volumen MEDIDO en la
+    sesión (filas de flujo) como CONTEXTO citado — jamás como costo de la ruta.
+    La red de evidencia no lleva volumen; esto solo dice cuánto mueve ese nodo
+    y de dónde sale el dato. Un extremo que no es país/marca no se anota."""
+    por_pais = volumenes.get("pais", {})
+    por_marca = volumenes.get("marca", {})
+    for cam in lista:
+        for extremo in ("desde", "hasta"):
+            n = cam.get(extremo)
+            if not n:
+                continue
+            vol = None
+            if n.get("kind") == "pais":
+                vol = por_pais.get(n.get("etiqueta"))
+            elif n.get("kind") == "marca":
+                vol = por_marca.get(n.get("etiqueta"))
+            if vol is not None:
+                n["volumen"] = {"unidades": vol,
+                                "fuente": "filas de flujo medidas de la sesión"}
+    return lista
+
+
 def cuerpo_camino_guardado(camino: dict[str, Any]) -> dict[str, Any]:
     """El Producto{clase:'camino'}: snapshot citado, componible por
     cualquier unidad A TRAVÉS del sustrato (ley E3)."""

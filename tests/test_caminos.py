@@ -173,3 +173,52 @@ def test_comparar_caminos_solape_jaccard():
     assert lista[0]["comparacion"]["solape_con_mas_corto"] == 1.0
     assert lista[0]["comparacion"]["saltos"] == 2
     assert any(x["comparacion"]["solape_con_mas_corto"] < 1.0 for x in lista[1:])
+
+
+def test_volumen_extremos_es_contexto_no_costo():
+    """El volumen medido anota los extremos país/marca como CONTEXTO citado,
+    sin tocar el costo/orden de la ruta (la red de evidencia no lleva volumen)."""
+    from autogenes.analisis_vw import volumenes_por_nodo
+    from autogenes.caminos import anotar_volumen_extremos
+    # país→marca con volumen medido y un grafo de evidencia que los conecta
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+              " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    vw = c.execute("SELECT id FROM marcas WHERE nombre='VOLKSWAGEN'").fetchone()["id"]
+    c.execute("INSERT INTO catalogo_vehiculos (session_id, auto_code, tipo, marca_id)"
+              " VALUES (1,'VW01','Tiguan',?)", (vw,))
+    cvw = c.execute("SELECT id FROM catalogo_vehiculos").fetchone()["id"]
+    c.execute("INSERT INTO pedimentos (session_id, numero_pedimento, aduana)"
+              " VALUES (1,'P1','Veracruz')")
+    pv = c.execute("SELECT id FROM pedimentos").fetchone()["id"]
+    for i in range(6):
+        c.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                  " chasis, pais_code, precio, auto_code, j_y_n)"
+                  " VALUES (1,?,?,?,?,100000,'X','N')", (pv, cvw, f'V{i:05d}', 'DEU'))
+    c.commit()
+
+    vols = volumenes_por_nodo(c, 1)
+    assert vols == volumenes_por_nodo(c, 1)          # determinista
+    assert vols["pais"]["DEU"] == 6 and vols["marca"]["VOLKSWAGEN"] == 6
+
+    # un camino sintético con extremos país/marca (kind del grafo de proyección)
+    cam = {"desde": {"id": "pais:DEU", "etiqueta": "DEU", "kind": "pais"},
+           "hasta": {"id": "marca:1", "etiqueta": "VOLKSWAGEN", "kind": "marca"},
+           "largo": 2, "saltos": [{"arista": {"id": "x"}}], "evidencia": []}
+    antes = cam["largo"], cam["saltos"]
+    anotar_volumen_extremos([cam], vols)
+    assert cam["desde"]["volumen"]["unidades"] == 6
+    assert cam["hasta"]["volumen"]["unidades"] == 6
+    assert "filas de flujo" in cam["desde"]["volumen"]["fuente"]
+    assert (cam["largo"], cam["saltos"]) == antes    # NO tocó el costo/topología
+
+
+def test_volumen_no_anota_extremos_sin_flujo():
+    from autogenes.caminos import anotar_volumen_extremos
+    cam = {"desde": {"id": "e1", "etiqueta": "Fianza", "kind": "entidad"},
+           "hasta": {"id": "e2", "etiqueta": "Puerto", "kind": "entidad"}, "saltos": []}
+    anotar_volumen_extremos([cam], {"pais": {}, "marca": {}})
+    assert "volumen" not in cam["desde"] and "volumen" not in cam["hasta"]
