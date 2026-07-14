@@ -325,6 +325,15 @@ def api_autogenes_ingestar():
                 zf = zipfile.ZipFile(io.BytesIO(contenido))
             except zipfile.BadZipFile:
                 return jsonify({'error': 'El ZIP está dañado'}), 400
+            # Guardia anti zip-bomba (MAX_CONTENT_LENGTH acota el ARCHIVO; esto
+            # lo DESCOMPRIMIDO). Este path síncrono queda para ZIPs chicos; la
+            # UI manda los grandes a ingestar/zip (goteo, sin tumbar el worker).
+            from autogenes.lotes import MAX_UNZIPPED_BYTES
+            crudo = sum(i.file_size for i in zf.infolist()
+                        if not i.is_dir() and not i.filename.startswith('__MACOSX'))
+            if crudo > MAX_UNZIPPED_BYTES:
+                return jsonify({'error': f'El ZIP se expande a {crudo // (1024*1024)} '
+                                'MB; usa la carga por lotes'}), 400
             ok, err, dup, frags = [], [], [], 0
             for info in zf.infolist():
                 if info.is_dir() or info.filename.startswith('__MACOSX'):
@@ -369,6 +378,92 @@ def api_autogenes_telemetria_snapshot():
     archivo). Best-effort: nunca es un error duro para el operador."""
     def handler(conn, session_id):
         _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok'})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── ZIP grande por goteo: expandir a staging + procesar en tandas ────
+# Un ZIP mensual de miles de facturas en un solo request bloquea un worker y
+# rebasa el timeout de gunicorn (se "congela"). Se expande a disco una vez y
+# el cliente ingiere en tandas acotadas por tiempo — reanudable por dedupe.
+
+@bp.route('/api/v1/autogenes/ingestar/zip', methods=['POST'])
+def api_autogenes_ingestar_zip():
+    """Expande un ZIP a staging y registra el lote — NO ingiere. Devuelve
+    {lote_id, total}. El cliente luego pide tandas (ingestar/lote/<id>)."""
+    import os
+    import uuid as _uuid
+
+    from flask import current_app
+
+    from autogenes.lotes import LoteError, expandir_zip
+    archivo = request.files.get('documento')
+    if not archivo or not archivo.filename:
+        return jsonify({'error': 'Falta el archivo (campo documento)'}), 400
+    if not archivo.filename.lower().endswith('.zip'):
+        return jsonify({'error': 'Este endpoint solo acepta ZIP'}), 400
+
+    def handler(conn, session_id):
+        base = current_app.config['UPLOAD_FOLDER']
+        os.makedirs(base, exist_ok=True)
+        tmp = os.path.join(base, f'_zip_{_uuid.uuid4().hex}.zip')
+        try:
+            archivo.save(tmp)   # streaming a disco: el ZIP no vive entero en RAM
+            r = expandir_zip(base, session_id, tmp)
+        except LoteError as e:
+            return jsonify({'error': str(e)}), 400
+        finally:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+        return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/ingestar/lote/<lote_id>', methods=['POST'])
+def api_autogenes_ingestar_lote(lote_id):
+    """Ingiere la siguiente tanda del lote (acotada por tiempo). Devuelve el
+    progreso; al terminar dispara un único snapshot y borra el staging."""
+    from flask import current_app
+
+    from autogenes.lotes import LoteError, procesar_tanda
+
+    def handler(conn, session_id):
+        base = current_app.config['UPLOAD_FOLDER']
+        try:
+            r = procesar_tanda(conn, base, session_id, lote_id)
+        except LoteError as e:
+            return jsonify({'error': str(e)}), 404
+        if r['done']:
+            _snapshot_telemetria(conn, session_id)
+        return jsonify({'status': 'ok', **r})
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/ingestar/lote/<lote_id>', methods=['DELETE'])
+def api_autogenes_descartar_lote(lote_id):
+    """Tira el staging de un lote (cancelación/limpieza). Lo ya ingerido
+    permanece en el sustrato; solo se descarta lo que faltaba por procesar."""
+    from flask import current_app
+
+    from autogenes.lotes import LoteError, descartar
+
+    def handler(conn, session_id):
+        base = current_app.config['UPLOAD_FOLDER']
+        try:
+            descartar(base, session_id, lote_id)
+        except LoteError as e:
+            return jsonify({'error': str(e)}), 400
         return jsonify({'status': 'ok'})
     try:
         return _con_sesion(handler)

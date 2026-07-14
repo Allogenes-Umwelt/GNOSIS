@@ -187,6 +187,37 @@
       return fetch('/api/v1/autogenes/telemetria/snapshot', { method: 'POST' })
         .catch(function () {});
     }
+    // Un ZIP grande no se procesa en un request (tumbaría al worker): se
+    // expande a staging y se ingiere en TANDAS acotadas por tiempo. Resuelve
+    // con el progreso final del lote; cancelar descarta lo que faltaba.
+    function subirZip(archivo, onProgreso) {
+      var fd = new FormData();
+      fd.append('documento', archivo);
+      return fetch('/api/v1/autogenes/ingestar/zip', { method: 'POST', body: fd })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.j.lote_id) { return { errores: 1, ingeridos: 0, duplicados: 0 }; }
+          var loteId = res.j.lote_id;
+          var url = '/api/v1/autogenes/ingestar/lote/' + encodeURIComponent(loteId);
+          return new Promise(function (resolve) {
+            (function tanda() {
+              if (cancelado) {
+                fetch(url, { method: 'DELETE' }).catch(function () {});
+                resolve({ cancelado: true, ingeridos: 0, duplicados: 0, errores: 0 });
+                return;
+              }
+              fetch(url, { method: 'POST' })
+                .then(function (r) { return r.json(); })
+                .then(function (p) {
+                  if (p.error) { resolve({ errores: 1, ingeridos: 0, duplicados: 0 }); return; }
+                  if (onProgreso) onProgreso(p);
+                  if (p.done) { resolve(p); } else { tanda(); }
+                })
+                .catch(function () { resolve({ errores: 1, ingeridos: 0, duplicados: 0 }); });
+            })();
+          });
+        });
+    }
     // Cola secuencial: varios PDFs (o una carpeta soltada) entran uno por
     // uno para no saturar el servidor ni perder el orden de dockeo. El
     // operador puede cancelar: se detiene en el siguiente archivo (el que ya
@@ -208,7 +239,9 @@
       enCola = true; cancelado = false;
       var ok = 0, err = 0, dup = 0, total = aceptados.length;
       var enLote = total > 1;   // un archivo suelto conserva su snapshot inmediato
-      if (enLote && cancelarBtn) cancelarBtn.hidden = false;
+      var hayZip = aceptados.some(function (a) { return /\.zip$/i.test(a.name || ''); });
+      // Cancelar disponible en cualquier carga larga: varios archivos o un ZIP.
+      if ((enLote || hayZip) && cancelarBtn) cancelarBtn.hidden = false;
       function resumen(hechos) {
         return hechos + '/' + total + ' · ' + ok + ' dockeado(s)' +
                (dup ? ' · ' + dup + ' duplicado(s)' : '') +
@@ -230,11 +263,25 @@
       (function siguiente(i) {
         if (cancelado) { terminar(i, true); return; }
         if (i >= total) { terminar(total, false); return; }
+        var archivo = aceptados[i];
+        var etiqueta = archivo.name.slice(0, 24);
+        if (/\.zip$/i.test(archivo.name || '')) {
+          // ZIP: expandir + goteo, con su propio progreso interno
+          aviso('Expandiendo ' + (i + 1) + '/' + total + ' · ' + etiqueta + '…');
+          subirZip(archivo, function (p) {
+            aviso('ZIP ' + etiqueta + ' · ' + (p.ingeridos || 0) + '/' + (p.total || '?') +
+                  ' dockeado(s)' + (p.duplicados ? ' · ' + p.duplicados + ' dup' : '') +
+                  (p.errores ? ' · ' + p.errores + ' err' : '') + '…');
+          }).then(function (p) {
+            ok += (p.ingeridos || 0); dup += (p.duplicados || 0); err += (p.errores || 0);
+            siguiente(i + 1);
+          }).catch(function () { err++; siguiente(i + 1); });
+          return;
+        }
         aviso('Ingiriendo ' + (i + 1) + '/' + total + ' · ' +
-              aceptados[i].name.slice(0, 24) + '… (' + resumen(i) + ')');
-        subirUno(aceptados[i], enLote).then(function (res) {
-          // un ZIP devuelve un resumen de lote; un archivo suelto, uno solo
-          if (res.ok) { ok += (res.j.lote ? res.j.ingeridos : 1); dup += (res.j.duplicados || 0); }
+              etiqueta + '… (' + resumen(i) + ')');
+        subirUno(archivo, enLote).then(function (res) {
+          if (res.ok) { ok += 1; dup += (res.j.duplicados || 0); }
           else if (res.j && res.j.duplicado) { dup++; }
           else { err++; }
           siguiente(i + 1);

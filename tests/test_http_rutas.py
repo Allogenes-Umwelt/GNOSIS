@@ -102,6 +102,7 @@ SOLO_POST = [
     "/api/v1/autogenes/sintetizar",
     "/api/v1/autogenes/integrar", "/api/v1/autogenes/nomos/regla",
     "/api/v1/autogenes/relacion", "/api/v1/autogenes/telemetria/snapshot",
+    "/api/v1/autogenes/ingestar/zip",
 ]
 
 
@@ -153,6 +154,41 @@ def test_ingesta_suelta_conserva_snapshot_inmediato(cliente, monkeypatch):
                      content_type="multipart/form-data")
     assert r.status_code == 200
     assert len(llamadas) == 1
+
+
+def test_zip_por_goteo_extremo_a_extremo(cliente):
+    """Subir un ZIP no lo procesa en el request: registra un lote (staging) y
+    el cliente lo drena en tandas hasta done. Ningún request ingiere todo el
+    ZIP — así no se tumba el worker con miles de facturas."""
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("uno.txt", b"documento http de goteo uno")
+        z.writestr("dos.txt", b"documento http de goteo dos")
+    buf.seek(0)
+
+    r = cliente.post("/api/v1/autogenes/ingestar/zip",
+                     data={"documento": (buf, "facturas.zip")},
+                     content_type="multipart/form-data")
+    assert r.status_code == 200
+    j = r.get_json()
+    assert j["total"] == 2 and j["lote_id"] and j["done"] is False
+
+    p = None
+    for _ in range(10):
+        p = cliente.post("/api/v1/autogenes/ingestar/lote/" + j["lote_id"]).get_json()
+        if p["done"]:
+            break
+    assert p["done"] and p["ingeridos"] == 2 and p["pendientes"] == 0
+
+
+def test_zip_no_zip_al_endpoint_de_goteo_es_400(cliente):
+    r = cliente.post("/api/v1/autogenes/ingestar/zip",
+                     data={"documento": (__import__("io").BytesIO(b"x"), "a.txt")},
+                     content_type="multipart/form-data")
+    assert r.status_code == 400
 
 
 # ── Contrato de errores endurecido ───────────────────────────────────
