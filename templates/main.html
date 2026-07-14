@@ -1496,7 +1496,7 @@ function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[
   let paises=[...ps],marcas=[...ms]; const pt2=p=>marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0), mt=m=>paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0);
   paises=paises.sort((a,b)=>pt2(b)-pt2(a)).slice(0,5); marcas=marcas.sort((a,b)=>mt(b)-mt(a)).slice(0,5);
   const mCol={}; marcas.forEach((m,i)=>mCol[m]=MCOL[i%5]);
-  const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-46, 330), rin=R-10, seg=[]; let tot=0;   // radio capado: en ventanas grandes el círculo no crece hasta invadir
+  const cx=W/2, cy=H/2, R=Math.min(Math.min(W,H)/2-46, 330), rin=R-3, seg=[]; let tot=0;   // radio capado: en ventanas grandes el círculo no crece hasta invadir; rin pegado al borde interior del arco (lw 6) para que la cinta nazca del bloque, sin hueco
   paises.forEach(p=>{const val=marcas.reduce((a,m)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:p,type:'p',val}); tot+=val;});
   marcas.forEach(m=>{const val=paises.reduce((a,p)=>a+((M[p]&&M[p][m])||0),0); seg.push({name:m,type:'m',val}); tot+=val;});
   if(tot<=0){ gnd(s); return; } const gap=0.045, scale=(2*Math.PI-gap*seg.length)/tot; let a=-Math.PI/2; const pos={}; x.textBaseline='middle'; const drawnLbls=[];
@@ -1515,10 +1515,15 @@ function vizChord(el){ const s=gc(el); if(!s)return; const {x,W,H}=s; el._hits=[
   const P=(ang,r)=>[cx+Math.cos(ang)*r,cy+Math.sin(ang)*r];
   if(GNT.chRibbons) paises.forEach(p=>marcas.forEach(m=>{ const w=(M[p]&&M[p][m])||0; if(w<=0)return; const span=w*scale, pa=pos[p].cur; pos[p].cur+=span; const ma=pos[m].cur; pos[m].cur+=span;
     if(chSel.size && !(chSel.has('p|'+p)||chSel.has('m|'+m))) return;   // aislar: solo cintas de los arcos seleccionados
-    const [x1,y1]=P(pa,rin),[x2,y2]=P(pa+span,rin),[x3,y3]=P(ma,rin),[x4,y4]=P(ma+span,rin);
-    // rieles PARALELOS (país→marca por ambos bordes): antes cruzaba
-    // pa→ma+span y ma→pa+span, lo que retorcía la cinta en forma de moño.
-    x.beginPath(); x.moveTo(x1,y1); x.quadraticCurveTo(cx,cy,x3,y3); x.lineTo(x4,y4); x.quadraticCurveTo(cx,cy,x2,y2); x.closePath(); x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
+    // La cinta HUGGEA el anillo en ambas bases (arco al radio rin, como el
+    // chord de ingesta). El borde recto (lineTo) colapsaba los arcos anchos
+    // —Volkswagen, España— en cuñas triangulares que casi tocaban el centro:
+    // dos arcos-base + dos curvas al centro dan una cinta que nace del bloque.
+    const [px0,py0]=P(pa,rin),[qx,qy]=P(ma+span,rin);
+    x.beginPath(); x.moveTo(px0,py0); x.arc(cx,cy,rin,pa,pa+span);
+    x.quadraticCurveTo(cx,cy,qx,qy); x.arc(cx,cy,rin,ma+span,ma,true);
+    x.quadraticCurveTo(cx,cy,px0,py0); x.closePath();
+    x.globalAlpha=chSel.size?.5:.32; x.fillStyle=mCol[m]; x.fill(); x.globalAlpha=1; }));
   x.textAlign='left'; x.textBaseline='alphabetic';
   if(W>360){ x.textAlign='center'; x.font='10px "JetBrains Mono",monospace'; x.fillStyle='rgba('+GTXT+',.5)';
     x.fillText(chSel.size? (chSel.size+' AISLADO'+(chSel.size!=1?'S':'')+' · CLIC EN VACÍO = LIMPIAR') : 'CLIC EN UN ARCO PARA AISLAR SUS CINTAS', cx, H-6); x.textAlign='left'; }
