@@ -88,6 +88,37 @@ def sanear_propuesta(cruda: dict, ids_reales: set[str]) -> PropuestaGrafo:
     return PropuestaGrafo(entidades=entidades, relaciones=relaciones)
 
 
+def _parece_tabular(muestra: str) -> bool:
+    """Heurística determinista: ¿la muestra es una tabla/dump de datos y no
+    prosa? Un dataset (filas de VIN, cifras, códigos, celdas separadas por
+    tabulador) no tiene entidades narrativas que citar — el extractor
+    documental no debe forzarlas. Alta densidad de dígitos o muchas
+    tabulaciones por línea delatan la tabla."""
+    if not muestra:
+        return False
+    no_espacio = sum(1 for c in muestra if not c.isspace()) or 1
+    densidad_digitos = sum(c.isdigit() for c in muestra) / no_espacio
+    lineas = muestra.count("\n") + 1
+    return densidad_digitos > 0.30 or muestra.count("\t") > lineas
+
+
+def _diagnostico_sin_entidades(kind: str, n_fragmentos: int,
+                               muestra: str) -> dict[str, Any]:
+    """Por qué una fuente no propuso entidades — honesto, sin fabricar nada.
+    Distingue el dataset tabular (esperado: no es un documento) del documento
+    que simplemente no rindió citas en lo leído."""
+    tabular = kind == "estructurado" or _parece_tabular(muestra)
+    if tabular:
+        return {"tabular": True, "motivo": (
+            "Fuente tabular: filas de datos (códigos, cifras) sin entidades "
+            "narrativas que citar. El extractor busca organizaciones, personas, "
+            "lugares y documentos en prosa; un dataset es insumo del pipeline, "
+            "no del extractor de documentos.")}
+    return {"tabular": False, "motivo": (
+        f"El modelo no encontró entidades citables en los {n_fragmentos} "
+        "fragmentos leídos.")}
+
+
 def _bloque_fragmentos(fragmentos: list[sqlite3.Row]) -> tuple[str, set[str]]:
     lineas, ids = [], set()
     for f in fragmentos[:MAX_FRAGMENTOS]:
@@ -121,6 +152,10 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
     ).fetchall()
     if not fragmentos:
         return {"error": "El artefacto no tiene fragmentos que leer"}
+    art = conn.execute(
+        "SELECT kind FROM ag_artefactos WHERE session_id = ? AND id = ?",
+        (session_id, artefacto_id)).fetchone()
+    kind = art["kind"] if art else ""
     bloque, ids_reales = _bloque_fragmentos(fragmentos)
     config = config or {}
 
@@ -179,7 +214,7 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         for a in json.loads(r["alias"] or "[]"):
             existentes.add(_norm(a))
 
-    return {
+    resultado = {
         "artefacto_id": artefacto_id,
         "quorum": quorum,
         "entidades": [
@@ -190,3 +225,10 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         "relaciones": [r.model_dump() for r in propuesta.relaciones],
         "fragmentos_leidos": len(ids_reales),
     }
+    # Cero entidades no es un fallo silencioso: se declara POR QUÉ. Una fuente
+    # tabular (dataset) no tiene entidades narrativas — decirlo evita que el
+    # operador lo lea como «roto».
+    if not resultado["entidades"]:
+        resultado["diagnostico"] = _diagnostico_sin_entidades(
+            kind, len(ids_reales), bloque)
+    return resultado

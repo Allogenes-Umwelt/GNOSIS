@@ -92,6 +92,62 @@ def test_extraccion_de_artefacto_sanea_y_propone(conn, monkeypatch):
     assert r["entidades"][0]["acuerdo"] is None
 
 
+def test_fuente_tabular_declara_por_que_no_hay_entidades(conn, monkeypatch):
+    """Un dataset (xls/csv → kind 'estructurado', o un txt de puras filas) no
+    tiene entidades narrativas: cero entidades NO es un fallo silencioso, se
+    devuelve un diagnóstico que lo declara para no leerse como «roto»."""
+    from autogenes.ingesta import ingestar_tabla
+    import io
+
+    import pandas as pd
+    buf = io.BytesIO()
+    pd.DataFrame([["VOLKSWAGEN", "8703229900", "DEU", "10000", "26000"]] * 5).to_excel(
+        buf, index=False, header=False)
+    r_ing = ingestar_tabla(conn, 1, "divisiones.xlsx", buf.getvalue())
+    art_id = r_ing["artefacto_id"]
+
+    import jarvis.llm_interface as li
+    # el modelo, honesto, no encuentra entidades citables en la tabla
+    monkeypatch.setattr(li, "seleccionar_proveedor",
+                        lambda cfg=None: ("fake", ProveedorGuionado('{"entidades": [], "relaciones": []}')))
+    r = extraer_de_artefacto(conn, 1, art_id)
+    assert r["entidades"] == []
+    assert r["diagnostico"]["tabular"] is True
+    assert "tabular" in r["diagnostico"]["motivo"].lower()
+    # doble corrida determinista del diagnóstico
+    assert extraer_de_artefacto(conn, 1, art_id)["diagnostico"] == r["diagnostico"]
+
+
+def test_documento_sin_entidades_no_se_marca_tabular(conn, monkeypatch):
+    """Un documento en prosa que no rindió citas se distingue del dataset:
+    su diagnóstico NO es tabular (para no mentir sobre su naturaleza)."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "decreto.pdf")
+    s.agregar_fragmentos(art.id, [(1, "La Secretaria resuelve publicar el acuerdo "
+                                      "en el Diario Oficial conforme a derecho.")])
+    import jarvis.llm_interface as li
+    monkeypatch.setattr(li, "seleccionar_proveedor",
+                        lambda cfg=None: ("fake", ProveedorGuionado('{"entidades": [], "relaciones": []}')))
+    r = extraer_de_artefacto(conn, 1, art.id)
+    assert r["entidades"] == []
+    assert r["diagnostico"]["tabular"] is False
+
+
+def test_extraccion_con_entidades_no_trae_diagnostico(conn, monkeypatch):
+    """El diagnóstico solo aparece cuando hay CERO entidades — no contamina
+    una extracción exitosa."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "c.pdf")
+    fr = s.agregar_fragmentos(art.id, [(1, "La Agencia opera en Veracruz.")])
+    guion = ('{"entidades": [{"nombre": "Agencia", "tipo": "organizacion",'
+             f' "evidencia": ["{fr[0].id}"]}}], "relaciones": []}}')
+    import jarvis.llm_interface as li
+    monkeypatch.setattr(li, "seleccionar_proveedor",
+                        lambda cfg=None: ("fake", ProveedorGuionado(guion)))
+    r = extraer_de_artefacto(conn, 1, art.id)
+    assert r["entidades"] and "diagnostico" not in r
+
+
 def test_merge_preview_marca_ya_existe(conn, monkeypatch):
     """C6: una entidad propuesta que ya existe (por nombre normalizado) se
     marca nueva=False — integrarla suma evidencia, no crea nodo."""

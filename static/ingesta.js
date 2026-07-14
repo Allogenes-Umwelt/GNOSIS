@@ -377,6 +377,19 @@
           extraccionEnVuelo = false;
           if (!res.ok) { aviso(res.j.error || 'Falló la extracción', 'error'); return; }
           propuestaActual = res.j;
+          // Cero entidades con motivo declarado: no es un panel en blanco, se
+          // explica (p.ej. una fuente tabular no tiene entidades narrativas).
+          if (!res.j.entidades.length) {
+            var diag = res.j.diagnostico || {};
+            aviso('0 entidades — ' + (diag.tabular ? 'fuente tabular' :
+              'sin entidades citables'), '');
+            propCont.innerHTML = '<div class="gr-kind">' +
+              (diag.tabular ? 'FUENTE TABULAR' : 'SIN ENTIDADES') + '</div>' +
+              '<p class="gr-vacio" style="margin-top:8px">' +
+              esc(diag.motivo || 'El modelo no propuso entidades citables.') + '</p>';
+            propTitulo.hidden = true; integrarBtn.hidden = true;
+            return;
+          }
           aviso(res.j.entidades.length + ' entidades · ' +
                 res.j.relaciones.length + ' relaciones · ' +
                 (res.j.quorum ? 'QUÓRUM ✓' : 'un modelo'), 'ok');
