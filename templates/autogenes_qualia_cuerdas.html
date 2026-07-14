@@ -17,6 +17,7 @@
         <span class="qa-desig">
           <span class="cod">QLA-06 · AUTOGENES F7</span>
           <span class="nom">◆ Qualia · Cuerdas del caso</span>
+          <span class="qa-pregunta">¿Qué concentra los vínculos, y entre qué comunidades?</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia/maquina">máquina</a>
@@ -31,8 +32,8 @@
       </div>
       <div class="qa-lienzo" id="qd-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>◜</b> tick — frontera entre comunidades del anillo</li>
-        <li><b>⌒</b> cuerda — grosor = peso del vínculo · toca el anillo para aislar</li>
+        <li><b>◜</b> arco — una comunidad del caso; su grosor, cuántos concentra</li>
+        <li><b>⌒</b> cuerda — grosor y brillo = peso del vínculo · toca el anillo para aislar</li>
         <li><span id="qd-info" role="status">CARGANDO EL ANILLO…</span></li>
       </ul>
     </section>
@@ -50,6 +51,12 @@
       </div>
       <div class="qa-sec">Comunidades</div>
       <div class="qa-lista" id="qd-comunidades"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Orden por comunidad (propagación de etiquetas determinista); el grosor
+        de cada cinta es el peso del vínculo; el del arco, cuántos concentra la
+        comunidad; la pluma de cada nodo, su peso. La misma sesión abre idéntica.</p>
+      </details>
       <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
     </aside>
   </div>
@@ -57,6 +64,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia_cuerdas.js') }}"></script>
 <script>
 (function () {

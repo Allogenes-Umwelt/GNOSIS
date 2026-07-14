@@ -1,15 +1,17 @@
-/* GNOSIS · Qualia — Cuerdas (F7d, port de LienzoCuerdas).
-   Los nodos sobre un anillo en ORDEN DE COMUNIDAD (el mismo orden que
-   computa el motor: comunidades contiguas, ticks en las fronteras de
-   sector) y cada vínculo como cuerda cuadrática arqueada al centro,
-   grosor ∝ peso. Tocar el anillo aísla las cuerdas de un concepto; el
-   resto se atenúa a tinta fantasma. Navegable (arrastre + rueda) para
-   leer un anillo denso en vez de verlo colapsar en borrón. Estático:
-   nada que congelar. Trazos con la variante AAA por modo.
-   Datos: /api/v1/autogenes/qualia/red (incluye el orden del motor). */
+/* GNOSIS · Qualia — Cuerdas del caso (Q3: cintas de aurora).
+   Los conceptos sobre un anillo en ORDEN DE COMUNIDAD (el mismo del
+   motor: comunidades contiguas). Cada comunidad es un arco luminoso cuyo
+   grosor dice cuántos concentra; cada vínculo es una CINTA arqueada que
+   deja el ojo abierto, con ancho y brillo por peso y bloom en las
+   fuertes — flujo, no maraña. Cada nodo emite una pluma radial por su
+   peso (crown emplumado). Tocar el anillo aísla las cuerdas de un
+   concepto; el resto se atenúa. Navegable (arrastre + rueda). Estático:
+   nada que congelar. Trazos con la variante AAA por modo; cian = vivo,
+   magenta reservado al Terreno. Datos: /api/v1/autogenes/qualia/red. */
 (function () {
   'use strict';
 
+  var Q = window.QualiaComun;
   var R = 400;   // radio del anillo en unidades de mundo
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -17,107 +19,52 @@
     var canvas = cont && cont.querySelector('canvas');
     if (!canvas) return;
     var ctx = canvas.getContext('2d');
+    canvas.setAttribute('role', 'img');
 
     var elInfo = document.getElementById('qd-info');
     var elDetalle = document.getElementById('qd-detalle');
     var elComs = document.getElementById('qd-comunidades');
 
-    var colores = {};
+    var C = {};
     var datos = null;
     var seleccionado = null;
+    var hover = null;
     var vista = { x: 0, y: 0, k: 1 };
     var centro = { x: 0, y: 0 };
+    var etiquetaDe = {};
 
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    function tang(a) { return [-Math.sin(a), Math.cos(a)]; }
+
+    function sectores() {                       // corridas de comunidad
+      var s = [], prev = null;
+      datos.orden.forEach(function (id, i) {
+        var c = datos.comunidad[id];
+        if (c !== prev) { s.push({ c: c, i0: i, i1: i, hub: id, n: 1 }); prev = c; }
+        else { var u = s[s.length - 1]; u.i1 = i; u.n++; }
       });
-    }
-    function alfa(hex, a) {
-      var h = hex.replace('#', '');
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
-             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
-    }
-    function leerColores() {
-      var cs = getComputedStyle(document.documentElement);
-      colores = {
-        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
-        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t3: cs.getPropertyValue('--t3').trim() || '#AAA',
-        fondo: cs.getPropertyValue('--surface').trim() || '#0A0A0A'
-      };
-    }
-    function tamano() {
-      var caja = canvas.parentElement.getBoundingClientRect();
-      var dpr = window.devicePixelRatio || 1;
-      canvas.width = caja.width * dpr;
-      canvas.height = Math.max(420, caja.height) * dpr;
-      canvas.style.height = Math.max(420, caja.height) + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return s;
     }
 
     function dibujar() {
       if (!datos) return;
-      tamano();
-      var w = canvas.clientWidth, h = canvas.clientHeight;
+      var d = Q.medir(canvas, ctx, 420);
+      var w = d.w, h = d.h;
       var orden = datos.orden, n = orden.length;
       ctx.clearRect(0, 0, w, h);
       if (n === 0) return;
-
-      var m = 60;
+      var m = 96;
       var k = 0.92 * Math.min((w - 2 * m) / (2 * R), (h - 2 * m) / (2 * R)) * vista.k;
-      function P(x, y) {
-        return [w / 2 + x * k + vista.x, h / 2 + y * k + vista.y];
-      }
-      var c0 = P(0, 0);
-      centro = { x: c0[0], y: c0[1] };
+      function P(x, y) { return [w / 2 + x * k + vista.x, h / 2 + y * k + vista.y]; }
+      var c0 = P(0, 0); centro = { x: c0[0], y: c0[1] };
+      var cx = centro.x, cy = centro.y;
 
       var scr = {}, ang = {};
       orden.forEach(function (id, i) {
         var a = (i / n) * 6.283 - Math.PI / 2;
-        ang[id] = a;
-        scr[id] = P(Math.cos(a) * R, Math.sin(a) * R);
+        ang[id] = a; scr[id] = P(Math.cos(a) * R, Math.sin(a) * R);
       });
 
-      // ticks en las fronteras de sector (comunidades contiguas)
-      var previa;
-      orden.forEach(function (id, i) {
-        var c = datos.comunidad[id];
-        if (c !== previa) {
-          var a = (i / n) * 6.283 - Math.PI / 2 - Math.PI / n;
-          var p0 = P(Math.cos(a) * R * 1.04, Math.sin(a) * R * 1.04);
-          var p1 = P(Math.cos(a) * R * 1.12, Math.sin(a) * R * 1.12);
-          ctx.beginPath();
-          ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
-          ctx.strokeStyle = alfa(colores.linea, 0.5);
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          previa = c;
-        }
-      });
-
-      // cuerdas: arqueadas al centro; con selección, el resto se apaga
-      datos.red.enlaces.forEach(function (e) {
-        var A = scr[e.origen], B = scr[e.destino];
-        if (!A || !B) return;
-        var toca = seleccionado !== null &&
-          (e.origen === seleccionado || e.destino === seleccionado);
-        var color = colores.t3, av = 0.14;
-        if (seleccionado !== null) {
-          color = toca ? colores.acc : colores.linea;
-          av = toca ? 0.52 : 0.04;
-        }
-        ctx.beginPath();
-        ctx.moveTo(A[0], A[1]);
-        ctx.quadraticCurveTo(centro.x, centro.y, B[0], B[1]);
-        ctx.strokeStyle = alfa(color, av);
-        ctx.lineWidth = 0.6 + Math.min(e.peso || 0.5, 6) * 0.3;
-        ctx.stroke();
-      });
-
-      // nodos del anillo
+      // vecinos del seleccionado (para atenuar el resto)
       var vecinos = {};
       if (seleccionado) {
         datos.red.enlaces.forEach(function (e) {
@@ -125,45 +72,99 @@
           if (e.destino === seleccionado) vecinos[e.origen] = true;
         });
       }
-      orden.forEach(function (id) {
-        var s = scr[id];
-        var esSel = id === seleccionado;
-        var esVec = vecinos[id];
-        var activo = seleccionado === null || esSel || esVec;
+
+      // arcos de comunidad: bandas luminosas, grosor por tamaño
+      var secs = sectores();
+      var maxN = Math.max.apply(null, secs.map(function (s) { return s.n; }));
+      var Rp = R * 1.05;
+      secs.forEach(function (s) {
+        var a0 = (s.i0 / n) * 6.283 - Math.PI / 2 - Math.PI / n * 0.6;
+        var a1 = (s.i1 / n) * 6.283 - Math.PI / 2 + Math.PI / n * 0.6;
+        var selEnSec = seleccionado && datos.comunidad[seleccionado] === s.c;
+        var inten = (seleccionado && !selEnSec ? 0.14 : 0.42) + 0.5 * (s.n / maxN) * (selEnSec ? 1 : 0.8);
         ctx.beginPath();
-        ctx.arc(s[0], s[1], esSel ? 4.6 : 2.8, 0, 6.283);
-        ctx.fillStyle = alfa(esSel || esVec ? colores.acc : colores.t3,
-                             activo ? 0.92 : 0.2);
-        ctx.fill();
+        for (var t = 0; t <= 24; t++) {
+          var aa = a0 + (a1 - a0) * t / 24;
+          var pp = P(Math.cos(aa) * Rp, Math.sin(aa) * Rp);
+          if (t === 0) ctx.moveTo(pp[0], pp[1]); else ctx.lineTo(pp[0], pp[1]);
+        }
+        ctx.strokeStyle = Q.alfa(C.acc, inten);
+        ctx.shadowColor = C.acc; ctx.shadowBlur = 12;
+        ctx.lineWidth = (5 + 6 * (s.n / maxN)); ctx.lineCap = 'butt'; ctx.stroke();
+        ctx.shadowBlur = 0;
+        // etiqueta de comunidad (el hub del sector): solo comunidades con
+        // cuerpo (≥3) o la seleccionada — las diminutas viven en el panel,
+        // así el anillo no se satura de rótulos encimados.
+        if (s.n >= 3 || selEnSec) {
+          var am = (a0 + a1) / 2, ep = P(Math.cos(am) * R * 1.16, Math.sin(am) * R * 1.16);
+          ctx.font = '700 11px "JetBrains Mono", monospace';
+          ctx.textBaseline = 'middle'; ctx.textAlign = Math.cos(am) >= 0 ? 'left' : 'right';
+          var et = (etiquetaDe[s.hub] || '').slice(0, 22);
+          ctx.lineWidth = 3; ctx.strokeStyle = C.fondo; ctx.strokeText(et, ep[0], ep[1]);
+          ctx.fillStyle = Q.alfa(C.acc, seleccionado && !selEnSec ? 0.4 : 0.95);
+          ctx.fillText(et, ep[0], ep[1]);
+        }
       });
 
-      // etiqueta del seleccionado, con halo, hacia afuera del anillo
-      if (seleccionado && scr[seleccionado]) {
-        var a2 = ang[seleccionado];
-        var s2 = scr[seleccionado];
-        var nodo = datos.red.nodos.find(function (x) { return x.id === seleccionado; });
-        if (nodo) {
-          ctx.font = '700 11px "JetBrains Mono", monospace';
-          ctx.textBaseline = 'middle';
-          ctx.textAlign = Math.cos(a2) >= 0 ? 'left' : 'right';
-          var off = Math.cos(a2) >= 0 ? 8 : -8;
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = colores.fondo;
-          ctx.strokeText(nodo.etiqueta.slice(0, 30), s2[0] + off, s2[1]);
-          ctx.fillStyle = colores.acc;
-          ctx.fillText(nodo.etiqueta.slice(0, 30), s2[0] + off, s2[1]);
+      // cintas de aurora: débiles→fuertes; con selección, el resto fantasma
+      datos.red.enlaces.slice().sort(function (a, b) {
+        return (a.peso || 0.5) - (b.peso || 0.5);
+      }).forEach(function (e) {
+        var A = scr[e.origen], B = scr[e.destino]; if (!A || !B) return;
+        var toca = seleccionado !== null && (e.origen === seleccionado || e.destino === seleccionado);
+        var atenuar = seleccionado !== null && !toca;
+        var pw = Math.max(0, Math.min(1, e.peso || 0.5));
+        var hwA = 1 + pw * 5, hwB = 1 + pw * 5;
+        var tA = tang(ang[e.origen]), tB = tang(ang[e.destino]);
+        var A1 = [A[0] + tA[0] * hwA, A[1] + tA[1] * hwA], A2 = [A[0] - tA[0] * hwA, A[1] - tA[1] * hwA];
+        var B1 = [B[0] + tB[0] * hwB, B[1] + tB[1] * hwB], B2 = [B[0] - tB[0] * hwB, B[1] - tB[1] * hwB];
+        var mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+        var kx = mx + (cx - mx) * 0.78, ky = my + (cy - my) * 0.78;
+        ctx.beginPath();
+        ctx.moveTo(A1[0], A1[1]); ctx.quadraticCurveTo(kx, ky, B1[0], B1[1]);
+        ctx.lineTo(B2[0], B2[1]); ctx.quadraticCurveTo(kx, ky, A2[0], A2[1]); ctx.closePath();
+        if (atenuar) {
+          ctx.fillStyle = Q.alfa(C.linea, 0.05);
+        } else {
+          var g = ctx.createLinearGradient(A[0], A[1], B[0], B[1]);
+          var base = toca ? 0.22 : 0.05, top = toca ? 0.5 : 0.30;
+          g.addColorStop(0, Q.alfa(C.acc, base + 0.14 * pw));
+          g.addColorStop(0.5, Q.alfa(C.acc, top * (0.5 + pw)));
+          g.addColorStop(1, Q.alfa(C.acc, base + 0.14 * pw));
+          ctx.fillStyle = g;
+          if (pw > 0.7 || toca) { ctx.shadowColor = C.acc; ctx.shadowBlur = 7; }
         }
+        ctx.fill(); ctx.shadowBlur = 0;
+      });
+
+      // nodos + plumas radiales finas
+      orden.forEach(function (id) {
+        var p = scr[id], a = ang[id], g = (datos.grado[id] || 0);
+        var esSel = id === seleccionado, esVec = vecinos[id];
+        var vivo = seleccionado === null || esSel || esVec;
+        var fl = 4 + Math.min(9, g * 1.6);
+        ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+        ctx.lineTo(p[0] + Math.cos(a) * fl, p[1] + Math.sin(a) * fl);
+        ctx.strokeStyle = Q.alfa(vivo ? C.acc : C.t3, vivo ? 0.5 : 0.15); ctx.lineWidth = 1; ctx.stroke();
+        ctx.beginPath(); ctx.arc(p[0], p[1], esSel ? 4.6 : 2.4 + Math.min(2.4, g * 0.4), 0, 6.283);
+        ctx.fillStyle = Q.alfa(esSel || esVec ? C.acc : C.t3, vivo ? 0.95 : 0.2);
+        if (vivo) { ctx.shadowColor = C.acc; ctx.shadowBlur = esSel ? 8 : 4; }
+        ctx.fill(); ctx.shadowBlur = 0;
+      });
+
+      // etiqueta del seleccionado o del hover
+      var marca = seleccionado || hover;
+      if (marca && scr[marca] && marca !== null) {
+        var a2 = ang[marca], s2 = scr[marca];
+        var txt = (etiquetaDe[marca] || marca).slice(0, 30);
+        ctx.font = '700 11px "JetBrains Mono", monospace';
+        ctx.textBaseline = 'middle'; ctx.textAlign = Math.cos(a2) >= 0 ? 'left' : 'right';
+        var off = Math.cos(a2) >= 0 ? 10 : -10;
+        ctx.lineWidth = 3; ctx.strokeStyle = C.fondo; ctx.strokeText(txt, s2[0] + off, s2[1]);
+        ctx.fillStyle = C.acc; ctx.fillText(txt, s2[0] + off, s2[1]);
       }
 
-      // brackets de esquina
-      ctx.globalAlpha = 0.6; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.2;
-      [[8, 8, 22, 8, 8, 22], [w - 8, 8, w - 22, 8, w - 8, 22],
-       [8, h - 8, 22, h - 8, 8, h - 22], [w - 8, h - 8, w - 22, h - 8, w - 8, h - 22]]
-        .forEach(function (c) {
-          ctx.beginPath(); ctx.moveTo(c[2], c[3]); ctx.lineTo(c[0], c[1]);
-          ctx.lineTo(c[4], c[5]); ctx.stroke();
-        });
-      ctx.globalAlpha = 1; ctx.lineWidth = 1;
+      Q.brackets(ctx, w, h, C.acc);
     }
 
     // ── ficha ────────────────────────────────────────────────────────
@@ -173,62 +174,48 @@
           'las cuerdas de un concepto; el resto se atenúa.</p>';
         return;
       }
-      var nodo = datos.red.nodos.find(function (x) { return x.id === seleccionado; });
       var nVec = datos.red.enlaces.reduce(function (acc, e) {
         return acc + (e.origen === seleccionado || e.destino === seleccionado ? 1 : 0);
       }, 0);
       elDetalle.innerHTML =
-        '<div class="gr-kind">COMUNIDAD ' + esc(datos.comunidad[seleccionado]) +
-        ' · GRADO ' + (datos.grado[seleccionado] || 0).toFixed(1) + '</div>' +
-        '<div class="gr-nombre">' + esc(nodo ? nodo.etiqueta : seleccionado) + '</div>' +
+        '<div class="gr-kind">COMUNIDAD ' + Q.esc(datos.comunidad[seleccionado]) +
+        ' · PESO ' + (datos.grado[seleccionado] || 0).toFixed(1) + '</div>' +
+        '<div class="gr-nombre">' + Q.esc(etiquetaDe[seleccionado] || seleccionado) + '</div>' +
         '<p class="qa-lectura"><b>' + nVec + '</b> cuerdas tocan este concepto.</p>';
     }
     function pintarComunidades() {
-      var tam = {};
-      datos.orden.forEach(function (id) {
-        var c = datos.comunidad[id];
-        tam[c] = (tam[c] || 0) + 1;
-      });
-      var etiquetaDe = {};
-      datos.red.nodos.forEach(function (nd) { etiquetaDe[nd.id] = nd.etiqueta; });
-      // el hub (primer id del sector en el orden) da nombre a la comunidad
-      var hubDe = {};
-      datos.orden.forEach(function (id) {
-        var c = datos.comunidad[id];
-        if (!(c in hubDe)) hubDe[c] = id;
-      });
+      var secs = sectores();
       var html = '';
-      Object.keys(tam).sort(function (a, b) { return tam[b] - tam[a]; })
-        .forEach(function (c) {
-          html += '<div class="qa-caja"><span title="' +
-            esc(etiquetaDe[hubDe[c]] || c) + '">' +
-            esc((etiquetaDe[hubDe[c]] || c).slice(0, 22)) + '</span><b>×' +
-            tam[c] + '</b></div>';
-        });
+      secs.slice().sort(function (a, b) { return b.n - a.n; }).forEach(function (s) {
+        html += '<div class="qa-caja"><span title="' + Q.esc(etiquetaDe[s.hub] || s.c) + '">' +
+          Q.esc((etiquetaDe[s.hub] || s.c).slice(0, 22)) + '</span><b>×' + s.n + '</b></div>';
+      });
       elComs.innerHTML = html;
     }
 
     function cargar() {
-      fetch('/api/v1/autogenes/qualia/red')
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j || j.error) {
-            elInfo.textContent = (j && j.error ? j.error : 'SIN DATOS').toUpperCase();
-            return;
-          }
-          datos = j;
-          elInfo.textContent = j.red.nodos.length + ' CONCEPTOS EN EL ANILLO · ' +
-            j.red.enlaces.length + ' CUERDAS · ORDEN POR COMUNIDAD';
-          pintarDetalle();
-          pintarComunidades();
-          dibujar();
-        })
-        .catch(function () {
-          elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
-        });
+      fetch('/api/v1/autogenes/qualia/red').then(function (r) { return r.json(); }).then(function (j) {
+        if (!j || j.error) { elInfo.textContent = (j && j.error ? j.error : 'SIN DATOS').toUpperCase(); return; }
+        datos = j;
+        etiquetaDe = {};
+        datos.red.nodos.forEach(function (nd) { etiquetaDe[nd.id] = nd.etiqueta; });
+        elInfo.textContent = j.red.nodos.length + ' CONCEPTOS EN EL ANILLO · ' +
+          j.red.enlaces.length + ' CUERDAS · ORDEN POR COMUNIDAD';
+        canvas.setAttribute('aria-label',
+          'Cuerdas del caso: ' + j.red.nodos.length + ' conceptos en un anillo por comunidad, ' +
+          j.red.enlaces.length + ' vínculos como cintas por peso. Las comunidades se listan a la derecha.');
+        pintarDetalle(); pintarComunidades(); dibujar();
+      }).catch(function () { elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
     }
 
-    // ── gestos: pan + rueda + tap sobre el anillo ────────────────────
+    function idEnAngulo(x, y) {
+      var a = Math.atan2(y - centro.y, x - centro.x) + Math.PI / 2;
+      a = ((a % 6.283) + 6.283) % 6.283;
+      var idx = Math.round((a / 6.283) * datos.orden.length) % datos.orden.length;
+      return datos.orden[idx];
+    }
+
+    // ── gestos: pan + rueda + tap sobre el anillo, hover de vista previa ─
     var arrastre = { activo: false, movido: false, x: 0, y: 0 };
     canvas.addEventListener('pointerdown', function (ev) {
       canvas.setPointerCapture(ev.pointerId);
@@ -236,29 +223,29 @@
       arrastre.x = ev.clientX; arrastre.y = ev.clientY;
     });
     canvas.addEventListener('pointermove', function (ev) {
-      if (!arrastre.activo) return;
-      var dx = ev.clientX - arrastre.x, dy = ev.clientY - arrastre.y;
-      if (Math.abs(dx) + Math.abs(dy) > 3) arrastre.movido = true;
-      if (arrastre.movido) {
-        vista.x += dx; vista.y += dy;
-        arrastre.x = ev.clientX; arrastre.y = ev.clientY;
-        dibujar();
+      var caja = canvas.getBoundingClientRect();
+      if (arrastre.activo) {
+        var dx = ev.clientX - arrastre.x, dy = ev.clientY - arrastre.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) arrastre.movido = true;
+        if (arrastre.movido) {
+          vista.x += dx; vista.y += dy; arrastre.x = ev.clientX; arrastre.y = ev.clientY; dibujar();
+        }
+        return;
       }
+      if (!datos || !datos.orden.length) return;
+      var id = idEnAngulo(ev.clientX - caja.left, ev.clientY - caja.top);
+      if (id !== hover) { hover = id; canvas.style.cursor = 'pointer'; dibujar(); }
     });
     canvas.addEventListener('pointerup', function (ev) {
       var fueTap = arrastre.activo && !arrastre.movido;
       arrastre.activo = false;
       if (!fueTap || !datos || !datos.orden.length) return;
       var caja = canvas.getBoundingClientRect();
-      var x = ev.clientX - caja.left, y = ev.clientY - caja.top;
-      var a = Math.atan2(y - centro.y, x - centro.x) + Math.PI / 2;
-      a = ((a % 6.283) + 6.283) % 6.283;
-      var idx = Math.round((a / 6.283) * datos.orden.length) % datos.orden.length;
-      var id = datos.orden[idx];
+      var id = idEnAngulo(ev.clientX - caja.left, ev.clientY - caja.top);
       seleccionado = id === seleccionado ? null : id;
-      pintarDetalle();
-      dibujar();
+      pintarDetalle(); dibujar();
     });
+    canvas.addEventListener('pointerleave', function () { if (hover !== null) { hover = null; dibujar(); } });
     canvas.addEventListener('pointercancel', function () { arrastre.activo = false; });
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
@@ -266,13 +253,9 @@
       dibujar();
     }, { passive: false });
 
-    leerColores();
-    tamano();
+    C = Q.leerColores();
     window.addEventListener('resize', dibujar);
-    var alternador = document.getElementById('theme-toggle');
-    if (alternador) alternador.addEventListener('click', function () {
-      setTimeout(function () { leerColores(); dibujar(); }, 60);
-    });
+    Q.alTema(function () { C = Q.leerColores(); dibujar(); });
     cargar();
   });
 })();
