@@ -415,6 +415,13 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .vn-tar-nw { font-size: .74rem; color: var(--t1); line-height: 1.35; margin-top: 4px; }
 .vn-tar-fte { font-family: var(--font-mono); font-size: .56rem; color: var(--t3);
   letter-spacing: .3px; margin-top: 6px; border-top: 1px solid var(--line-ghost); padding-top: 5px; }
+/* Vista vinculada: lleva la estructura de la tarjeta al lienzo (solo aparece
+   cuando el nodo existe en la proyección). */
+.vn-ver-lienzo { margin-top: 7px; font-family: var(--font-mono); font-size: .58rem;
+  letter-spacing: 1.4px; text-transform: uppercase; color: var(--acc-text);
+  background: transparent; border: 1px solid var(--acc-text); padding: 4px 9px;
+  cursor: pointer; }
+.vn-ver-lienzo:hover { background: var(--acc-subtle); }
 
 /* Minimapa (L1): panorámica anclada abajo-derecha del lienzo; clic salta la
    cámara. Chrome discreto por tokens; el rectángulo del viewport va en acento. */

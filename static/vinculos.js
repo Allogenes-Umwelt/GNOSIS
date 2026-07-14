@@ -168,6 +168,21 @@
     // Todo dato viene medido de /api/v1/autogenes/analisis; nada se estima.
     var analisisEl = document.getElementById('vn-analisis');
     var analisisTit = document.getElementById('vn-analisis-tit');
+    var marcaSel = document.getElementById('vn-marca');
+    var marcaActual = null, derivaActual = null, analisisActual = null;
+
+    // Resuelve un nodo del LIENZO por su clase y etiqueta (no por id: el id de
+    // marca en la proyección es numérico, distinto al de la red de flujo). Si
+    // el lienzo no proyecta ese nodo, devuelve null -> el botón no aparece
+    // (jamás resaltar "lo más parecido").
+    function resolverNodo(kind, etiqueta) {
+      if (!lienzo.grafoAPI || !lienzo.grafoAPI.nodos) return null;
+      var e = String(etiqueta == null ? '' : etiqueta).toLowerCase();
+      var hit = lienzo.grafoAPI.nodos().find(function (n) {
+        return n.kind === kind && String(n.etiqueta || '').toLowerCase() === e;
+      });
+      return hit ? hit.id : null;
+    }
 
     function pct(x) { return Math.round((x || 0) * 100) + '%'; }
     function feature(k) {
@@ -186,6 +201,8 @@
         '<div class="vn-tar-sw">' + esc(t.sw) + '</div>' +
         '<div class="vn-tar-nw">▸ ' + esc(t.nw) + '</div>' +
         '<div class="vn-tar-fte">' + esc(t.fte) + '</div>' +
+        (t.nodo ? '<button type="button" class="vn-ver-lienzo" data-nodo="' +
+          esc(t.nodo) + '">ver en lienzo</button>' : '') +
         '</div>';
     }
 
@@ -202,7 +219,8 @@
             : banda.indexOf('moderada') === 0 ? 'Concentración moderada de orígenes.'
             : 'Orígenes repartidos.',
           nw: 'Exposición a ' + o0.nombre + ': ' + o0.unidades + ' de ' + m.volumen + ' unidades.',
-          fte: m.volumen + ' unidades · HHI sobre ' + m.n_origenes + ' orígenes medidos'
+          fte: m.volumen + ' unidades · HHI sobre ' + m.n_origenes + ' orígenes medidos',
+          nodo: resolverNodo('pais', o0.nombre)
         }));
       }
       if (m.redundancia_rutas != null) {
@@ -255,7 +273,8 @@
             ? ' · comparten ' + s0.comparten.map(feature).join(', ') : ''),
           sw: 'La marca que más se comporta como ' + m.nombre + ' (origen, aduana, preferencia).',
           nw: 'Comparar contra ' + s0.marca + (otrasSim ? '. Otras: ' + otrasSim : '.'),
-          fte: 'coseno sobre features de origen/aduana/preferencia medidos'
+          fte: 'coseno sobre features de origen/aduana/preferencia medidos',
+          nodo: resolverNodo('marca', s0.marca)
         }));
       }
       var br = m.brecha_jn;
@@ -269,7 +288,8 @@
           sw: m.nombre + ' usa la preferencia arancelaria menos que marcas pares en esta ruta.',
           nw: 'Revisar por qué ' + m.nombre + ' no usa J en ' + g0.aduana +
             ' (' + g0.unidades_foco + ' unidades).',
-          fte: 'share medido en unidades sobre rutas idénticas · sin montos'
+          fte: 'share medido en unidades sobre rutas idénticas · sin montos',
+          nodo: resolverNodo('pais', g0.pais)
         }));
       }
       var der = m.deriva;
@@ -359,37 +379,71 @@
             ses.map(function (s) {
               return '<option value="' + s.id + '">' + esc(s.etiqueta) + ' (#' + s.id + ')</option>';
             }).join('');
-          sel.addEventListener('change', function () { cargarAnalisisVW(sel.value || null); });
+          sel.addEventListener('change', function () {
+            derivaActual = sel.value || null; cargarAnalisisVW();
+          });
         }).catch(function () { /* sin sustrato: el selector queda vacío */ });
     }
 
-    function cargarAnalisisVW(sidRef) {
+    function poblarMarcas(a) {
+      if (!marcaSel) return;
+      var marcas = a.marcas_disponibles || [];
+      var sel = marcaActual || (a.marca && a.marca.nombre) || '';
+      marcaSel.innerHTML = marcas.map(function (m) {
+        return '<option value="' + esc(m) + '"' + (m === sel ? ' selected' : '') +
+          '>' + esc(m) + '</option>';
+      }).join('');
+    }
+
+    function pintarAnalisis() {
+      var a = analisisActual;
+      if (!analisisEl || !a) return;
+      if (a.error) { analisisEl.innerHTML = '<p class="gr-vacio">' + esc(a.error) + '</p>'; return; }
+      if (!a.suficiente) {
+        analisisEl.innerHTML = '<p class="gr-vacio">' +
+          esc(a.motivo || 'Estructura insuficiente para el análisis.') + '</p>';
+        return;
+      }
+      if (analisisTit && a.marca && a.marca.nombre) {
+        // Con marca elegida por el operador NO se afirma 'mayor volumen'
+        // (solo aplica a la marca autoseleccionada por defecto).
+        var razon = marcaActual ? '' : (a.marca.es_defecto ? '' : ' · marca de mayor volumen');
+        analisisTit.textContent = a.marca.nombre + razon + ' · lectura de negocio';
+      }
+      poblarMarcas(a);
+      analisisEl.innerHTML = tarjetasDe(a) ||
+        '<p class="gr-vacio">Sin métricas para esta marca.</p>';
+      dibujarMapa(a.marca && a.marca.origenes);
+    }
+
+    function cargarAnalisisVW() {
       if (!analisisEl) return;
-      var url = '/api/v1/autogenes/analisis' +
-        (sidRef ? '?deriva=' + encodeURIComponent(sidRef) : '');
-      fetch(url)
+      var qs = [];
+      if (derivaActual) qs.push('deriva=' + encodeURIComponent(derivaActual));
+      if (marcaActual) qs.push('marca=' + encodeURIComponent(marcaActual));
+      fetch('/api/v1/autogenes/analisis' + (qs.length ? '?' + qs.join('&') : ''))
         .then(function (r) { return r.json(); })
-        .then(function (a) {
-          if (!a || a.error) {
-            analisisEl.innerHTML = '<p class="gr-vacio">' + esc(a && a.error || 'Sin análisis disponible.') + '</p>';
-            return;
-          }
-          if (!a.suficiente) {
-            analisisEl.innerHTML = '<p class="gr-vacio">' + esc(a.motivo || 'Estructura insuficiente para el análisis.') + '</p>';
-            return;
-          }
-          if (analisisTit && a.marca && a.marca.nombre) {
-            analisisTit.textContent = a.marca.nombre +
-              (a.marca.es_defecto ? '' : ' · marca de mayor volumen') + ' · lectura de negocio';
-          }
-          analisisEl.innerHTML = tarjetasDe(a) ||
-            '<p class="gr-vacio">Sin métricas para esta marca.</p>';
-          dibujarMapa(a.marca && a.marca.origenes);
-        })
+        .then(function (a) { analisisActual = a; pintarAnalisis(); })
         .catch(function () {
           analisisEl.innerHTML = '<p class="gr-vacio">Sin conexión con el sustrato.</p>';
         });
     }
+    if (marcaSel) marcaSel.addEventListener('change', function () {
+      marcaActual = marcaSel.value || null; cargarAnalisisVW();
+    });
+    // Clic en "ver en lienzo": resalta y enfoca el nodo (vistas vinculadas).
+    if (analisisEl) analisisEl.addEventListener('click', function (ev) {
+      var btn = ev.target.closest ? ev.target.closest('[data-nodo]') : null;
+      if (!btn || !lienzo.grafoAPI) return;
+      var id = btn.getAttribute('data-nodo');
+      lienzo.grafoAPI.resaltar([id], []);
+      if (lienzo.grafoAPI.enfocar) lienzo.grafoAPI.enfocar(id);
+    });
+    // El análisis y el lienzo cargan en paralelo: al montar el lienzo se
+    // re-pinta para que los botones "ver en lienzo" resuelvan sus nodos.
+    lienzo.addEventListener('grafo:listo', function () {
+      if (analisisActual) pintarAnalisis();
+    });
     cargarAnalisisVW();
     cargarSesiones();
 

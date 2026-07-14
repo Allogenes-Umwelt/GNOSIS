@@ -218,3 +218,9 @@ def test_hhi_reparto_parejo_es_bajo():
     r = analisis_vw.hhi([5, 5, 5, 5])
     assert r["hhi"] == pytest.approx(0.25)
     assert r["n"] == 4
+
+
+def test_marcas_disponibles_lista_las_del_flujo(conn):
+    """El panel ofrece cambiar de marca: la lista viene medida del flujo."""
+    a = analisis_vw.analisis(conn, 1)
+    assert a["marcas_disponibles"] == ["AUDI", "VOLKSWAGEN"]

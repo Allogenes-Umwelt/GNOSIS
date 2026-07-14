@@ -373,4 +373,6 @@ def analisis(conn: sqlite3.Connection, session_id: int,
         "n_comunidades": len(set(comunidad.values())),
         "brokers": brokers,
         "marca": marca_foco,
+        # marcas del flujo, para que la UI ofrezca cambiar el sujeto del panel
+        "marcas_disponibles": sorted({f["marca"] for f in filas if f.get("marca")}),
     }
