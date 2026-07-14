@@ -60,8 +60,9 @@ def ingestar_texto(conn: sqlite3.Connection, session_id: int,
         return {"error": "El documento no trae texto legible"}
     bloques = partir_texto(texto)
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("nota", nombre, hash=hash)
-    frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
+    with s.atomico():   # artefacto y fragmentos en un solo commit (o nada)
+        art = s.crear_artefacto("nota", nombre, hash=hash)
+        frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
@@ -130,8 +131,9 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
                          "(¿dañado, protegido, o falta Tesseract en el despliegue?)"}
     paginas.sort(key=lambda t: t[0])
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("pdf", nombre, paginas=len(paginas), hash=hash)
-    frags = s.agregar_fragmentos(art.id, paginas)
+    with s.atomico():   # artefacto y fragmentos en un solo commit (o nada)
+        art = s.crear_artefacto("pdf", nombre, paginas=len(paginas), hash=hash)
+        frags = s.agregar_fragmentos(art.id, paginas)
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
@@ -158,8 +160,9 @@ def ingestar_imagen(conn: sqlite3.Connection, session_id: int,
                          "(¿foto borrosa, muy chica, o sin texto?)"}
     bloques = partir_texto(texto)
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("imagen", nombre, hash=hash)
-    frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
+    with s.atomico():   # artefacto y fragmentos en un solo commit (o nada)
+        art = s.crear_artefacto("imagen", nombre, hash=hash)
+        frags = s.agregar_fragmentos(art.id, [(i + 1, b) for i, b in enumerate(bloques)])
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 
@@ -197,8 +200,9 @@ def ingestar_tabla(conn: sqlite3.Connection, session_id: int,
     if not fragmentos:
         return {"error": "La hoja de cálculo no trae filas legibles"}
     s = Sustrato(conn, session_id)
-    art = s.crear_artefacto("estructurado", nombre, hash=hash)
-    frags = s.agregar_fragmentos(art.id, fragmentos)
+    with s.atomico():   # artefacto y fragmentos en un solo commit (o nada)
+        art = s.crear_artefacto("estructurado", nombre, hash=hash)
+        frags = s.agregar_fragmentos(art.id, fragmentos)
     return {"artefacto_id": art.id, "nombre": art.nombre, "fragmentos": len(frags)}
 
 

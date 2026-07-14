@@ -22,6 +22,7 @@ import json
 import re
 import sqlite3
 import uuid
+from contextlib import contextmanager
 from typing import Any, Optional, Sequence
 
 from autogenes.tipos import (
@@ -70,6 +71,29 @@ class Sustrato:
         quede aplicada a medias."""
         if not self._lote:
             self.conn.commit()
+
+    @contextmanager
+    def atomico(self):
+        """Agrupa varias mutaciones en UN commit — o entran todas o ninguna.
+        Reusa el diferido de `_lote` (mismo mecanismo que integrar_propuesta)
+        para que, p.ej., un artefacto y sus fragmentos jamás queden a medias:
+        sin esto, morir entre ambos commits deja un artefacto con hash pero
+        sin fragmentos que el dedupe saltaría para siempre (evidencia muda)."""
+        if self._lote:
+            # ya dentro de un lote: no anidar transacciones ni commitear aquí
+            yield
+            return
+        if not self.conn.in_transaction:
+            self.conn.execute("BEGIN IMMEDIATE")
+        self._lote = True
+        try:
+            yield
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        finally:
+            self._lote = False
 
     # ── bitácora (append-only; never rewritten) ──────────────────────
 
