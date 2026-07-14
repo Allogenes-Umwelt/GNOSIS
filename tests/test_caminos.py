@@ -160,3 +160,16 @@ def test_caminos_via_fuerza_el_paso():
 def test_caminos_nodo_desconocido_es_vacio():
     c, d = _diamante()
     assert caminos(c, 1, "no-existe", d["D"]) == []
+
+
+def test_comparar_caminos_solape_jaccard():
+    from autogenes.caminos import comparar_caminos
+    c, d = _diamante()
+    lista = comparar_caminos(caminos(c, 1, d["A"], d["D"], k=3))
+    # doble corrida determinista
+    lista2 = comparar_caminos(caminos(c, 1, d["A"], d["D"], k=3))
+    assert [x["comparacion"] for x in lista] == [y["comparacion"] for y in lista2]
+    # el más corto solapa 1.0 consigo mismo; una alternativa disjunta, menos
+    assert lista[0]["comparacion"]["solape_con_mas_corto"] == 1.0
+    assert lista[0]["comparacion"]["saltos"] == 2
+    assert any(x["comparacion"]["solape_con_mas_corto"] < 1.0 for x in lista[1:])

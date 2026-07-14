@@ -90,6 +90,17 @@
       cab.textContent = (cam.metodo ? cam.metodo.toUpperCase() + ' · ' : '') +
         cam.largo + ' SALTOS · ' + cam.evidencia.length + ' CITAS';
       det.appendChild(cab);
+      // Comparación medida: solape de aristas con la ruta más corta — 0% es
+      // una vía verdaderamente independiente (holgura real de suministro).
+      var cmp = cam.comparacion;
+      if (cmp && cmp.solape_con_mas_corto < 1) {
+        var comp = document.createElement('div');
+        comp.className = 'vn-cam-comp';
+        comp.textContent = 'solape ' + Math.round(cmp.solape_con_mas_corto * 100) +
+          '% con la más corta · ' + (cmp.solape_con_mas_corto === 0
+            ? 'vía independiente' : 'comparte aristas');
+        det.appendChild(comp);
+      }
       cam.saltos.forEach(function (s) {
         var fila = document.createElement('div');
         fila.className = 'gr-fila';

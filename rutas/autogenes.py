@@ -1171,7 +1171,7 @@ def api_autogenes_camino():
     """El camino citado entre dos nodos. Retrocompatible: sin k/evitar/via
     devuelve {camino} (el más corto). Con ?k=<=3, ?evitar=<id> o ?via=<id>
     añade {caminos:[...]} con las alternativas TOPOLÓGICAS declaradas."""
-    from autogenes.caminos import camino_mas_corto, caminos
+    from autogenes.caminos import camino_mas_corto, caminos, comparar_caminos
     desde = request.args.get('desde', '')
     hasta = request.args.get('hasta', '')
     if not desde or not hasta:
@@ -1192,6 +1192,7 @@ def api_autogenes_camino():
         if not lista:
             return jsonify({'camino': None, 'caminos': [],
                             'mensaje': 'No existe camino entre esos nodos'}), 200
+        lista = comparar_caminos(lista)
         return jsonify({'session_id': session_id,
                         'camino': lista[0], 'caminos': lista})
     try:

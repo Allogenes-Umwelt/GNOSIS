@@ -198,6 +198,29 @@ def mas_conectadas(conn: sqlite3.Connection, session_id: int, top: int = 10,
     return hubs[:top]
 
 
+def comparar_caminos(lista: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Anota cada camino con su lectura comparativa contra el más corto (el
+    primero): saltos, citas totales, y el SOLAPE de aristas (Jaccard) — 1.0 es
+    la misma ruta, 0.0 es disjunta (una vía verdaderamente independiente). Puro
+    y determinista; no mide volumen (la red de evidencia no lo lleva)."""
+    if not lista:
+        return lista
+
+    def aristas(cam: dict) -> set:
+        return {s["arista"].get("id") for s in cam["saltos"] if s["arista"].get("id")}
+
+    ref = aristas(lista[0])
+    for cam in lista:
+        e = aristas(cam)
+        union = ref | e
+        cam["comparacion"] = {
+            "saltos": cam["largo"],
+            "citas": len(cam["evidencia"]),
+            "solape_con_mas_corto": round(len(ref & e) / len(union), 3) if union else 1.0,
+        }
+    return lista
+
+
 def cuerpo_camino_guardado(camino: dict[str, Any]) -> dict[str, Any]:
     """El Producto{clase:'camino'}: snapshot citado, componible por
     cualquier unidad A TRAVÉS del sustrato (ley E3)."""

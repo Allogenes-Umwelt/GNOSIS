@@ -429,6 +429,8 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   padding: 4px 8px; cursor: pointer; }
 .vn-cam-tab.activo { color: var(--acc-text); border-color: var(--acc-text); background: var(--acc-subtle); }
 .vn-cam-tab:hover { color: var(--t1); }
+.vn-cam-comp { font-family: var(--font-mono); font-size: .6rem; color: var(--t3);
+  letter-spacing: .3px; margin: 2px 0 6px; }
 
 /* Minimapa (L1): panorámica anclada abajo-derecha del lienzo; clic salta la
    cámara. Chrome discreto por tokens; el rectángulo del viewport va en acento. */
