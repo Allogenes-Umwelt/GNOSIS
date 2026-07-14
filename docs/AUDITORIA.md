@@ -91,7 +91,7 @@ El pipeline heredado (`PDFs_Final_v3.py`, `PDFs_v2.py`, `concentrado1.py`,
 está calibrado al formato exacto de los PDFs de facturas VW, que no se pueden
 ver ni testear en este entorno. **Cambiar esta lógica a ciegas arriesga
 corromper salidas reales — lo que violaría ZERO SNAKE OIL — así que NO se
-auto-corrigió.** Se listan para que Julio los verifique contra documentos
+auto-corrigió.** Se listan para que Jesús los verifique contra documentos
 reales y decida:
 
 | Sev | Archivo:línea | Sospecha | Escenario |

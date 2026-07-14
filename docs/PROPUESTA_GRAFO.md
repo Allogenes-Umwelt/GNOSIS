@@ -11,7 +11,7 @@
 > instrumento de investigación y decisión superior a Palantir en el dominio
 > aduanal-automotriz, en cuatro frentes: insight de red accionable, flujo de
 > investigación, estética y navegabilidad/accesibilidad. Decisión que
-> informa: el orden de las próximas sesiones de ejecución. Decisor: Julio.
+> informa: el orden de las próximas sesiones de ejecución. Decisor: Jesús.
 > Evidencia que cambiaría la respuesta: profiling que contradiga §6-L3, o
 > sesiones reales cuya estructura degenere las métricas (§4) — en cuyo caso
 > las superficies se degradan declaradas, nunca muestran números vacíos.

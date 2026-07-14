@@ -1,6 +1,6 @@
 # PLAN PANOPTES — El Grafo del Caso a clase mundial
 
-**Estado:** planificación aprobada en dirección por el operador (Julio). Este
+**Estado:** planificación aprobada en dirección por el operador (Jesús). Este
 documento ES el entregable de la sesión de diseño: especifica el uplift
 completo del Grafo AUTOGENES y las instrucciones de implementación. Nada de
 código se escribió al producirlo; la implementación arranca solo con el visto
@@ -470,7 +470,7 @@ F2 → F4 → F5.
 ## 11 · Instrucciones operativas para Opus 4.8 (briefing de implementación)
 
 Contexto: eres el implementador de este plan en el repo GNOSIS
-(Allogenes-Umwelt/GNOSIS). El operador es Julio. Este documento es la
+(Allogenes-Umwelt/GNOSIS). El operador es Jesús. Este documento es la
 especificación; ante ambigüedad, la dirección la marca el operador — propón
 y espera visto bueno. NUNCA arranques una fase sin su aprobación explícita.
 

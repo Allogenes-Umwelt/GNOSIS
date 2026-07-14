@@ -29,7 +29,7 @@ Quién usa GNOSIS y con qué sistemas externos habla.
 C4Context
     title GNOSIS · Diagrama de Contexto
 
-    Person(operador, "Operador (Julio)", "Analista aduanal VW. Sube facturas/pedimentos, revisa conciliación, consulta el caso.")
+    Person(operador, "Operador (Jesús)", "Analista aduanal VW. Sube facturas/pedimentos, revisa conciliación, consulta el caso.")
 
     System(gnosis, "GNOSIS", "Analítica de importaciones + sustrato de evidencia AUTOGENES + tableros de negocio. Local-first.")
 

@@ -76,4 +76,4 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
   cualquier fuente no determinista) para cifras de panel o para el layout del render.
 - Hex/px crudos en componentes; magenta fuera de `--danger`/`--telos-on`.
 - Inventar montos/confianzas o mostrar cifras sin unidad/periodo/fuente.
-- `console.log`, código muerto o emojis en la UI. · Abrir PR sin que Julio lo pida.
+- `console.log`, código muerto o emojis en la UI. · Abrir PR sin que Jesús lo pida.

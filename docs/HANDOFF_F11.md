@@ -49,7 +49,7 @@ Estado al cierre de la sesión del 2026-07-11, branch
    sin quitar información; esc() para todo texto de documento.
 4. El operador dirige lo visual con capturas reales antes/después.
 5. Secrets solo en `.env` (gitignoreado; recrearlo cada sesión — el
-   contenedor es efímero). **Pedir a Julio rotar la llave DeepSeek.**
+   contenedor es efímero). **Pedir a Jesús rotar la llave DeepSeek.**
 6. Commits Conventional, push SOLO a `claude/gnosis-autogenes-i-85bwsd`.
 
 ## F11 · SINAPSIS (siguiente) — dirección A PROPONER antes de codificar
@@ -63,7 +63,7 @@ motores que lo componen, (b) citado, (c) descartable por el operador,
 (d) convertible en regla (volante insight→regla, antesala de NOMOS
 F12). El grafo que se reconfigura: los insights dockeados como
 productos que re-anclan entidades. Obtener aprobación de dirección de
-Julio ANTES de escribir código.
+Jesús ANTES de escribir código.
 
 ## Después de F11
 

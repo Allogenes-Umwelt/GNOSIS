@@ -5,7 +5,7 @@
 > actual (Flask/Python 3.11 + vanilla JS/canvas server-rendered) al stack de la
 > Parte A de `WORKING_STANDARDS.md` (React 19 + TypeScript + Vite + Tailwind +
 > Zustand + TanStack Query). La decisión que informa: dónde invertir las
-> próximas sesiones de ingeniería. Decisor: Julio. Evidencia que cambiaría la
+> próximas sesiones de ingeniería. Decisor: Jesús. Evidencia que cambiaría la
 > respuesta: ver §6 (triggers).
 
 ---
