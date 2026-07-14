@@ -58,28 +58,21 @@ def _nodo(red: nx.MultiDiGraph, nid: str) -> dict[str, Any]:
             "tipo": n.get("tipo")}
 
 
-def camino_mas_corto(conn: sqlite3.Connection, session_id: int,
-                     desde_id: str, hasta_id: str) -> Optional[dict[str, Any]]:
-    red = red_de_sesion(conn, session_id)
-    if desde_id not in red or hasta_id not in red:
-        return None
-    plano = red.to_undirected(as_view=True)
+# Las relaciones tipadas pesan menos que las citas estructurales: a igual
+# largo, el camino narrativo (quién-garantiza-a-quién) gana. OJO: en un
+# MultiGraph, networkx entrega {clave: atributos} de TODAS las aristas
+# paralelas — el costo es el mínimo entre ellas.
+def _costo(_u, _v, multi):
+    return min(
+        (1.0 if a.get("kind") == "relacion" else 1.6 for a in multi.values()),
+        default=1.6,
+    )
 
-    # Las relaciones tipadas pesan menos que las citas estructurales: a
-    # igual largo, el camino narrativo (quién-garantiza-a-quién) gana.
-    # OJO: en un MultiGraph, networkx entrega {clave: atributos} de TODAS
-    # las aristas paralelas — el costo es el mínimo entre ellas.
-    def costo(_u, _v, multi):
-        return min(
-            (1.0 if a.get("kind") == "relacion" else 1.6 for a in multi.values()),
-            default=1.6,
-        )
 
-    try:
-        ruta = nx.shortest_path(plano, desde_id, hasta_id, weight=costo)
-    except nx.NetworkXNoPath:
-        return None
-
+def _camino_de_ruta(conn: sqlite3.Connection, red: nx.MultiDiGraph,
+                    ruta: list[str], metodo: Optional[str] = None) -> dict[str, Any]:
+    """Construye el camino citado a partir de una secuencia de nodos: cada
+    salto con su mejor arista tipada y las citas que la sostienen."""
     saltos = []
     ids_relacion = []
     for a, b in zip(ruta, ruta[1:]):
@@ -87,18 +80,83 @@ def camino_mas_corto(conn: sqlite3.Connection, session_id: int,
         if arista.get("kind") == "relacion":
             ids_relacion.append(arista["id"])
         saltos.append({"de": _nodo(red, a), "a": _nodo(red, b), "arista": arista})
-
     evidencias = _evidencias_de_relaciones(conn, ids_relacion)
     for s in saltos:
         s["evidencia"] = evidencias.get(s["arista"].get("id"), [])
-
-    return {
-        "desde": _nodo(red, desde_id),
-        "hasta": _nodo(red, hasta_id),
+    camino = {
+        "desde": _nodo(red, ruta[0]),
+        "hasta": _nodo(red, ruta[-1]),
         "largo": len(saltos),
         "saltos": saltos,
         "evidencia": sorted({e for s in saltos for e in s["evidencia"]}),
     }
+    if metodo:
+        camino["metodo"] = metodo
+    return camino
+
+
+def camino_mas_corto(conn: sqlite3.Connection, session_id: int,
+                     desde_id: str, hasta_id: str) -> Optional[dict[str, Any]]:
+    red = red_de_sesion(conn, session_id)
+    if desde_id not in red or hasta_id not in red:
+        return None
+    plano = red.to_undirected(as_view=True)
+    try:
+        ruta = nx.shortest_path(plano, desde_id, hasta_id, weight=_costo)
+    except nx.NetworkXNoPath:
+        return None
+    return _camino_de_ruta(conn, red, ruta)
+
+
+def caminos(conn: sqlite3.Connection, session_id: int, desde_id: str,
+            hasta_id: str, k: int = 3, evitar: Optional[str] = None,
+            via: Optional[str] = None) -> list[dict[str, Any]]:
+    """Hasta K caminos ALTERNATIVOS entre dos nodos, cada uno con su método
+    declarado. Son alternativas TOPOLÓGICAS (por costo de aristas), no por
+    volumen: la red de evidencia no lleva volumen medido — ese vive en la red
+    de flujo (analisis_vw), así que aquí sería inventarlo. Opciones:
+    - `evitar`: recomputa quitando un nodo (¿sobrevive el vínculo si cae?).
+    - `via`: fuerza el paso por un nodo (concatena dos caminos más cortos).
+    Devuelve [] si no hay camino."""
+    import itertools
+
+    red = red_de_sesion(conn, session_id)
+    if desde_id not in red or hasta_id not in red:
+        return []
+    # shortest_simple_paths NO admite MultiGraph: se colapsa a un grafo simple
+    # con el costo MÍNIMO entre aristas paralelas (misma regla que _costo).
+    simple = nx.Graph()
+    simple.add_nodes_from(red.nodes())
+    for u, v, data in red.to_undirected(as_view=True).edges(data=True):
+        w = 1.0 if data.get("kind") == "relacion" else 1.6
+        if simple.has_edge(u, v):
+            simple[u][v]["w"] = min(simple[u][v]["w"], w)
+        else:
+            simple.add_edge(u, v, w=w)
+    if evitar and evitar in simple and evitar not in (desde_id, hasta_id):
+        simple = simple.subgraph([n for n in simple if n != evitar])
+
+    if via and via in simple and via not in (desde_id, hasta_id):
+        try:
+            r1 = nx.shortest_path(simple, desde_id, via, weight="w")
+            r2 = nx.shortest_path(simple, via, hasta_id, weight="w")
+        except nx.NetworkXNoPath:
+            return []
+        etq = (red.nodes[via].get("etiqueta") or via)
+        return [_camino_de_ruta(conn, red, r1 + r2[1:], f"forzado por {etq}")]
+
+    try:
+        gen = nx.shortest_simple_paths(simple, desde_id, hasta_id, weight="w")
+        rutas = list(itertools.islice(gen, max(1, k)))
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
+        return []
+    base = "evitando un nodo" if evitar else "topológico"
+    salida = []
+    for i, ruta in enumerate(rutas):
+        metodo = (f"más corto ({base})" if i == 0
+                  else f"alternativa {i + 1} ({base})")
+        salida.append(_camino_de_ruta(conn, red, ruta, metodo))
+    return salida
 
 
 def vecindario(conn: sqlite3.Connection, session_id: int,

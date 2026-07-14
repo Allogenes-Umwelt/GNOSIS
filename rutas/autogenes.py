@@ -1168,18 +1168,32 @@ def _snapshot_telemetria(conn, session_id):
 
 @bp.route('/api/v1/autogenes/camino', methods=['GET'])
 def api_autogenes_camino():
-    from autogenes.caminos import camino_mas_corto
+    """El camino citado entre dos nodos. Retrocompatible: sin k/evitar/via
+    devuelve {camino} (el más corto). Con ?k=<=3, ?evitar=<id> o ?via=<id>
+    añade {caminos:[...]} con las alternativas TOPOLÓGICAS declaradas."""
+    from autogenes.caminos import camino_mas_corto, caminos
     desde = request.args.get('desde', '')
     hasta = request.args.get('hasta', '')
     if not desde or not hasta:
         return jsonify({'error': 'Faltan parámetros desde/hasta'}), 400
+    k = request.args.get('k', type=int) or 1
+    evitar = request.args.get('evitar') or None
+    via = request.args.get('via') or None
 
     def handler(conn, session_id):
-        cam = camino_mas_corto(conn, session_id, desde, hasta)
-        if cam is None:
-            return jsonify({'camino': None,
+        if k <= 1 and not evitar and not via:
+            cam = camino_mas_corto(conn, session_id, desde, hasta)
+            if cam is None:
+                return jsonify({'camino': None,
+                                'mensaje': 'No existe camino entre esos nodos'}), 200
+            return jsonify({'session_id': session_id, 'camino': cam})
+        lista = caminos(conn, session_id, desde, hasta,
+                        k=min(k, 3), evitar=evitar, via=via)
+        if not lista:
+            return jsonify({'camino': None, 'caminos': [],
                             'mensaje': 'No existe camino entre esos nodos'}), 200
-        return jsonify({'session_id': session_id, 'camino': cam})
+        return jsonify({'session_id': session_id,
+                        'camino': lista[0], 'caminos': lista})
     try:
         return _con_sesion(handler)
     except Exception as e:

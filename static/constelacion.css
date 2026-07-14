@@ -422,6 +422,13 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   background: transparent; border: 1px solid var(--acc-text); padding: 4px 9px;
   cursor: pointer; }
 .vn-ver-lienzo:hover { background: var(--acc-subtle); }
+/* Pestañas de caminos alternativos: una por ruta, con su método en el title. */
+.vn-cam-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
+.vn-cam-tab { font-family: var(--font-mono); font-size: .58rem; letter-spacing: .5px;
+  color: var(--t3); background: transparent; border: 1px solid var(--line);
+  padding: 4px 8px; cursor: pointer; }
+.vn-cam-tab.activo { color: var(--acc-text); border-color: var(--acc-text); background: var(--acc-subtle); }
+.vn-cam-tab:hover { color: var(--t1); }
 
 /* Minimapa (L1): panorámica anclada abajo-derecha del lienzo; clic salta la
    cámara. Chrome discreto por tokens; el rectángulo del viewport va en acento. */

@@ -71,12 +71,25 @@
       if (desdeIn.value && hastaIn.value) trazar();
     });
 
-    function pintarCamino(cam) {
-      panel.innerHTML = '';
+    function resaltarCamino(cam) {
+      if (!lienzo.grafoAPI) return;
+      var nodos = [cam.desde.id], enlaces = [];
+      cam.saltos.forEach(function (s) {
+        nodos.push(s.a.id); nodos.push(s.de.id);
+        if (s.arista && s.arista.id) enlaces.push(s.arista.id);
+      });
+      lienzo.grafoAPI.resaltar(nodos, enlaces);
+    }
+
+    function mostrarCamino(cam) {
+      var det = document.getElementById('vn-cam-detalle');
+      if (!det) return;
+      det.innerHTML = '';
       var cab = document.createElement('div');
       cab.className = 'gr-kind';
-      cab.textContent = cam.largo + ' SALTOS · ' + cam.evidencia.length + ' CITAS';
-      panel.appendChild(cab);
+      cab.textContent = (cam.metodo ? cam.metodo.toUpperCase() + ' · ' : '') +
+        cam.largo + ' SALTOS · ' + cam.evidencia.length + ' CITAS';
+      det.appendChild(cab);
       cam.saltos.forEach(function (s) {
         var fila = document.createElement('div');
         fila.className = 'gr-fila';
@@ -84,8 +97,38 @@
           esc((s.a.etiqueta || '').slice(0, 16)) + '</span><b>' +
           esc(s.arista.tipo || s.arista.kind || '—') +
           (s.evidencia.length ? ' · ' + s.evidencia.length + ' citas' : '') + '</b>';
-        panel.appendChild(fila);
+        det.appendChild(fila);
       });
+      resaltarCamino(cam);
+    }
+
+    // Varias rutas: pestañas por alternativa (cada una declara su método);
+    // tocar una la muestra y la resalta en el lienzo.
+    function pintarCaminos(lista) {
+      panel.innerHTML = '';
+      if (lista.length > 1) {
+        var tabs = document.createElement('div');
+        tabs.className = 'vn-cam-tabs';
+        lista.forEach(function (cam, i) {
+          var t = document.createElement('button');
+          t.type = 'button';
+          t.className = 'vn-cam-tab' + (i === 0 ? ' activo' : '');
+          t.textContent = (i + 1) + ' · ' + cam.largo + ' saltos';
+          t.title = cam.metodo || '';
+          t.addEventListener('click', function () {
+            var hs = tabs.querySelectorAll('.vn-cam-tab');
+            for (var j = 0; j < hs.length; j++) hs[j].classList.remove('activo');
+            t.classList.add('activo');
+            mostrarCamino(cam);
+          });
+          tabs.appendChild(t);
+        });
+        panel.appendChild(tabs);
+      }
+      var det = document.createElement('div');
+      det.id = 'vn-cam-detalle';
+      panel.appendChild(det);
+      mostrarCamino(lista[0]);
     }
 
     function trazar() {
@@ -94,12 +137,15 @@
       if (!a || !b) { msj.textContent = 'Elige ambos extremos de la lista.'; return; }
       msj.textContent = 'Trazando…';
       var mia = ++reqSeq;
-      fetch('/api/v1/autogenes/camino?desde=' + encodeURIComponent(a) +
+      // k=3: pide alternativas para mostrar si el vínculo es robusto (varias
+      // rutas) o frágil (una sola). El dockeo sigue anclando la más corta.
+      fetch('/api/v1/autogenes/camino?k=3&desde=' + encodeURIComponent(a) +
             '&hasta=' + encodeURIComponent(b))
         .then(function (r) { return r.json(); })
         .then(function (j) {
           if (mia !== reqSeq) return;
-          if (!j.camino) {
+          var lista = j.caminos || (j.camino ? [j.camino] : []);
+          if (!lista.length) {
             msj.textContent = j.mensaje || j.error || 'Sin camino.';
             caminoActual = null; dockear.disabled = true;
             if (lienzo.grafoAPI) lienzo.grafoAPI.limpiar();
@@ -109,16 +155,7 @@
           caminoActual = { desde_id: a, hasta_id: b };
           msj.textContent = '';
           dockear.disabled = false;
-          pintarCamino(j.camino);
-          if (lienzo.grafoAPI) {
-            var nodos = [j.camino.desde.id];
-            var enlaces = [];
-            j.camino.saltos.forEach(function (s) {
-              nodos.push(s.a.id); nodos.push(s.de.id);
-              if (s.arista && s.arista.id) enlaces.push(s.arista.id);
-            });
-            lienzo.grafoAPI.resaltar(nodos, enlaces);
-          }
+          pintarCaminos(lista);
         })
         .catch(function () {
           if (mia !== reqSeq) return;

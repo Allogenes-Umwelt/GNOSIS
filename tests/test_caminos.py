@@ -7,6 +7,7 @@ import pytest
 from autogenes import red as red_mod
 from autogenes.caminos import (
     camino_mas_corto,
+    caminos,
     cuerpo_camino_guardado,
     mas_conectadas,
     vecindario,
@@ -94,3 +95,68 @@ def test_dockeo_del_camino_como_producto(caso):
     assert set(p.evidencia) == set(cam["evidencia"])
     g = s.leer_grafo()
     assert any(x["id"] == p.id for x in g["productos"])
+
+
+# ── V1: caminos alternativos (topológicos) + evitar / via ─────────────
+
+def _diamante():
+    """Grafo diamante: A→B→D y A→C→D — dos rutas simples entre A y D."""
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+              " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    s = Sustrato(c, 1)
+    art = s.crear_artefacto("pdf", "d.pdf")
+    # un fragmento DISTINTO por entidad: sin fragmento compartido no hay hub
+    # documental que abra rutas extra — el diamante queda limpio (solo A→B→D
+    # y A→C→D por relaciones).
+    fr = s.agregar_fragmentos(art.id, [(i + 1, chr(97 + i)) for i in range(4)])
+    n = {k: s.upsert_entidad(k, "organizacion", "synesis", evidencia=[fr[i].id])
+         for i, k in enumerate(("A", "B", "C", "D"))}
+    for a, b in (("A", "B"), ("B", "D"), ("A", "C"), ("C", "D")):
+        s.agregar_relacion(n[a].id, n[b].id, "r", 0.9, [fr[0].id])
+    red_mod.invalidar()
+    return c, {k: v.id for k, v in n.items()}
+
+
+def _todos_los_ids(cam):
+    return {s["de"]["id"] for s in cam["saltos"]} | {s["a"]["id"] for s in cam["saltos"]}
+
+
+def test_caminos_alternativos_declaran_metodo():
+    c, d = _diamante()
+    lista = caminos(c, 1, d["A"], d["D"], k=3)
+    assert len(lista) >= 2                 # existen rutas alternativas A→D
+    assert lista[0]["largo"] == 2          # la más corta: A→(B|C)→D por relación
+    assert lista[0]["metodo"].startswith("más corto")
+    assert lista[1]["metodo"].startswith("alternativa")
+    # ordenadas por costo: la más corta primero
+    assert lista[0]["largo"] <= lista[1]["largo"]
+
+
+def test_caminos_k_corta_el_generador():
+    c, d = _diamante()
+    assert len(caminos(c, 1, d["A"], d["D"], k=1)) == 1
+
+
+def test_caminos_evitar_excluye_el_nodo():
+    c, d = _diamante()
+    lista = caminos(c, 1, d["A"], d["D"], evitar=d["B"])
+    assert lista
+    assert all(d["B"] not in _todos_los_ids(cam) for cam in lista)
+    assert d["C"] in _todos_los_ids(lista[0])   # queda la ruta por C
+
+
+def test_caminos_via_fuerza_el_paso():
+    c, d = _diamante()
+    lista = caminos(c, 1, d["A"], d["D"], via=d["B"])
+    assert len(lista) == 1
+    assert d["B"] in _todos_los_ids(lista[0])
+    assert "forzado por B" in lista[0]["metodo"]
+
+
+def test_caminos_nodo_desconocido_es_vacio():
+    c, d = _diamante()
+    assert caminos(c, 1, "no-existe", d["D"]) == []
