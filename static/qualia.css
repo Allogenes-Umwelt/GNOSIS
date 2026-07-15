@@ -260,3 +260,13 @@
   border: 1px solid var(--line); padding: 6px 8px; cursor: pointer;
 }
 .qa-ref select:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+
+/* ── Export (Q5): control PNG·CSV en la leyenda ── */
+.qa-export { color: var(--t3); }
+.qa-exp-btn {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1.5px;
+  text-transform: uppercase; background: transparent; color: var(--acc-text);
+  border: 1px solid var(--line); padding: 3px 8px; margin-left: 5px; cursor: pointer;
+}
+.qa-exp-btn:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+.qa-exp-btn:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }

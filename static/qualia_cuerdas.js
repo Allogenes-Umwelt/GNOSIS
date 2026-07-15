@@ -258,6 +258,21 @@
       dibujar();
     }, { passive: false });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-cuerdas',
+      metodo: 'comunidades por propagación de etiquetas · peso del vínculo',
+      datos: function () {
+        if (!datos || !datos.orden) return { headers: [], filas: [] };
+        var cuenta = {};
+        datos.orden.forEach(function (id) {
+          var c = datos.comunidad[id]; cuenta[c] = (cuenta[c] || 0) + 1;
+        });
+        var filas = Object.keys(cuenta).map(function (c) {
+          return [c, cuenta[c]];
+        }).sort(function (a, b) { return b[1] - a[1]; });
+        return { headers: ['comunidad', 'entidades'], filas: filas };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', dibujar);
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });

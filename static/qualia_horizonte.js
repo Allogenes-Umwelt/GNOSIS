@@ -230,6 +230,20 @@
       seleccionar(mejor);
     });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-horizonte',
+      metodo: 'telemetría muestreada · delta medido entre muestras que flanquean',
+      datos: function () {
+        if (!horizonte) return { headers: [], filas: [] };
+        var filas = (horizonte.puntos || []).map(function (p) {
+          return ['muestra', p.ts, p.n_nodos, p.n_enlaces];
+        });
+        (horizonte.lineas || []).forEach(function (l) {
+          filas.push(['intervención', l.ts, l.accion || '', l.detalle || '']);
+        });
+        return { headers: ['tipo', 'ts', 'conceptos/acción', 'vínculos/detalle'], filas: filas };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', dibujar);
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });

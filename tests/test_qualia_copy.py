@@ -43,6 +43,8 @@ SCRIPTS = [
     "static/qualia_horizonte.js",
     "static/qualia_maquina.js",
     "static/qualia_deriva.js",
+    "static/qualia_dossier.js",
+    "static/qualia_export.js",
 ]
 
 # Vocabulario matemático que NO va en la cara del usuario (stems, sin

@@ -419,5 +419,19 @@
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });
     cargarNivel(0, function () { irANivel(0); });
     cargarEstado();
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-red',
+      metodo: 'proyección F2 · comunidades por propagación de etiquetas',
+      datos: function () {
+        var d = cache[nivel]; if (!d) return { headers: [], filas: [] };
+        var r = d.resumen, filas = [
+          ['spec', 'nodos', r.n_nodos], ['spec', 'enlaces', r.n_enlaces],
+          ['spec', 'densidad', r.densidad], ['spec', 'comunidades', r.n_comunidades],
+          ['spec', 'componentes', r.n_componentes]];
+        r.hubs.forEach(function (h) { filas.push(['concentrador', h.etiqueta, h.grado]); });
+        r.puentes.forEach(function (p) { filas.push(['puente', p.etiqueta, p.grado]); });
+        return { headers: ['tipo', 'entidad', 'valor'], filas: filas };
+      }
+    });
   });
 })();

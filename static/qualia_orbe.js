@@ -332,6 +332,18 @@
       if (hover !== null) { hover = null; dibujar(); }
     });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-orbe',
+      metodo: 'peso en la red · centralidad de vector propio',
+      datos: function () {
+        if (!datos) return { headers: [], filas: [] };
+        var etq = {}; datos.red.nodos.forEach(function (n) { etq[n.id] = n.etiqueta; });
+        var filas = Object.keys(datos.masas).map(function (id) {
+          return [etq[id] || id, Number(datos.masas[id]).toFixed(4)];
+        }).sort(function (a, b) { return b[1] - a[1]; });
+        return { headers: ['entidad', 'peso en la red'], filas: filas };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', dibujar);
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });

@@ -231,6 +231,20 @@
     }
     elRef.addEventListener('change', function () { cargar(parseInt(elRef.value, 10)); });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-deriva',
+      metodo: 'diferencia medida entre resúmenes de dos sesiones',
+      datos: function () {
+        if (!datos || datos.sin_referencia) return { headers: [], filas: [] };
+        var filas = METRICAS.map(function (m) {
+          var de = datos.de_valores[m.k], a = datos.a_valores[m.k];
+          var dv = (de == null || a == null) ? null : a - de;
+          return [m.etq, fnum(de, m.dec), fnum(a, m.dec), signo(dv, m.dec)];
+        });
+        return { headers: ['medida', 'referencia (' + datos.de + ')',
+          'actual (' + datos.a + ')', 'delta'], filas: filas };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', dibujar);
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });

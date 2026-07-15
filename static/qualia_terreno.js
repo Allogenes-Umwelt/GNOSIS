@@ -334,6 +334,17 @@
         });
     });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-terreno',
+      metodo: 'detectores deterministas contra la base fijada · severidad ∈ [0,1]',
+      datos: function () {
+        var h = (estado && estado.hallazgos) || [];
+        return { headers: ['detector', 'título', 'severidad', 'detalle'],
+          filas: h.map(function (a) {
+            return [a.detector, a.titulo, Math.round(a.severidad * 100) + '%', a.detalle];
+          }) };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', dibujar);
     Q.alTema(function () { C = Q.leerColores(); dibujar(); });

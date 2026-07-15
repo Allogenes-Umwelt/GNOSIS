@@ -373,6 +373,17 @@
       window.addEventListener('resize', dibujar);
       Q.alTema(function () { C = Q.leerColores(); dibujar(); });
       dibujar();
+      if (window.QualiaExport) window.QualiaExport.montar({
+        canvas: canvas, host: document.querySelector('.qm-parte'),
+        archivo: 'qualia-maquina',
+        metodo: 'las cuatro fases OODA, salida directa del motor',
+        datos: function () {
+          function t(id) { var e = document.getElementById(id); return e ? e.textContent : ''; }
+          return { headers: ['fase', 'titular'], filas: [
+            ['Observar', t('qm-obs-titular')], ['Orientar', t('qm-ori-titular')],
+            ['Decidir', t('qm-dec-titular')], ['Actuar', t('qm-act-titular')]] };
+        }
+      });
     }
   });
 })();

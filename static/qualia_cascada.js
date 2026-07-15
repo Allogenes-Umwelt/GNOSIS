@@ -457,6 +457,17 @@
       if (elMsj) elMsj.textContent = '';
     });
 
+    if (window.QualiaExport) window.QualiaExport.montar({
+      canvas: canvas, archivo: 'qualia-cascada',
+      metodo: 'what-if en memoria · profundidad de dependencia (BFS)',
+      datos: function () {
+        if (!datos || !datos.red) return { headers: [], filas: [] };
+        return { headers: ['entidad', 'vínculos'],
+          filas: datos.red.nodos.map(function (n) {
+            return [n.etiqueta, (ady[n.id] || []).length];
+          }).sort(function (a, b) { return b[1] - a[1]; }) };
+      }
+    });
     C = Q.leerColores();
     window.addEventListener('resize', function () { if (!animando) dibujar(); });
     Q.alTema(function () { C = Q.leerColores(); if (!animando) dibujar(); });
