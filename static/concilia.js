@@ -322,216 +322,172 @@
         elCupos.innerHTML = '<p class="qa-base-hint">Sin conexión.</p>';
       });
 
-    // ── ANATOMÍA DEL CAUDAL: el Sankey determinista del motor ────────
-    // Tres pilas (vendido / conciliado / llegado) unidas por la cinta
-    // acento de lo conciliado; cada hallazgo es un chip magenta abajo,
-    // conectado por cinta (fugas de flujo, grosor ∝ unidades) o hilo
-    // (disputas y atributos) al punto exacto del caudal donde sangra.
-    var lienzo = document.getElementById('cn-lienzo');
-    var canvas = lienzo && lienzo.querySelector('canvas');
-    var ctx = canvas && canvas.getContext('2d');
-    var colores = {};
-    var chips = [];             // hit areas: {x, y, w, h, i}
+    // ── ANATOMÍA DEL CAUDAL: escalera de derivaciones (P&ID, SVG) ────
+    // La espina vertical VENDIDO→CONCILIADO→LLEGADO; cada fuga cuelga como
+    // derivación con su estación (código FG, severidad, monto, título
+    // COMPLETO — jamás truncado). Presupuesto de tinta: sólo la fuga en foco
+    // arde; el resto es fantasma. SVG determinista (cero RNG); el color sale
+    // de tokens vía CSS, así que el cambio de tema no exige redibujar.
+    var elCaudal = document.getElementById('cn-caudal');
 
-    function leerColores() {
-      var cs = getComputedStyle(document.documentElement);
-      colores = {
-        acc: cs.getPropertyValue('--acc-solid').trim() || '#00D4FF',
-        danger: cs.getPropertyValue('--danger').trim() || '#FF2E88',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t3: cs.getPropertyValue('--t3').trim() || '#999',
-        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
-        mono: cs.getPropertyValue('--font-mono').trim() || 'monospace',
-        display: cs.getPropertyValue('--font-d').trim() || 'sans-serif'
-      };
-    }
-    function alfa(hex, a) {
-      var h = hex.replace('#', '');
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
-             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
-    }
-    function tamano() {
-      var caja = canvas.parentElement.getBoundingClientRect();
-      var dpr = window.devicePixelRatio || 1;
-      canvas.width = caja.width * dpr;
-      canvas.height = caja.height * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    // cinta horizontal entre dos segmentos verticales (Sankey clásico)
-    function cinta(x1, a1, b1, x2, a2, b2, tinta, af, sel) {
-      var cx = (x1 + x2) / 2;
-      ctx.beginPath();
-      ctx.moveTo(x1, a1);
-      ctx.bezierCurveTo(cx, a1, cx, a2, x2, a2);
-      ctx.lineTo(x2, b2);
-      ctx.bezierCurveTo(cx, b2, cx, b1, x1, b1);
-      ctx.closePath();
-      ctx.fillStyle = alfa(tinta, sel ? af + 0.14 : af);
-      ctx.fill();
-      ctx.strokeStyle = alfa(tinta, sel ? 0.9 : 0.5);
-      ctx.lineWidth = sel ? 1.6 : 1;
-      ctx.stroke();
-    }
-    function hilo(x1, y1, x2, y2, tinta, sel) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.bezierCurveTo(x1, (y1 + y2) / 2, x2, (y1 + y2) / 2, x2, y2);
-      ctx.strokeStyle = alfa(tinta, sel ? 0.95 : 0.55);
-      ctx.lineWidth = sel ? 2.2 : 1.4;
-      ctx.stroke();
-    }
-    // a qué pila pertenece cada clase de hallazgo
+    // a qué manifold pertenece cada clase de hallazgo
     var LADO = {
       vendido_sin_llegada: 'izq', sin_pedimento: 'izq', vin_duplicado_dwh: 'izq',
       llegado_sin_venta: 'der', vin_duplicado_llegadas: 'der',
       extraccion_fallida: 'der',
       jn_en_disputa: 'centro', pais_en_disputa: 'centro'
     };
+    var RANGO = { centro: 0, der: 1 };
+
+    function pad2(n) { return ('0' + n).slice(-2); }
+    function corta(s, max) { return s.length > max ? s.slice(0, max - 1) + '…' : s; }
+    function pesos(m) { return '$' + Math.round(m).toLocaleString('es-MX'); }
+
+    function focoIndex(hs) {
+      if (activo >= 0) return activo;
+      for (var i = 0; i < hs.length; i++) {
+        var e = hs[i].estado;
+        if (e !== 'resuelto' && e !== 'descartado') return i;
+      }
+      return hs.length ? 0 : -1;
+    }
 
     function dibujarCaudal() {
-      if (!ctx || !datos) return;
-      leerColores();
-      tamano();
-      chips = [];
-      var w = canvas.clientWidth, h = canvas.clientHeight;
-      var f = datos.flujo;
-      ctx.clearRect(0, 0, w, h);
+      if (!elCaudal || !datos) return;
+      var hs = datos.hallazgos, f = datos.flujo;
+      var W = 900, cx = 455, LX0 = 40, LX1 = 350, RX0 = 560, RX1 = 860;
+      var BOXH = 46, ROW = 70, TOP = 124, spineTop = 96;
+
       if (!f.vendidos && !f.llegados) {
-        ctx.fillStyle = colores.t3;
-        ctx.font = '12px ' + colores.mono;
-        ctx.textAlign = 'center';
-        ctx.fillText('Sin datos aduanales — el caudal nace con la sesión.', w / 2, h / 2);
+        elCaudal.innerHTML = '<p class="qa-base-hint">Sin datos aduanales — ' +
+          'el caudal nace con la sesión.</p>';
         return;
       }
 
-      var yTop = 64;
-      var zonaChips = 92;
-      var flujoH = h - yTop - zonaChips - 56;
-      var maxN = Math.max(f.vendidos, f.llegados, 1);
-      var s = flujoH / maxN;
-      var xL = Math.round(w * 0.09), xC = Math.round(w * 0.5),
-          xR = Math.round(w * 0.91), barra = 14;
-      var concS = f.conciliados * s;
-      var okDer = (f.llegados - f.sin_venta) * s;
-
-      // cintas acento: lo conciliado fluye de pila a pila
-      if (f.conciliados) {
-        cinta(xL + barra / 2, yTop, yTop + concS,
-              xC - barra / 2, yTop, yTop + concS, colores.acc, 0.18, false);
-        cinta(xC + barra / 2, yTop, yTop + concS,
-              xR - barra / 2, yTop, yTop + okDer, colores.acc, 0.18, false);
-      }
-
-      // chips: un nodo por hallazgo, repartidos en el zócalo
-      var hs = datos.hallazgos;
-      var yChip = h - zonaChips + 26;
-      var chipW = hs.length ? Math.min(196, (w - 40) / hs.length - 12) : 0;
-      var paso = hs.length ? (w - 40) / hs.length : 0;
-
-      hs.forEach(function (hz, i) {
-        var cxChip = 20 + paso * i + paso / 2;
-        var x = cxChip - chipW / 2;
-        var sel = i === activo;
-        var lado = LADO[hz.clase] || 'centro';
-
-        // conexión al caudal
-        if (hz.clase === 'vendido_sin_llegada' && f.sin_llegada) {
-          cinta(xL + barra / 2, yTop + concS, yTop + concS + f.sin_llegada * s,
-                cxChip, yChip, yChip, colores.danger, 0.2, sel);
-        } else if (hz.clase === 'llegado_sin_venta' && f.sin_venta) {
-          cinta(xR - barra / 2, yTop + okDer, yTop + okDer + f.sin_venta * s,
-                cxChip, yChip, yChip, colores.danger, 0.2, sel);
-        } else {
-          var xO = lado === 'izq' ? xL : lado === 'der' ? xR : xC;
-          var yO = yTop + (lado === 'centro' ? concS
-                           : lado === 'izq' ? f.vendidos * s : f.llegados * s);
-          hilo(xO, yO, cxChip, yChip, colores.danger, sel);
-        }
-
-        // el chip
-        ctx.fillStyle = sel ? alfa(colores.danger, 0.16) : alfa(colores.danger, 0.06);
-        ctx.strokeStyle = sel ? colores.danger : alfa(colores.danger, 0.6);
-        ctx.lineWidth = sel ? 1.8 : 1;
-        ctx.fillRect(x, yChip, chipW, 46);
-        ctx.strokeRect(x, yChip, chipW, 46);
-        ctx.textAlign = 'center';
-        ctx.fillStyle = colores.t1;
-        ctx.font = '10px ' + colores.mono;
-        var titulo = hz.titulo.toUpperCase();
-        while (titulo.length > 3 && ctx.measureText(titulo).width > chipW - 12) {
-          titulo = titulo.slice(0, -2);
-        }
-        ctx.fillText(titulo, cxChip, yChip + 18);
-        ctx.fillStyle = hz.monto != null ? colores.danger : colores.t3;
-        ctx.font = '11px ' + colores.mono;
-        ctx.fillText(hz.monto != null
-          ? '$' + Math.round(hz.monto).toLocaleString('es-MX') + ' ' + hz.moneda
-          : hz.n_unidades + (hz.n_unidades === 1 ? ' unidad' : ' unidades') +
-            ' · sin monto', cxChip, yChip + 35);
-        chips.push({ x: x, y: yChip, w: chipW, h: 46, i: i });
+      var izq = [], der = [];
+      hs.forEach(function (h, i) {
+        ((LADO[h.clase] || 'centro') === 'izq' ? izq : der).push({ h: h, i: i });
       });
-      if (!hs.length) {
-        ctx.fillStyle = colores.t3;
-        ctx.font = '11px ' + colores.mono;
-        ctx.textAlign = 'center';
-        ctx.fillText('SESIÓN CONCILIADA — SIN FUGAS QUE PINTAR', w / 2, yChip + 28);
-      }
-
-      // pilas encima de las cintas
-      function pila(x, n, okS, etiqueta, monto, lado) {
-        var alto = Math.max(n * s, n ? 2 : 0);
-        ctx.fillStyle = alfa(colores.t3, 0.25);
-        ctx.fillRect(x - barra / 2, yTop, barra, alto);
-        if (okS) {
-          ctx.fillStyle = colores.acc;
-          ctx.fillRect(x - barra / 2, yTop, barra, okS);
-        }
-        if (alto - okS > 0.5) {
-          ctx.fillStyle = alfa(colores.danger, 0.85);
-          ctx.fillRect(x - barra / 2, yTop + okS, barra, alto - okS);
-        }
-        ctx.textAlign = 'center';
-        ctx.fillStyle = colores.t3;
-        ctx.font = '10px ' + colores.mono;
-        ctx.fillText(etiqueta, x, yTop - 38);
-        ctx.fillStyle = colores.t1;
-        ctx.font = '700 22px ' + colores.display;
-        ctx.fillText(String(n), x, yTop - 14);
-        if (monto != null) {
-          // desplazado hacia afuera para no chocar con las cintas de fuga
-          ctx.textAlign = lado === 'izq' ? 'right' : 'center';
-          ctx.fillStyle = colores.t3;
-          ctx.font = '10px ' + colores.mono;
-          ctx.fillText('$' + Math.round(monto).toLocaleString('es-MX'),
-                       lado === 'izq' ? x - barra : x,
-                       yTop + Math.max(n * s, 2) + 16);
-        }
-      }
-      pila(xL, f.vendidos, concS, 'VENDIDO · DWH', f.valor_vendido_mxn, 'izq');
-      pila(xC, f.conciliados, concS, 'CONCILIADO', f.valor_conciliado_mxn, 'centro');
-      pila(xR, f.llegados, okDer, 'LLEGADO · PDF', null, 'der');
-    }
-
-    if (canvas) {
-      canvas.addEventListener('click', function (ev) {
-        var caja = canvas.getBoundingClientRect();
-        var mx = ev.clientX - caja.left, my = ev.clientY - caja.top;
-        for (var k = 0; k < chips.length; k++) {
-          var c = chips[k];
-          if (mx >= c.x && mx <= c.x + c.w && my >= c.y && my <= c.y + c.h) {
-            seleccionar(c.i);
-            return;
-          }
-        }
+      der.sort(function (a, b) {
+        return (RANGO[LADO[a.h.clase] || 'centro'] - RANGO[LADO[b.h.clase] || 'centro'])
+          || (a.i - b.i);
       });
-      window.addEventListener('resize', dibujarCaudal);
-      var alternador = document.getElementById('theme-toggle');
-      if (alternador) alternador.addEventListener('click', function () {
-        setTimeout(dibujarCaudal, 60);
+
+      var rows = Math.max(izq.length, der.length, 1);
+      var spineBottom = TOP + rows * ROW + 8;
+      var H = spineBottom + 60;
+      // la junta se ancla al hueco entre filas más cercano al centro de la
+      // espina — nunca sobre una fila, para que su máscara no tape un leader
+      var gaps = [TOP - (ROW - BOXH) / 2 - 2];
+      for (var gk = 0; gk < rows; gk++) gaps.push(TOP + gk * ROW + BOXH + (ROW - BOXH) / 2);
+      var centro = (spineTop + spineBottom) / 2;
+      var juntaY = Math.round(gaps.reduce(function (best, g) {
+        return Math.abs(g - centro) < Math.abs(best - centro) ? g : best;
+      }, gaps[0]));
+      var foco = focoIndex(hs);
+
+      var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="cd-svg" ' +
+        'role="group" aria-label="Escalera de derivaciones del caudal">';
+      s += '<defs><pattern id="cd-grid" width="40" height="40" ' +
+        'patternUnits="userSpaceOnUse"><path d="M40 0H0V40" class="cd-gridline"/>' +
+        '</pattern><filter id="cd-glow" x="-40%" y="-40%" width="180%" height="180%">' +
+        '<feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/>' +
+        '<feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+      s += '<rect width="' + W + '" height="' + H + '" fill="url(#cd-grid)"/>';
+      s += '<g class="cd-reg"><path d="M14 22V14H22M' + (W - 22) + ' 14h8v8M' +
+        (W - 14) + ' ' + (H - 22) + 'v8h-8M22 ' + (H - 14) + 'h-8v-8"/></g>';
+      s += '<text x="24" y="30" class="cd-hd">ESCALERA DE DERIVACIONES · F9</text>';
+      s += '<text x="' + (W - 24) + '" y="30" text-anchor="end" class="cd-hd-alert">' +
+        datos.total + (datos.total === 1 ? ' FUGA · ' : ' FUGAS · ') +
+        (datos.valor_en_riesgo_mxn > 0 ? pesos(datos.valor_en_riesgo_mxn) +
+          ' MXN EN RIESGO' : 'SIN MONTO EN RIESGO') + '</text>';
+
+      // espina
+      s += '<line x1="' + cx + '" y1="' + spineTop + '" x2="' + cx + '" y2="' +
+        spineBottom + '" class="cd-bus-glow"/>';
+      s += '<line x1="' + cx + '" y1="' + spineTop + '" x2="' + cx + '" y2="' +
+        spineBottom + '" class="cd-bus"/>';
+
+      function estacion(side, midY, st, n) {
+        var h = st.h, i = st.i, foc = i === foco;
+        var closed = (h.estado === 'resuelto' || h.estado === 'descartado') && !foc;
+        var x0 = side === 'izq' ? LX0 : RX0, x1 = side === 'izq' ? LX1 : RX1;
+        var inner = side === 'izq' ? x1 : x0, boxTop = midY - BOXH / 2;
+        var monto = h.monto != null ? pesos(h.monto) + ' ' + (h.moneda || '') : 'SIN MONTO';
+        var sev = h.severidad === 'danger' ? 'CRÍTICO' : 'REVISAR';
+        var disp = (LADO[h.clase] || 'centro') === 'centro' ? ' ⟷' : '';
+        var g = foc ? '▲' : '△';
+        var wrap = foc ? ' filter="url(#cd-glow)"' : '';
+        var gh = closed ? ' cd-ghost' : '';
+        var o = '<line x1="' + cx + '" y1="' + midY + '" x2="' + inner + '" y2="' + midY +
+          '" class="' + (foc ? 'cd-lead-foco' : 'cd-lead') + gh + '"' + wrap + '/>';
+        o += '<circle cx="' + cx + '" cy="' + midY + '" r="' + (foc ? 2.6 : 1.8) +
+          '" class="' + (foc ? 'cd-node-foco' : 'cd-node') + gh + '"/>';
+        o += '<g class="cd-est' + (foc ? ' cd-est-foco' : '') + gh + '" role="button" ' +
+          'tabindex="0" data-i="' + i + '" aria-label="' + esc(h.titulo) + ', ' +
+          esc(monto) + ', ' + sev + '">';
+        o += '<rect x="' + x0 + '" y="' + boxTop + '" width="' + (x1 - x0) + '" height="' +
+          BOXH + '" class="' + (foc ? 'cd-box-foco' : 'cd-box') + '"' + wrap + '/>';
+        o += '<text x="' + (x0 + 12) + '" y="' + (boxTop + 18) + '" class="cd-code">' +
+          g + ' FG-' + pad2(n) + ' · ' + sev + disp + '</text>';
+        o += '<text x="' + (x1 - 10) + '" y="' + (boxTop + 18) + '" text-anchor="end" ' +
+          'class="' + (h.monto != null ? 'cd-monto' : 'cd-nulo') + '">' + esc(monto) + '</text>';
+        o += '<text x="' + (x0 + 12) + '" y="' + (boxTop + 35) + '" class="cd-tit">' +
+          esc(corta(h.titulo.toUpperCase(), 44)) + '</text></g>';
+        return o;
+      }
+
+      if (izq.length) s += '<text x="' + LX0 + '" y="' + (TOP - 12) +
+        '" class="cd-col">DERIVACIONES · DWH</text>';
+      if (der.length) s += '<text x="' + RX0 + '" y="' + (TOP - 12) +
+        '" class="cd-col">DERIVACIONES · PDF / DISPUTA</text>';
+      izq.forEach(function (st, k) { s += estacion('izq', TOP + k * ROW + BOXH / 2, st, st.i + 1); });
+      der.forEach(function (st, k) { s += estacion('der', TOP + k * ROW + BOXH / 2, st, st.i + 1); });
+
+      function bar(y, conc, total) {
+        var BW = 120, bx = cx - BW / 2, okW = total ? BW * conc / total : 0;
+        var o = '<rect x="' + bx + '" y="' + (y - 4) + '" width="' + BW +
+          '" height="8" class="cd-bar-bg"/>';
+        o += '<rect x="' + bx + '" y="' + (y - 4) + '" width="' + okW.toFixed(1) +
+          '" height="8" class="cd-bar-ok"/>';
+        if (okW < BW - 0.5) o += '<rect x="' + (bx + okW).toFixed(1) + '" y="' + (y - 4) +
+          '" width="' + (BW - okW).toFixed(1) + '" height="8" class="cd-bar-hueco"/>';
+        return o;
+      }
+      // VENDIDO (arriba)
+      s += '<text x="' + cx + '" y="52" text-anchor="middle" class="cd-num">' + f.vendidos + '</text>';
+      s += '<text x="' + cx + '" y="66" text-anchor="middle" class="cd-mlabel">VENDIDO · DWH</text>';
+      s += bar(80, f.conciliados, f.vendidos);
+      // LLEGADO (abajo)
+      s += bar(spineBottom, f.llegados - f.sin_venta, f.llegados);
+      s += '<text x="' + cx + '" y="' + (spineBottom + 26) + '" text-anchor="middle" class="cd-num">' +
+        f.llegados + '</text>';
+      s += '<text x="' + cx + '" y="' + (spineBottom + 40) + '" text-anchor="middle" class="cd-mlabel">LLEGADO · PDF</text>';
+      // CONCILIADO (junta)
+      s += '<rect x="' + (cx - 80) + '" y="' + (juntaY - 26) + '" width="160" height="46" class="cd-mask"/>';
+      s += '<text x="' + cx + '" y="' + (juntaY - 14) + '" text-anchor="middle" class="cd-mlabel">CONCILIADO</text>';
+      s += '<path d="M' + cx + ' ' + (juntaY - 9) + ' l9 9 -9 9 -9 -9 Z" class="cd-junta" filter="url(#cd-glow)"/>';
+      s += '<text x="' + (cx - 16) + '" y="' + (juntaY + 5) + '" text-anchor="end" class="cd-num-s">' + f.conciliados + '</text>';
+      s += '<text x="' + (cx + 16) + '" y="' + (juntaY + 5) + '" class="cd-mlabel">' +
+        (f.pct_conciliado != null ? f.pct_conciliado + '%' : '—') + '</text>';
+
+      s += '<text x="24" y="' + (H - 12) + '" class="cd-foot">TRAZO DETERMINISTA · ' +
+        'MONTOS REALES DEL MOTOR — SIN ESTIMACIONES</text>';
+      s += '<text x="' + (W - 24) + '" y="' + (H - 12) + '" text-anchor="end" class="cd-foot">' +
+        'TOCA UNA ESTACIÓN PARA ABRIR SU HALLAZGO</text>';
+      s += '</svg>';
+
+      elCaudal.innerHTML = s;
+      elCaudal.querySelectorAll('.cd-est').forEach(function (g) {
+        function abrir() { seleccionar(Number(g.dataset.i)); }
+        g.addEventListener('click', abrir);
+        g.addEventListener('keydown', function (ev) {
+          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); }
+        });
       });
     }
 
+    
     fetch('/api/v1/autogenes/concilia')
       .then(function (r) { return r.json(); })
       .then(function (j) {

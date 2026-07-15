@@ -218,7 +218,7 @@ def test_concilia_renderiza():
     assert "CNC-01" in html
     assert "cn-flujo" in html and "cn-hallazgos" in html
     assert "cn-banda-dwh" in html and "cn-banda-pdf" in html
-    assert "cn-lienzo" in html and "cn-vin" in html
+    assert "cn-caudal" in html and "cn-vin" in html
     assert "concilia.js" in html
 
 

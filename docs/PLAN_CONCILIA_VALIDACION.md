@@ -403,6 +403,16 @@ capturas antes/después en ambos temas.
   acento, magenta sólo en la contradicción, selección en acento (no magenta).
   - Pendiente menor: la disposición de NOMOS (motor admitido por el esquema)
     no tiene UI aún — se atará cuando NOMOS deje de estar «Latente».
+  - **Rediseño del caudal (post-O1):** la «Anatomía del caudal» pasó de un
+    Sankey-tabla (chips con texto truncado, sin foco, no escalaba) a una
+    **escalera de derivaciones tipo P&ID** en SVG determinista: espina
+    VENDIDO→CONCILIADO→LLEGADO, cada fuga es una estación con código FG,
+    severidad, monto y título COMPLETO; sólo la fuga en foco arde, el resto
+    es fantasma; la estación es blanco de clic accesible (teclado) y su foco
+    sincroniza con la lista y la ficha. Crece por peldaños — escala por
+    construcción. Color desde tokens (el cambio de tema no redibuja). Medio:
+    SVG (no canvas) — decisión consciente avisada, pues vuelve imposible el
+    bug de texto truncado y es vanilla (no toca la ley de sin-bundler).
 - **OLA 0 — pendiente** (paridad con QUALIA: tool Jarvis de validación,
   métrica de conformidad en el landing, export PNG/CSV, `?sel=`). No
   bloquea; se intercalará cuando se pida.

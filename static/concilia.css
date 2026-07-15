@@ -55,10 +55,52 @@
 }
 .cn-estado.mal { color: var(--danger); }
 
-/* el lienzo del caudal ocupa el zócalo del tablero — alto fijo (no
-   crece/encoge) para que la columna scrollee limpia sin recortarlo */
-.cn-lienzo { flex: 0 0 420px; height: 420px; }
-.cn-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+/* ══ CAUDAL · escalera de derivaciones (P&ID, SVG) ═══════════════════
+   Reemplaza el Sankey-tabla. El caudal conciliado es la espina en acento;
+   cada fuga cuelga como derivación magenta con su estación de texto
+   COMPLETO. Sólo la fuga en foco arde (glow); el resto es fantasma. El
+   color sale de tokens — el cambio de tema no exige redibujar. */
+.cn-caudal { width: 100%; margin: 2px 0 6px; border: 1px solid var(--line);
+  background: var(--surface); }
+.cd-svg { display: block; width: 100%; height: auto; }
+.cn-caudal text { font-family: var(--font-mono); }
+.cd-gridline { fill: none; stroke: var(--line-ghost); stroke-width: 1; }
+.cd-reg path { fill: none; stroke: var(--line-2); stroke-width: 1; opacity: .5; }
+.cd-hd { font-size: 8.5px; letter-spacing: 2px; fill: var(--t3); }
+.cd-hd-alert { font-size: 8.5px; letter-spacing: 1.5px; fill: var(--danger); }
+.cd-col { font-size: 7.5px; letter-spacing: 2px; fill: var(--t3); }
+.cd-bus { stroke: var(--acc-solid); stroke-width: 2.2; }
+.cd-bus-glow { stroke: var(--acc-solid); stroke-width: 8; opacity: .16; }
+.cd-lead { stroke: var(--danger); stroke-width: .9; opacity: .4; }
+.cd-lead-foco { stroke: var(--danger); stroke-width: 1.6; }
+.cd-node { fill: var(--danger); opacity: .5; }
+.cd-node-foco { fill: var(--danger); }
+.cd-box { fill: var(--surface-2); stroke: var(--line); stroke-width: 1; }
+.cd-box-foco { fill: var(--surface-2); stroke: var(--danger); stroke-width: 1.4; }
+.cd-est { cursor: pointer; }
+.cd-est:focus { outline: none; }
+.cd-est:focus-visible .cd-box, .cd-est:focus-visible .cd-box-foco {
+  stroke: var(--acc-text); stroke-width: 1.6; }
+.cd-code { font-size: 9px; font-weight: 700; fill: var(--danger); opacity: .78; }
+.cd-est-foco .cd-code { opacity: 1; }
+.cd-monto { font-size: 10px; fill: var(--t2); }
+.cd-est-foco .cd-monto { fill: var(--danger); font-weight: 700; }
+.cd-nulo { font-size: 9px; fill: var(--t3); }
+.cd-tit { font-size: 10px; fill: var(--t2); }
+.cd-est-foco .cd-tit { fill: var(--t1); }
+.cd-ghost { opacity: .5; }
+.cd-num { font-size: 20px; font-weight: 700; fill: var(--t1); }
+.cd-num-s { font-size: 15px; font-weight: 700; fill: var(--t1); }
+.cd-mlabel { font-size: 7.5px; letter-spacing: 1.5px; fill: var(--t3); }
+.cd-bar-bg { fill: var(--surface-2); stroke: var(--line); stroke-width: .5; }
+.cd-bar-ok { fill: var(--acc-solid); }
+.cd-bar-hueco { fill: var(--danger); opacity: .85; }
+.cd-junta { fill: none; stroke: var(--acc-solid); stroke-width: 1.6; }
+.cd-mask { fill: var(--surface); }
+.cd-foot { font-size: 7.5px; letter-spacing: 1.5px; fill: var(--t3); opacity: .8; }
+/* en Daylight el glow enturbia; el color y el trazo bastan */
+[data-theme="light"] .cd-box-foco, [data-theme="light"] .cd-lead-foco,
+[data-theme="light"] .cd-junta { filter: none !important; }
 
 /* hallazgo: caja de dos líneas — título + monto, luego el detalle */
 .cn-caja {
