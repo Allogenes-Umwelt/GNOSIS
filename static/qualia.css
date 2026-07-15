@@ -130,36 +130,44 @@
   .qa-dial { margin-left: 0; }
 }
 
-/* ── Máquina C2: la sala de mando OODA ── */
-.qm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.qm-ventana {
-  border: 1px solid var(--line); background: var(--surface);
-  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
-  min-height: 180px;
-}
-.qm-ventana.viva { border-left: 2px solid var(--acc-text); }
-.qm-ventana.alerta { border-left: 2px solid var(--danger); }
+/* ── Máquina C2: el puente de mando OODA (diagrama de acoples) ── */
+.qm-stage { position: relative; margin-top: 14px; }
+.qm-lienzo { position: relative; height: min(620px, 64vh); min-height: 460px; }
+.qm-lienzo canvas { position: absolute; inset: 0; width: 100%; display: block; }
+/* callouts KPI databook: aireados, regla fina, sin caja pesada */
+.qm-kpi { position: absolute; width: 250px; max-width: 40%; z-index: 2; }
+.qm-kpi.nw { top: 4px; left: 4px; text-align: left; border-left: 2px solid var(--acc-text); padding-left: 12px; }
+.qm-kpi.ne { top: 4px; right: 4px; text-align: right; border-right: 2px solid var(--acc-text); padding-right: 12px; }
+.qm-kpi.sw { bottom: 4px; left: 4px; text-align: left; border-left: 2px solid var(--acc-text); padding-left: 12px; }
+.qm-kpi.se { bottom: 4px; right: 4px; text-align: right; border-right: 2px solid var(--acc-text); padding-right: 12px; }
+.qm-kpi.alerta { border-color: var(--danger); }
 .qm-fase {
-  display: flex; align-items: baseline; gap: 10px;
-  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px;
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2.5px;
   text-transform: uppercase; color: var(--acc-text);
 }
-.qm-fase .instr { color: var(--t3); letter-spacing: 1.5px; }
+.qm-kpi.alerta .qm-fase { color: var(--danger); }
+.qm-fase .instr { color: var(--t3); }
 .qm-titular {
-  font-family: var(--font-d); font-weight: 700; font-size: 1.3rem;
-  line-height: 1.25; color: var(--t1); overflow-wrap: anywhere;
+  font-family: var(--font-d); font-weight: 700; font-size: 1.05rem;
+  line-height: 1.2; color: var(--t1); margin: 5px 0 3px; overflow-wrap: anywhere;
 }
-.qm-titular.alerta { color: var(--danger); }
-.qm-dato { color: var(--t2); font-size: .8rem; line-height: 1.55; margin: 0; }
-.qm-dato b { color: var(--t1); }
+.qm-kpi.alerta .qm-titular { color: var(--danger); }
+.qm-dato { color: var(--t3); font-size: .74rem; line-height: 1.45; margin: 0; }
+.qm-dato b { color: var(--t2); }
 .qm-abrir {
-  margin-top: auto; align-self: flex-start;
-  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 2px;
+  display: inline-block; margin-top: 6px;
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1.5px;
   text-transform: uppercase; color: var(--acc-text); text-decoration: none;
-  border: 1px solid var(--line); padding: 0 14px; min-height: 40px;
-  display: inline-flex; align-items: center;
 }
-.qm-abrir:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+.qm-abrir:hover { text-decoration: underline; }
+/* lectura del diagrama */
+.qm-lectura-diag {
+  font-family: var(--font-mono); font-size: .78rem; line-height: 1.6;
+  color: var(--t3); border-top: 1px solid var(--line-ghost);
+  padding-top: 12px; margin-top: 6px;
+}
+.qm-lectura-diag b { color: var(--t1); }
+.qm-lectura-diag .alerta { color: var(--danger); }
 /* el parte del sistema (narrativa saneada) */
 .qm-parte { border: 1px solid var(--line); background: var(--surface); padding: 16px; }
 .qm-panorama { color: var(--t1); font-size: .92rem; line-height: 1.6; margin: 8px 0 12px; }
@@ -172,4 +180,13 @@
   text-transform: uppercase; color: var(--acc-text); display: block;
 }
 .qm-obs { color: var(--t2); font-size: .8rem; margin: 4px 0 0; padding-left: 16px; }
-@media (max-width: 900px) { .qm-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) {
+  .qm-stage { display: flex; flex-direction: column; }
+  .qm-lienzo { height: 360px; order: -1; }
+  .qm-kpi {
+    position: static; width: auto; max-width: none; text-align: left;
+    border-right: 0; border-left: 2px solid var(--acc-text);
+    padding: 0 0 0 12px; margin-top: 10px;
+  }
+  .qm-kpi.alerta { border-color: var(--danger); }
+}

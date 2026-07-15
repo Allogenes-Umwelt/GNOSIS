@@ -61,9 +61,7 @@ JERGA_PROHIBIDA = [
 # ── carril 1: deuda heredada. Cada fase que traduce una etiqueta borra su
 #    entrada. Una entrada que ya no corresponda a una ocurrencia real falla
 #    (no se deja cuarentena muerta). Meta de Q3: {} vacío. ───────────────
-CUARENTENA = {
-    "static/qualia_maquina.js": {"monolito"},
-}
+CUARENTENA: dict[str, set[str]] = {}
 
 # ── carril 2: término dejado a propósito dentro de una ficha técnica
 #    declarada (método honesto, no etiqueta gritada). Vacío hoy; Q3 lo
