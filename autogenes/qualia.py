@@ -225,12 +225,38 @@ def anomalias_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, 
     resumen = topologia.resumen_red(red)
     base = leer_base(conn, session_id)
     actividad = anomalias_actividad(conn, session_id)
+    disp = _disposiciones(conn, session_id)
+
+    def anotar(hs: list[dict]) -> list[dict]:
+        # anota el ciclo de vida (Q5): la disposición del operador por clave;
+        # sin disposición, la anomalía nace 'nuevo'.
+        for h in hs:
+            d = disp.get(h["clave"])
+            h["estado"] = d["estado"] if d else "nuevo"
+            h["nota"] = d["nota"] if d else None
+        return hs
+
     if base is None:
-        return {"resumen": resumen, "base": None, "hallazgos": actividad,
+        return {"resumen": resumen, "base": None, "hallazgos": anotar(actividad),
                 "motivo": "Sin referencia fijada — fija la base para medir desviaciones"}
     hallazgos = detectar_anomalias(resumen, base) + actividad
     hallazgos.sort(key=lambda h: -h["severidad"])
-    return {"resumen": resumen, "base": base, "hallazgos": hallazgos}
+    return {"resumen": resumen, "base": base, "hallazgos": anotar(hallazgos)}
+
+
+def _disposiciones(conn: sqlite3.Connection, session_id: int) -> dict[str, dict]:
+    """Mapa clave → {estado, nota} de las anomalías dispuestas por el
+    operador. Vacío si el esquema aún no tiene la tabla del ciclo de vida."""
+    try:
+        return {
+            r["clave"]: {"estado": r["estado"], "nota": r["nota"]}
+            for r in conn.execute(
+                "SELECT clave, estado, nota FROM ag_qualia_anomalias"
+                " WHERE session_id = ?", (session_id,),
+            )
+        }
+    except sqlite3.OperationalError:
+        return {}
 
 
 def drift_sesiones(conn: sqlite3.Connection, session_id_a: int,

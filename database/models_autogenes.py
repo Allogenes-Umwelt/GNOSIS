@@ -139,6 +139,25 @@ CREATE TABLE IF NOT EXISTS ag_qualia_base (
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );
 
+-- Ciclo de vida de una anomalía QUALIA (F7/Q5). La anomalía se re-deriva
+-- viva; aquí sólo vive la DISPOSICIÓN del operador por clave. Escritura
+-- SOLO via Sustrato (puerta única + bitácora WORM). La ley cero-snake-oil
+-- se fija en el esquema: una anomalía estructural JAMÁS se monetiza.
+CREATE TABLE IF NOT EXISTS ag_qualia_anomalias (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  INTEGER NOT NULL,
+    clave       TEXT NOT NULL,
+    estado      TEXT NOT NULL DEFAULT 'nuevo'
+                CHECK (estado IN ('nuevo', 'en_gestion', 'resuelto', 'descartado')),
+    nota        TEXT,
+    monetizado  INTEGER NOT NULL DEFAULT 0 CHECK (monetizado = 0),
+    ts          TEXT DEFAULT (datetime('now')),
+    UNIQUE (session_id, clave),
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ag_qualia_anomalias
+    ON ag_qualia_anomalias(session_id, clave);
+
 -- NOMOS (F12): reglas de negocio como ciudadanos del grafo. Escritura
 -- SOLO via Sustrato (ley aditiva: crear + activar/desactivar, jamas
 -- borrar). Una regla es una neurona McCulloch-Pitts AND: condiciones

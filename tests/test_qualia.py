@@ -224,3 +224,38 @@ def test_decimo_detector_fuente_enciende_en_actividad(conn):
     fuentes = [h for h in hallazgos if h["detector"] == "fuente"]
     assert fuentes                                   # el motor antes muerto ya habla
     assert fuentes[0]["clave"].startswith("anom-fuente-")
+
+
+def test_ciclo_de_vida_de_anomalia_worm_y_no_monetiza(conn):
+    s = Sustrato(conn, SID)
+    r = s.disponer_anomalia("anom-rafaga", "en_gestion", "revisando")
+    assert r["estado"] == "en_gestion"
+    assert s.disposiciones_anomalias()["anom-rafaga"] == {
+        "estado": "en_gestion", "nota": "revisando"}
+    s.disponer_anomalia("anom-rafaga", "resuelto", "cerrado")     # transición
+    assert s.disposiciones_anomalias()["anom-rafaga"]["estado"] == "resuelto"
+    assert "anomalia" in [b["accion"] for b in s.bitacora()]      # bitácora WORM
+    # el esquema veta monetizar una anomalía estructural
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute("UPDATE ag_qualia_anomalias SET monetizado = 1"
+                     " WHERE session_id = ?", (SID,))
+
+
+def test_disponer_anomalia_estado_invalido(conn):
+    with pytest.raises(ValueError):
+        Sustrato(conn, SID).disponer_anomalia("anom-x", "cerrado_ya")
+
+
+def test_anomalia_dispuesta_se_anota_en_el_hallazgo(conn):
+    for dia, veces in [("2026-07-01", 1), ("2026-07-02", 1), ("2026-07-03", 1),
+                       ("2026-07-04", 1), ("2026-07-05", 1), ("2026-07-06", 9)]:
+        for _ in range(veces):
+            conn.execute("INSERT INTO importaciones (session_id, fecha_factura)"
+                         " VALUES (?, ?)", (SID, dia))
+    hall = qualia.anomalias_de_sesion(conn, SID)["hallazgos"]
+    fuente = next(h for h in hall if h["detector"] == "fuente")
+    assert fuente["estado"] == "nuevo"                           # nace nuevo
+    Sustrato(conn, SID).disponer_anomalia(fuente["clave"], "descartado", "ruido")
+    hall2 = qualia.anomalias_de_sesion(conn, SID)["hallazgos"]
+    fuente2 = next(h for h in hall2 if h["detector"] == "fuente")
+    assert fuente2["estado"] == "descartado" and fuente2["nota"] == "ruido"

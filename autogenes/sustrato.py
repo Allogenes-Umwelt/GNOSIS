@@ -111,6 +111,45 @@ class Sustrato:
         )
         return [dict(r) for r in rows]
 
+    # ── disposición de anomalías QUALIA (F7/Q5) ──────────────────────
+    ESTADOS_ANOMALIA = ("nuevo", "en_gestion", "resuelto", "descartado")
+
+    def disponer_anomalia(self, clave: str, estado: str,
+                          nota: Optional[str] = None) -> dict:
+        """Fija la disposición del operador sobre una anomalía (por clave):
+        nuevo → en_gestion → resuelto/descartado, con nota opcional. Puerta
+        única + bitácora WORM. La anomalía JAMÁS se monetiza (lo veta el
+        esquema con CHECK monetizado = 0); esto sólo registra la decisión, no
+        fabrica monto ni evidencia."""
+        clave = (clave or "").strip()
+        if not clave:
+            raise ValueError("Anomalía sin clave")
+        if estado not in self.ESTADOS_ANOMALIA:
+            raise ValueError(f"Estado inválido: {estado}")
+        nota_limpia = (nota or "").strip() or None
+        self.conn.execute(
+            "INSERT INTO ag_qualia_anomalias (session_id, clave, estado, nota)"
+            " VALUES (?, ?, ?, ?)"
+            " ON CONFLICT(session_id, clave) DO UPDATE SET"
+            " estado = excluded.estado, nota = excluded.nota, ts = datetime('now')",
+            (self.session_id, clave, estado, nota_limpia),
+        )
+        self._registrar(
+            "anomalia",
+            f"{clave} → {estado}" + (f": {nota_limpia}" if nota_limpia else ""))
+        self._commit()
+        return {"clave": clave, "estado": estado, "nota": nota_limpia}
+
+    def disposiciones_anomalias(self) -> dict[str, dict]:
+        """Mapa clave → {estado, nota} de las anomalías dispuestas."""
+        return {
+            r["clave"]: {"estado": r["estado"], "nota": r["nota"]}
+            for r in self.conn.execute(
+                "SELECT clave, estado, nota FROM ag_qualia_anomalias"
+                " WHERE session_id = ?", (self.session_id,),
+            )
+        }
+
     # ── row mapping ──────────────────────────────────────────────────
 
     @staticmethod

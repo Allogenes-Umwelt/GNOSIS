@@ -675,6 +675,32 @@ def api_qualia_cascada():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/qualia/anomalia', methods=['POST'])
+def api_qualia_anomalia():
+    """Ciclo de vida de una anomalía (Q5): fija la disposición del operador
+    (nuevo→en_gestion→resuelto/descartado) + nota. Puerta única: escribe por
+    Sustrato con bitácora WORM; la anomalía nunca se monetiza (lo veta el
+    esquema)."""
+    from autogenes.sustrato import Sustrato
+    data = request.get_json(silent=True) or {}
+    clave = (data.get('clave') or '').strip()
+    estado = (data.get('estado') or '').strip()
+    nota = data.get('nota')
+    if not clave or not estado:
+        return jsonify({'error': 'Indica clave y estado'}), 400
+
+    def handler(conn, session_id):
+        s = Sustrato(conn, session_id)
+        try:
+            return jsonify(s.disponer_anomalia(clave, estado, nota))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/qualia/dossier', methods=['GET'])
 def api_qualia_dossier():
     """Drill-down Q4: el dossier de negocio de una entidad del caso — qué

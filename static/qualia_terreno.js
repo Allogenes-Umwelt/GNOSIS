@@ -234,12 +234,54 @@
         return;
       }
       var det = DETECTORES.find(function (x) { return x.id === a.detector; });
+      var est = a.estado || 'nuevo';
+      var trans = [['en_gestion', 'en gestión'], ['resuelto', 'resuelto'],
+                   ['descartado', 'descartado']];
       elDetalle.innerHTML =
         '<div class="gr-kind">' + Q.esc(nombreDe(a.detector)) + ' · SEVERIDAD ' +
         Math.round(a.severidad * 100) + '%</div>' +
         '<div class="gr-nombre">' + Q.esc(a.titulo) + '</div>' +
         '<p class="qa-lectura">' + Q.esc(a.detalle) + '</p>' +
-        (det ? '<p class="qa-base-hint">' + Q.esc(det.definicion) + '</p>' : '');
+        (det ? '<p class="qa-base-hint">' + Q.esc(det.definicion) + '</p>' : '') +
+        '<div class="qt-ciclo">' +
+        '<span class="qt-estado qt-e-' + est + '">' + nombreEstado(est) + '</span>' +
+        '<label class="qt-nota-l">nota del operador' +
+        '<textarea class="qt-nota" id="qt-nota" rows="2" placeholder="qué decidiste y por qué…">' +
+        Q.esc(a.nota || '') + '</textarea></label>' +
+        '<div class="qt-acciones">' + trans.map(function (t) {
+          return '<button type="button" class="qt-disp' + (est === t[0] ? ' activo' : '') +
+            '" data-e="' + t[0] + '">' + t[1] + '</button>';
+        }).join('') + '</div>' +
+        '<p class="qa-base-hint">Se registra en la bitácora WORM; una anomalía ' +
+        'estructural nunca se monetiza.</p></div>';
+      elDetalle.querySelectorAll('.qt-disp').forEach(function (b) {
+        b.addEventListener('click', function () { disponer(a.clave, b.getAttribute('data-e')); });
+      });
+    }
+    function nombreEstado(e) {
+      return { nuevo: 'nuevo', en_gestion: 'en gestión', resuelto: 'resuelto',
+               descartado: 'descartado' }[e || 'nuevo'];
+    }
+    function disponer(clave, estado) {
+      var ta = document.getElementById('qt-nota');
+      elMsj.className = 'ag-msj'; elMsj.textContent = 'Guardando disposición…';
+      fetch('/api/v1/autogenes/qualia/anomalia', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: clave, estado: estado, nota: ta ? ta.value : '' })
+      })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) {
+            elMsj.className = 'ag-msj error';
+            elMsj.textContent = res.j.error || 'No se pudo guardar';
+            return;
+          }
+          elMsj.className = 'ag-msj'; elMsj.textContent = 'Disposición registrada';
+          cargar();     // re-anota los estados y refresca el detalle
+        })
+        .catch(function () {
+          elMsj.className = 'ag-msj error'; elMsj.textContent = 'Sin conexión — reintenta';
+        });
     }
     function pintarLista() {
       var sev = {};
@@ -301,6 +343,11 @@
           'Terreno de anomalías: ' + (estado.hallazgos || []).length +
           ' desviaciones medidas contra tu referencia. Los detectores se listan a la derecha con su severidad.');
         pintarLista(); dibujar();
+        // si hay una cresta abierta, re-renderiza su detalle con el estado fresco
+        if (seleccionada) {
+          var a = (estado.hallazgos || []).find(function (x) { return x.clave === seleccionada; });
+          pintarDetalle(a || null); if (!a) seleccionada = null;
+        }
       }).catch(function () { elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
     }
 

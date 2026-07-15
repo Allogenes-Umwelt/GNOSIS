@@ -268,3 +268,27 @@ def test_dossier_entidad_desconocida_reporta_sin_inventar(cliente):
         f"&session_id={_sid(cliente)}")
     assert r.status_code == 200
     assert "error" in r.get_json()
+
+
+# ── POST anomalia (Q5 lifecycle) ─────────────────────────────────────
+
+def test_anomalia_disponer_200(cliente):
+    r = cliente.post(
+        f"/api/v1/autogenes/qualia/anomalia?session_id={_sid(cliente)}",
+        json={"clave": "anom-rafaga", "estado": "en_gestion", "nota": "revisando"})
+    assert r.status_code == 200
+    assert r.get_json()["estado"] == "en_gestion"
+
+
+def test_anomalia_estado_invalido_400(cliente):
+    r = cliente.post(
+        f"/api/v1/autogenes/qualia/anomalia?session_id={_sid(cliente)}",
+        json={"clave": "anom-x", "estado": "nope"})
+    assert r.status_code == 400
+
+
+def test_anomalia_sin_clave_400(cliente):
+    r = cliente.post(
+        f"/api/v1/autogenes/qualia/anomalia?session_id={_sid(cliente)}",
+        json={"estado": "resuelto"})
+    assert r.status_code == 400

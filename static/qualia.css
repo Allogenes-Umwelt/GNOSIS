@@ -270,3 +270,32 @@
 }
 .qa-exp-btn:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
 .qa-exp-btn:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+
+/* ── Ciclo de vida de anomalías (Q5): disposición del operador ── */
+.qt-ciclo { margin-top: 12px; border-top: 1px solid var(--line-ghost); padding-top: 10px; }
+.qt-estado {
+  display: inline-block; font-family: var(--font-mono); font-size: .56rem;
+  letter-spacing: 2px; text-transform: uppercase; padding: 3px 8px;
+  border: 1px solid var(--line); color: var(--t3);
+}
+.qt-estado.qt-e-nuevo { color: var(--acc-text); border-color: var(--acc-text); }
+.qt-estado.qt-e-en_gestion { color: var(--bg); background: var(--acc-text); border-color: var(--acc-text); }
+.qt-estado.qt-e-resuelto { color: var(--t3); }
+.qt-estado.qt-e-descartado { color: var(--t3); opacity: .7; text-decoration: line-through; }
+.qt-nota-l {
+  display: block; font-family: var(--font-mono); font-size: .56rem;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--t3); margin-top: 10px;
+}
+.qt-nota {
+  display: block; width: 100%; margin-top: 4px; background: var(--bg); color: var(--t1);
+  border: 1px solid var(--line); font-family: var(--font-mono); font-size: .75rem;
+  padding: 6px 8px; resize: vertical;
+}
+.qt-nota:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+.qt-acciones { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.qt-disp {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1px;
+  text-transform: uppercase; background: transparent; color: var(--acc-text);
+  border: 1px solid var(--line); padding: 6px 10px; cursor: pointer;
+}
+.qt-disp:hover, .qt-disp.activo { background: var(--acc-subtle); border-color: var(--acc-text); }
