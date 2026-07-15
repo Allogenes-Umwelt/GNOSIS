@@ -141,6 +141,17 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
                           "sub": "severidad " + str(round(a["severidad"] * 100)) + "%",
                           "critico": a["severidad"] >= 0.5,
                           "accion": "/autogenes/qualia/terreno"})
+    # Deriva entre sesiones (Q5): el caso cambió respecto a la sesión previa.
+    d = sen.get("deriva")
+    if d and (d["n_hallazgos"] or abs(d["delta_conceptos"]) >= 5
+              or d["cohesion"] != "estable"):
+        detalle = ("+" if d["delta_conceptos"] >= 0 else "") + \
+            str(d["delta_conceptos"]) + " conceptos · el caso se " + d["cohesion"]
+        urgencias.append({"tipo": "deriva",
+                          "titulo": "Derivó desde " + d["de"],
+                          "sub": detalle,
+                          "critico": d["cohesion"] == "fragmentó" or d["n_hallazgos"] >= 3,
+                          "accion": "/autogenes/qualia/deriva"})
     for v in sen["vencimientos"]:
         urgencias.append({"tipo": "vencimiento", "titulo": v["titulo"],
                           "sub": v["fecha"] + " · en " + str(v["dias"]) + " días",

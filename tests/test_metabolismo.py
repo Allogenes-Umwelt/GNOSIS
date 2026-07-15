@@ -112,3 +112,43 @@ def test_benchmark_vs_sesion_previa(conn):
     assert m2["benchmark"]["prev_id"] == 1
     assert m2["benchmark"]["prev_salud"] == salud_prev
     assert m2["benchmark"]["delta"] == m2["salud"] - salud_prev
+
+
+def _sesion(conn, mes, entidades_modelos):
+    """Siembra una sesión con VW + N modelos + geografía; devuelve su id."""
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES (?, ?, 2026)", (f"2026-{mes:02d}-10", mes))
+    sid = conn.execute("SELECT MAX(id) FROM processing_sessions").fetchone()[0]
+    s = Sustrato(conn, sid)
+    art = s.crear_artefacto("pdf", f"f{mes}.pdf")
+    fr = [f.id for f in s.agregar_fragmentos(art.id, [(1, "t")])]
+    vw = s.upsert_entidad("VOLKSWAGEN", "organizacion", "synesis", evidencia=fr)
+    al = s.upsert_entidad("Alemania", "lugar", "synesis", evidencia=fr)
+    s.agregar_relacion(vw.id, al.id, "origen", 0.8, fr)
+    for mod in entidades_modelos:
+        v = s.upsert_entidad(f"VW {mod}", "concepto", "synesis", evidencia=fr)
+        s.agregar_relacion(vw.id, v.id, "importa", 0.7, fr)
+    return sid
+
+
+def test_deriva_se_publica_al_radar_como_urgencia():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(models.SCHEMA_SQL)
+    conn.executescript(models_autogenes.AG_SCHEMA_SQL)
+    from autogenes.senales import senales_de_sesion
+
+    ref = _sesion(conn, 6, ["Taos"])                     # referencia pequeña
+    act = _sesion(conn, 7, ["Taos", "Jetta", "Tiguan", "Virtus", "Amarok", "Polo"])
+
+    sen = senales_de_sesion(conn, act, hoy="2026-07-10")
+    assert sen["deriva"] is not None
+    assert sen["deriva"]["de"] == "06/2026" and sen["deriva"]["a"] == "07/2026"
+    assert sen["deriva"]["delta_conceptos"] >= 5          # creció de forma notable
+
+    m = metabolismo_de_sesion(conn, act, hoy="2026-07-10")
+    derivas = [u for u in m["urgencias"] if u["tipo"] == "deriva"]
+    assert derivas and derivas[0]["accion"] == "/autogenes/qualia/deriva"
+
+    # la primera sesión no tiene contra qué comparar: deriva honesta = None
+    assert senales_de_sesion(conn, ref, hoy="2026-06-10")["deriva"] is None

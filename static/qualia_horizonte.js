@@ -180,7 +180,12 @@
         '<div class="qa-bar"><span class="l">conceptos hoy</span><span class="v">' +
         (horizonte.puntos.length ? horizonte.puntos[horizonte.puntos.length - 1].n_nodos : 0) + '</span></div>' +
         '<div class="qa-bar"><span class="l">vínculos hoy</span><span class="v">' +
-        (horizonte.puntos.length ? horizonte.puntos[horizonte.puntos.length - 1].n_enlaces : 0) + '</span></div>';
+        (horizonte.puntos.length ? horizonte.puntos[horizonte.puntos.length - 1].n_enlaces : 0) + '</span></div>' +
+        (horizonte.al_tope
+          ? '<p class="qa-base-hint" style="margin-top:6px">Serie al tope de ' +
+            horizonte.tope_snapshots + ' muestras: las más antiguas se descartan ' +
+            'para acotar la memoria. El eje muestra el tramo vivo, no toda la historia.</p>'
+          : '');
       var html = '';
       horizonte.lineas.forEach(function (l, i) {
         html += '<button type="button" class="qa-caja qa-item' + (seleccionada === i ? ' activo' : '') +

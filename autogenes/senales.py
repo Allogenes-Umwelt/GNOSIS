@@ -84,8 +84,16 @@ def senales_de_sesion(conn: sqlite3.Connection, session_id: int,
     except sqlite3.OperationalError:
         anomalias = []   # esquema qualia aún no migrado en esta base
 
+    # Deriva entre sesiones (Q5): al abrir el Radar se compara el caso contra
+    # la sesión inmediatamente anterior y se publica una alerta si derivó. La
+    # referencia (`de`) lleva su periodo, así que su edad es visible.
+    deriva = _deriva_previa(conn, session_id)
+    deriva_alerta = 1 if (deriva and (deriva["n_hallazgos"]
+                          or abs(deriva["delta_conceptos"]) >= 5
+                          or deriva["cohesion"] != "estable")) else 0
+
     total = (len(vencimientos) + len(fuentes_frias) + len(huerfanas)
-             + len(anomalias)
+             + len(anomalias) + deriva_alerta
              + (1 if faltantes else 0) + (1 if errores else 0))
     return {
         "session_id": session_id,
@@ -95,6 +103,35 @@ def senales_de_sesion(conn: sqlite3.Connection, session_id: int,
         "fuentes_frias": fuentes_frias,
         "huerfanas": huerfanas,
         "anomalias": anomalias,
+        "deriva": deriva,
         "negocio": {"faltantes": faltantes, "errores": errores},
         "total": total,
+    }
+
+
+def _deriva_previa(conn: sqlite3.Connection,
+                   session_id: int) -> Optional[dict[str, Any]]:
+    """Compara el caso contra la sesión previa (id menor más reciente) y
+    condensa la deriva para el Radar. Sin sesión previa o sin esquema qualia,
+    devuelve None honestamente — nunca inventa una referencia."""
+    prev = conn.execute(
+        "SELECT id FROM processing_sessions WHERE id < ? ORDER BY id DESC LIMIT 1",
+        (session_id,),
+    ).fetchone()
+    if prev is None:
+        return None
+    try:
+        from autogenes.qualia import drift_sesiones
+        d = drift_sesiones(conn, prev["id"], session_id)
+    except (sqlite3.OperationalError, ValueError):
+        return None
+    sep = (d.get("cohesion_a", {}).get("separacion_total", 0)
+           - d.get("cohesion_de", {}).get("separacion_total", 0))
+    return {
+        "de": d["de"], "a": d["a"],
+        "delta_conceptos": d["deltas"]["n_nodos"],
+        "delta_vinculos": d["deltas"]["n_enlaces"],
+        "n_hallazgos": len(d["hallazgos"]),
+        "cohesion": ("fragmentó" if sep > 0.05
+                     else "apretó" if sep < -0.05 else "estable"),
     }

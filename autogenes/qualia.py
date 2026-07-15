@@ -247,7 +247,7 @@ def horizonte_de_sesion(conn: sqlite3.Connection, session_id: int) -> Optional[d
     the append-only bitácora, each with its measured before/after delta."""
     from autogenes.horizonte import construir_horizonte
 
-    snapshots = leer_snapshots(conn, session_id, limite=200)
+    snapshots = leer_snapshots(conn, session_id, limite=MAX_SNAPSHOTS)
     intervenciones = [
         {"ts": r["ts"], "accion": r["accion"], "detalle": r["detalle"]}
         for r in conn.execute(
@@ -255,7 +255,19 @@ def horizonte_de_sesion(conn: sqlite3.Connection, session_id: int) -> Optional[d
             " ORDER BY id", (session_id,),
         )
     ]
-    return construir_horizonte(snapshots, intervenciones)
+    h = construir_horizonte(snapshots, intervenciones)
+    if h is not None:
+        # Honestidad del tope: la serie se capa en MAX_SNAPSHOTS por sesión;
+        # cuando llega al tope, las muestras más viejas se descartan. No lo
+        # ocultamos — lo declaramos para que el eje no mienta sobre su alcance.
+        total = conn.execute(
+            "SELECT COUNT(*) FROM ag_qualia_snapshots WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()[0]
+        h["total_snapshots"] = total
+        h["tope_snapshots"] = MAX_SNAPSHOTS
+        h["al_tope"] = total >= MAX_SNAPSHOTS
+    return h
 
 
 def estado_qualia(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
