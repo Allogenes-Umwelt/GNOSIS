@@ -17,6 +17,7 @@
         <span class="qa-desig">
           <span class="cod">QLA-04 · AUTOGENES F7</span>
           <span class="nom">◆ Qualia · Horizonte de eventos</span>
+          <span class="qa-pregunta">¿Cómo creció el caso en el tiempo, y qué lo movió?</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia/maquina">máquina</a>
@@ -31,7 +32,7 @@
       </div>
       <div class="qa-lienzo" id="qh-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>●</b> muestra de telemetría — nada entre muestras se inventa</li>
+        <li><span style="color:var(--acc-text)">●</span> conceptos · <b>●</b> vínculos — mismo eje de conteo</li>
         <li><b>│</b> intervención del operador — tócala para su delta medido</li>
         <li><span id="qh-info" role="status">CARGANDO EL HORIZONTE…</span></li>
       </ul>
@@ -52,6 +53,13 @@
       <div class="qa-spec" id="qh-spec"></div>
       <div class="qa-sec">Intervenciones</div>
       <div class="qa-lista" id="qh-lineas"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Los puntos son muestras reales de la bitácora; la línea sólo las une,
+        nada entre muestras se inventa. Eje Y en conteo absoluto y compartido por
+        ambas series (comparables). El delta de una intervención se mide entre
+        las muestras que la flanquean, jamás se interpola. Determinista.</p>
+      </details>
       <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
     </aside>
   </div>
@@ -59,6 +67,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia_horizonte.js') }}"></script>
 <script>
 (function () {
