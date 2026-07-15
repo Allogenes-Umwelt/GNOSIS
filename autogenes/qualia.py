@@ -153,11 +153,34 @@ def leer_base(conn: sqlite3.Connection, session_id: int) -> Optional[dict]:
     return json.loads(r["snapshot"]) if r else None
 
 
+def series_de_sesion(conn: sqlite3.Connection,
+                     session_id: int) -> list[dict[str, Any]]:
+    """Series numéricas MEDIDAS de la sesión para el detector de desvío de
+    fuentes. Hoy: el volumen de importación por día (conteo de filas) — NO
+    monetario, jamás inventa monto; solo cuenta lo ya registrado, ordenado
+    en el tiempo. Si la tabla del pipeline no está o hay pocos puntos, la
+    lista sale vacía y el detector calla honestamente."""
+    try:
+        filas = conn.execute(
+            "SELECT substr(fecha_factura, 1, 10) AS dia, COUNT(*) AS n"
+            " FROM importaciones WHERE session_id = ? AND fecha_factura IS NOT NULL"
+            " GROUP BY dia ORDER BY dia", (session_id,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
+    valores = [float(r["n"]) for r in filas]
+    if len(valores) < 4:
+        return []
+    return [{"etiqueta": "volumen de importación diario", "valores": valores}]
+
+
 def anomalias_actividad(conn: sqlite3.Connection, session_id: int) -> list[dict]:
     """RÁFAGA y RITMO sobre la serie de actividad de la bitácora
     (mutaciones por día). Miden contra su PROPIA historia, así que no
     requieren base — estadística clásica, nunca opinión."""
-    from autogenes.anomalias import quiebre_ritmo, rafaga_actividad
+    from autogenes.anomalias import (
+        desviacion_fuentes, quiebre_ritmo, rafaga_actividad,
+    )
 
     filas = conn.execute(
         "SELECT substr(ts, 1, 10) AS dia, COUNT(*) AS n FROM ag_bitacora"
@@ -166,6 +189,9 @@ def anomalias_actividad(conn: sqlite3.Connection, session_id: int) -> list[dict]
     ).fetchall()
     serie = [float(r["n"]) for r in filas]
     hallazgos: list[dict] = []
+    # Décimo detector (FUENTES): desvío de las series numéricas MEDIDAS de la
+    # sesión contra su propia historia. Motor antes muerto; ahora enciende.
+    hallazgos += desviacion_fuentes(series_de_sesion(conn, session_id))
     r = rafaga_actividad(serie)
     if r["es_rafaga"]:
         hallazgos.append({

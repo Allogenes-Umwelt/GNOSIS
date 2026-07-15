@@ -197,3 +197,30 @@ def test_lente_negocio_determinista_doble_corrida(conn):
     a = resumen_red(qualia.red_de_sesion(conn, SID, lente="negocio"))
     b = resumen_red(qualia.red_de_sesion(conn, SID, lente="negocio"))
     assert a == b
+
+
+def test_series_de_sesion_volumen_diario_no_monetario(conn):
+    # sin filas de importación: sin serie, detector callado
+    assert qualia.series_de_sesion(conn, SID) == []
+    # cinco días con 1 fila + un día pico de 8 → serie [1,1,1,1,1,8]
+    for dia, veces in [("2026-07-01", 1), ("2026-07-02", 1), ("2026-07-03", 1),
+                       ("2026-07-04", 1), ("2026-07-05", 1), ("2026-07-06", 8)]:
+        for _ in range(veces):
+            conn.execute("INSERT INTO importaciones (session_id, fecha_factura)"
+                         " VALUES (?, ?)", (SID, dia))
+    series = qualia.series_de_sesion(conn, SID)
+    assert len(series) == 1
+    assert series[0]["etiqueta"] == "volumen de importación diario"
+    assert series[0]["valores"] == [1, 1, 1, 1, 1, 8]
+
+
+def test_decimo_detector_fuente_enciende_en_actividad(conn):
+    for dia, veces in [("2026-07-01", 1), ("2026-07-02", 1), ("2026-07-03", 1),
+                       ("2026-07-04", 1), ("2026-07-05", 1), ("2026-07-06", 9)]:
+        for _ in range(veces):
+            conn.execute("INSERT INTO importaciones (session_id, fecha_factura)"
+                         " VALUES (?, ?)", (SID, dia))
+    hallazgos = qualia.anomalias_actividad(conn, SID)
+    fuentes = [h for h in hallazgos if h["detector"] == "fuente"]
+    assert fuentes                                   # el motor antes muerto ya habla
+    assert fuentes[0]["clave"].startswith("anom-fuente-")
