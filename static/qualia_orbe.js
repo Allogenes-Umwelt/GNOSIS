@@ -278,6 +278,11 @@
     function seleccionar(id) {
       seleccionado = seleccionado === id ? null : id;
       pintarDetalle(); pintarMasas(); dibujar();
+      // drill-down: el cuerpo seleccionado abre su dossier de negocio (Q4)
+      if (seleccionado && window.QualiaDossier) {
+        var c = cuerpos.find(function (x) { return x.id === seleccionado; });
+        window.QualiaDossier.abrir(c ? c.etiqueta : seleccionado, { nodoId: seleccionado });
+      }
     }
 
     function cargar() {

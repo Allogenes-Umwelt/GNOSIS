@@ -423,6 +423,15 @@
       }
     });
     canvas.addEventListener('pointercancel', function () { arrastre.activo = false; });
+    // gesto secundario: doble clic abre el dossier de la entidad (el clic
+    // simple sigue simulando la caída — no se pisa el what-if) (Q4)
+    canvas.addEventListener('dblclick', function (ev) {
+      if (!datos) return;
+      var id = nodoEn(ev);
+      if (id && window.QualiaDossier) {
+        window.QualiaDossier.abrir(etiquetaDe(id), { nodoId: id });
+      }
+    });
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
       vista.k = Math.min(6, Math.max(0.4, vista.k * Math.pow(1.0015, -ev.deltaY)));

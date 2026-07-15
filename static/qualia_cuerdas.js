@@ -243,6 +243,11 @@
       var caja = canvas.getBoundingClientRect();
       var id = idEnAngulo(ev.clientX - caja.left, ev.clientY - caja.top);
       seleccionado = id === seleccionado ? null : id;
+      // drill-down: la entidad tocada abre su dossier de negocio (Q4)
+      if (seleccionado && window.QualiaDossier) {
+        window.QualiaDossier.abrir(etiquetaDe[seleccionado] || seleccionado,
+          { nodoId: seleccionado });
+      }
       pintarDetalle(); dibujar();
     });
     canvas.addEventListener('pointerleave', function () { if (hover !== null) { hover = null; dibujar(); } });

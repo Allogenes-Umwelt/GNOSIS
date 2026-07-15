@@ -264,10 +264,27 @@
         : (estado.base ? 'Terreno plano · sin desviaciones' : (estado.motivo || 'Sin referencia fijada'));
       elSello.className = 'qt-sello' + (n ? ' alerta' : '');
     }
+    // Una cresta de entidad (concentrador/puente) cita a un nodo real: su id
+    // vive en la clave y su etiqueta entre «». Las crestas globales (tejido,
+    // ritmo, islas…) no tienen un sujeto único: no abren dossier.
+    function entidadDeCresta(a) {
+      if (!a) return null;
+      var pref = { 'hub-nuevo': 'anom-hub-', 'puente-nuevo': 'anom-puente-',
+                   'puente-caido': 'anom-expuente-' }[a.detector];
+      if (!pref || String(a.clave || '').indexOf(pref) !== 0) return null;
+      var m = /«([^»]+)»/.exec(a.titulo || '');
+      if (!m) return null;
+      return { etiqueta: m[1], id: String(a.clave).slice(pref.length) };
+    }
     function seleccionar(clave) {
       seleccionada = seleccionada === clave ? null : clave;
       var a = (estado.hallazgos || []).find(function (x) { return x.clave === seleccionada; });
       pintarDetalle(a || null); pintarLista(); dibujar();
+      // drill-down: si la cresta cita a una entidad, abre su dossier (Q4)
+      if (seleccionada && a && window.QualiaDossier) {
+        var ent = entidadDeCresta(a);
+        if (ent) window.QualiaDossier.abrir(ent.etiqueta, { nodoId: ent.id });
+      }
     }
 
     var reqSeq = 0;
