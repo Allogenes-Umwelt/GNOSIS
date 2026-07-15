@@ -384,6 +384,29 @@ capturas antes/después en ambos temas.
 9. **Actualizar este documento** al cierre de cada ola: estado, decisiones,
    detectores descartados con evidencia. El plan es rector, no decorativo.
 
+## Bitácora de ejecución
+
+- **OLA 1 — COMPLETA** (commits `a01da80` backend, `d757e76` visual).
+  Ciclo de vida de hallazgos de punta a punta: tabla `ag_disposiciones` (sin
+  columna de monto), puerta `Sustrato.disponer_hallazgo` + bitácora WORM,
+  lectura pura `autogenes/disposiciones.py` que contrasta declarado vs medido
+  (`contradice`, `resoluciones_verificadas`), endpoints por tablero,
+  severidad como fuente única en los motores. UI: `static/ciclo_vida.js`
+  compartido (ledger de triaje, filtro, control segmentado, traza de
+  procedencia, banda de contradicción, tira de verificados) en ambos
+  tableros; ghost-ink de los Δ dispuestos en `grafo.js`; Radar cuenta solo
+  violaciones abiertas. Se arregló de paso un bug latente: `concilia.css`
+  citaba tokens fantasma (`--s1/--s2/--linea`) que nunca resolvían — las
+  tarjetas ahora rinden como su diseño original previó. Verificado en vivo
+  (POST → re-deriva → contradicción) en Nocturne y Daylight. 14 tests nuevos;
+  suite 478 verde. Decisión de diseño ratificada por el operador: pills en
+  acento, magenta sólo en la contradicción, selección en acento (no magenta).
+  - Pendiente menor: la disposición de NOMOS (motor admitido por el esquema)
+    no tiene UI aún — se atará cuando NOMOS deje de estar «Latente».
+- **OLA 0 — pendiente** (paridad con QUALIA: tool Jarvis de validación,
+  métrica de conformidad en el landing, export PNG/CSV, `?sel=`). No
+  bloquea; se intercalará cuando se pida.
+
 ## 6. Criterios de aceptación globales
 
 - Ningún número nuevo sin unidad, periodo y fuente; ningún monto fuera de
