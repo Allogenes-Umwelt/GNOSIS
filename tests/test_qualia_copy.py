@@ -32,6 +32,7 @@ PLANTILLAS = [
     "templates/autogenes_qualia_cascada.html",
     "templates/autogenes_qualia_horizonte.html",
     "templates/autogenes_qualia_maquina.html",
+    "templates/autogenes_qualia_deriva.html",
 ]
 SCRIPTS = [
     "static/qualia.js",
@@ -41,6 +42,7 @@ SCRIPTS = [
     "static/qualia_cascada.js",
     "static/qualia_horizonte.js",
     "static/qualia_maquina.js",
+    "static/qualia_deriva.js",
 ]
 
 # Vocabulario matemático que NO va en la cara del usuario (stems, sin
@@ -67,7 +69,10 @@ CUARENTENA: dict[str, set[str]] = {}
 #    declarada (método honesto, no etiqueta gritada). Vacío hoy; Q3 lo
 #    puebla cuando construya las fichas técnicas. También se vigila contra
 #    entradas muertas. ──────────────────────────────────────────────────
-FICHA_TECNICA_OK: dict[str, set[str]] = {}
+FICHA_TECNICA_OK: dict[str, set[str]] = {
+    # La huella de cohesión declara honestamente su método en la ficha técnica.
+    "templates/autogenes_qualia_deriva.html": {"persistencia h0"},
+}
 
 _LITERAL = re.compile(r"""(['"`])(?:\\.|(?!\1).)*\1""")
 

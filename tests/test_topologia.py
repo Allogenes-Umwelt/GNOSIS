@@ -20,6 +20,7 @@ from autogenes.topologia import (
     matriz_adyacencia,
     min_corte,
     ordenar_por_comunidad,
+    huella_cohesion,
     persistencia_h0,
     puentes_articulacion,
     renormalizar,
@@ -167,6 +168,18 @@ def test_persistencia_una_barra_por_nodo_cruzada_con_componentes():
     assert len(sobreviven) == per["n_componentes"]
     muertes = [b["muerte"] for b in per["barras"]]
     assert muertes == sorted(muertes)        # más persistente primero
+
+
+def test_huella_cohesion_determinista_y_forma():
+    red = dos_cliques()
+    a = huella_cohesion(red)
+    b = huella_cohesion(red)
+    assert a == b                             # doble corrida idéntica
+    assert a["n_grupos"] == len(persistencia_h0(red)["barras"])
+    assert a["n_robustos"] <= a["n_grupos"]
+    assert a["separacion_total"] >= 0
+    assert 0 <= a["separacion_media"] <= 1
+    assert len(a["top"]) <= 6
 
 
 # ── embedding_espectral ──────────────────────────────────────────────

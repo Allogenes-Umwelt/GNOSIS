@@ -252,6 +252,15 @@ def autogenes_qualia_maquina():
                            sesion_etiqueta=_etiqueta_sesion())
 
 
+@bp.route('/autogenes/qualia/deriva')
+def autogenes_qualia_deriva():
+    """Qualia · Deriva (F7, Q6): el octavo instrumento — cómo cambió el
+    caso desde una sesión de referencia: ganado/perdido medido y la huella
+    de cohesión comparada."""
+    return render_template('autogenes_qualia_deriva.html',
+                           sesion_etiqueta=_etiqueta_sesion())
+
+
 @bp.route('/autogenes/concilia')
 def autogenes_concilia():
     """CONCILIA (F9): dashboard propio de la conciliación tri-fuente —
@@ -591,17 +600,32 @@ def api_qualia_base():
 
 @bp.route('/api/v1/autogenes/qualia/drift', methods=['GET'])
 def api_qualia_drift():
-    """Drift topológico entre sesiones: ?referencia=<id> es la base."""
+    """Deriva entre sesiones (Q6): ?referencia=<id> es la base. Si se omite,
+    toma por default la sesión inmediatamente anterior. Devuelve además la
+    lista de sesiones para el selector y la huella de cohesión de ambas."""
     from autogenes.qualia import drift_sesiones
     referencia = request.args.get('referencia', type=int)
-    if not referencia:
-        return jsonify({'error': 'Falta el parámetro referencia (sesión base)'}), 400
 
     def handler(conn, session_id):
+        sesiones = [
+            {'id': r['id'],
+             'etiqueta': f"{r['month_processed']:02d}/{r['year_processed']}"}
+            for r in conn.execute(
+                "SELECT id, month_processed, year_processed FROM processing_sessions"
+                " WHERE id != ? ORDER BY id DESC", (session_id,))
+        ]
+        ref = referencia or (sesiones[0]['id'] if sesiones else None)
+        if not ref:
+            return jsonify({'sin_referencia': True, 'sesiones': sesiones,
+                            'motivo': 'No hay otra sesión contra la cual comparar '
+                                      'la deriva del caso.'})
         try:
-            return jsonify(drift_sesiones(conn, referencia, session_id))
+            d = drift_sesiones(conn, ref, session_id)
         except ValueError as e:
             return jsonify({'error': str(e)}), 404
+        d['sesiones'] = sesiones
+        d['referencia'] = ref
+        return jsonify(d)
     try:
         return _con_sesion(handler)
     except Exception as e:

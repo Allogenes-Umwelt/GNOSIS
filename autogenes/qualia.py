@@ -220,9 +220,14 @@ def drift_sesiones(conn: sqlite3.Connection, session_id_a: int,
         return f"{r['month_processed']:02d}/{r['year_processed']}"
 
     et_a, et_b = etiqueta(session_id_a), etiqueta(session_id_b)
-    resumen_a = topologia.resumen_red(red_de_sesion(conn, session_id_a))
-    resumen_b = topologia.resumen_red(red_de_sesion(conn, session_id_b))
-    return drift_topologico(resumen_a, resumen_b, et_a, et_b)
+    red_a = red_de_sesion(conn, session_id_a)
+    red_b = red_de_sesion(conn, session_id_b)
+    resultado = drift_topologico(topologia.resumen_red(red_a),
+                                 topologia.resumen_red(red_b), et_a, et_b)
+    # huella de cohesión comparable (persistencia_h0): apretó vs fragmentó
+    resultado["cohesion_de"] = topologia.huella_cohesion(red_a)
+    resultado["cohesion_a"] = topologia.huella_cohesion(red_b)
+    return resultado
 
 
 def _n_registros(conn: sqlite3.Connection, session_id: int) -> int:

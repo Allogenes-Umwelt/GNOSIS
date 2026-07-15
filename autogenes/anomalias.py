@@ -227,10 +227,18 @@ def drift_topologico(resumen_a: dict[str, Any], resumen_b: dict[str, Any],
     the reference, session B is 'now'. Deltas are facts, not opinion."""
     base = tomar_snapshot(resumen_a, etiqueta_a)
     hallazgos = detectar_anomalias(resumen_b, base)
+
+    def _valores(r: dict[str, Any]) -> dict[str, Any]:
+        return {"n_nodos": r["n_nodos"], "n_enlaces": r["n_enlaces"],
+                "densidad": r["densidad"], "n_comunidades": r["n_comunidades"],
+                "n_componentes": r["n_componentes"], "exponente": r["exponente"]}
+
     return {
         "de": etiqueta_a,
         "a": etiqueta_b,
         "hallazgos": hallazgos,
+        "de_valores": _valores(resumen_a),
+        "a_valores": _valores(resumen_b),
         "deltas": {
             "n_nodos": resumen_b["n_nodos"] - resumen_a["n_nodos"],
             "n_enlaces": resumen_b["n_enlaces"] - resumen_a["n_enlaces"],

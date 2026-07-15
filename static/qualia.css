@@ -247,3 +247,16 @@
   color: var(--t2); font-family: var(--font-mono); font-size: .76rem; padding: 8px 11px; cursor: pointer;
 }
 .qd-cand:hover { border-color: var(--acc-text); color: var(--t1); }
+
+/* ── Deriva (QLA-08): selector de referencia + eje divergente ── */
+.qa-ref {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--t3);
+}
+.qa-ref select {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: .5px;
+  background: var(--surface); color: var(--acc-text);
+  border: 1px solid var(--line); padding: 6px 8px; cursor: pointer;
+}
+.qa-ref select:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }

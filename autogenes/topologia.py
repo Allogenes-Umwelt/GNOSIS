@@ -352,6 +352,29 @@ def persistencia_h0(red: Red) -> dict[str, Any]:
     return {"barras": barras, "n_componentes": len(raices)}
 
 
+def huella_cohesion(red: Red) -> dict[str, Any]:
+    """Huella de cohesión: resume el código de barras de persistencia_h0 en
+    un fingerprint determinista y comparable entre sesiones. Cada barra
+    nace en 1.0 y muere cuando un lazo más fuerte funde su grupo; su
+    longitud (1 − muerte) mide cuán separado quedó ese grupo antes de
+    fundirse. Devuelve cuántos grupos hay, cuántos están bien separados
+    (barra ≥ 0.5), la separación total (Σ longitudes) y la media. Comparar
+    dos sesiones dice si el caso se apretó (menos separación) o se fragmentó
+    (más). Puro: la misma red da la misma huella."""
+    barcode = persistencia_h0(red)
+    largos = sorted((round(1.0 - b["muerte"], 6) for b in barcode["barras"]),
+                    reverse=True)
+    n = len(largos)
+    total = round(sum(largos), 4)
+    return {
+        "n_grupos": n,
+        "n_robustos": sum(1 for x in largos if x >= 0.5),
+        "separacion_total": total,
+        "separacion_media": round(total / n, 4) if n else 0.0,
+        "top": largos[:6],
+    }
+
+
 # ── Family V · spectral graph theory — Fiedler embedding ─────────────
 
 

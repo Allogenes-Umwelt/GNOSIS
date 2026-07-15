@@ -120,9 +120,14 @@ def test_base_fija_referencia_200(cliente):
 
 # ── GET drift (guardas + happy path) ─────────────────────────────────
 
-def test_drift_sin_referencia_400(cliente):
+def test_drift_sin_referencia_usa_la_sesion_anterior(cliente):
+    # Q6: sin ?referencia, la deriva toma por default la sesión previa y
+    # devuelve la lista de sesiones para el selector.
     r = cliente.get(f"/api/v1/autogenes/qualia/drift?session_id={_sid(cliente)}")
-    assert r.status_code == 400
+    assert r.status_code == 200
+    d = r.get_json()
+    assert {"de", "a", "deltas", "sesiones", "referencia"} <= set(d)
+    assert d["sesiones"]                      # hay al menos una sesión de referencia
 
 
 def test_drift_referencia_inexistente_404(cliente):
@@ -131,13 +136,14 @@ def test_drift_referencia_inexistente_404(cliente):
     assert r.status_code == 404
 
 
-def test_drift_entre_dos_sesiones_200(cliente):
+def test_drift_entre_dos_sesiones_200_con_cohesion(cliente):
     otra = 1 if _sid(cliente) != 1 else 2
     r = cliente.get(
         f"/api/v1/autogenes/qualia/drift?referencia={otra}&session_id={_sid(cliente)}")
     assert r.status_code == 200
     d = r.get_json()
-    assert {"de", "a", "hallazgos", "deltas"} <= set(d)
+    assert {"de", "a", "hallazgos", "deltas", "de_valores", "a_valores",
+            "cohesion_de", "cohesion_a"} <= set(d)
 
 
 # ── GET cascada (guardas + ambos modos) ──────────────────────────────
