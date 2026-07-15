@@ -276,12 +276,14 @@
       elImpacto.innerHTML =
         barra('vínculos que caen', j.relaciones_caidas) +
         barra('islas', j.islas_antes + ' → ' + j.islas_despues) +
+        barra('unidades desconectadas', j.volumen_afectado || 0) +
         barra('peso en el tejido', Math.round(j.peso_estructural * 100) + '%') +
         barra('pasos de onda', j.ondas.length);
       var html = '';
       (j.desconectados || []).forEach(function (v) {
+        var u = v.unidades ? ' <b>· ' + v.unidades + ' u</b>' : '';
         html += '<div class="qa-caja"><span title="' + Q.esc(v.etiqueta) + '">◌ ' +
-          Q.esc(v.etiqueta.slice(0, 26)) + '</span></div>';
+          Q.esc(v.etiqueta.slice(0, 26)) + u + '</span></div>';
       });
       elHuerfanos.innerHTML = html ||
         '<p class="qa-base-hint">Nadie queda huérfano: la red aguanta la caída de «' +

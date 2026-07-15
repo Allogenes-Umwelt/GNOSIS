@@ -67,6 +67,22 @@ def red_de_sesion(conn: sqlite3.Connection, session_id: int,
     }
 
 
+def unidades_por_nodo(conn: sqlite3.Connection,
+                      session_id: int) -> dict[str, int]:
+    """Unidades físicas MEDIDAS por nodo, en base atómica: un vehículo
+    cuenta 1; el resto —marca, país, pedimento, núcleo, conceptos,
+    documentos— son vistas o agregados y NO se recuentan (marca y país
+    parten el mismo padrón por ejes distintos; sumarlos duplicaría). Así el
+    "volumen afectado" de una caída jamás infla: es el número de unidades
+    individuales que quedan sin conexión, citable a la fila del vehículo.
+    Deriva de la misma proyección F2; determinista, nunca proyecta."""
+    from autogenes.proyeccion import construir_grafo
+
+    g = construir_grafo(conn, session_id)
+    return {n["id"]: (1 if n.get("kind") == "vehiculo" else 0)
+            for n in g["nodos"]}
+
+
 def _snapshot_actual(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     red = red_de_sesion(conn, session_id)
     resumen = topologia.resumen_red(red)

@@ -613,7 +613,7 @@ def api_qualia_cascada():
     """DECIDIR, what-if en memoria: ?caida=<id> simula quitar un nodo;
     ?enlaza=<a>,<b> simula un vínculo nuevo. Jamás escribe."""
     from autogenes.cascada import simular_caida, simular_enlace
-    from autogenes.qualia import red_de_sesion
+    from autogenes.qualia import red_de_sesion, unidades_por_nodo
     caida = request.args.get('caida', '')
     enlaza = request.args.get('enlaza', '')
     if not caida and not enlaza:
@@ -622,8 +622,15 @@ def api_qualia_cascada():
     def handler(conn, session_id):
         red = red_de_sesion(conn, session_id)
         if caida:
+            imp = simular_caida(red, caida)
+            # Volumen afectado = Σ unidades MEDIDAS de las entidades que
+            # quedan desconectadas (base atómica: no infla, es citable).
+            unid = unidades_por_nodo(conn, session_id)
+            for d in imp['desconectados']:
+                d['unidades'] = unid.get(d['id'], 0)
+            imp['volumen_afectado'] = sum(d['unidades'] for d in imp['desconectados'])
             return jsonify({'session_id': session_id, 'modo': 'caida',
-                            'nodo': caida, **simular_caida(red, caida)})
+                            'nodo': caida, **imp})
         partes = enlaza.split(',')
         if len(partes) != 2 or not partes[0] or not partes[1]:
             return jsonify({'error': 'enlaza requiere dos ids: a,b'}), 400
