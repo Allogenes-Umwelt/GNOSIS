@@ -784,11 +784,22 @@ def api_qualia_parte_dockear():
 @bp.route('/api/v1/autogenes/concilia', methods=['GET'])
 def api_concilia():
     """CONCILIA (F9): flujo tri-fuente + hallazgos tipados, monetizados
-    y referenciados — todo salida determinista del motor."""
+    y referenciados — todo salida determinista del motor. La lectura une
+    cada hallazgo vivo con su disposición (O1) y contrasta lo declarado
+    contra lo medido (`contradice`, `resoluciones_verificadas`)."""
     from autogenes.concilia import conciliar
+    from autogenes.disposiciones import (anotar, leer_disposiciones,
+                                         resoluciones_verificadas,
+                                         resumen_estados)
 
     def handler(conn, session_id):
-        return jsonify(conciliar(conn, session_id))
+        r = conciliar(conn, session_id)
+        disp = leer_disposiciones(conn, session_id, 'concilia')
+        anotar(r['hallazgos'], disp)
+        claves = {h['clave'] for h in r['hallazgos']}
+        r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
+        r['estados'] = resumen_estados(r['hallazgos'])
+        return jsonify(r)
     try:
         return _con_sesion(handler)
     except Exception as e:
@@ -798,15 +809,64 @@ def api_concilia():
 @bp.route('/api/v1/autogenes/validacion', methods=['GET'])
 def api_validacion():
     """VALIDACIÓN (F10): todas las reglas evaluadas (violadas o no) y la
-    conformidad por filas — salida determinista del motor."""
+    conformidad por filas — salida determinista del motor. Sólo las reglas
+    violadas (n>0) son 'hallazgos' con ciclo de vida (O1): se anotan con su
+    disposición y su contraste declarado/medido."""
     from autogenes.validacion import validar
+    from autogenes.disposiciones import (anotar, leer_disposiciones,
+                                         resoluciones_verificadas,
+                                         resumen_estados)
 
     def handler(conn, session_id):
-        return jsonify(validar(conn, session_id))
+        r = validar(conn, session_id)
+        disp = leer_disposiciones(conn, session_id, 'validacion')
+        violadas = [rg for rg in r['reglas'] if rg['n'] > 0]
+        anotar(violadas, disp)          # muta los dicts en r['reglas']
+        claves = {rg['clave'] for rg in violadas}
+        r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
+        r['estados'] = resumen_estados(violadas)
+        return jsonify(r)
     try:
         return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+def _disponer_hallazgo(motor: str):
+    """Ciclo de vida de un hallazgo de descuadre (O1): fija la disposición
+    del operador (nuevo→en_gestion→resuelto/descartado) + nota. Puerta única:
+    escribe por Sustrato con bitácora WORM; jamás monetiza (el esquema no
+    tiene columna de monto)."""
+    from autogenes.sustrato import Sustrato
+    data = request.get_json(silent=True) or {}
+    clave = (data.get('clave') or '').strip()
+    estado = (data.get('estado') or '').strip()
+    nota = data.get('nota')
+    if not clave or not estado:
+        return jsonify({'error': 'Indica clave y estado'}), 400
+
+    def handler(conn, session_id):
+        s = Sustrato(conn, session_id)
+        try:
+            return jsonify(s.disponer_hallazgo(motor, clave, estado, nota))
+        except ValueError as e:
+            return jsonify({'error': str(e)}), 400
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/concilia/disponer', methods=['POST'])
+def api_concilia_disponer():
+    """Dispone un hallazgo CONCILIA por clave (O1)."""
+    return _disponer_hallazgo('concilia')
+
+
+@bp.route('/api/v1/autogenes/validacion/disponer', methods=['POST'])
+def api_validacion_disponer():
+    """Dispone una regla VALIDACIÓN violada por clave (O1)."""
+    return _disponer_hallazgo('validacion')
 
 
 @bp.route('/api/v1/autogenes/sinapsis', methods=['GET'])

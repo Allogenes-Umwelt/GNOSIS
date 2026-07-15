@@ -150,6 +150,52 @@ class Sustrato:
             )
         }
 
+    # ── disposición de hallazgos de descuadre (F9/F10/F12) ───────────
+    MOTORES_HALLAZGO = ("concilia", "validacion", "nomos")
+
+    def disponer_hallazgo(self, motor: str, clave: str, estado: str,
+                          nota: Optional[str] = None) -> dict:
+        """Fija la disposición del operador sobre un hallazgo de un motor de
+        descuadre (CONCILIA/VALIDACIÓN/NOMOS), por (motor, clave):
+        nuevo → en_gestion → resuelto/descartado, con nota opcional. Puerta
+        única + bitácora WORM. La disposición JAMÁS monetiza (no hay columna
+        de monto en el esquema); sólo registra la decisión — el monto vive en
+        el hallazgo del motor, derivado y citable a fila."""
+        motor = (motor or "").strip()
+        clave = (clave or "").strip()
+        if motor not in self.MOTORES_HALLAZGO:
+            raise ValueError(f"Motor inválido: {motor}")
+        if not clave:
+            raise ValueError("Hallazgo sin clave")
+        if estado not in self.ESTADOS_ANOMALIA:
+            raise ValueError(f"Estado inválido: {estado}")
+        nota_limpia = (nota or "").strip() or None
+        self.conn.execute(
+            "INSERT INTO ag_disposiciones (session_id, motor, clave, estado, nota)"
+            " VALUES (?, ?, ?, ?, ?)"
+            " ON CONFLICT(session_id, motor, clave) DO UPDATE SET"
+            " estado = excluded.estado, nota = excluded.nota, ts = datetime('now')",
+            (self.session_id, motor, clave, estado, nota_limpia),
+        )
+        self._registrar(
+            "hallazgo",
+            f"{motor}/{clave} → {estado}"
+            + (f": {nota_limpia}" if nota_limpia else ""))
+        self._commit()
+        return {"motor": motor, "clave": clave, "estado": estado,
+                "nota": nota_limpia}
+
+    def disposiciones_hallazgos(self, motor: str) -> dict[str, dict]:
+        """Mapa clave → {estado, nota, ts} de los hallazgos dispuestos de un
+        motor."""
+        return {
+            r["clave"]: {"estado": r["estado"], "nota": r["nota"], "ts": r["ts"]}
+            for r in self.conn.execute(
+                "SELECT clave, estado, nota, ts FROM ag_disposiciones"
+                " WHERE session_id = ? AND motor = ?", (self.session_id, motor),
+            )
+        }
+
     # ── row mapping ──────────────────────────────────────────────────
 
     @staticmethod

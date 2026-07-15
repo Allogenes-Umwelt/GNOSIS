@@ -144,15 +144,24 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
                 resueltos.append(nid)
         return resueltos
 
+    # disposición del operador por motor (O1): el Δ carga su estado del ciclo
+    # de vida para que el lienzo pueda apagar lo ya gestionado (tinta
+    # fantasma) y no gritar por lo resuelto. Lectura pura; sustrato.py sigue
+    # siendo el único escritor.
+    from autogenes.disposiciones import leer_disposiciones
+    disp_conc = leer_disposiciones(conn, session_id, "concilia")
+    disp_val = leer_disposiciones(conn, session_id, "validacion")
     total = 0
 
     def _delta(clave: str, titulo: str, tipo: str, motor: str, severidad: str,
-               detalle: str, n: int, objetivos: list[str]) -> None:
+               detalle: str, n: int, objetivos: list[str],
+               estado: str = "nuevo") -> None:
         nonlocal total
         aid = f"anom:{clave}"
         nodo = _nodo(aid, "anomalia", titulo, tipo=tipo,
                      extra={"motor": motor, "regla_id": clave,
-                            "detalle": detalle, "n_unidades": n})
+                            "detalle": detalle, "n_unidades": n,
+                            "estado": estado})
         nodo["severidad"] = severidad
         nodos.append(nodo)
         enlaces.append(_enlace(f"cita-{nucleo_id}-{aid}", nucleo_id, aid, "cita", 0.3))
@@ -164,7 +173,8 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
     for h in concilia.conciliar(conn, session_id)["hallazgos"]:
         _delta(h["clave"], h["titulo"], h["clase"], "concilia",
                SEVERIDAD_CONCILIA.get(h["clase"], "warn"), h["detalle"],
-               h["n_unidades"], _objetivos(h.get("refs", []), h.get("unidades")))
+               h["n_unidades"], _objetivos(h.get("refs", []), h.get("unidades")),
+               disp_conc.get(h["clave"], {}).get("estado", "nuevo"))
 
     # ── VALIDACION: reglas de conformidad violadas (n>0) ──────────────
     for r in validacion.validar(conn, session_id)["reglas"]:
@@ -172,7 +182,8 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
             continue
         _delta(r["clave"], r["titulo"], "validacion", "validacion",
                _severidad_validacion(r["clave"]), r["norma"], r["n"],
-               _objetivos(r.get("refs", [])))
+               _objetivos(r.get("refs", [])),
+               disp_val.get(r["clave"], {}).get("estado", "nuevo"))
 
     # ── NOMOS: reglas del operador activas que disparan violaciones ───
     for e in nomos.evaluar_reglas(conn, session_id)["reglas"]:

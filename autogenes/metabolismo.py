@@ -170,15 +170,21 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
                           "accion": "/errores"})
 
     # VALIDACIÓN (F10) publica al Radar: filas contra la norma. Crítico
-    # solo cuando hay preferencia contra la norma — eso es glosa segura.
+    # solo cuando hay preferencia contra la norma — eso es glosa segura. El
+    # ciclo de vida (O1) manda: una regla dispuesta como cerrada
+    # (resuelto/descartado) deja de gritar; el Radar solo cuenta lo abierto.
+    from autogenes.disposiciones import CERRADOS, leer_disposiciones
     from autogenes.validacion import validar
     val = validar(conn, session_id)
-    if val["total_violaciones"]:
-        glosa = any(r["n"] and r["clave"].endswith("jn-norma")
-                    for r in val["reglas"])
+    disp_val = leer_disposiciones(conn, session_id, "validacion")
+    abiertas = [r for r in val["reglas"] if r["n"]
+                and disp_val.get(r["clave"], {}).get("estado") not in CERRADOS]
+    if abiertas:
+        glosa = any(r["clave"].endswith("jn-norma") for r in abiertas)
+        n_abiertas = sum(r["n"] for r in abiertas)
         urgencias.append({
             "tipo": "norma",
-            "titulo": str(val["total_violaciones"]) + " violaciones de norma",
+            "titulo": str(n_abiertas) + " violaciones de norma",
             "sub": ("preferencia contra la norma — glosa segura" if glosa
                     else "conformidad " + str(val["conformidad_pct"]) + "%"),
             "critico": glosa,

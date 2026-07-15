@@ -158,6 +158,28 @@ CREATE TABLE IF NOT EXISTS ag_qualia_anomalias (
 CREATE INDEX IF NOT EXISTS idx_ag_qualia_anomalias
     ON ag_qualia_anomalias(session_id, clave);
 
+-- Ciclo de vida de un hallazgo de los motores de descuadre (F9 CONCILIA,
+-- F10 VALIDACION, F12 NOMOS). Como ag_qualia_anomalias: el hallazgo se
+-- re-deriva VIVO desde su motor; aquí sólo vive la DISPOSICIÓN del operador
+-- por (motor, clave): nuevo → en_gestion → resuelto/descartado. Escritura
+-- SOLO via Sustrato (puerta única + bitácora WORM). SIN columna de monto:
+-- la disposición JAMÁS monetiza — el monto vive en el hallazgo, derivado y
+-- citable a fila, nunca aquí (ley cero-snake-oil fijada en el esquema).
+CREATE TABLE IF NOT EXISTS ag_disposiciones (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  INTEGER NOT NULL,
+    motor       TEXT NOT NULL CHECK (motor IN ('concilia','validacion','nomos')),
+    clave       TEXT NOT NULL,
+    estado      TEXT NOT NULL DEFAULT 'nuevo'
+                CHECK (estado IN ('nuevo','en_gestion','resuelto','descartado')),
+    nota        TEXT,
+    ts          TEXT DEFAULT (datetime('now')),
+    UNIQUE (session_id, motor, clave),
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+);
+CREATE INDEX IF NOT EXISTS idx_ag_disposiciones
+    ON ag_disposiciones(session_id, motor, clave);
+
 -- NOMOS (F12): reglas de negocio como ciudadanos del grafo. Escritura
 -- SOLO via Sustrato (ley aditiva: crear + activar/desactivar, jamas
 -- borrar). Una regla es una neurona McCulloch-Pitts AND: condiciones
