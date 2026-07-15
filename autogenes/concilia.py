@@ -35,6 +35,21 @@ from typing import Any, Optional
 MAX_UNIDADES = 12
 MAX_REFS = 12
 
+# clasificación FIJA de severidad por clase de hallazgo — nunca un monto
+# estimado (cero snake oil). danger = ruptura estructural o afirmación en
+# competencia que determina arancel; warn = necesita arbitraje pero no rompe.
+# Fuente única: la proyección del grafo la importa de aquí.
+SEVERIDAD = {
+    "vendido_sin_llegada": "danger",
+    "sin_pedimento": "danger",
+    "jn_en_disputa": "danger",
+    "pais_en_disputa": "danger",
+    "llegado_sin_venta": "warn",
+    "vin_duplicado_dwh": "warn",
+    "vin_duplicado_llegadas": "warn",
+    "extraccion_fallida": "warn",
+}
+
 # la regla de casamiento compartida con proyeccion.construir_grafo
 _JOIN_PAR = (
     " ef.session_id = i.session_id"

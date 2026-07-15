@@ -775,11 +775,32 @@
           return;
         }
 
+        // Δ dispuesto y cerrado (ciclo de vida O1): tinta fantasma — presente
+        // como contexto, sin arder ni gritar. Lo gestionado deja de alarmar;
+        // sólo lo abierto mantiene el burn. La selección lo rescata a pleno.
+        var cerradaDisp = n.kind === 'anomalia' && n.extra &&
+          (n.extra.estado === 'resuelto' || n.extra.estado === 'descartado');
+        if (cerradaDisp && n !== sel) {
+          ctx.globalAlpha = 0.3;
+          ctx.strokeStyle = conAlfa(col, 0.7);
+          ctx.lineWidth = 0.9;
+          trazarForma(n, r); ctx.stroke();
+          if (n.glifo && r * vista.k >= 7) {
+            ctx.globalAlpha = 0.5;
+            ctx.font = '700 ' + (r * 1.15) + 'px "JetBrains Mono", monospace';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = conAlfa(col, 0.7);
+            ctx.fillText(n.glifo, n.x, n.y + r * 0.26);
+          }
+          ctx.globalAlpha = 1;
+          return;
+        }
+
         ctx.globalAlpha = 1;
         var vivo = n.kind === 'entidad';           // Coral: inteligencia viva
 
-        // efectos DETRÁS del nodo: glow/burn de la alerta
-        if (n.kind === 'anomalia' && n.severidad) glowBurn(n, r, ts);
+        // efectos DETRÁS del nodo: glow/burn de la alerta (no para lo cerrado)
+        if (n.kind === 'anomalia' && n.severidad && !cerradaDisp) glowBurn(n, r, ts);
         // el nodo que se simula caer arde como alerta crítica (P3)
         if (whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
 

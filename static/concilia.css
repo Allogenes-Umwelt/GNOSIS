@@ -21,7 +21,7 @@
 }
 .cn-banda .pista {
   flex: 1; height: 8px; display: flex; overflow: hidden;
-  background: var(--s2); border: 1px solid var(--linea);
+  background: var(--surface-2); border: 1px solid var(--line);
 }
 .cn-banda .pista .ok { background: var(--acc-solid); height: 100%; }
 .cn-banda .pista .hueco { background: var(--danger); height: 100%; opacity: .75; }
@@ -33,11 +33,11 @@
 /* VALIDACIÓN: banda de conformidad por regla + regla conforme */
 .vl-banda {
   display: flex; height: 5px; margin-top: 6px; overflow: hidden;
-  background: var(--s2); border: 1px solid var(--linea);
+  background: var(--surface-2); border: 1px solid var(--line);
 }
 .vl-banda .ok { background: var(--acc-solid); height: 100%; }
 .vl-banda .hueco { background: var(--danger); height: 100%; opacity: .8; }
-.cn-caja.vl-ok { border-left-color: var(--linea); }
+.cn-caja.vl-ok { border-left-color: var(--line); }
 .cn-caja.vl-ok .clase { color: var(--t3); }
 .cn-flujo .v.riesgo { color: var(--danger); }
 
@@ -45,7 +45,7 @@
 .cn-vin { display: flex; gap: 6px; margin-bottom: 10px; }
 .cn-vin input {
   flex: 1; min-width: 0; padding: 8px 10px;
-  background: var(--s1); border: 1px solid var(--linea); color: var(--t1);
+  background: var(--surface); border: 1px solid var(--line); color: var(--t1);
   font-family: var(--font-mono); font-size: .82rem; letter-spacing: 1px;
 }
 .cn-vin input:focus { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
@@ -63,10 +63,11 @@
 /* hallazgo: caja de dos líneas — título + monto, luego el detalle */
 .cn-caja {
   display: block; padding: 9px 12px;
-  background: var(--s1); border: 1px solid var(--linea);
-  border-left: 2px solid var(--danger);
+  background: var(--surface); border: 1px solid var(--line);
   text-transform: none;      /* el botón global va en caps; el detalle no */
   letter-spacing: normal;
+  /* sin filo magenta: la alerta la porta el chip de severidad (menos
+     magenta, alineado al mock aprobado). Sólo la contradicción tiñe. */
 }
 .cn-caja .fila {
   display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
@@ -88,7 +89,9 @@
   /* 14px: la legibilidad manda sobre la densidad en este tablero */
   margin: 4px 0 0; font-size: .875rem; line-height: 1.5; color: var(--t2);
 }
-.cn-caja.qa-item.activo { border-color: var(--danger); background: var(--acc-subtle); }
+/* selección en ACENTO (nunca magenta: la selección no es una alerta) */
+.cn-caja.activo { border-color: var(--acc-text); background: var(--acc-subtle); }
+.cn-caja.activo.contradicha { border-color: var(--danger); }
 
 /* ficha */
 .cn-ficha-clase {
@@ -102,7 +105,7 @@
 .cn-ficha-monto.neutro { color: var(--t2); }
 .cn-ref {
   display: flex; flex-direction: column; gap: 1px; padding: 6px 8px;
-  background: var(--s1); border: 1px solid var(--linea);
+  background: var(--surface); border: 1px solid var(--line);
   font-family: var(--font-mono); font-size: .78rem; color: var(--t2);
 }
 .cn-ref b { color: var(--t1); font-weight: 400; }
@@ -112,3 +115,149 @@
 @media (max-width: 860px) {
   .cn-flujo { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ══ CICLO DE VIDA (O1) — disposición de hallazgos ═══════════════════
+   Compartido por CONCILIA y VALIDACIÓN (ciclo_vida.js). Pills y medidor
+   en acento/apagado; MAGENTA sólo en la contradicción (alerta real). */
+
+/* ledger de gestión: el foco de triaje */
+.cv-ledger {
+  display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+  padding: 14px 16px; margin: 4px 0 12px;
+}
+.cv-ledger .meter {
+  height: 11px; border-radius: 6px; overflow: hidden; display: flex;
+  border: 1px solid var(--line-ghost);
+}
+.cv-ledger .meter i { display: block; height: 100%; }
+.cv-ledger .meter .sin { background: var(--acc-solid); }
+.cv-ledger .meter .ges { background: rgba(var(--acc-rgb), .42); }
+.cv-ledger .meter .cer { background: var(--line-ghost); }
+.cv-ledger .leyenda {
+  display: flex; gap: 16px; margin-top: 9px; font-size: .74rem; color: var(--t2);
+}
+.cv-ledger .leyenda b { font-variant-numeric: tabular-nums; color: var(--t1); }
+.cv-ledger .leyenda .dot {
+  display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 5px; vertical-align: middle;
+}
+.cv-ledger .leyenda .dot.sin { background: var(--acc-solid); }
+.cv-ledger .leyenda .dot.ges { background: rgba(var(--acc-rgb), .42); }
+.cv-ledger .leyenda .dot.cer { background: var(--line-2); }
+.cv-ledger .pend { font-size: .72rem; color: var(--t3); margin-top: 7px; }
+.cv-ledger .pend b { color: var(--acc-text); font-variant-numeric: tabular-nums; }
+.cv-ledger .cv-alerta .chip {
+  display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+  border: 1px solid var(--danger); border-radius: 999px; padding: 6px 12px;
+  background: rgba(var(--danger-rgb), .08); color: var(--danger);
+  font-size: .78rem; font-weight: 600;
+}
+.cv-alerta .chip .mk { font-family: var(--font-mono); font-weight: 700; }
+
+/* filtro por estado */
+.cv-filtros { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cv-filtro {
+  border: 1px solid var(--line); background: transparent; color: var(--t2);
+  border-radius: 999px; padding: 5px 12px; font-size: .76rem; cursor: pointer;
+  display: flex; gap: 7px; align-items: center;
+}
+.cv-filtro:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+.cv-filtro .n { font-variant-numeric: tabular-nums; color: var(--t3); font-size: .7rem; }
+.cv-filtro.on { border-color: var(--acc-text); color: var(--acc-text); background: var(--acc-subtle); }
+.cv-filtro.on .n { color: var(--acc-text); }
+.cv-filtro.alerta.on {
+  border-color: var(--danger); color: var(--danger);
+  background: rgba(var(--danger-rgb), .08);
+}
+
+/* severidad etiquetada (accesible: texto, no sólo color) */
+.cv-sev {
+  display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1px;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 4px;
+  border: 1px solid var(--warn); color: var(--warn);
+}
+.cv-sev.crit { border-color: var(--danger); color: var(--danger); }
+.cv-sev .d { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* fila del ciclo de vida dentro de la tarjeta */
+.cv-vida {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border-top: 1px solid var(--line-ghost); margin-top: 10px; padding-top: 11px;
+}
+.cv-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.cv-paso {
+  border: 0; background: transparent; color: var(--t2);
+  font-family: var(--font-d); font-size: .74rem; padding: 5px 12px; cursor: pointer;
+  border-right: 1px solid var(--line-ghost);
+}
+.cv-paso:last-child { border-right: 0; }
+.cv-paso.term { border-left: 1px solid var(--line); }
+.cv-paso:hover { color: var(--t1); }
+.cv-paso:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: -2px; }
+.cv-paso.on { background: var(--acc-solid); color: var(--surface-2); font-weight: 700; }
+.cv-paso.on.cerrado { background: var(--line-ghost); color: var(--t1); }
+.cv-traza { margin-left: auto; font-size: .72rem; color: var(--t3); text-align: right; }
+.cv-traza .op { color: var(--t2); }
+.cv-nota-add, .cv-nota-edit {
+  margin-left: auto; background: transparent; border: 0; cursor: pointer;
+  font-size: .72rem; color: var(--acc-text); padding: 0;
+  text-transform: none;      /* la nota es texto libre del operador */
+}
+.cv-nota-edit { font-style: italic; color: var(--t3); }
+.cv-nota-edit:hover, .cv-nota-add:hover { color: var(--acc-text); }
+.cv-nota-edicion { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.cv-nota-in {
+  min-width: 180px; padding: 5px 8px; background: var(--surface-2);
+  border: 1px solid var(--line); color: var(--t1);
+  font-family: var(--font-mono); font-size: .74rem;
+}
+.cv-nota-in:focus { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+.cv-nota-ok {
+  padding: 5px 10px; background: transparent; border: 1px solid var(--acc-text);
+  color: var(--acc-text); font-size: .72rem; cursor: pointer;
+}
+
+/* banda de contradicción — el único magenta legítimo del ciclo */
+.cv-contra {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 11px;
+  border: 1px solid var(--danger); border-radius: 8px;
+  background: rgba(var(--danger-rgb), .08); padding: 10px 13px;
+}
+.cv-contra .mk { font-family: var(--font-mono); font-weight: 700; font-size: 1rem; color: var(--danger); flex: none; }
+.cv-contra .tx { font-size: .8rem; line-height: 1.5; color: var(--t1); }
+.cv-contra .tx b { color: var(--danger); }
+.cn-caja.contradicha { border-color: var(--danger); }
+.cn-caja.cerrada { opacity: .62; }
+
+/* resoluciones verificadas por el motor */
+.cv-verif {
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface-2); padding: 13px 16px; margin-top: 6px;
+}
+.cv-verif h4 {
+  margin: 0 0 3px; font-size: .8rem; font-weight: 700; color: var(--ok);
+  display: flex; align-items: center; gap: 8px;
+}
+.cv-verif h4 .n {
+  font-family: var(--font-mono); font-size: .62rem; padding: 2px 7px;
+  border: 1px solid var(--line); color: var(--ok); border-radius: 999px;
+}
+.cv-verif p { margin: 0 0 8px; font-size: .72rem; color: var(--t3); }
+.cv-verif .item {
+  display: flex; align-items: center; gap: 9px; font-size: .78rem;
+  padding: 7px 0; border-top: 1px solid var(--line-ghost); color: var(--t2);
+}
+.cv-verif .ck { color: var(--ok); font-weight: 700; }
+.cv-verif .k { font-family: var(--font-mono); font-size: .7rem; color: var(--t2); }
+.cv-verif .m { margin-left: auto; color: var(--t3); font-size: .7rem; font-style: italic; }
+
+/* la tarjeta como div con cabecera clicable (ya no es un <button>) */
+.cn-caja-head {
+  display: block; width: 100%; text-align: left; background: transparent;
+  border: 0; padding: 0; cursor: pointer; color: inherit;
+  text-transform: none;      /* el detalle/norma es prosa; el título tiene su
+                                propia regla de caps y gana por especificidad */
+}
+.cn-caja-head:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 3px; }

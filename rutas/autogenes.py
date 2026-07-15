@@ -793,9 +793,12 @@ def api_concilia():
                                          resumen_estados)
 
     def handler(conn, session_id):
+        from autogenes.concilia import SEVERIDAD
         r = conciliar(conn, session_id)
         disp = leer_disposiciones(conn, session_id, 'concilia')
         anotar(r['hallazgos'], disp)
+        for h in r['hallazgos']:
+            h['severidad'] = SEVERIDAD.get(h['clase'], 'warn')
         claves = {h['clave'] for h in r['hallazgos']}
         r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
         r['estados'] = resumen_estados(r['hallazgos'])
@@ -818,10 +821,13 @@ def api_validacion():
                                          resumen_estados)
 
     def handler(conn, session_id):
+        from autogenes.validacion import severidad_regla
         r = validar(conn, session_id)
         disp = leer_disposiciones(conn, session_id, 'validacion')
         violadas = [rg for rg in r['reglas'] if rg['n'] > 0]
         anotar(violadas, disp)          # muta los dicts en r['reglas']
+        for rg in violadas:
+            rg['severidad'] = severidad_regla(rg['clave'])
         claves = {rg['clave'] for rg in violadas}
         r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
         r['estados'] = resumen_estados(violadas)

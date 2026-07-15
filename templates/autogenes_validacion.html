@@ -35,8 +35,13 @@
       sobre TODAS las filas de su fuente; una regla en cero es conformidad
       probada, no un renglón omitido. La regla «C.O + USA = J» no se evalúa:
       el certificado de origen no está en estas tablas y validar sin poder
-      verificar la premisa sería ruido.</p>
+      verificar la premisa sería ruido. Dispón cada violación: la decisión
+      queda en bitácora y el motor te contradice si dices resuelto lo que
+      sigue midiéndose.</p>
+      <div id="vl-ledger" aria-label="Estado de la gestión"></div>
+      <div id="vl-filtros" role="group" aria-label="Filtrar por estado"></div>
       <div class="qa-lista" id="vl-reglas" aria-live="polite"></div>
+      <div id="vl-verificadas" aria-live="polite"></div>
     </section>
 
     <!-- Derecha: filas violadoras -->
@@ -59,6 +64,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
 <script src="{{ url_for('static', filename='validacion.js') }}"></script>
 <script>
 (function () {

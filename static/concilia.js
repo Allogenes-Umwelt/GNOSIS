@@ -13,8 +13,24 @@
     var elCupos = document.getElementById('cn-cupos');
     var btnDossier = document.getElementById('cn-dossier');
     var elMsj = document.getElementById('cn-msj');
+    var elLedger = document.getElementById('cn-ledger');
+    var elFiltros = document.getElementById('cn-filtros');
+    var elVerif = document.getElementById('cn-verificadas');
+    var CV = window.CicloVida;
     var datos = null;
     var activo = -1;
+    var filtro = 'todos';
+
+    // etiquetas de negocio para las resoluciones verificadas (claves fijas)
+    var GLOSA = {
+      'conc-vendido-sin-llegada': 'Vendidas sin factura física',
+      'conc-jn-disputa': 'Preferencia arancelaria en disputa',
+      'conc-pais-disputa': 'País de origen en disputa',
+      'conc-vin-dup-dwh': 'VIN repetido en el DWH',
+      'conc-vin-dup-llegadas': 'VIN repetido en las llegadas',
+      'conc-sin-pedimento': 'Vendidas sin pedimento vinculado',
+      'conc-extraccion-fallida': 'PDFs ilegibles'
+    };
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -53,7 +69,18 @@
       banda('cn-banda-pdf', 'cn-pct-pdf', f.llegados, f.llegados - f.sin_venta);
     }
 
+    function pintarCiclo() {
+      // ledger de triaje + filtro por estado (foco de la gestión)
+      var riesgoSin = datos.hallazgos.reduce(function (s, h) {
+        return s + ((h.estado || 'nuevo') === 'nuevo' && h.monto ? h.monto : 0);
+      }, 0);
+      elLedger.innerHTML = CV.ledger(datos.estados || {}, riesgoSin);
+      elFiltros.innerHTML = CV.filtros(datos.estados || {}, filtro);
+      elVerif.innerHTML = CV.verificadas(datos.resoluciones_verificadas, GLOSA);
+    }
+
     function pintarLista() {
+      pintarCiclo();
       if (!datos.hallazgos.length) {
         elLista.innerHTML = '<p class="qa-base-hint">Sesión conciliada — cero ' +
           'hallazgos. Las bandas de arriba son la prueba: todo lo vendido ' +
@@ -62,19 +89,28 @@
       }
       var html = '';
       datos.hallazgos.forEach(function (h, i) {
+        if (!CV.pasa(h, filtro)) return;
         var monto = dinero(h.monto, h.moneda);
-        html += '<button type="button" class="cn-caja qa-item' +
-          (i === activo ? ' activo' : '') + '" data-i="' + i + '">' +
+        var cerrada = h.estado === 'resuelto' || h.estado === 'descartado';
+        html += '<div class="cn-caja' + (i === activo ? ' activo' : '') +
+          (h.contradice ? ' contradicha' : (cerrada ? ' cerrada' : '')) +
+          '" data-i="' + i + '">' +
+          '<button type="button" class="cn-caja-head" data-sel="' + i + '">' +
+          '<span class="fila" style="gap:8px">' + CV.sevChip(h.severidad) +
           '<span class="clase">' + esc(h.clase.replace(/_/g, ' ')) + '</span>' +
-          '<span class="fila"><span class="titulo">' + esc(h.titulo) + '</span>' +
-          '<span class="monto' + (monto ? '' : ' neutro') + '">' +
-          (monto || 'sin monto') + '</span></span>' +
-          '<p class="detalle">' + esc(h.detalle) + '</p></button>';
+          '<span class="monto' + (monto ? '' : ' neutro') +
+          '" style="margin-left:auto">' + (monto || 'sin monto') + '</span></span>' +
+          '<span class="titulo" style="display:block;margin-top:4px">' +
+          esc(h.titulo) + '</span>' +
+          '<p class="detalle">' + esc(h.detalle) + '</p></button>' +
+          '<div class="cv-vida">' + CV.seg(h.clave, h.estado) + CV.traza(h) + '</div>' +
+          CV.contra(h) + '</div>';
       });
-      elLista.innerHTML = html;
-      elLista.querySelectorAll('.cn-caja').forEach(function (btn) {
+      elLista.innerHTML = html || '<p class="qa-base-hint">Ningún hallazgo en ' +
+        'este estado.</p>';
+      elLista.querySelectorAll('.cn-caja-head').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          seleccionar(Number(btn.dataset.i));
+          seleccionar(Number(btn.dataset.sel));
         });
       });
     }
@@ -85,6 +121,32 @@
       pintarFicha(datos.hallazgos[i]);
       dibujarCaudal();
     }
+
+    // recarga viva tras disponer: el motor re-deriva y contrasta
+    function recargar() {
+      var claveActiva = activo >= 0 && datos ? datos.hallazgos[activo].clave : null;
+      fetch('/api/v1/autogenes/concilia')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) return;
+          datos = j;
+          activo = claveActiva
+            ? datos.hallazgos.findIndex(function (h) { return h.clave === claveActiva; })
+            : -1;
+          pintarFlujo(j.flujo, j.valor_en_riesgo_mxn);
+          pintarLista();
+          dibujarCaudal();
+        });
+    }
+
+    // disposición (delegada) + filtro
+    CV.conectar(elLista, 'concilia', recargar);
+    elFiltros.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.cv-filtro');
+      if (!b) return;
+      filtro = b.dataset.filtro;
+      pintarLista();
+    });
 
     function pintarFicha(h) {
       var monto = dinero(h.monto, h.moneda);

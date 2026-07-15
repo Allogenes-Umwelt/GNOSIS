@@ -10,8 +10,13 @@
   document.addEventListener('DOMContentLoaded', function () {
     var elReglas = document.getElementById('vl-reglas');
     var elDetalle = document.getElementById('vl-detalle');
+    var elLedger = document.getElementById('vl-ledger');
+    var elFiltros = document.getElementById('vl-filtros');
+    var elVerif = document.getElementById('vl-verificadas');
+    var CV = window.CicloVida;
     var datos = null;
     var activo = -1;
+    var filtro = 'todos';
 
     function esc(s) {
       return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
@@ -22,33 +27,85 @@
       return n == null ? '—' : Number(n).toLocaleString('es-MX');
     }
 
+    function pintarCiclo() {
+      // el triaje es sobre las reglas VIOLADAS (las conformes no se disponen)
+      elLedger.innerHTML = CV.ledger(datos.estados || {}, 0);
+      elFiltros.innerHTML = CV.filtros(datos.estados || {}, filtro);
+      var glosa = {};
+      datos.reglas.forEach(function (rg) { glosa[rg.clave] = rg.titulo; });
+      elVerif.innerHTML = CV.verificadas(datos.resoluciones_verificadas, glosa);
+    }
+
     function pintarReglas() {
+      pintarCiclo();
       var html = '';
       datos.reglas.forEach(function (rg, i) {
+        var viol = rg.n > 0;
+        // el filtro por estado sólo aplica a las violadas; las conformes
+        // sólo aparecen en «todos»
+        if (viol ? !CV.pasa(rg, filtro) : filtro !== 'todos') return;
         var pOk = rg.base ? 100 * (rg.base - rg.n) / rg.base : 100;
-        html += '<button type="button" class="cn-caja qa-item' +
-          (i === activo ? ' activo' : '') + (rg.n ? '' : ' vl-ok') +
+        var cerrada = rg.estado === 'resuelto' || rg.estado === 'descartado';
+        html += '<div class="cn-caja' + (i === activo ? ' activo' : '') +
+          (viol ? '' : ' vl-ok') +
+          (viol && rg.contradice ? ' contradicha' : (viol && cerrada ? ' cerrada' : '')) +
           '" data-i="' + i + '">' +
+          '<button type="button" class="cn-caja-head" data-sel="' + i + '">' +
+          '<span class="fila" style="gap:8px">' +
+          (viol ? CV.sevChip(rg.severidad) : '') +
           '<span class="clase">' + esc(rg.fuente) + '</span>' +
-          '<span class="fila"><span class="titulo">' + esc(rg.titulo) + '</span>' +
-          '<span class="monto' + (rg.n ? '' : ' neutro') + '">' +
-          (rg.n ? rg.n + ' de ' + num(rg.base) : num(rg.base) + ' conformes') +
+          '<span class="monto' + (viol ? '' : ' neutro') +
+          '" style="margin-left:auto">' +
+          (viol ? rg.n + ' de ' + num(rg.base) : num(rg.base) + ' conformes') +
           '</span></span>' +
+          '<span class="titulo" style="display:block;margin-top:4px">' +
+          esc(rg.titulo) + '</span>' +
           '<span class="vl-banda"><span class="ok" style="width:' +
           pOk.toFixed(1) + '%"></span>' +
-          (rg.n ? '<span class="hueco" style="width:' + (100 - pOk).toFixed(1) +
+          (viol ? '<span class="hueco" style="width:' + (100 - pOk).toFixed(1) +
             '%"></span>' : '') + '</span>' +
-          '<p class="detalle">' + esc(rg.norma) + '</p></button>';
+          '<p class="detalle">' + esc(rg.norma) + '</p></button>' +
+          (viol ? '<div class="cv-vida">' + CV.seg(rg.clave, rg.estado) +
+            CV.traza(rg) + '</div>' + CV.contra(rg) : '') +
+          '</div>';
       });
-      elReglas.innerHTML = html;
-      elReglas.querySelectorAll('.cn-caja').forEach(function (btn) {
+      elReglas.innerHTML = html || '<p class="qa-base-hint">Ninguna regla en ' +
+        'este estado.</p>';
+      elReglas.querySelectorAll('.cn-caja-head').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          activo = Number(btn.dataset.i);
+          activo = Number(btn.dataset.sel);
           pintarReglas();
           pintarFicha(datos.reglas[activo]);
         });
       });
     }
+
+    function recargar() {
+      var claveActiva = activo >= 0 && datos ? datos.reglas[activo].clave : null;
+      fetch('/api/v1/autogenes/validacion')
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (!j || j.error) return;
+          datos = j;
+          activo = claveActiva
+            ? datos.reglas.findIndex(function (r) { return r.clave === claveActiva; })
+            : -1;
+          document.getElementById('vl-pct').textContent =
+            j.conformidad_pct == null ? '—' : j.conformidad_pct + '%';
+          var total = document.getElementById('vl-total');
+          total.textContent = num(j.total_violaciones);
+          total.classList.toggle('riesgo', j.total_violaciones > 0);
+          pintarReglas();
+        });
+    }
+
+    CV.conectar(elReglas, 'validacion', recargar);
+    elFiltros.addEventListener('click', function (ev) {
+      var b = ev.target.closest('.cv-filtro');
+      if (!b) return;
+      filtro = b.dataset.filtro;
+      pintarReglas();
+    });
 
     function pintarFicha(rg) {
       var html = '<span class="cn-ficha-clase">' + esc(rg.fuente) + '</span>' +

@@ -94,22 +94,9 @@ def _q(conn: sqlite3.Connection, sql: str, params: tuple) -> list[sqlite3.Row]:
 # amount or probability (ZERO SNAKE OIL): danger = the case does not hold
 # (missing amparo, conflicting tariff-determining claim); warn = needs
 # adjudication but is not a structural break.
-SEVERIDAD_CONCILIA = {
-    "vendido_sin_llegada": "danger",
-    "sin_pedimento": "danger",
-    "jn_en_disputa": "danger",
-    "pais_en_disputa": "danger",
-    "llegado_sin_venta": "warn",
-    "vin_duplicado_dwh": "warn",
-    "vin_duplicado_llegadas": "warn",
-    "extraccion_fallida": "warn",
-}
-
-
-def _severidad_validacion(clave: str) -> str:
-    """Preference-against-norm is a tariff exposure (danger); the rest are
-    structure/catalog gaps needing repair (warn)."""
-    return "danger" if "jn-norma" in clave else "warn"
+# fuente única de la clasificación de severidad: vive en los motores
+SEVERIDAD_CONCILIA = concilia.SEVERIDAD
+_severidad_validacion = validacion.severidad_regla
 
 
 def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,

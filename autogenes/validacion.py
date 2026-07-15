@@ -34,6 +34,14 @@ _OBLIGATORIOS_PDF = [("chasis", "chasis"), ("factura", "factura"),
 _JN_POR_PAIS = {"BRA": "N", "IND": "N"}
 
 
+def severidad_regla(clave: str) -> str:
+    """Clasificación FIJA de severidad de una regla: preferencia contra la
+    norma es exposición arancelaria (danger, glosa segura); el resto son
+    huecos de estructura/catálogo a reparar (warn). Nunca un monto estimado.
+    Fuente única: la proyección del grafo la importa de aquí."""
+    return "danger" if "jn-norma" in clave else "warn"
+
+
 def _vacio(v: Any) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
 

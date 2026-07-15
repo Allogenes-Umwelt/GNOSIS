@@ -39,8 +39,12 @@
       <p class="qa-base-hint" style="margin:0 0 8px">Cada hallazgo es una
       discrepancia medida entre fuentes ya conciliadas por el pipeline; el
       monto es la suma de valores reales de las unidades afectadas, en su
-      moneda — nunca una estimación.</p>
+      moneda — nunca una estimación. Dispón cada uno: la decisión queda en
+      bitácora y el motor te contradice si dices resuelto lo que sigue vivo.</p>
+      <div id="cn-ledger" aria-label="Estado de la gestión"></div>
+      <div id="cn-filtros" role="group" aria-label="Filtrar por estado"></div>
       <div class="qa-lista" id="cn-hallazgos" aria-live="polite"></div>
+      <div id="cn-verificadas" aria-live="polite"></div>
 
       <div class="qa-sec">Anatomía del caudal</div>
       <div class="qa-lienzo cn-lienzo" id="cn-lienzo"
@@ -82,6 +86,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
 <script src="{{ url_for('static', filename='concilia.js') }}"></script>
 <script>
 (function () {
