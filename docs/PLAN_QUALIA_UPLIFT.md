@@ -214,12 +214,35 @@ El copy del diccionario entra aquí, instrumento por instrumento.
 
 **Orden:** Q0→Q1→Q2→Q3 en serie. Q4/Q5 paralelizables tras Q3. Q6/Q7 al final.
 
-## Motores muertos a resolver (no dejar deuda viva)
+## Estado de ejecución
 
-- `persistencia_h0` (`topologia.py:316`) → Q6 (huella de cohesión) o borrar.
-- `contribuciones_centralidad` (`:450`) → Q3 (Orbe "por qué pesa").
-- `desviacion_fuentes` (`anomalias.py:189`) → Q5 (décimo detector).
-- `matriz_adyacencia` (`:124`) → borrar si sigue sin uso al cerrar Q3.
+Todas las fases cerradas (Q0→Q7). Cada instrumento con checkpoint visual del
+operador; cada fase con gates verdes (ruff + eslint 0 errores, pytest,
+capturas Nocturne/Daylight) y commits convencionales.
+
+- **Q0–Q2** — plan + ley de idioma + tests de ruta + lente de negocio. ✓
+- **Q3** — los 7 instrumentos rediseñados (Orbe, Cascada, Cuerdas, Terreno,
+  Horizonte, Red, Máquina); traducción de idioma cerrada (`CUARENTENA` vacío). ✓
+- **Q4** — dossier de nodo + drill-down en Red/Orbe/Cuerdas/Terreno/Cascada,
+  cajón compartido, selección compartida por `?sel=`. ✓
+- **Q5** — export PNG/CSV en los 8 instrumentos; deriva publicada al Radar +
+  honestidad del cap de snapshots; décimo detector (FUENTES); ciclo de vida de
+  anomalías (`ag_qualia_anomalias`, escritura por Sustrato, `CHECK monetizado=0`). ✓
+- **Q6** — DERIVA (QLA-08), octavo instrumento; `persistencia_h0` → huella de
+  cohesión. ✓
+- **Q7** — Cascada con volumen afectado (Σ unidades atómicas desconectadas). ✓
+
+## Motores muertos — resueltos
+
+- `persistencia_h0` (`topologia.py`) → Q6: alimenta `huella_cohesion` (huella
+  de cohesión comparable entre sesiones). ✓
+- `contribuciones_centralidad` → Q3: Orbe "por qué pesa". ✓
+- `desviacion_fuentes` (`anomalias.py`) → Q5: décimo detector del Terreno,
+  sobre el volumen de importación diario (no monetario). ✓
+- `matriz_adyacencia` (`topologia.py`) → **conservado**. A diferencia de los
+  otros tres, es una primitiva pura y testeada del port 1:1 con la referencia;
+  borrarla rompería esa correspondencia de spec sin ganancia. Se deja como
+  primitiva de la familia de topología, no como feature a medio cablear.
 
 ## Riesgos declarados
 
