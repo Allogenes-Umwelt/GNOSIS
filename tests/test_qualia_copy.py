@@ -62,8 +62,6 @@ JERGA_PROHIBIDA = [
 #    entrada. Una entrada que ya no corresponda a una ocurrencia real falla
 #    (no se deja cuarentena muerta). Meta de Q3: {} vacío. ───────────────
 CUARENTENA = {
-    "templates/autogenes_qualia.html": {"espectral", "renormaliz"},
-    "static/qualia.js": {"espectral", "renormaliz", "fiedler"},
     "static/qualia_maquina.js": {"monolito"},
 }
 

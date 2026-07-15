@@ -1,24 +1,27 @@
 /* GNOSIS · Qualia — Red del caso (F7d, dirección databook aprobada).
-   El lienzo pinta la red del nivel elegido de la escalera de
-   renormalización (layout filotaxis por comunidad: concentrador al
-   centro, miembros en espiral áurea) y resuelve el hairball con ZOOM
-   SEMÁNTICO: al alejarse, las comunidades colapsan en burbujas
-   facetadas ×N con los enlaces inter-comunidad fusionados en UNA banda
-   de peso Σ — el mismo agregado que computa renormalizar(), así que lo
-   visual ES la topología. Etiquetas con halo, supresión voraz de
-   colisiones y cuota de hojas. La ficha derecha es salida del motor:
-   lectura determinista, spec, concentradores, puentes y anomalías
-   medidas contra la base del operador. Trazos con la variante AAA por
-   modo (--acc-text); magenta solo en anomalías reales. Determinista;
-   el lienzo es estático — no hay animación que congelar.
+   El lienzo pinta la red del nivel elegido de la escalera de agrupamiento
+   como un sistema cósmico: cada comunidad orbita un núcleo luminoso —el
+   pozo de gravedad del caso— con su concentrador radiante al centro y sus
+   miembros en espiral de ángulo áureo. El hairball se resuelve fundiendo
+   los vínculos inter-comunidad en tendones que fluyen POR el núcleo (Σ de
+   pesos por par), no en espagueti; es el mismo agregado que colapsa el
+   siguiente peldaño, así que lo visual ES la topología. El inset muestra
+   ese peldaño agrupado; tócalo para promoverlo. Pasar el cursor por un
+   concentrador aísla su comunidad; un clic la fija. La ficha derecha es
+   salida del motor: lectura determinista, spec, concentradores, puentes y
+   anomalías medidas contra la base del operador. Trazos con la variante
+   AAA por modo (--acc-text); magenta solo en anomalías reales.
+   Determinista; el lienzo es estático — no hay animación que congelar.
    Datos: /api/v1/autogenes/qualia/red y /qualia/estado. */
 (function () {
   'use strict';
+  var Q = window.QualiaComun;
+  var GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
   document.addEventListener('DOMContentLoaded', function () {
     var cont = document.getElementById('qa-lienzo');
     var canvas = cont && cont.querySelector('canvas');
-    if (!canvas) return;
+    if (!canvas || !Q) return;
     var ctx = canvas.getContext('2d');
 
     var elDial = document.getElementById('qa-dial');
@@ -31,345 +34,232 @@
     var btnBase = document.getElementById('qa-base');
     var elMsj = document.getElementById('qa-msj');
 
-    var colores = {};
-    var niveles = null;          // conteo de nodos por peldaño
-    var cache = {};              // nivel -> respuesta de /qualia/red
-    var espectralCache = {};     // nivel -> posiciones del embedding
+    var C = {};                 // colores por tema
+    var niveles = null;         // conteo de nodos por peldaño
+    var cache = {};             // nivel -> respuesta de /qualia/red
     var nivel = 0;
-    var layoutModo = 'comunidades';   // comunidades | espectral
-    var vista = { k: 1 };        // zoom semántico (solo en comunidades)
-    var insetBox = null;
     var reqSeq = 0;
+    var insetBox = null;        // caja del inset (promoción por clic)
+    var hubsHit = [];           // [{x, y, r, com}] para hover/clic
+    var comSel = null;          // comunidad bajo el cursor
+    var comFija = null;         // comunidad fijada por clic
 
-    // Etiquetas de la red vienen de documentos: SIEMPRE escapadas.
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    }
-    function alfa(hex, a) {
-      var h = hex.replace('#', '');
-      if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-      return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
-             ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
-    }
-    function leerColores() {
-      var cs = getComputedStyle(document.documentElement);
-      colores = {
-        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
-        danger: cs.getPropertyValue('--danger').trim() || '#F57F9C',
-        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t3: cs.getPropertyValue('--t3').trim() || '#AAA',
-        fondo: cs.getPropertyValue('--surface').trim() || '#0A0A0A'
-      };
-    }
-    function tamano() {
-      var caja = canvas.parentElement.getBoundingClientRect();
-      var dpr = window.devicePixelRatio || 1;
-      canvas.width = caja.width * dpr;
-      canvas.height = Math.max(420, caja.height) * dpr;
-      canvas.style.height = Math.max(420, caja.height) + 'px';
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    }
-    function radioDe(d, n) {
-      var masa = d.masas[n.id] || 0;
-      return 2 + 9 * Math.sqrt(masa) + (n.peso ? Math.min(6, Math.sqrt(n.peso)) : 0);
-    }
-    // etiqueta con halo del color de fondo: densidad sin perder lectura
-    function etiqueta(texto, x, y, color) {
-      ctx.font = '10px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = colores.fondo;
-      ctx.strokeText(texto, x, y);
-      ctx.fillStyle = color;
-      ctx.fillText(texto, x, y);
-    }
-
-    // ── layout filotaxis por comunidad ───────────────────────────────
-    function layout(d, W, H) {
+    // ── derivación: comunidades, concentrador y tendones agregados ────
+    function construir(d) {
+      if (d._c) return d._c;
       var porCom = {};
       d.red.nodos.forEach(function (n) {
         var c = d.comunidad[n.id];
         (porCom[c] = porCom[c] || []).push(n);
       });
-      var coms = Object.keys(porCom).sort(function (a, b) {
-        return porCom[b].length - porCom[a].length;
-      });
-      var maxTam = Math.max.apply(null, coms.map(function (c) { return porCom[c].length; }));
-      var rCluster = 14 * Math.sqrt(maxTam);
-      var rAnillo = coms.length === 1 ? 0 : Math.max(160, rCluster * 1.9);
-      var ang0 = coms.length === 2 ? 0 : -1.5708;
-      var pos = {};
-      coms.forEach(function (c, k) {
-        var ang = (k / coms.length) * 6.283 + ang0;
-        var cx = Math.cos(ang) * rAnillo, cy = Math.sin(ang) * rAnillo * 0.72;
+      var puentes = {};
+      d.resumen.puentes.forEach(function (p) { puentes[p.id] = true; });
+      var coms = Object.keys(porCom).map(function (c) {
         var lista = porCom[c].slice().sort(function (a, b) {
           return (d.grado[b.id] || 0) - (d.grado[a.id] || 0)
             || (a.id < b.id ? -1 : 1);
         });
-        lista.forEach(function (n, i) {
-          if (i === 0) { pos[n.id] = { x: cx, y: cy, hub: true, com: c }; return; }
-          var r = 13 * Math.sqrt(i), a = i * 2.39996;   // ángulo áureo
-          pos[n.id] = { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r, hub: false, com: c };
-        });
-      });
-      var xs = Object.keys(pos).map(function (k) { return pos[k]; });
-      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-      xs.forEach(function (p) {
-        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-      });
-      var k = Math.min(2.4, 0.84 * Math.min(
-        W / Math.max(maxX - minX, 60), H / Math.max(maxY - minY, 60)));
-      var ox = W / 2 - (minX + maxX) / 2 * k, oy = H / 2 - (minY + maxY) / 2 * k;
-      xs.forEach(function (p) { p.x = p.x * k + ox; p.y = p.y * k + oy; });
-      return pos;
-    }
-
-    // posiciones desde el embedding espectral del motor (Fiedler)
-    function layoutEspectral(d, W, H) {
-      var esp = espectralCache[nivel];
-      var pos = {};
-      if (!esp) return pos;
-      var minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
-      Object.keys(esp).forEach(function (id) {
-        var q = esp[id];
-        if (q.x < minX) minX = q.x; if (q.x > maxX) maxX = q.x;
-        if (q.y < minY) minY = q.y; if (q.y > maxY) maxY = q.y;
-      });
-      var k = 0.84 * Math.min(W / Math.max(maxX - minX, 1e-6),
-                              H / Math.max(maxY - minY, 1e-6));
-      var ox = W / 2 - (minX + maxX) / 2 * k, oy = H / 2 - (minY + maxY) / 2 * k;
-      // el concentrador de cada comunidad conserva su marca de hub
-      var mejorGrado = {};
-      d.red.nodos.forEach(function (n) {
-        var c = d.comunidad[n.id], g = d.grado[n.id] || 0;
-        if (!(c in mejorGrado) || g > mejorGrado[c].g) {
-          mejorGrado[c] = { id: n.id, g: g };
-        }
-      });
-      var esHub = {};
-      Object.keys(mejorGrado).forEach(function (c) { esHub[mejorGrado[c].id] = true; });
-      d.red.nodos.forEach(function (n) {
-        var q = esp[n.id];
-        if (!q) return;
-        pos[n.id] = { x: q.x * k + ox, y: q.y * k + oy,
-                      hub: !!esHub[n.id], com: d.comunidad[n.id] };
-      });
-      return pos;
-    }
-
-    // ── vista desplegada ─────────────────────────────────────────────
-    function pintarRed(d, X0, Y0, W, H, esInset) {
-      var pos = (!esInset && layoutModo === 'espectral')
-        ? layoutEspectral(d, W, H)
-        : layout(d, W, H);
-      Object.keys(pos).forEach(function (k) { pos[k].x += X0; pos[k].y += Y0; });
-      var puentes = {};
-      d.resumen.puentes.forEach(function (p) { puentes[p.id] = true; });
-
-      d.red.enlaces.forEach(function (e) {
-        var a = pos[e.origen], b = pos[e.destino];
-        if (!a || !b) return;
-        var inter = a.com !== b.com;
-        ctx.strokeStyle = inter ? alfa(colores.acc, esInset ? 0.4 : 0.5)
-                                : alfa(colores.linea, 0.35);
-        ctx.lineWidth = inter ? (esInset ? 0.8 : 1.2) : 0.6;
-        ctx.setLineDash(inter ? [5, 4] : []);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      });
-      ctx.setLineDash([]);
-
-      d.red.nodos.forEach(function (n) {
-        var p = pos[n.id]; if (!p) return;
-        var r = radioDe(d, n) * (esInset ? 0.55 : 1);
-        ctx.strokeStyle = alfa(colores.acc, p.hub ? 1 : 0.75);
-        ctx.fillStyle = p.hub ? alfa(colores.acc, 0.2) : 'transparent';
-        ctx.lineWidth = p.hub ? 1.6 : 1;
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283);
-        if (p.hub) ctx.fill();
-        ctx.stroke();
-        if (puentes[n.id]) {                 // diamante: puente de articulación
-          ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y - r - 6); ctx.lineTo(p.x + r + 6, p.y);
-          ctx.lineTo(p.x, p.y + r + 6); ctx.lineTo(p.x - r - 6, p.y);
-          ctx.closePath(); ctx.stroke();
-        }
-      });
-      if (esInset) return;
-
-      // etiquetas: prioridad concentrador → puente → resto por masa;
-      // supresión voraz de colisiones y cuota de hojas (VINs)
-      var HOJA = { vehiculo: true, fragmento: true };
-      var candidatos = [];
-      d.red.nodos.forEach(function (n) {
-        var p = pos[n.id]; if (!p) return;
-        var prio = p.hub ? 0 : puentes[n.id] ? 1 : HOJA[n.kind] ? 3 : 2;
-        candidatos.push({ n: n, p: p, prio: prio, masa: d.masas[n.id] || 0 });
-      });
-      candidatos.sort(function (a, b) { return a.prio - b.prio || b.masa - a.masa; });
-      var puestas = [], pintadas = 0, hojas = 0;
-      var MAX_ETIQUETAS = 28, MAX_HOJAS = 3;
-      function choca(caja) {
-        return puestas.some(function (q) {
-          return caja.x0 < q.x1 && caja.x1 > q.x0 && caja.y0 < q.y1 && caja.y1 > q.y0;
-        });
-      }
-      candidatos.forEach(function (c) {
-        if (pintadas >= MAX_ETIQUETAS) return;
-        if (c.prio >= 2 && c.masa < 0.12) return;
-        if (c.prio === 3 && hojas >= MAX_HOJAS) return;
-        var texto = c.n.etiqueta.slice(0, 22);
-        var w = texto.length * 6.2, h = 11;
-        var x = c.p.x, y = c.p.y + radioDe(d, c.n) + 13;
-        var caja = { x0: x - w / 2, x1: x + w / 2, y0: y - h, y1: y + 2 };
-        if (choca(caja)) {
-          if (c.prio >= 2) return;           // el resto cede el lugar
-          y = c.p.y - radioDe(d, c.n) - 8;   // hub/puente sube arriba
-          caja = { x0: x - w / 2, x1: x + w / 2, y0: y - h, y1: y + 2 };
-          if (choca(caja)) return;
-        }
-        puestas.push(caja);
-        pintadas++;
-        if (c.prio === 3) hojas++;
-        etiqueta(texto, x, y, c.prio < 2 ? colores.t1 : colores.t3);
-      });
-    }
-
-    // ── vista agregada (zoom semántico): burbujas + bandas Σ ─────────
-    function pintarLejos(d, W, H) {
-      var pos = layout(d, W, H);
-      var centros = {}, conteo = {}, hubDe = {};
-      d.red.nodos.forEach(function (n) {
-        var p = pos[n.id]; if (!p) return;
-        conteo[p.com] = (conteo[p.com] || 0) + 1;
-        if (p.hub) { centros[p.com] = p; hubDe[p.com] = n; }
-      });
-      var bandas = {}, wMax = 1;
+        var hub = lista[0];
+        return { c: c, hub: hub, miembros: lista.slice(1), size: lista.length,
+                 etiqueta: hub ? hub.etiqueta : c };
+      }).sort(function (a, b) { return b.size - a.size || (a.c < b.c ? -1 : 1); });
+      // pesos inter-comunidad fundidos por par (Σ) — el tendón del núcleo
+      var interW = {}, wMax = 1;
       d.red.enlaces.forEach(function (e) {
         var ca = d.comunidad[e.origen], cb = d.comunidad[e.destino];
         if (ca === undefined || cb === undefined || ca === cb) return;
         var k = ca < cb ? ca + '|' + cb : cb + '|' + ca;
-        bandas[k] = (bandas[k] || 0) + (e.peso || 0.5);
-        if (bandas[k] > wMax) wMax = bandas[k];
+        interW[k] = (interW[k] || 0) + (e.peso || 0.5);
+        if (interW[k] > wMax) wMax = interW[k];
       });
-      Object.keys(bandas).forEach(function (k) {
-        var par = k.split('|');
-        var a = centros[par[0]], b = centros[par[1]];
-        if (!a || !b) return;
-        ctx.strokeStyle = alfa(colores.acc, 0.55);
-        ctx.lineWidth = 1 + 4 * Math.sqrt(bandas[k] / wMax);
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-        etiqueta('Σ ' + bandas[k].toFixed(1), (a.x + b.x) / 2, (a.y + b.y) / 2 - 6, colores.t3);
-      });
-      ctx.lineWidth = 1;
-      var puentes = {};
-      d.resumen.puentes.forEach(function (p) { puentes[p.id] = true; });
-      Object.keys(centros).forEach(function (c, idx) {
-        var p = centros[c], n = hubDe[c], cnt = conteo[c];
-        var R = 14 + 11 * Math.sqrt(cnt);
-        ctx.strokeStyle = colores.acc;
-        ctx.fillStyle = alfa(colores.acc, 0.07);
-        ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        for (var i = 0; i < 9; i++) {        // burbuja facetada Z.O.E.
-          var a = (i / 9) * 6.283 + idx * 0.7;
-          var rr = R * (0.94 + 0.06 * Math.sin(i * 2.1 + idx));
-          var x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr;
-          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        }
-        ctx.closePath(); ctx.fill(); ctx.stroke();
-        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 6.283);
-        ctx.fillStyle = colores.acc; ctx.fill();
-        if (puentes[n.id]) {
-          ctx.beginPath();
-          ctx.moveTo(p.x, p.y - 10); ctx.lineTo(p.x + 10, p.y);
-          ctx.lineTo(p.x, p.y + 10); ctx.lineTo(p.x - 10, p.y);
-          ctx.closePath(); ctx.stroke();
-        }
-        etiqueta(n.etiqueta.slice(0, 18), p.x, p.y + R + 14, colores.t1);
-        etiqueta('×' + cnt, p.x, p.y + R + 26, colores.t3);
-      });
+      d._c = { coms: coms, puentes: puentes, interW: interW, wMax: wMax };
+      return d._c;
     }
 
-    // riel métrico funcional: leyenda de masa (radio ↔ centralidad)
-    function rielMasa(H) {
-      var X = 34, Y0 = 46, Y1 = H - 46;
-      ctx.strokeStyle = alfa(colores.linea, 0.8); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(X, Y0); ctx.lineTo(X, Y1); ctx.stroke();
-      [[1.0, 'MASA 1.0'], [0.5, '0.5'], [0.1, '0.1']].forEach(function (par, i) {
-        var y = Y0 + 30 + i * 64;
-        var r = 2 + 9 * Math.sqrt(par[0]);
-        ctx.beginPath(); ctx.moveTo(X - 4, y); ctx.lineTo(X + 4, y); ctx.stroke();
-        ctx.strokeStyle = alfa(colores.acc, 0.8);
-        ctx.beginPath(); ctx.arc(X + 22, y, r, 0, 6.283); ctx.stroke();
-        ctx.strokeStyle = alfa(colores.linea, 0.8);
-        ctx.font = '9px "JetBrains Mono", monospace';
-        ctx.fillStyle = colores.t3; ctx.textAlign = 'left';
-        ctx.fillText(par[1], X + 40, y + 3);
+    // ── layout: comunidades en anillo, miembros en espiral áurea ──────
+    function layout(d, w, h) {
+      var e = construir(d);
+      var cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.34;
+      var N = e.coms.length, centros = {}, pos = {};
+      e.coms.forEach(function (g, i) {
+        var a = N === 1 ? -Math.PI / 2 : (i / N) * 6.283 - Math.PI / 2;
+        var gx = N === 1 ? cx : cx + Math.cos(a) * R;
+        var gy = N === 1 ? cy : cy + Math.sin(a) * R;
+        centros[g.c] = { x: gx, y: gy, size: g.size };
+        pos[g.hub.id] = { x: gx, y: gy, hub: true, com: g.c };
+        g.miembros.forEach(function (n, k) {
+          var rr = 12 + 6.5 * Math.sqrt(k + 1), aa = k * GOLDEN + a;
+          pos[n.id] = { x: gx + Math.cos(aa) * rr, y: gy + Math.sin(aa) * rr,
+                        hub: false, com: g.c };
+        });
       });
-      for (var y = Y0; y <= Y1; y += 16) {
-        ctx.beginPath(); ctx.moveTo(X - 2, y); ctx.lineTo(X, y); ctx.stroke();
+      // auto-contén sin romper la geometría de núcleo (escala hacia el centro)
+      var maxD = 1;
+      Object.keys(pos).forEach(function (id) {
+        var p = pos[id], dd = Math.hypot(p.x - cx, p.y - cy);
+        if (dd > maxD) maxD = dd;
+      });
+      var lim = Math.min(w, h) * 0.46;
+      if (maxD > lim) {
+        var s = lim / maxD;
+        Object.keys(pos).forEach(function (id) {
+          var p = pos[id]; p.x = cx + (p.x - cx) * s; p.y = cy + (p.y - cy) * s;
+        });
+        Object.keys(centros).forEach(function (c) {
+          var p = centros[c]; p.x = cx + (p.x - cx) * s; p.y = cy + (p.y - cy) * s;
+        });
       }
+      return { pos: pos, centros: centros, cx: cx, cy: cy };
     }
 
-    // inset "forma renormalizada": la escala siguiente; tap la promueve
-    function pintarInset(W, H) {
-      insetBox = null;
-      var sig = cache[nivel + 1];
-      if (!sig) return;
-      var IW = 210, IH = 150, X0 = W - IW - 18, Y0 = H - IH - 18;
-      insetBox = { x: X0, y: Y0, w: IW, h: IH };
-      ctx.fillStyle = alfa(colores.fondo, 0.55); ctx.fillRect(X0, Y0, IW, IH);
-      ctx.strokeStyle = alfa(colores.linea, 0.9); ctx.lineWidth = 1;
-      ctx.strokeRect(X0, Y0, IW, IH);
-      pintarRed(sig, X0, Y0, IW, IH - 18, true);
-      ctx.font = '9px "JetBrains Mono", monospace';
-      ctx.fillStyle = colores.acc; ctx.textAlign = 'left';
-      ctx.fillText('FORMA RENORMALIZADA · ESCALA ' + (nivel + 1) + ' · ' +
-                   sig.red.nodos.length + ' NODOS ▸', X0 + 8, Y0 + IH - 7);
-    }
-
-    function esAgregada(d) {
-      return layoutModo === 'comunidades' && vista.k < 0.72 && d.red.nodos.length > 40;
-    }
+    function viva(com) { var sel = comFija || comSel; return !sel || sel === com; }
 
     function dibujar() {
       var d = cache[nivel];
       if (!d) return;
-      tamano();
-      var W = canvas.clientWidth, H = canvas.clientHeight;
-      ctx.clearRect(0, 0, W, H);
-      var agregada = esAgregada(d);
-      if (agregada) pintarLejos(d, W, H);
-      else pintarRed(d, 0, 0, W, H, false);
-      rielMasa(H);
-      if (!agregada) pintarInset(W, H); else insetBox = null;
-      // brackets de esquina (chasis del instrumento)
-      ctx.globalAlpha = 0.6; ctx.strokeStyle = colores.acc; ctx.lineWidth = 1.2;
-      [[8, 8, 22, 8, 8, 22], [W - 8, 8, W - 22, 8, W - 8, 22],
-       [8, H - 8, 22, H - 8, 8, H - 22], [W - 8, H - 8, W - 22, H - 8, W - 8, H - 22]]
-        .forEach(function (c) {
-          ctx.beginPath(); ctx.moveTo(c[2], c[3]); ctx.lineTo(c[0], c[1]);
-          ctx.lineTo(c[4], c[5]); ctx.stroke();
+      var s = Q.medir(canvas, ctx, 460), w = s.w, h = s.h;
+      var e = construir(d);
+      var L = layout(d, w, h), cx = L.cx, cy = L.cy, pos = L.pos, centros = L.centros;
+      ctx.clearRect(0, 0, w, h);
+
+      // fondo cósmico: viñeta + campo de polvo determinista (LCG, sin azar)
+      var vg = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.min(w, h) * 0.62);
+      vg.addColorStop(0, Q.alfa(C.acc, 0.06)); vg.addColorStop(1, Q.alfa(C.acc, 0));
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, w, h);
+      var sd = 20260701 + nivel * 7919;
+      function rnd() { sd = (sd * 1103515245 + 12345) & 0x7fffffff; return sd / 0x7fffffff; }
+      for (var i = 0; i < 120; i++) {
+        var dx = rnd() * w, dy = rnd() * h, br = rnd();
+        ctx.beginPath(); ctx.arc(dx, dy, br < 0.88 ? 0.6 : 1.1, 0, 6.283);
+        ctx.fillStyle = Q.alfa(C.t3, 0.04 + 0.09 * br); ctx.fill();
+      }
+
+      // núcleo del caso: pozo de gravedad luminoso
+      var core = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(w, h) * 0.16);
+      core.addColorStop(0, Q.alfa(C.acc, 0.22)); core.addColorStop(0.5, Q.alfa(C.acc, 0.06));
+      core.addColorStop(1, Q.alfa(C.acc, 0));
+      ctx.fillStyle = core;
+      ctx.beginPath(); ctx.arc(cx, cy, Math.min(w, h) * 0.16, 0, 6.283); ctx.fill();
+
+      // vínculos intra-comunidad: locales y tenues
+      e.coms.forEach(function (g) {
+        var gc = centros[g.c], f = viva(g.c) ? 1 : 0.25;
+        g.miembros.forEach(function (n) {
+          var p = pos[n.id]; if (!p) return;
+          ctx.beginPath(); ctx.moveTo(gc.x, gc.y); ctx.lineTo(p.x, p.y);
+          ctx.strokeStyle = Q.alfa(C.acc, 0.13 * f); ctx.lineWidth = 1; ctx.stroke();
         });
-      ctx.globalAlpha = 1; ctx.lineWidth = 1;
+      });
+
+      // vínculos inter-comunidad: tendones agrupados que fluyen por el núcleo
+      Object.keys(e.interW).forEach(function (k) {
+        var par = k.split('|'), a = centros[par[0]], b = centros[par[1]];
+        if (!a || !b) return;
+        var f = (viva(par[0]) && viva(par[1])) ? 1 : 0.18;
+        var c1x = a.x + (cx - a.x) * 0.72, c1y = a.y + (cy - a.y) * 0.72;
+        var c2x = b.x + (cx - b.x) * 0.72, c2y = b.y + (cy - b.y) * 0.72;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y);
+        ctx.bezierCurveTo(c1x, c1y, c2x, c2y, b.x, b.y);
+        ctx.strokeStyle = Q.alfa(C.acc, 0.5 * f); ctx.shadowColor = C.acc;
+        ctx.shadowBlur = 8 * f;
+        ctx.lineWidth = 1 + 3.4 * Math.sqrt(e.interW[k] / e.wMax); ctx.stroke();
+      });
+      ctx.shadowBlur = 0;
+
+      // nodos miembro: brillo por centralidad
+      e.coms.forEach(function (g) {
+        var f = viva(g.c) ? 1 : 0.22;
+        g.miembros.forEach(function (n) {
+          var p = pos[n.id]; if (!p) return;
+          var r = 2 + 3.4 * Math.sqrt(d.masas[n.id] || 0);
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 6.283);
+          ctx.fillStyle = Q.alfa(C.acc, 0.6 * f); ctx.shadowColor = C.acc;
+          ctx.shadowBlur = 3 * f; ctx.fill();
+        });
+      });
+      ctx.shadowBlur = 0;
+
+      // baricentro del caso
+      ctx.beginPath(); ctx.arc(cx, cy, 3, 0, 6.283);
+      ctx.fillStyle = Q.alfa(C.t1, 0.7); ctx.shadowColor = C.acc; ctx.shadowBlur = 10;
+      ctx.fill(); ctx.shadowBlur = 0;
+
+      // concentradores radiantes con etiqueta de negocio
+      hubsHit = [];
+      e.coms.forEach(function (g) {
+        var gc = centros[g.c], f = viva(g.c) ? 1 : 0.28;
+        var rad = 5 + Math.min(16, g.size * 0.7);
+        var gl = ctx.createRadialGradient(gc.x, gc.y, 0, gc.x, gc.y, rad * 2.4);
+        gl.addColorStop(0, Q.alfa(C.acc, 0.5 * f)); gl.addColorStop(1, Q.alfa(C.acc, 0));
+        ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(gc.x, gc.y, rad * 2.4, 0, 6.283); ctx.fill();
+        ctx.beginPath(); ctx.arc(gc.x, gc.y, rad, 0, 6.283);
+        ctx.fillStyle = Q.alfa(C.acc, f); ctx.shadowColor = C.acc; ctx.shadowBlur = 12 * f;
+        ctx.fill(); ctx.shadowBlur = 0;
+        if (e.puentes[g.hub.id]) {         // rombo: puente de articulación
+          ctx.strokeStyle = Q.alfa(C.acc, f); ctx.lineWidth = 1.3;
+          ctx.beginPath();
+          ctx.moveTo(gc.x, gc.y - rad - 7); ctx.lineTo(gc.x + rad + 7, gc.y);
+          ctx.lineTo(gc.x, gc.y + rad + 7); ctx.lineTo(gc.x - rad - 7, gc.y);
+          ctx.closePath(); ctx.stroke();
+        }
+        ctx.font = '700 12px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        var txt = String(g.etiqueta).slice(0, 22);
+        ctx.lineWidth = 3; ctx.strokeStyle = C.fondo;
+        ctx.strokeText(txt, gc.x, gc.y - rad - 5);
+        ctx.fillStyle = Q.alfa(C.t1, f); ctx.fillText(txt, gc.x, gc.y - rad - 5);
+        hubsHit.push({ x: gc.x, y: gc.y, r: rad + 8, com: g.c });
+      });
+      ctx.textBaseline = 'alphabetic';
+
+      pintarInset(w, h);
+      Q.brackets(ctx, w, h, C.acc);
       pintarInfo(d);
-      pintarFicha(d);
     }
 
-    // ── ficha ────────────────────────────────────────────────────────
+    // inset: el peldaño agrupado; el mismo colapso que computa el motor
+    function pintarInset(w, h) {
+      insetBox = null;
+      var sig = cache[nivel + 1];
+      if (!sig || !niveles || nivel + 1 >= niveles.length) return;
+      var es = construir(sig);
+      var iw = Math.min(w, h) * 0.28, ih = iw * 0.72;
+      var ix = w - iw - 16, iy = h - ih - 16;
+      insetBox = { x: ix, y: iy, w: iw, h: ih };
+      ctx.fillStyle = Q.alfa(C.fondo, 0.85); ctx.fillRect(ix, iy, iw, ih);
+      ctx.strokeStyle = Q.alfa(C.acc, 0.4); ctx.lineWidth = 1; ctx.strokeRect(ix, iy, iw, ih);
+      var icx = ix + iw / 2, icy = iy + ih / 2 + 8, iR = Math.min(iw, ih) * 0.30;
+      var N = es.coms.length, cen = {};
+      es.coms.forEach(function (g, i) {
+        var a = N === 1 ? -Math.PI / 2 : (i / N) * 6.283 - Math.PI / 2;
+        cen[g.c] = { x: N === 1 ? icx : icx + Math.cos(a) * iR,
+                     y: N === 1 ? icy : icy + Math.sin(a) * iR };
+      });
+      Object.keys(es.interW).forEach(function (k) {
+        var par = k.split('|'), a = cen[par[0]], b = cen[par[1]]; if (!a || !b) return;
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.quadraticCurveTo(icx, icy, b.x, b.y);
+        ctx.strokeStyle = Q.alfa(C.acc, 0.35); ctx.lineWidth = 1; ctx.stroke();
+      });
+      es.coms.forEach(function (g) {
+        var p = cen[g.c];
+        ctx.beginPath(); ctx.arc(p.x, p.y, 3 + Math.min(9, g.size * 0.35), 0, 6.283);
+        ctx.fillStyle = C.acc; ctx.shadowColor = C.acc; ctx.shadowBlur = 5; ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+      ctx.font = '9px "JetBrains Mono", monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+      ctx.fillStyle = Q.alfa(C.t3, 0.9);
+      ctx.fillText('NIVEL DE AGRUPAMIENTO ×' + (nivel + 1) + ' · ' +
+                   es.coms.length + ' GRUPOS ▸', ix + 8, iy + 7);
+      ctx.textBaseline = 'alphabetic';
+    }
+
+    // ── ficha derecha (salida del motor) ──────────────────────────────
     function pintarInfo(d) {
       var r = d.resumen;
-      elInfo.textContent = esAgregada(d)
-        ? 'VISTA AGREGADA · ' + r.n_comunidades + ' COMUNIDADES DE ' + r.n_nodos +
-          ' NODOS · ACÉRCATE PARA DESPLEGAR'
-        : r.n_nodos + ' NODOS · ' + r.n_enlaces + ' ENLACES · ESCALA ' + nivel +
-          ' DE ' + (niveles.length - 1) +
-          (layoutModo === 'espectral' ? ' · PROYECCIÓN ESPECTRAL (FIEDLER)' : '');
+      elInfo.textContent = r.n_nodos + ' CONCEPTOS · ' + r.n_enlaces + ' VÍNCULOS · ' +
+        r.n_comunidades + ' COMUNIDADES · ' +
+        (nivel === 0 ? 'NIVEL DETALLE' : 'AGRUPADO ×' + nivel);
     }
     function pintarFicha(d) {
       var r = d.resumen;
@@ -379,19 +269,19 @@
        ['componentes', r.n_componentes], ['mayor comunidad', r.comunidad_mayor]]
         .forEach(function (kv) {
           spec += '<div class="qa-bar"><span class="l">' + kv[0] + '</span>' +
-            '<span class="v">' + esc(kv[1]) + '</span></div>';
+            '<span class="v">' + Q.esc(kv[1]) + '</span></div>';
         });
       elSpec.innerHTML = spec;
       var hubs = '';
       r.hubs.forEach(function (h) {
-        hubs += '<div class="qa-caja"><span title="' + esc(h.etiqueta) + '">' +
-          esc(h.etiqueta.slice(0, 24)) + '</span><b>×' + h.grado.toFixed(1) + '</b></div>';
+        hubs += '<div class="qa-caja"><span title="' + Q.esc(h.etiqueta) + '">' +
+          Q.esc(h.etiqueta.slice(0, 24)) + '</span><b>×' + h.grado.toFixed(1) + '</b></div>';
       });
       elHubs.innerHTML = hubs || '<p class="qa-base-hint">Sin conexiones aún.</p>';
       var pts = '';
       r.puentes.forEach(function (p) {
-        pts += '<div class="qa-caja puente"><span title="' + esc(p.etiqueta) + '">◇ ' +
-          esc(p.etiqueta.slice(0, 24)) + '</span><b>' + p.grado.toFixed(1) + '</b></div>';
+        pts += '<div class="qa-caja puente"><span title="' + Q.esc(p.etiqueta) + '">◇ ' +
+          Q.esc(p.etiqueta.slice(0, 24)) + '</span><b>' + p.grado.toFixed(1) + '</b></div>';
       });
       elPuentes.innerHTML = pts ||
         '<p class="qa-base-hint">Sin puentes — la red no depende de un solo nodo.</p>';
@@ -399,13 +289,13 @@
     function pintarEstado(est) {
       var lect = '';
       (est.lectura || []).forEach(function (linea) {
-        lect += '<p class="qa-lectura">' + esc(linea) + '</p>';
+        lect += '<p class="qa-lectura">' + Q.esc(linea) + '</p>';
       });
       elLectura.innerHTML = lect || '<p class="qa-base-hint">Sin red que leer.</p>';
       var anom = '';
       (est.hallazgos || []).forEach(function (h) {
-        anom += '<div class="qa-caja anomalia"><span title="' + esc(h.detalle) + '">' +
-          esc(h.titulo.slice(0, 30)) + '</span><b>' +
+        anom += '<div class="qa-caja anomalia"><span title="' + Q.esc(h.detalle) + '">' +
+          Q.esc(h.titulo.slice(0, 30)) + '</span><b>' +
           Math.round(h.severidad * 100) + '%</b></div>';
       });
       if (anom) {
@@ -415,12 +305,12 @@
           'referencia — nada de placebo.</p>';
       } else {
         elAnom.innerHTML = '<p class="qa-base-hint">' +
-          esc(est.motivo || 'Sin referencia fijada.') + '</p>';
+          Q.esc(est.motivo || 'Sin referencia fijada.') + '</p>';
       }
       btnBase.textContent = est.base ? 'refijar base' : 'fijar base';
     }
 
-    // ── datos ────────────────────────────────────────────────────────
+    // ── datos ─────────────────────────────────────────────────────────
     function cargarNivel(n, alTerminar) {
       if (cache[n]) { if (alTerminar) alTerminar(); return; }
       var mia = ++reqSeq;
@@ -436,19 +326,18 @@
           if (!niveles) { niveles = j.niveles; pintarDial(); }
           if (alTerminar) alTerminar();
         })
-        .catch(function () {
-          elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
-        });
+        .catch(function () { elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
     }
     function irANivel(n) {
-      nivel = n;
-      vista.k = 1;               // cada peldaño arranca desplegado
+      nivel = n; comSel = null; comFija = null;
       Array.prototype.forEach.call(elDial.children, function (b, i) {
         b.className = i === n ? 'activo' : '';
       });
       cargarNivel(n, function () {
+        var d = cache[nivel];
         dibujar();
-        if (n + 1 < niveles.length) cargarNivel(n + 1, dibujar);   // el inset
+        if (d) pintarFicha(d);
+        if (n + 1 < niveles.length) cargarNivel(n + 1, dibujar);
       });
     }
     function pintarDial() {
@@ -456,75 +345,50 @@
       niveles.forEach(function (cnt, i) {
         var b = document.createElement('button');
         b.type = 'button';
-        b.textContent = 'escala ' + i + ' · ' + cnt;
+        b.textContent = (i === 0 ? 'detalle' : 'agrupado ×' + i) + ' · ' + cnt;
         b.addEventListener('click', function () { irANivel(i); });
         elDial.appendChild(b);
       });
-      elDial.children[nivel].className = 'activo';
+      if (elDial.children[nivel]) elDial.children[nivel].className = 'activo';
     }
-    function cargarEspectral(n, alTerminar) {
-      if (espectralCache[n]) { if (alTerminar) alTerminar(); return; }
-      fetch('/api/v1/autogenes/qualia/red?espectral=1&nivel=' + n)
-        .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j || j.error || !j.espectral) return;
-          espectralCache[n] = j.espectral;
-          if (alTerminar) alTerminar();
-        })
-        .catch(function () { /* el dial vuelve a comunidades sin drama */ });
-    }
-    var elLayout = document.getElementById('qa-layout');
-    if (elLayout) elLayout.querySelectorAll('button').forEach(function (b) {
-      b.addEventListener('click', function () {
-        layoutModo = b.getAttribute('data-l');
-        elLayout.querySelectorAll('button').forEach(function (x) { x.className = ''; });
-        b.className = 'activo';
-        if (layoutModo === 'espectral') cargarEspectral(nivel, dibujar);
-        dibujar();
-      });
-    });
-
     function cargarEstado() {
       fetch('/api/v1/autogenes/qualia/estado')
         .then(function (r) { return r.json(); })
-        .then(function (j) {
-          if (!j || j.error) return;
-          pintarEstado(j);
-        })
+        .then(function (j) { if (j && !j.error) pintarEstado(j); })
         .catch(function () { /* la ficha vive sin red; el lienzo ya avisó */ });
     }
 
-    // ── gestos: el zoom semántico ────────────────────────────────────
-    canvas.addEventListener('wheel', function (ev) {
-      ev.preventDefault();
-      vista.k = Math.min(3, Math.max(0.3, vista.k * Math.pow(1.0015, -ev.deltaY)));
-      dibujar();
-    }, { passive: false });
-    var pinchD = null;
-    canvas.addEventListener('touchmove', function (ev) {
-      if (ev.touches.length !== 2) return;
-      ev.preventDefault();
-      var d = Math.hypot(ev.touches[0].clientX - ev.touches[1].clientX,
-                         ev.touches[0].clientY - ev.touches[1].clientY);
-      if (pinchD) {
-        vista.k = Math.min(3, Math.max(0.3, vista.k * (d / pinchD)));
-        dibujar();
-      }
-      pinchD = d;
-    }, { passive: false });
-    canvas.addEventListener('touchend', function () { pinchD = null; });
+    // ── gestos: aislar comunidad (hover), fijarla o promover el inset ──
+    canvas.addEventListener('mousemove', function (ev) {
+      var caja = canvas.getBoundingClientRect();
+      var x = ev.clientX - caja.left, y = ev.clientY - caja.top, enc = null;
+      hubsHit.forEach(function (hb) {
+        if (Math.hypot(x - hb.x, y - hb.y) <= hb.r) enc = hb.com;
+      });
+      canvas.style.cursor = (enc || dentroInset(x, y)) ? 'pointer' : 'default';
+      if (enc !== comSel) { comSel = enc; dibujar(); }
+    });
+    canvas.addEventListener('mouseleave', function () {
+      if (comSel) { comSel = null; dibujar(); }
+    });
+    function dentroInset(x, y) {
+      return !!insetBox && x >= insetBox.x && x <= insetBox.x + insetBox.w &&
+             y >= insetBox.y && y <= insetBox.y + insetBox.h;
+    }
     canvas.addEventListener('click', function (ev) {
-      if (!insetBox) return;
       var caja = canvas.getBoundingClientRect();
       var x = ev.clientX - caja.left, y = ev.clientY - caja.top;
-      if (x >= insetBox.x && x <= insetBox.x + insetBox.w &&
-          y >= insetBox.y && y <= insetBox.y + insetBox.h &&
-          nivel + 1 < niveles.length) {
-        irANivel(nivel + 1);
+      if (dentroInset(x, y) && niveles && nivel + 1 < niveles.length) {
+        irANivel(nivel + 1); return;
       }
+      var enc = null;
+      hubsHit.forEach(function (hb) {
+        if (Math.hypot(x - hb.x, y - hb.y) <= hb.r) enc = hb.com;
+      });
+      if (enc) { comFija = (comFija === enc) ? null : enc; dibujar(); }
     });
 
-    // ── base del operador ────────────────────────────────────────────
+    // ── base del operador ─────────────────────────────────────────────
     btnBase.addEventListener('click', function () {
       btnBase.disabled = true;
       elMsj.className = 'ag-msj'; elMsj.textContent = 'Fijando la referencia…';
@@ -545,13 +409,9 @@
         });
     });
 
-    leerColores();
-    tamano();
+    C = Q.leerColores();
     window.addEventListener('resize', dibujar);
-    var alternador = document.getElementById('theme-toggle');
-    if (alternador) alternador.addEventListener('click', function () {
-      setTimeout(function () { leerColores(); dibujar(); }, 60);
-    });
+    Q.alTema(function () { C = Q.leerColores(); dibujar(); });
     cargarNivel(0, function () { irANivel(0); });
     cargarEstado();
   });

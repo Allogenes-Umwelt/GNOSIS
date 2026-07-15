@@ -17,6 +17,7 @@
         <span class="qa-desig">
           <span class="cod">QLA-01 · AUTOGENES F7</span>
           <span class="nom">◆ Qualia · Red del caso</span>
+          <span class="qa-pregunta">¿Qué comunidades forman el caso, y qué las une?</span>
         </span>
         <nav class="qa-tabs" aria-label="Instrumentos Qualia">
           <a href="/autogenes/qualia/maquina">máquina</a>
@@ -27,16 +28,12 @@
           <a href="/autogenes/qualia/cascada">cascada</a>
           <a href="/autogenes/qualia/horizonte">horizonte</a>
         </nav>
-        <span class="qa-dial" id="qa-layout" role="group" aria-label="Proyección del lienzo">
-          <button type="button" data-l="comunidades" class="activo">comunidades</button>
-          <button type="button" data-l="espectral">espectral</button>
-        </span>
-        <span class="qa-dial" id="qa-dial" role="group" aria-label="Escala de renormalización"></span>
+        <span class="qa-dial" id="qa-dial" role="group" aria-label="Nivel de agrupamiento"></span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
       <div class="qa-lienzo" id="qa-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><b>●</b> concentrador de su comunidad</li>
+        <li><span style="color:var(--acc-text)">●</span> concentrador de su comunidad — pásale el cursor para aislarla</li>
         <li><b>◇</b> puente de articulación — si cae, la red se parte</li>
         <li><span id="qa-info" role="status">CARGANDO LA RED…</span></li>
       </ul>
@@ -60,6 +57,14 @@
       <div class="qa-lista" id="qa-anomalias"></div>
       <button type="button" id="qa-base" class="qa-accion" style="margin-top:8px">fijar base</button>
       <div class="ag-msj" id="qa-msj" role="status"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Las comunidades se detectan por propagación de etiquetas determinista;
+        el concentrador de cada una es su nodo de mayor grado ponderado. El «nivel
+        de agrupamiento» colapsa cada comunidad en un supernodo y suma sus
+        vínculos —el mismo agregado que dibuja el tendón del núcleo—. Toda cifra
+        cita fila o fragmento; la misma sesión abre idéntica.</p>
+      </details>
       <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
     </aside>
   </div>
@@ -67,6 +72,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia.js') }}"></script>
 <script>
 (function () {
