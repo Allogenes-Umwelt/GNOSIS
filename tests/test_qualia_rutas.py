@@ -234,3 +234,31 @@ def test_parte_dockear_narrativa_valida_dockea(cliente, monkeypatch):
     # pero la ruta responde JSON con contrato, nunca 500.
     assert r.status_code in (200, 422)
     assert r.is_json
+
+
+# ── GET dossier (Q4 drill-down) ──────────────────────────────────────
+
+def test_dossier_sin_nombre_400(cliente):
+    r = cliente.get(f"/api/v1/autogenes/qualia/dossier?session_id={_sid(cliente)}")
+    assert r.status_code == 400
+    assert "error" in r.get_json()
+
+
+def test_dossier_entidad_conocida_200_y_forma(cliente):
+    r = cliente.get(
+        "/api/v1/autogenes/qualia/dossier?nombre=VOLKSWAGEN"
+        f"&session_id={_sid(cliente)}")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["entidad"]["nombre"] == "VOLKSWAGEN"
+    assert {"citas", "relaciones", "eventos", "productos"} <= set(d)
+    # se relaciona con Alemania (sembrado en la fixture)
+    assert any("Alemania" in r["con"] for r in d["relaciones"])
+
+
+def test_dossier_entidad_desconocida_reporta_sin_inventar(cliente):
+    r = cliente.get(
+        "/api/v1/autogenes/qualia/dossier?nombre=NoExiste"
+        f"&session_id={_sid(cliente)}")
+    assert r.status_code == 200
+    assert "error" in r.get_json()

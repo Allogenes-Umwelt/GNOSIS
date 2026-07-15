@@ -651,6 +651,26 @@ def api_qualia_cascada():
         return jsonify({'error': str(e)}), 500
 
 
+@bp.route('/api/v1/autogenes/qualia/dossier', methods=['GET'])
+def api_qualia_dossier():
+    """Drill-down Q4: el dossier de negocio de una entidad del caso — qué
+    es, qué fragmentos la citan (fuente + página), con quién se relaciona,
+    en qué eventos aparece y qué productos la anclan. Lectura pura sobre
+    consultas.expediente_entidad; jamás escribe. El cliente lo abre desde
+    cualquier instrumento con la etiqueta del nodo."""
+    from autogenes.consultas import expediente_entidad
+    nombre = request.args.get('nombre', '').strip()
+    if not nombre:
+        return jsonify({'error': 'Indica nombre=<etiqueta>'}), 400
+
+    def handler(conn, session_id):
+        return jsonify(expediente_entidad(conn, session_id, nombre))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/qualia/horizonte', methods=['GET'])
 def api_qualia_horizonte():
     """ACTUAR: telemetría muestreada + intervenciones de la bitácora con

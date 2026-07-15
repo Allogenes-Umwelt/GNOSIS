@@ -33,7 +33,7 @@
       </div>
       <div class="qa-lienzo" id="qa-lienzo"><canvas></canvas></div>
       <ul class="ag-leyenda" style="margin-top:8px">
-        <li><span style="color:var(--acc-text)">●</span> concentrador de su comunidad — pásale el cursor para aislarla</li>
+        <li><span style="color:var(--acc-text)">●</span> concentrador de su comunidad — cursor para aislarla, clic para su dossier</li>
         <li><b>◇</b> puente de articulación — si cae, la red se parte</li>
         <li><span id="qa-info" role="status">CARGANDO LA RED…</span></li>
       </ul>
@@ -73,6 +73,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
 <script src="{{ url_for('static', filename='qualia.js') }}"></script>
 <script>
 (function () {

@@ -208,7 +208,8 @@
         ctx.lineWidth = 3; ctx.strokeStyle = C.fondo;
         ctx.strokeText(txt, gc.x, gc.y - rad - 5);
         ctx.fillStyle = Q.alfa(C.t1, f); ctx.fillText(txt, gc.x, gc.y - rad - 5);
-        hubsHit.push({ x: gc.x, y: gc.y, r: rad + 8, com: g.c });
+        hubsHit.push({ x: gc.x, y: gc.y, r: rad + 8, com: g.c,
+                       id: g.hub.id, etiqueta: g.etiqueta });
       });
       ctx.textBaseline = 'alphabetic';
 
@@ -381,11 +382,15 @@
       if (dentroInset(x, y) && niveles && nivel + 1 < niveles.length) {
         irANivel(nivel + 1); return;
       }
-      var enc = null;
-      hubsHit.forEach(function (hb) {
-        if (Math.hypot(x - hb.x, y - hb.y) <= hb.r) enc = hb.com;
+      var hb = null;
+      hubsHit.forEach(function (h) {
+        if (Math.hypot(x - h.x, y - h.y) <= h.r) hb = h;
       });
-      if (enc) { comFija = (comFija === enc) ? null : enc; dibujar(); }
+      if (hb) {
+        comFija = (comFija === hb.com) ? null : hb.com; dibujar();
+        // drill-down: el concentrador abre su dossier de negocio (Q4)
+        if (window.QualiaDossier) window.QualiaDossier.abrir(hb.etiqueta, { nodoId: hb.id });
+      }
     });
 
     // ── base del operador ─────────────────────────────────────────────

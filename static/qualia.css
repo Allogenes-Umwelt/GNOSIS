@@ -190,3 +190,60 @@
   }
   .qm-kpi.alerta { border-color: var(--danger); }
 }
+
+/* ── Dossier compartido (Q4 drill-down): cajón lateral de expediente ── */
+.qd-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: flex; justify-content: flex-end;
+}
+.qd-panel {
+  width: min(420px, 92vw); height: 100%; overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--line);
+  padding: 20px 22px; animation: qd-entra .18s ease-out;
+}
+@keyframes qd-entra { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qd-panel { animation: none; } }
+.qd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.qd-kicker {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--acc-text);
+}
+.qd-titulo { font-family: var(--font-d); font-weight: 700; font-size: 1.3rem; color: var(--t1); margin: 4px 0 2px; overflow-wrap: anywhere; }
+.qd-sub { font-family: var(--font-mono); font-size: .7rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+.qd-cerrar {
+  background: transparent; border: 1px solid var(--line); color: var(--t3);
+  font-size: 1.1rem; line-height: 1; width: 32px; min-height: 32px; cursor: pointer;
+}
+.qd-cerrar:hover { color: var(--acc-text); border-color: var(--acc-text); }
+.qd-sec {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--acc-text);
+  border-top: 1px solid var(--line-ghost); margin: 16px 0 8px; padding-top: 10px;
+}
+.qd-resumen { color: var(--t2); font-size: .85rem; line-height: 1.55; margin: 12px 0 0; }
+.qd-cita {
+  border-left: 2px solid var(--line-ghost); padding: 4px 0 6px 11px; margin-bottom: 8px;
+}
+.qd-cita .fuente { display: block; font-family: var(--font-mono); font-size: .64rem; letter-spacing: .5px; color: var(--acc-text); }
+.qd-cita .ext { display: block; color: var(--t3); font-size: .76rem; line-height: 1.45; margin-top: 2px; }
+.qd-rel { display: flex; gap: 8px; align-items: baseline; font-size: .8rem; color: var(--t2); padding: 3px 0; }
+.qd-rel .dir { color: var(--acc-text); }
+.qd-rel .con { color: var(--t1); flex: 1; overflow-wrap: anywhere; }
+.qd-rel .tipo { color: var(--t3); font-size: .68rem; font-family: var(--font-mono); }
+.qd-ev, .qd-prod { font-size: .8rem; color: var(--t2); padding: 3px 0; }
+.qd-ev b, .qd-prod { color: var(--t1); }
+.qd-prod .clase { color: var(--t3); font-size: .66rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
+.qd-saltos { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+.qd-salto {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--acc-text); text-decoration: none;
+  border: 1px solid var(--line); padding: 8px 14px;
+}
+.qd-salto:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+.qd-cands { display: flex; flex-direction: column; gap: 6px; }
+.qd-cand {
+  text-align: left; background: transparent; border: 1px solid var(--line-ghost);
+  color: var(--t2); font-family: var(--font-mono); font-size: .76rem; padding: 8px 11px; cursor: pointer;
+}
+.qd-cand:hover { border-color: var(--acc-text); color: var(--t1); }
