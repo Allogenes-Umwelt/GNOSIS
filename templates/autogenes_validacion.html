@@ -46,6 +46,9 @@
       <div id="vl-filtros" role="group" aria-label="Filtrar por estado"></div>
       <div class="qa-lista" id="vl-reglas" aria-live="polite"></div>
       <div id="vl-verificadas" aria-live="polite"></div>
+
+      <div class="qa-sec">La sesión en su historia</div>
+      <div id="vl-control" aria-label="Control estadístico de proceso"></div>
     </section>
 
     <!-- Derecha: filas violadoras -->
@@ -69,6 +72,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
+<script src="{{ url_for('static', filename='control.js') }}"></script>
 <script src="{{ url_for('static', filename='validacion.js') }}"></script>
 <script>
 (function () {

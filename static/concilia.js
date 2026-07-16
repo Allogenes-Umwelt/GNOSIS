@@ -156,6 +156,9 @@
         'conteos y montos reales del motor — sin estimaciones');
     });
 
+    // SPC: la sesión en su historia
+    if (window.Control) window.Control.montar('cn-control');
+
     // disposición (delegada) + filtro
     CV.conectar(elLista, 'concilia', recargar);
     elFiltros.addEventListener('click', function (ev) {

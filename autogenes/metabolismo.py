@@ -191,6 +191,23 @@ def metabolismo_de_sesion(conn: sqlite3.Connection, session_id: int,
             "accion": "/autogenes/validacion",
         })
 
+    # CONTROL (A3): si alguna métrica citada salió de su banda medida, el
+    # proceso cambió de régimen — el Radar lo dice (informativo, no crítico:
+    # un cambio de régimen no es por sí malo, pero merece mirada).
+    from autogenes.control import control
+    ctrl = control(conn, session_id)
+    fuera = [m for m in ctrl["metricas"] if m["senal"] == "fuera"]
+    if fuera:
+        urgencias.append({
+            "tipo": "regimen",
+            "titulo": (str(len(fuera)) + " métrica fuera de régimen"
+                       if len(fuera) == 1
+                       else str(len(fuera)) + " métricas fuera de régimen"),
+            "sub": ", ".join(m["titulo"] for m in fuera) + " — el proceso cambió",
+            "critico": False,
+            "accion": "/autogenes/concilia",
+        })
+
     # Benchmark honesto: el avance de la sesión previa (misma fórmula). Sin
     # sesión previa → None (se declara "sin base previa", no se inventa).
     benchmark = None

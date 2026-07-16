@@ -295,6 +295,40 @@
 .cv-verif .k { font-family: var(--font-mono); font-size: .7rem; color: var(--t2); }
 .cv-verif .m { margin-left: auto; color: var(--t3); font-size: .7rem; font-style: italic; }
 
+/* ══ CONTROL · la sesión en su historia (SPC, A3) ═══════════════════ */
+.cs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.cs-card { border: 1px solid var(--line); background: var(--surface);
+  border-radius: 8px; padding: 12px 14px; }
+.cs-top { display: flex; justify-content: space-between; align-items: baseline; }
+.cs-met { font: 600 10px/1 var(--font-mono); letter-spacing: 1px;
+  text-transform: uppercase; color: var(--t3); }
+.cs-now-v { font: 700 22px/1.15 var(--font-d); color: var(--t1); margin-top: 2px; }
+.cs-now-v.cs-fuera { color: var(--danger); }
+.cs-u { font-size: 11px; color: var(--t3); font-weight: 400; margin-left: 3px; }
+.cs-chip { font: 600 8.5px/1 var(--font-mono); letter-spacing: .06em;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 999px;
+  border: 1px solid var(--line-2); color: var(--t3); white-space: nowrap; }
+.cs-chip.dentro { border-color: var(--acc-text); color: var(--acc-text); }
+.cs-chip.fuera { border-color: var(--danger); color: var(--danger);
+  background: rgba(var(--danger-rgb), .08); }
+.cs-card svg { display: block; width: 100%; height: auto; margin-top: 6px; }
+.cs-card text { font-family: var(--font-mono); }
+.cs-banda { fill: rgba(var(--acc-rgb), .10); }
+.cs-mediana { stroke: var(--acc-solid); stroke-width: 1; stroke-dasharray: 3 3; opacity: .6; }
+.cs-serie { fill: none; stroke: var(--t3); stroke-width: 1; opacity: .5; }
+.cs-pt { fill: var(--t3); }
+.cs-foco { fill: var(--acc-solid); }
+.cs-foco.cs-fuera { fill: var(--danger); }
+.cs-xlab { font-size: 7px; fill: var(--t3); }
+.cs-xlab.cs-now { fill: var(--t1); font-weight: 700; }
+.cs-xlab.cs-now.cs-fuera { fill: var(--danger); }
+.cs-tec { margin-top: 9px; border-top: 1px solid var(--line-ghost); padding-top: 8px; }
+.cs-tec summary { font: 600 8.5px/1 var(--font-mono); letter-spacing: 1px;
+  text-transform: uppercase; color: var(--t3); cursor: pointer; }
+.cs-tec summary:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+.cs-tec p { font-size: 10.5px; color: var(--t3); margin: 7px 0 0; line-height: 1.5; }
+@media (max-width: 860px) { .cs-grid { grid-template-columns: 1fr; } }
+
 /* la tarjeta como div con cabecera clicable (ya no es un <button>) */
 .cn-caja-head {
   display: block; width: 100%; text-align: left; background: transparent;

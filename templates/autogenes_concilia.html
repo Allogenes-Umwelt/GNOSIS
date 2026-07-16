@@ -54,6 +54,9 @@
       <div class="cn-caudal" id="cn-caudal"
            aria-label="Escalera de derivaciones: caudal conciliado y sus fugas"></div>
 
+      <div class="qa-sec">La sesión en su historia</div>
+      <div id="cn-control" aria-label="Control estadístico de proceso"></div>
+
       <div class="qa-sec">Cupos · What-if</div>
       <div class="qa-lista" id="cn-cupos" aria-live="polite">
         <p class="qa-base-hint">Cargando cupos…</p>
@@ -89,6 +92,7 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
+<script src="{{ url_for('static', filename='control.js') }}"></script>
 <script src="{{ url_for('static', filename='concilia.js') }}"></script>
 <script>
 (function () {

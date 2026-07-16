@@ -110,6 +110,8 @@
         'todas las reglas evaluadas — salida determinista del motor');
     });
 
+    if (window.Control) window.Control.montar('vl-control');
+
     CV.conectar(elReglas, 'validacion', recargar);
     elFiltros.addEventListener('click', function (ev) {
       var b = ev.target.closest('.cv-filtro');
