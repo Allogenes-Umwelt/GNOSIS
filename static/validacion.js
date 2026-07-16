@@ -304,7 +304,7 @@
         rg.refs.forEach(function (r) {
           var partes = [];
           if (r.factura) partes.push('factura <b>' + esc(r.factura) + '</b>');
-          if (r.chasis) partes.push('chasis <b>' + esc(r.chasis) + '</b>');
+          if (r.chasis) partes.push('chasis ' + window.vinChip(r.chasis));
           if (r.filename) partes.push('PDF <b>' + esc(r.filename) + '</b>');
           html += '<div class="cn-ref"><span>' +
             (partes.join(' · ') || 'fila sin identificadores') + '</span></div>';

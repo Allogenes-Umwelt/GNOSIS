@@ -343,6 +343,11 @@
 .cn-caja.contradicha { border-color: var(--danger); }
 .cn-caja.cerrada { opacity: .62; }
 .nm-contra { color: var(--danger); font-weight: 700; font-family: var(--font-mono); }
+/* VIN citado como enlace al dossier compartido (O0.4): inline, no botón grueso */
+.vin-dossier { font: inherit; font-weight: 700; background: none; border: 0;
+  padding: 0; margin: 0; color: var(--acc-text); cursor: pointer;
+  border-bottom: 1px dotted currentColor; }
+.vin-dossier:hover, .vin-dossier:focus-visible { color: var(--acc); outline: none; }
 
 /* resoluciones verificadas por el motor */
 .cv-verif {

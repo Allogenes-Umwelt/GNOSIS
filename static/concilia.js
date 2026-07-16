@@ -189,7 +189,7 @@
       h.refs.forEach(function (r) {
         var partes = [];
         if (r.factura) partes.push('factura <b>' + esc(r.factura) + '</b>');
-        if (r.chasis) partes.push('chasis <b>' + esc(r.chasis) + '</b>');
+        if (r.chasis) partes.push('chasis ' + window.vinChip(r.chasis));
         if (r.dwh) {
           partes.push('DWH dice <b>' + esc(r.dwh) + '</b> · PDF dice <b>' +
             esc(r.pdf) + '</b>');

@@ -219,7 +219,7 @@
       }
       rg.refs.forEach(function (r) {
         html += '<div class="cn-ref"><span>factura <b>' + esc(r.factura) +
-          '</b> · chasis <b>' + esc(r.chasis) + '</b></span></div>';
+          '</b> · chasis ' + window.vinChip(r.chasis) + '</span></div>';
       });
       if (rg.n_violaciones > rg.refs.length) {
         html += '<p class="qa-base-hint">+' + (rg.n_violaciones - rg.refs.length) +
