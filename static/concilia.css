@@ -40,6 +40,9 @@
 .cn-caja.vl-ok { border-left-color: var(--line); }
 .cn-caja.vl-ok .clase { color: var(--t3); }
 .cn-flujo .v.riesgo { color: var(--danger); }
+/* la última sección de la columna (SPC) no debe quedar pegada al borde
+   inferior: aire simétrico al padding superior de la columna */
+#vl-control { margin-bottom: 22px; }
 
 /* lookup por VIN en la ficha */
 .cn-vin { display: flex; gap: 6px; margin-bottom: 10px; }
