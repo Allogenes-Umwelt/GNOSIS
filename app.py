@@ -2,25 +2,26 @@ import os
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
-from flask import Flask, request, render_template, redirect, url_for, send_from_directory, send_file, jsonify # type: ignore
-import pandas as pd
-from PDFs_Final_v3 import PDFs_to_excel
-from concentrado1 import Concentrado
-from concentrado2 import Concentrado2
-from Estadistico import estadistico_v2
-from Estadistico import estadistico_v3
-
-from Estadistico import estadistico_v4
-
-import PDFs_v2
-import zipfile
-from werkzeug.utils import secure_filename
 import datetime
 import shutil
 import tempfile
 import traceback
+import zipfile
 
-from flask import session, redirect, url_for
+import pandas as pd
+from flask import (  # type: ignore
+    Flask, request, render_template, redirect, send_from_directory,
+    send_file, jsonify, session,
+)
+from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
+
+# Nota: las herramientas del pipeline legado (PDFs_to_excel, Concentrado,
+# Concentrado2, estadistico_v4) arrastran el stack de data-science
+# (tabula/bokeh/matplotlib) y se importan PEREZOSAMENTE dentro de los
+# handlers de /procesar. Así la app —y sus rutas AUTOGENES/tableros—
+# importa sin ese stack, y la red de pruebas HTTP corre en CI liviano.
+
 
 def _read_excel(path, **kwargs):
     """Lee un Excel con engine apropiado; si openpyxl falla intenta xlrd."""
@@ -31,13 +32,70 @@ def _read_excel(path, **kwargs):
     except Exception:
         return pd.read_excel(path, engine='xlrd', **kwargs)
 
+
+# Columnas que el pipeline legado (concentrado1.Concentrado) exige del archivo
+# de Divisiones — la ranura «Incrementales» de la ingesta. El pipelegado NO se
+# toca: fuerza engine='openpyxl' (solo .xlsx) y hace df['CLAVES'] directo, así
+# que un .xls viejo revienta con BadZipFile y un archivo equivocado con
+# KeyError. Se normaliza y valida en el BORDE antes de entrar al pipeline.
+_COLS_DIVISIONES = ['CLAVES', 'Tipo', 'FRACCIÓN', 'Pais',
+                    'Seguro (Incrementables)', 'Flete (Incrementables)', 'MARCA']
+
+
+def _preparar_divisiones(path):
+    """Normaliza el archivo de Divisiones para el pipeline legado, sin tocarlo:
+    lo lee con el engine correcto (.xls→xlrd, .xlsx→openpyxl), valida que traiga
+    las columnas que Concentrado necesita y —si venía en .xls— lo reescribe como
+    .xlsx (el pipeline solo lee openpyxl). Devuelve la ruta lista para el pipeline.
+    Lanza ConcentradoError con un mensaje accionable si el archivo no sirve."""
+    nombre = os.path.basename(path)
+    try:
+        df = _read_excel(path)
+    except Exception as e:
+        raise ConcentradoError(
+            f"No se pudo leer «{nombre}» como Excel. La ranura Incrementales espera "
+            f"el archivo de Divisiones en formato .xls o .xlsx. Detalle: {e}")
+    faltan = [c for c in _COLS_DIVISIONES if c not in df.columns]
+    if faltan:
+        raise ConcentradoError(
+            f"«{nombre}» no parece el archivo de Divisiones: faltan las columnas "
+            + ", ".join(faltan) + ". Sube el archivo de Divisiones con sus 7 columnas "
+            "(CLAVES, Tipo, FRACCIÓN, Pais, Seguro (Incrementables), "
+            "Flete (Incrementables), MARCA) en la ranura Incrementales.")
+    if str(path).lower().endswith('.xlsx'):
+        return path
+    # .xls (u otro): reescribe a .xlsx para que el pipeline (openpyxl) lo lea
+    destino = os.path.splitext(path)[0] + '.norm.xlsx'
+    df.to_excel(destino, index=False)
+    return destino
+
+
+# Tope de expansión al descomprimir un ZIP subido. MAX_CONTENT_LENGTH
+# acota el ARCHIVO (50 MB) pero no lo DESCOMPRIMIDO: un zip bomba de 50 MB
+# puede expandir a gigabytes y llenar el disco.
+_MAX_UNZIPPED_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+
+
+def _extraer_zip_seguro(zip_path, destino):
+    """Extrae un ZIP abortando si la suma descomprimida supera el tope.
+    Lanza FileUploadError (400 vía errorhandler) si excede o está corrupto."""
+    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+        total = sum(info.file_size for info in zip_ref.infolist())
+        if total > _MAX_UNZIPPED_BYTES:
+            raise FileUploadError(
+                f"El ZIP se expande a {total // (1024*1024)} MB, supera el "
+                f"tope de {_MAX_UNZIPPED_BYTES // (1024*1024*1024)} GB.")
+        zip_ref.extractall(destino)
+
+
 # --- Persistencia SQLite (Gnosis AI) ---
 from database import init_db
 from database.persistence import (
     create_session, update_session_stats, save_catalogo_vehiculos,
     save_extraccion, save_concentrado2, save_estadistico_results,
     save_facturas_errors, save_facturas_faltantes, copy_insumos_to_persistent,
-    migrate_add_error_message, get_errores_session, get_latest_session_id
+    migrate_add_error_message, migrate_add_artefacto_hash,
+    get_errores_session, get_latest_session_id
 )
 from database.backup import backup_database
 
@@ -47,14 +105,53 @@ DOWNLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__)) + '/downloads'
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
-app.config['MAX_CONTENT_LENGTH'] = 10000 * 1024 * 1024 *1024
-app.config['SECRET_KEY'] = 'Gestel2025'  # Set a strong, secret key
+# Una carga jamas debe poder tumbar el proceso, pero un ZIP mensual de
+# facturas rebasa 50 MB con facilidad; el guardia real contra zip-bombs
+# es _MAX_UNZIPPED_BYTES al extraer.
+app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024
+
+
+# ── candado de operador (opcional): con GNOSIS_TOKEN en el entorno,
+# toda mutación via API exige el header X-Gnosis-Token. Sin la variable
+# el candado no existe — el uso local de un solo operador no cambia.
+@app.before_request
+def _candado_operador():
+    esperado = os.environ.get('GNOSIS_TOKEN')
+    if not esperado:
+        return None
+    # El candado se ancla al MÉTODO mutante, no al prefijo /api/: rutas
+    # destructivas como /processing, /procesar/*, /admin/dedup y
+    # /errores/delete no viven bajo /api/ y antes quedaban libres.
+    if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+        if request.headers.get('X-Gnosis-Token') != esperado:
+            return jsonify({'error': 'Token de operador requerido'}), 401
+    return None
+
+
+# La cookie de sesión se firma con SECRET_KEY: sin un valor fuerte en el
+# entorno, un tercero forja la cookie. Sin default embebido — si no está
+# la env var, se genera una efímera por-proceso (invalida sesiones al
+# reiniciar, que es lo correcto para un default inseguro ausente).
+app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET_KEY') or os.urandom(32)
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+
+# Blueprints: familias de rutas extraídas de app.py (ver rutas/).
+from rutas.tableros import bp as tableros_bp
+from rutas.autogenes import bp as autogenes_bp
+app.register_blueprint(tableros_bp)
+app.register_blueprint(autogenes_bp)
 
 # Inicializar base de datos SQLite al arrancar
 init_db()
 migrate_add_error_message()
+migrate_add_artefacto_hash()
+
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "ok"}), 200
+
 
 def clean_directory(directory_path):
     if not os.path.exists(directory_path):
@@ -108,6 +205,10 @@ def log_error_to_file(error_type, error_message, error_traceback):
     timestamp_display = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     log_filename = f"Ticket_de_Servicio_ADUANAS_{timestamp_filename}.txt"
     log_filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], log_filename)
+    # el manejador de errores no puede fallar: sin este directorio, el
+    # ticket que explica el error moría en FileNotFoundError y el 500
+    # original se perdía tras un segundo 500
+    os.makedirs(app.config['DOWNLOAD_FOLDER'], exist_ok=True)
 
     with open(log_filepath, 'w', encoding='utf-8') as log_file:
         log_file.write("="*80 + "\n")
@@ -146,12 +247,24 @@ def log_error_to_file(error_type, error_message, error_traceback):
 
 
 # Error Handlers
+@app.errorhandler(413)
+def handle_request_too_large(e):
+    limite_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+    mensaje = (f"El archivo supera el tope de {limite_mb} MB por carga. "
+               "Divide las facturas en varios ZIP y súbelos uno por uno.")
+    if request.path.startswith('/procesar/'):
+        return jsonify({'error': mensaje}), 413
+    return render_template('error.html', error_message=mensaje, log_file=None), 413
+
+
 @app.errorhandler(FileUploadError)
 def handle_file_upload_error(e):
     error_traceback = traceback.format_exc()
     log_filename = log_error_to_file(FileUploadError, str(e), error_traceback)
-   
-    return render_template('error.html', 
+
+    if request.path.startswith('/procesar/'):
+        return jsonify({'error': str(e)}), 400
+    return render_template('error.html',
                          error_message="Error durante la carga: " + str(e),
                          log_file=log_filename), 400
 @app.errorhandler(PDFProcessingError)
@@ -181,19 +294,44 @@ def handle_estadistico_error(e):
                          error_message="Error creando Estadistico: " + str(e),
                          log_file=log_filename), 500
 
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """HTTP status exceptions (404, 405, 413…) keep their true code — the
+    generic handler below must not bury them as 500. API paths answer in
+    JSON so clients get a machine-readable status, not an HTML page."""
+    if request.path.startswith('/api/'):
+        return jsonify({'error': e.description, 'status': e.code}), e.code
+    return render_template('error.html',
+                           error_message=f"{e.code} · {e.name}",
+                           log_file=None), e.code
+
+
 @app.errorhandler(Exception)
 def handle_generic_error(e):
     error_traceback = traceback.format_exc()
     log_filename = log_error_to_file(type(e), str(e), error_traceback)
-    return render_template('error.html', 
+    if request.path.startswith('/api/'):
+        return jsonify({'error': 'Error inesperado', 'status': 500}), 500
+    return render_template('error.html',
                          error_message="Error inesperado: " + str(e),
                          log_file=log_filename), 500
 
+# Tableros de análisis disponibles (rechazos, cupo, rutas, dominio, maduración):
+# es el conteo real de vistas, no una métrica de sesión inventada.
+_TABLEROS_DISPONIBLES = 5
+
+
 @app.route('/', methods=['GET'])
 def dashboard():
-    """Pagina principal — layout 3 columnas con chat, areas y dashboard."""
+    """Pagina principal — landing INICIO (celda) + dashboard desplegable."""
     from database import get_connection
     from database.persistence import get_all_sessions, get_latest_session_id, get_errores_session
+    from celda import construir_celda_svg, kpis_de_sesion
+
+    # La celda INICIO en estado latente (sin sesión): todo declarado «—».
+    _celda_latente = dict(session_id=None, vehiculos=None, facturas=None,
+                          faltantes=None, errores=None, entidades=None,
+                          conciliado_pct=None, valor_total=None, tableros=_TABLEROS_DISPONIBLES)
 
     _empty = dict(
         empty=True, sessions=[], current_session=None,
@@ -204,6 +342,8 @@ def dashboard():
         fase1_stats={'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0},
         historico_sessions=0, errores_count=0, errores=[], session_id=None,
         viz_data={}, data={},
+        celda_svg=construir_celda_svg(_celda_latente),
+        celda_kpis=kpis_de_sesion(_celda_latente),
     )
 
     try:
@@ -288,7 +428,8 @@ def dashboard():
             por_aduana = [dict(r) for r in conn.execute(
                 "SELECT aduana, COUNT(*) as total FROM pedimentos WHERE session_id = ? AND aduana IS NOT NULL AND aduana != '' GROUP BY aduana ORDER BY total DESC",
                 (session_id,)).fetchall()]
-        except Exception: por_aduana = []
+        except Exception:
+            por_aduana = []
         try:
             por_fraccion = [dict(r) for r in conn.execute(
                 """SELECT c.fraccion, COUNT(*) as total FROM importaciones i
@@ -296,12 +437,14 @@ def dashboard():
                    WHERE i.session_id = ? AND c.fraccion IS NOT NULL AND c.fraccion != ''
                    GROUP BY c.fraccion ORDER BY total DESC LIMIT 12""",
                 (session_id,)).fetchall()]
-        except Exception: por_fraccion = []
+        except Exception:
+            por_fraccion = []
         try:
             por_moneda = [dict(r) for r in conn.execute(
                 "SELECT COALESCE(NULLIF(moneda,''),'—') as moneda, COUNT(*) as total FROM extraccion_facturas WHERE session_id = ? GROUP BY moneda ORDER BY total DESC",
                 (session_id,)).fetchall()]
-        except Exception: por_moneda = []
+        except Exception:
+            por_moneda = []
 
         # ── GNOSIS deep-tech viz data contract (read-only aggregations · Decisión 1A) ──
         # Solo lectura; si algo falla, el dashboard sigue renderizando sin viz_data.
@@ -358,14 +501,58 @@ def dashboard():
             # Totales por marca (para taxonomía / dendrograma) — ya es lista de dicts
             viz_data['por_marca'] = por_marca
 
-            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4
-            viz_data['seguimiento'] = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            # Seguimiento mensual del cupo (trayectoria) — read-only, ya calculado por estadistico_v4.
+            # Si la sesión Flask no lo trae (recarga de página o sesión completada revisitada en otro
+            # navegador), se lee de la tabla durable `seguimiento_mensual` y se mapea a la MISMA forma
+            # que consume la trayectoria en el cliente, para que el tablero nunca quede en "SIN DATOS".
+            seg = session.get('data', {}).get('SEGUIMIENTO_MENSUAL', []) or []
+            if not seg and session_id:
+                try:
+                    seg = [dict(
+                        month=str(r['mes']), month_name=r['mes_nombre'],
+                        consumo_produccion=r['consumo_produccion'], consumo_inversion=r['consumo_inversion'],
+                        consumo_total=r['consumo_total'], acumulado_total=r['acumulado_total'],
+                        cupo_produccion_activo=r['cupo_produccion_activo'],
+                        cupo_inversion_activo=r['cupo_inversion_activo'],
+                    ) for r in conn.execute(
+                        "SELECT mes, mes_nombre, consumo_produccion, consumo_inversion, consumo_total,"
+                        " acumulado_total, cupo_produccion_activo, cupo_inversion_activo"
+                        " FROM seguimiento_mensual WHERE session_id = ? ORDER BY mes",
+                        (session_id,)).fetchall()]
+                except Exception:
+                    seg = []
+            viz_data['seguimiento'] = seg
             # Agotamientos de cupo (transiciones prod + inv) — read-only, para marcar en la trayectoria
             viz_data['agotamientos'] = (session.get('data', {}).get('TRANSICIONES_PRODUCCION', []) or []) \
                 + (session.get('data', {}).get('TRANSICIONES_INVERSION', []) or [])
         except Exception as _e:
             print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
             viz_data = {}
+
+        # ── Celda INICIO: métricas vivas de la sesión (mismo conn, sin
+        # dobles conteos: reusa stats; entidades y valor se leen directo). ──
+        try:
+            _ent = conn.execute(
+                "SELECT COUNT(*) FROM ag_entidades WHERE session_id = ?", (session_id,)
+            ).fetchone()[0]
+        except Exception:
+            _ent = None
+        try:
+            _valor = conn.execute(
+                "SELECT COALESCE(SUM(precio), 0) FROM importaciones WHERE session_id = ?",
+                (session_id,)
+            ).fetchone()[0]
+        except Exception:
+            _valor = None
+        _veh = stats['total_importaciones']
+        _falt = stats['total_faltantes']
+        _conf = max(0, min(100, round(100 * (_veh - _falt) / _veh))) if _veh else None
+        _celda = dict(
+            session_id=session_id, vehiculos=_veh, facturas=stats['total_extraccion'],
+            faltantes=_falt, errores=stats['total_errores'], entidades=_ent,
+            conciliado_pct=_conf, valor_total=_valor, tableros=_TABLEROS_DISPONIBLES)
+        celda_svg = construir_celda_svg(_celda)
+        celda_kpis = kpis_de_sesion(_celda)
 
         conn.close()
 
@@ -397,10 +584,54 @@ def dashboard():
             session_id=sid,
             viz_data=viz_data,
             data=session.get('data', {}),
+            celda_svg=celda_svg,
+            celda_kpis=celda_kpis,
         )
     except Exception as e:
         print(f"[Dashboard] Error: {e}")
+        try:
+            conn.close()   # no dejar la conexión abierta al degradar (fuga fd/lock WAL)
+        except Exception:
+            pass
         return render_template('main.html', **_empty)
+
+
+@app.route('/api/admin/reset', methods=['POST'])
+def admin_reset():
+    """Empezar de cero: borra la base local, insumos y resultados, y
+    reinicia el esquema. SOLO lo dispara el operador con confirmación
+    explícita en el cuerpo — un borrado jamás se delega ni se facilita.
+    """
+    datos = request.get_json(silent=True) or {}
+    if datos.get('confirmar') != 'BORRAR':
+        return jsonify({'error': 'Confirmación requerida: envía {"confirmar": "BORRAR"}.'}), 400
+
+    from database import DB_PATH, init_db
+    session.clear()
+    for sufijo in ('', '-wal', '-shm'):
+        try:
+            os.remove(DB_PATH + sufijo)
+        except OSError:
+            pass
+    init_db()
+
+    def _vaciar(directorio):
+        if not os.path.isdir(directorio):
+            return
+        for nombre in os.listdir(directorio):
+            ruta = os.path.join(directorio, nombre)
+            try:
+                if os.path.isdir(ruta):
+                    shutil.rmtree(ruta, ignore_errors=True)
+                else:
+                    os.remove(ruta)
+            except OSError:
+                pass
+
+    _vaciar(app.config['UPLOAD_FOLDER'])
+    _vaciar(app.config['DOWNLOAD_FOLDER'])
+    _vaciar(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'plotly_graphs'))
+    return jsonify({'ok': True, 'mensaje': 'Sesión local borrada; esquema reiniciado.'})
 
 
 @app.route('/welcome', methods=['GET'])
@@ -435,45 +666,12 @@ def combine_txt_files(file_paths, output_file):
 
 @app.route('/procesar', methods=['GET'])
 def procesar_page():
-    """Pagina de procesamiento por fases."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
-
-    fase1_stats = {'total': 0, 'exitosos': 0, 'registros': 0, 'errores': 0}
-    historico_sessions = 0
-    try:
-        conn = get_connection()
-        sid = get_latest_session_id()
-        if sid:
-            ext_pdfs = conn.execute(
-                "SELECT COUNT(DISTINCT filename) as cnt FROM extraccion_facturas WHERE session_id = ?", (sid,)
-            ).fetchone()
-            ext_rows = conn.execute(
-                "SELECT COUNT(*) as cnt FROM extraccion_facturas WHERE session_id = ?", (sid,)
-            ).fetchone()
-            err = conn.execute(
-                "SELECT COUNT(*) as cnt FROM facturas_errores WHERE session_id = ?", (sid,)
-            ).fetchone()
-            fase1_stats['exitosos']  = ext_pdfs['cnt']   # PDFs únicos
-            fase1_stats['registros'] = ext_rows['cnt']   # filas (vehículos)
-            fase1_stats['errores']   = err['cnt']
-            fase1_stats['total']     = ext_pdfs['cnt'] + err['cnt']
-
-        # Contar sesiones con DWH + incrementales para el proceso historico
-        row = conn.execute(
-            """SELECT COUNT(DISTINCT session_id) as cnt FROM insumos_archivos
-               WHERE tipo_archivo = 'dwh'
-               AND session_id IN (
-                   SELECT DISTINCT session_id FROM insumos_archivos
-                   WHERE tipo_archivo = 'incrementales'
-               )"""
-        ).fetchone()
-        historico_sessions = row['cnt'] if row else 0
-        conn.close()
-    except Exception as e:
-        print(f"[Procesar] Error leyendo stats: {e}")
-
-    return render_template('procesar.html', fase1_stats=fase1_stats, historico_sessions=historico_sessions)
+    """La carga vive en una sola página (el cockpit `/`, que trae los mismos
+    formularios + chat + histórico). `procesar.html` era una copia recortada y
+    redundante; se retiró. Esta ruta redirige para no romper el menú «Áreas»
+    ni el link «Pipeline completo → Áreas». Las ACCIONES del pipeline siguen en
+    /procesar/fase1, /procesar/pipeline y /procesar/historico."""
+    return redirect('/')
 
 
 @app.route('/procesar/fase1', methods=['POST'])
@@ -482,6 +680,15 @@ def procesar_fase1():
     Solo procesa las facturas del ZIP recien subido, luego las mueve
     al directorio acumulativo para que esten disponibles en Fases 2-4.
     """
+    # El pipeline de extracción usa Java/tabula/PyPDF2 (imagen completa). En
+    # un despliegue lite/nativo esas deps no están: degradar con un mensaje
+    # claro en vez de reventar en 500 al subir cientos de facturas.
+    try:
+        from PDFs_Final_v3 import PDFs_to_excel
+    except Exception:
+        return jsonify({'error': 'El pipeline de extracción de PDFs no está '
+                        'disponible en este despliegue (faltan Java/tabula/PyPDF2). '
+                        'Usa la imagen completa docker/Containerfile, no la lite.'}), 503
     facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
     historico_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'historico')
     downloads_dir = app.config['DOWNLOAD_FOLDER']
@@ -490,28 +697,40 @@ def procesar_fase1():
     os.makedirs(historico_dir, exist_ok=True)
     os.makedirs(downloads_dir, exist_ok=True)
 
-    # Handle ZIP upload
-    facturas_zip = request.files.get('facturas')
-    if not facturas_zip or facturas_zip.filename == '':
-        return jsonify({'error': 'No se cargo el archivo ZIP de facturas.'}), 400
+    # Aceptar PDFs sueltos y/o un ZIP de facturas: el selector del navegador
+    # ya no obliga a comprimir. Los ZIP se extraen; los PDFs se guardan
+    # directo. (El pipeline de extracción trabaja sobre temp_dir igual.)
+    subidos = [f for f in request.files.getlist('facturas') if f and f.filename]
+    if not subidos:
+        return jsonify({'error': 'No se cargaron facturas. Selecciona PDFs o un ZIP.'}), 400
 
-    # Extraer ZIP a directorio temporal (solo procesar las nuevas)
     temp_dir = tempfile.mkdtemp(prefix='facturas_nuevas_')
-    facturas_zip_path = os.path.join(temp_dir, secure_filename(facturas_zip.filename))
-    facturas_zip.save(facturas_zip_path)
+    hay_pdf = False
+    for f in subidos:
+        nombre = secure_filename(f.filename)
+        bajo = nombre.lower()
+        if bajo.endswith('.zip'):
+            zip_path = os.path.join(temp_dir, nombre)
+            f.save(zip_path)
+            try:
+                _extraer_zip_seguro(zip_path, temp_dir)
+            except zipfile.BadZipFile:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                return jsonify({'error': f'«{f.filename}» no es un ZIP valido.'}), 400
+            finally:
+                try:
+                    os.remove(zip_path)
+                except OSError:
+                    pass
+            hay_pdf = True
+        elif bajo.endswith('.pdf'):
+            f.save(os.path.join(temp_dir, nombre))
+            hay_pdf = True
+        # otros tipos se ignoran en silencio (el XML se limpia abajo)
 
-    try:
-        with zipfile.ZipFile(facturas_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-    except zipfile.BadZipFile:
+    if not hay_pdf:
         shutil.rmtree(temp_dir, ignore_errors=True)
-        return jsonify({'error': 'El archivo no es un ZIP valido.'}), 400
-
-    # Eliminar el ZIP despues de extraer
-    try:
-        os.remove(facturas_zip_path)
-    except:
-        pass
+        return jsonify({'error': 'No se encontraron PDFs ni un ZIP con facturas.'}), 400
 
     # Eliminar archivos XML del ZIP (no son facturas y pueden causar errores de lectura)
     for root, _, files in os.walk(temp_dir):
@@ -519,7 +738,7 @@ def procesar_fase1():
             if f.lower().endswith('.xml'):
                 try:
                     os.remove(os.path.join(root, f))
-                except:
+                except OSError:
                     pass
 
     # Handle optional historico
@@ -620,7 +839,14 @@ def procesar_fase1():
 @app.route('/procesar/pipeline', methods=['POST'])
 def procesar_pipeline():
     """Fases 2-4: Pipeline completo (usa facturas ya extraidas)."""
-    facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
+    try:
+        from concentrado1 import Concentrado
+        from concentrado2 import Concentrado2
+        from Estadistico import estadistico_v4
+    except Exception:
+        return jsonify({'error': 'El pipeline completo (concentrado/estadístico) '
+                        'no está disponible en este despliegue. Usa la imagen '
+                        'completa docker/Containerfile, no la lite.'}), 503
     dwh_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'dwh')
     incrementales_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'incrementales')
     pdfInversion_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfInversion')
@@ -698,6 +924,10 @@ def procesar_pipeline():
             combine_txt_files(dwh_files, combined_dwh_file)
             dwh_files = [combined_dwh_file]
 
+        # Normaliza/valida el archivo de Divisiones en el borde (.xls→.xlsx +
+        # chequeo de columnas) para que el pipeline legado lo procese igual sin
+        # tocarlo, y para dar un error accionable si subieron el archivo equivocado.
+        incrementales_files[0] = _preparar_divisiones(incrementales_files[0])
         pedimento = Concentrado(dwh_files[0], incrementales_files[0])
         output_file_path2 = os.path.join(downloads_dir, 'Concentrado1.xlsx')
         pedimento[0].to_excel(output_file_path2, sheet_name="concentrado", index=False)
@@ -780,328 +1010,6 @@ def procesar_pipeline():
         raise EstadisticoError(f"{e}")
 
 
-@app.route('/processing', methods=['POST'])
-def processing():
-    facturas_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'facturas')
-    dwh_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'dwh')
-    incrementales_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'incrementales')
-    pdfInversion_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfInversion')
-    pdfProduccion_dir  = os.path.join(app.config['UPLOAD_FOLDER'], 'pdfProduccion')
-    historico_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'historico')
-    downloads_dir = app.config['DOWNLOAD_FOLDER']  # Downloads folder
-
-
-    os.makedirs(facturas_dir, exist_ok=True)
-    os.makedirs(dwh_dir, exist_ok=True)
-    os.makedirs(incrementales_dir, exist_ok=True)
-    os.makedirs(pdfInversion_dir, exist_ok=True)
-    os.makedirs(pdfProduccion_dir, exist_ok=True)
-    os.makedirs(downloads_dir, exist_ok=True)
-    os.makedirs(historico_dir, exist_ok=True)
-
-
-    # Clean directories
-    clean_directory(facturas_dir)
-    clean_directory(dwh_dir)
-    clean_directory(incrementales_dir)
-    clean_directory(pdfInversion_dir)
-    clean_directory(pdfProduccion_dir)
-    clean_directory(downloads_dir)  # Clean the downloads folder
-    clean_directory(historico_dir)
-    
-
-    """
-    # Save facturas files
-    if 'facturas' in request.files:
-        for file in request.files.getlist('facturas'):
-            if file and file.filename != '':
-                file_path = os.path.join(facturas_dir, file.filename)
-                file.save(file_path)
-                print(f"Saved factura: {file_path}")
-    else:
-        raise FileUploadError("No se cargaron facturas")
-    """
-
-
-    # Save dwh files
-    if 'dwh' in request.files:
-        for file in request.files.getlist('dwh'):
-            if file and file.filename != '':
-                file_path = os.path.join(dwh_dir, file.filename)
-                file.save(file_path)
-                print(f"Saved dwh: {file_path}")
-    else:
-        raise FileUploadError("No se cargaron DWH")
-
-#Extraccion por medio de ZIP contiendo las facturas 
-    # Handle FACTURAS ZIP upload
-    facturas_zip = request.files.get('facturas')
-    if not facturas_zip or facturas_zip.filename == '':
-        raise FileUploadError("No se cargó el archivo ZIP de facturas.")
-
-    # Save and extract ZIP to facturas_dir
-    facturas_zip_path = os.path.join(facturas_dir, secure_filename(facturas_zip.filename))
-    facturas_zip.save(facturas_zip_path)
-
-    try:
-        with zipfile.ZipFile(facturas_zip_path, 'r') as zip_ref:
-            zip_ref.extractall(facturas_dir)
-        print(f"ZIP extraído en: {facturas_dir}")
-    except zipfile.BadZipFile:
-        raise FileUploadError("El archivo de facturas no es un ZIP válido.")
-
-    # Save incrementales/diviciones files
-    if 'incrementales' in request.files:
-        for file in request.files.getlist('incrementales'):
-            if file and file.filename != '':
-                file_path = os.path.join(incrementales_dir, file.filename)
-                file.save(file_path)
-                print(f"Saved incremental: {file_path}")
-    else:
-        raise FileUploadError("No se cargaron Incrementales")
-
-    #Save PDFs inversion y produccion
-    if 'pdfInversion' in request.files:
-        for file in request.files.getlist('pdfInversion'):
-            if file and file.filename != '':
-                file_path = os.path.join(pdfInversion_dir, file.filename)
-                file.save(file_path)
-                print(f"Saved pdfInversion: {file_path}")
-    else:
-        raise FileUploadError("No se cargo pdfInbversion")
-    
-    if 'pdfProduccion' in request.files:
-        for file in request.files.getlist('pdfProduccion'):
-            if file and file.filename != '':
-                file_path = os.path.join(pdfProduccion_dir, file.filename)
-                file.save(file_path)
-                print(f"Saved pdfProduccion: {file_path}")
-    else:
-        raise FileUploadError("No se cargo pdfProduccion")
-    
-
-# Assuming `historico_dir` is the directory where you want to save the file
-
-    if 'FilePrevio' in request.files:
-        file = request.files['FilePrevio']
-        
-        if file and file.filename != '':
-            # Check if the file has a valid Excel extension
-            if not file.filename.endswith('.xlsx'):
-                print("Uploaded file is not an Excel file. Renaming to .xlsx.")
-                # If the file is not an xlsx, we forcefully rename it as .xlsx
-                filename = os.path.splitext(file.filename)[0] + '.xlsx'
-            else:
-                filename = file.filename
-
-            # Construct the full file path
-            file_path = os.path.join(historico_dir, filename)
-            
-            try:
-                # Save the file to the specified path
-                file.save(file_path)
-                print(f"Saved file to: {file_path}")
-            except Exception as e:
-                print(f"Error saving the file: {e}")
-        else:
-            print("No file selected or file is empty.")
-    else:
-        print("No file uploaded.")
-
-    # --- Persistencia: crear sesion y copiar insumos ---
-    now = datetime.datetime.now()
-    db_session_id = None
-    try:
-        db_session_id = create_session(now.month, now.year)
-        backup_database()
-        upload_dirs = {
-            'facturas': facturas_dir,
-            'dwh': dwh_dir,
-            'incrementales': incrementales_dir,
-            'pdfInversion': pdfInversion_dir,
-            'pdfProduccion': pdfProduccion_dir,
-            'historico': historico_dir,
-        }
-        copy_insumos_to_persistent(db_session_id, upload_dirs, DATA_DIR)
-        print(f"[DB] Sesion {db_session_id} creada, insumos copiados.")
-    except Exception as e_db:
-        print(f"[DB] Error creando sesion/insumos (no afecta pipeline): {e_db}")
-
-    # Process PDFs and generate Excel file
-    try:
-        # proceso 1 facturas
-        inicoFacturas = datetime.datetime.now()
-        df_nuevas, df_PDFs_documents, ListErrores, errores_detalle_hist = PDFs_to_excel(facturas_dir, file_path, 'facturasProcesadas.xlsx')
-        output_filename = 'facturasProcesadas.xlsx'
-        output_file_path = os.path.join(app.config['DOWNLOAD_FOLDER'], output_filename)
-        df_PDFs_documents.to_excel(output_file_path, index=False)
-        print('1. extraidas las facturas')
-        finFacturas = datetime.datetime.now()
-        print('Tiempo de procesamiento de facturas: ', finFacturas - inicoFacturas)
-
-        errores_txt_path = os.path.join(app.config['DOWNLOAD_FOLDER'], 'ListaErrores.txt')
-
-        if ListErrores:
-            print('📌 Files with errors:', ListErrores)
-        
-        # Keep only the rightmost part of each path (filename)
-            errores_filenames = [os.path.basename(path) for path in ListErrores]
-            
-            # Export to TXT
-            errores_txt_path = os.path.join(app.config['DOWNLOAD_FOLDER'], 'ListaErrores.txt')
-            with open(errores_txt_path, 'w', encoding='utf-8') as f:
-                for name in errores_filenames:
-                    f.write(name + '\n')
-
-        # --- Persistencia: guardar extraccion y errores ---
-        try:
-            if db_session_id and not df_PDFs_documents.empty:
-                n_ext = save_extraccion(db_session_id, df_PDFs_documents)
-                print(f"[DB] {n_ext} registros de extraccion guardados.")
-            if db_session_id and ListErrores:
-                save_facturas_errors(db_session_id, ListErrores, errores_detalle_hist)
-                print(f"[DB] {len(ListErrores)} errores de PDFs guardados.")
-        except Exception as e_db:
-            print(f"[DB] Error guardando extraccion (no afecta pipeline): {e_db}")
-
-    except Exception as e:
-        raise PDFProcessingError(f"{e}")
-
-
-    try:
-        concentradoInicio = datetime.datetime.now()
-        # proceso 2, creacion pedimento con dwh y divisiones/incrementales
-        dwh_files = [os.path.join(dwh_dir, f) for f in os.listdir(dwh_dir) if os.path.isfile(os.path.join(dwh_dir, f))]
-        incrementales_files = [os.path.join(incrementales_dir, f) for f in os.listdir(incrementales_dir) if os.path.isfile(os.path.join(incrementales_dir, f))]
-        
-        # Asegurarse de que hay exactamente un archivo en cada directorio 
-        #### si hay mas de uno los juntamos para que se puedan hacer en dbulk |
-        if len(dwh_files) > 1:
-            # Combine the dwh files into one
-            combined_dwh_file = os.path.join(dwh_dir, "combined_dwh.txt")
-            combine_txt_files(dwh_files, combined_dwh_file)
-            dwh_files = [combined_dwh_file]  # Update the dwh_files list to only have the combined file
-        else: 
-            handle_concentrado_error("Error con los pedimentos")
-        
-        if len(dwh_files) != 1 or len(incrementales_files) != 1:
-            raise handle_concentrado_error("Debe haber por lo menos un archivo en el directorio 'dwh' y solo 1 archivo en el directorio 'incrementales'.")
-
-        pedimento = Concentrado(dwh_files[0], incrementales_files[0])
-        output_filename2 = 'Concentrado1.xlsx'
-        output_file_path2 = os.path.join(app.config['DOWNLOAD_FOLDER'], output_filename2)
-        pedimento[0].to_excel(output_file_path2, sheet_name="concentrado", index=False)
-        print('2. creacion del pedimento')
-
-        # --- Persistencia: guardar catalogo de vehiculos (divisiones) ---
-        try:
-            if db_session_id and len(pedimento) > 1:
-                df_divisiones = _read_excel(incrementales_files[0])
-                n_cat = save_catalogo_vehiculos(db_session_id, df_divisiones)
-                print(f"[DB] {n_cat} vehiculos del catalogo guardados.")
-        except Exception as e_db:
-            print(f"[DB] Error guardando catalogo vehiculos (no afecta pipeline): {e_db}")
-
-    except Exception as e:
-        print(f"Error processing pedimento1: {e}")
-        raise ConcentradoError(e)
-    
-    try:
-        # proceso 3, union concentrado y facturas
-        final = Concentrado2(output_file_path2, output_file_path)
-        output_filename3 = 'Concentrado2.xlsx'
-        output_file_path3 = os.path.join(app.config['DOWNLOAD_FOLDER'], output_filename3)
-        final[0].to_excel(output_file_path3, sheet_name='final')
-        facturasFaltantes_array = final[2]
-        facturasFaltantes_df = pd.DataFrame({'FACT': facturasFaltantes_array})
-        filepath_faltantes = os.path.join(app.config['DOWNLOAD_FOLDER'], 'Facturas_Faltantes.xlsx')
-
-        facturasFaltantes_df.to_excel(filepath_faltantes, sheet_name='concentrado2')
-        filepathFormatoNuevo = os.path.join(app.config['DOWNLOAD_FOLDER'], 'NuevoFormato.xlsx')
-        dfNuevoFormato = final[3]
-        dfNuevoFormato.to_excel(filepathFormatoNuevo, sheet_name='NuevoFormato', index=False)
-
-        print('terminado hasta concentrado 2')
-        concentradoFinal = datetime.datetime.now()
-        print('Tiempo de procesamiento de concentrado 2: ', concentradoFinal - concentradoInicio)
-
-        # --- Persistencia: guardar concentrado2 (importaciones) y faltantes ---
-        try:
-            if db_session_id and not final[0].empty:
-                n_imp = save_concentrado2(db_session_id, final[0])
-                print(f"[DB] {n_imp} importaciones guardadas.")
-            if db_session_id and facturasFaltantes_array:
-                save_facturas_faltantes(db_session_id, facturasFaltantes_array)
-                print(f"[DB] {len(facturasFaltantes_array)} facturas faltantes guardadas.")
-        except Exception as e_db:
-            print(f"[DB] Error guardando concentrado2 (no afecta pipeline): {e_db}")
-
-    ############ NOS VAMOS A LA CREACION DEL ESTADISTICO ##################
-    except Exception as e:
-        print(f"Error processing final: {e}")
-        return redirect(url_for('error', message=str(e)))
-    
-    #Try para estadistico
-
-    try:
-        print('3. Creacion del estadistico')
-        # output_file_path3 = concentrado 2
-        # pdf_produccion_path = path donde se subio el pdf 
-        # output3_path = output para el archivo de estadistico 
-        # pdf_inversion_path =  path donde se subio el pdf
-
-        pdfProduccion_files = [os.path.join(pdfProduccion_dir, f) for f in os.listdir(pdfProduccion_dir) if os.path.isfile(os.path.join(pdfProduccion_dir, f))]
-        pdfInversion_files = [os.path.join(pdfInversion_dir, f) for f in os.listdir(pdfInversion_dir) if os.path.isfile(os.path.join(pdfInversion_dir, f))]
-        output_filename4 = 'Estadistico.xlsx'
-        output_file_path4 = os.path.join(app.config['DOWNLOAD_FOLDER'], output_filename4)
-        
-        inicioEstadistico = datetime.datetime.now()
-        ress= estadistico_v4(output_file_path3, [pdfProduccion_files[0]], output_file_path4, [pdfInversion_files[0]])
-        session['data'] = ress  # Store the data dictionary in session
-        print(ress)
-        # Provide success response with download link
-        files_to_download = [output_filename, output_filename2, output_filename3,'ListaErrores.txt', 'Facturas_Faltantes.xlsx', output_filename4,'ZipGeneral.zip','NuevoFormato.xlsx']
-        ZipFilepaths = [output_file_path4,output_file_path3,output_file_path2,output_file_path,errores_txt_path,filepath_faltantes,filepathFormatoNuevo]
-
-        print(session)
-        finEstadistico = datetime.datetime.now()
-        print('Tiempo de procesamiento de facturas: ', finFacturas - inicoFacturas)
-        print('Tiempo de procesamiento de concentrado 2: ', concentradoFinal - concentradoInicio)
-        print('Tiempo de procesamiento de estadistico: ', finEstadistico - inicioEstadistico)
-        print('Tiempo total de procesamiento: ', finEstadistico - inicoFacturas)
-
-        # --- Persistencia: guardar estadistico y actualizar sesion ---
-        try:
-            if db_session_id:
-                save_estadistico_results(db_session_id, ress)
-                total_time = (finEstadistico - inicoFacturas).total_seconds()
-                update_session_stats(
-                    db_session_id,
-                    total_pdfs_processed=len(df_PDFs_documents) if not df_PDFs_documents.empty else 0,
-                    total_pdfs_errors=len(ListErrores) if ListErrores else 0,
-                    total_records=len(final[0]) if not final[0].empty else 0,
-                    processing_time_seconds=total_time,
-                    status='completed'
-                )
-                print(f"[DB] Estadistico y stats de sesion {db_session_id} guardados.")
-        except Exception as e_db:
-            print(f"[DB] Error guardando estadistico (no afecta pipeline): {e_db}")
-
-        output_zip_path = os.path.join(app.config['DOWNLOAD_FOLDER'], 'ZipGeneral.zip')
-        with zipfile.ZipFile(output_zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-            for file in ZipFilepaths:
-                if os.path.exists(file):
-                    zipf.write(file, arcname=os.path.basename(file))  # Store only filename
-                else:
-                    print(f"⚠️ File not found, skipping: {file}")
-
-        
-    ############ NOS  VAMOS A LA CONFIRMACION   ##################
-        return render_template('dashboard2.html', files=files_to_download)
-    except Exception as e:
-        raise EstadisticoError(f"{e}")
-
-
 @app.route('/confirmation/<filename>', methods=['GET'])
 def confirmation(filename):
     return render_template('confirmation.html', filename=filename)
@@ -1141,7 +1049,14 @@ def api_status():
         conn.close()
         return jsonify({'status': 'ok', 'tables': stats})
     except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+# ── AUTOGENES: registrado desde rutas/autogenes.py (blueprint) ──
 
 
 @app.route('/api/v1/sessions', methods=['GET'])
@@ -1181,6 +1096,10 @@ def api_session_detail(session_id):
         conn.close()
         return jsonify(detail)
     except Exception as e:
+        try:
+            conn.close()
+        except Exception:
+            pass
         return jsonify({'error': str(e)}), 500
 
 
@@ -1225,6 +1144,7 @@ def admin_dedup():
 @app.route('/procesar/historico', methods=['POST'])
 def procesar_historico():
     """Pipeline historico: Concentrado2 via SQL + Estadistico con todos los cupos."""
+    from Estadistico import estadistico_v4
     from database import get_connection
     from database.persistence import get_historico_concentrado2, get_facturas_faltantes_historico
 
@@ -1303,19 +1223,79 @@ def procesar_historico():
 
 # Instancia global del chat handler (una por proceso)
 _chat_handler = None
+_chat_proveedor = None
 
 def _get_chat_handler():
-    global _chat_handler
+    global _chat_handler, _chat_proveedor
     if _chat_handler is None:
         try:
-            from jarvis.llm_interface import AnthropicProvider
+            from database import get_connection
+            from database.config import get_all_config
+            from jarvis.llm_interface import seleccionar_proveedor
             from jarvis.chat_handler import ChatHandler
-            provider = AnthropicProvider()
+            conn = get_connection()
+            config = get_all_config(conn)
+            conn.close()
+            nombre, provider = seleccionar_proveedor(config)
+            _chat_proveedor = nombre
+            print(f"[Gnosis AI] Proveedor LLM activo: {nombre}")
             _chat_handler = ChatHandler(provider)
         except Exception as e:
             print(f"[Gnosis AI] Error inicializando chat: {e}")
             raise
     return _chat_handler
+
+
+@app.route('/api/v1/admin/llm', methods=['GET'])
+def api_admin_llm_estado():
+    """Estado de la capa LLM: proveedores disponibles, default y fallbacks."""
+    from database import get_connection
+    from database.config import get_all_config
+    from jarvis.llm_interface import proveedores_disponibles
+    try:
+        conn = get_connection()
+        config = get_all_config(conn)
+        conn.close()
+        return jsonify({
+            'default': config.get('llm_default', 'deepseek'),
+            'fallback_claude': config.get('llm_fallback_claude', 'off'),
+            'ollama': config.get('llm_ollama', 'off'),
+            'disponibles': proveedores_disponibles(config),
+            'activo': _chat_proveedor,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/v1/admin/llm', methods=['POST'])
+def api_admin_llm_configurar():
+    """Configura el selector LLM. Claves permitidas: llm_default,
+    llm_fallback_claude (on/off), llm_ollama (on/off), deepseek_model,
+    claude_model. Reinicia el handler para aplicar de inmediato."""
+    global _chat_handler, _chat_proveedor
+    from database import get_connection
+    from database.config import set_config
+    permitidas = {'llm_default', 'llm_fallback_claude', 'llm_ollama',
+                  'deepseek_model', 'claude_model'}
+    data = request.get_json(silent=True) or {}
+    cambios = {k: str(v) for k, v in data.items() if k in permitidas}
+    if not cambios:
+        return jsonify({'error': f'Nada que configurar; claves: {sorted(permitidas)}'}), 400
+    if 'llm_default' in cambios and cambios['llm_default'] not in ('deepseek', 'claude', 'ollama'):
+        return jsonify({'error': 'llm_default debe ser deepseek, claude u ollama'}), 400
+    for k in ('llm_fallback_claude', 'llm_ollama'):
+        if k in cambios and cambios[k] not in ('on', 'off'):
+            return jsonify({'error': f'{k} debe ser on u off'}), 400
+    try:
+        conn = get_connection()
+        for k, v in cambios.items():
+            set_config(conn, k, v)
+        conn.close()
+        _chat_handler = None
+        _chat_proveedor = None
+        return jsonify({'status': 'ok', 'aplicado': cambios})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/gnosisia', methods=['GET'])
@@ -1424,6 +1404,7 @@ def reprocesar_pdfs():
     """Re-procesa PDFs corregidos subidos por el usuario.
     Espera multipart/form-data con: files[] y session_id.
     """
+    from PDFs_Final_v3 import PDFs_to_excel
     from database import get_connection as _get_conn
 
     session_id = request.form.get('session_id')
@@ -1498,14 +1479,17 @@ def reprocesar_pdfs():
     # 5. Sincronizar directorio de errores persistente
     errores_dir = os.path.join(app.config['UPLOAD_FOLDER'], 'errores', str(session_id))
     os.makedirs(errores_dir, exist_ok=True)
+    # los nombres de destino en disco pasan por secure_filename: el nombre
+    # ORIGINAL (nombre_map) puede traer "../" y `orig` alimenta os.remove /
+    # shutil.copy2 — sanearlo bloquea escritura/borrado fuera de errores_dir.
     for nombre in nombres_exito:
-        orig = nombre_map.get(nombre, nombre)
+        orig = secure_filename(nombre_map.get(nombre, nombre)) or nombre
         err_file = os.path.join(errores_dir, orig)
         if os.path.isfile(err_file):
             os.remove(err_file)
     for path in errores_nuevos:
         secure_name = os.path.basename(path)
-        orig = nombre_map.get(secure_name, secure_name)
+        orig = secure_filename(nombre_map.get(secure_name, secure_name)) or secure_name
         if os.path.isfile(path):
             shutil.copy2(path, os.path.join(errores_dir, orig))
 
@@ -1541,9 +1525,15 @@ def errores_delete():
     conn.commit()
     conn.close()
 
-    err_file = os.path.join(app.config['UPLOAD_FOLDER'], 'errores', str(session_id), filename)
-    if os.path.isfile(err_file):
-        os.remove(err_file)
+    # el archivo en disco SIEMPRE se guardó bajo secure_filename (ver
+    # reprocesar_pdfs); sanear aquí bloquea el traversal por `filename`
+    # arbitrario del JSON (p.ej. "../../database/gnosis.db").
+    safe_name = secure_filename(filename)
+    if safe_name:
+        err_file = os.path.join(
+            app.config['UPLOAD_FOLDER'], 'errores', str(int(session_id)), safe_name)
+        if os.path.isfile(err_file):
+            os.remove(err_file)
 
     return jsonify({'ok': True})
 
@@ -1579,4 +1569,8 @@ def errores_download_zip():
 
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=5001,debug=True)
+    # debug=True expone la consola Werkzeug (RCE) y host 0.0.0.0 la publica
+    # en toda la red. Ambos se controlan por entorno; el default es seguro.
+    debug = os.environ.get('GNOSIS_DEBUG') == '1'
+    host = os.environ.get('GNOSIS_HOST', '127.0.0.1')
+    app.run(host=host, port=int(os.environ.get('GNOSIS_PORT', '5001')), debug=debug)

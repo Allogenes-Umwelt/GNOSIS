@@ -1,0 +1,116 @@
+/* GNOSIS · SINAPSIS (SNP-03) — tarjetas de insight con su cadena de
+   composición. Tokens siempre; magenta solo en la gravedad medida. */
+
+.sn-tarjeta {
+  padding: 12px 14px;
+  background: var(--s1); border: 1px solid var(--linea);
+  border-left: 2px solid var(--acc-solid);
+}
+.sn-tarjeta .motores {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 2px;
+  color: var(--acc-text); text-transform: uppercase;
+}
+.sn-tarjeta .titulo {
+  font-family: var(--font-d); font-weight: 700; font-size: .95rem;
+  letter-spacing: .4px; color: var(--t1); text-transform: uppercase;
+  margin: 3px 0 4px;
+}
+.sn-tarjeta .lectura {
+  margin: 0 0 8px; font-size: .875rem; line-height: 1.5; color: var(--t2);
+}
+/* la cadena de composición: hecho + hecho ⇒ */
+.sn-cadena { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.sn-hecho {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 5px 8px; background: var(--s2); border: 1px solid var(--linea);
+  font-size: .78rem; color: var(--t2);
+}
+.sn-hecho .motor {
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: 1px;
+  color: var(--acc-text); text-transform: uppercase; flex-shrink: 0;
+  min-width: 128px;
+}
+.sn-pie { display: flex; align-items: center; gap: 10px; }
+.sn-gravedad {
+  flex: 1; height: 6px; background: var(--s2);
+  border: 1px solid var(--linea); overflow: hidden;
+}
+.sn-gravedad .nivel { height: 100%; background: var(--danger); }
+.sn-pie .valor {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+.sn-pie a {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px;
+  color: var(--acc-text); text-decoration: none; text-transform: uppercase;
+}
+.sn-pie a:hover { text-decoration: underline; }
+.sn-dockear {
+  font-family: var(--font-mono); font-size: .68rem; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--acc-text);
+  background: transparent; border: 1px solid var(--linea);
+  padding: 4px 10px; cursor: pointer;
+}
+.sn-dockear:hover { border-color: var(--acc-text); }
+.sn-dockear:disabled { color: var(--t3); cursor: default; }
+.sn-refs {
+  margin-top: 6px; font-family: var(--font-mono); font-size: .72rem;
+  color: var(--t3); overflow-wrap: anywhere;
+}
+.sn-tarjeta.activo { border-color: var(--danger); background: var(--acc-subtle); }
+
+/* el lattice en el panel derecho */
+.sn-lienzo { height: 300px; }
+.sn-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+.sn-celda {
+  width: 100%; text-align: left; cursor: pointer;
+  display: flex; justify-content: space-between; gap: 8px; align-items: baseline;
+  padding: 6px 8px; background: var(--s1); border: 1px solid var(--linea);
+  font-family: var(--font-mono); font-size: .72rem; color: var(--t2);
+}
+.sn-celda b { color: var(--t1); font-weight: 400; flex-shrink: 0; }
+.sn-celda.insight { border-left: 2px solid var(--danger); }
+.sn-celda.insight b { color: var(--danger); }
+.sn-celda.activo { border-color: var(--acc-text); background: var(--acc-subtle); }
+.sn-celda.insight.activo { border-color: var(--danger); }
+
+/* NOMOS: el diagrama manda — panel derecho ancho, izquierdo angosto,
+   y la columna izquierda reparte su contenido sin vacíos al fondo */
+.nm-marco { grid-template-columns: minmax(340px, 2fr) 3fr; }
+.nm-marco.der-off { grid-template-columns: 1fr 46px; }
+.nm-marco .ag-centro { display: flex; flex-direction: column; }
+.nm-marco #nm-reglas { flex: 1; }
+.nm-marco .nm-form { margin-bottom: 2px; }
+.nm-lienzo { height: 440px; }
+.nm-lienzo canvas { width: 100%; height: 100%; display: block; }
+.nm-form { display: flex; flex-direction: column; gap: 8px; }
+.nm-form input, .nm-form select {
+  padding: 8px 10px; background: var(--s1); border: 1px solid var(--linea);
+  color: var(--t1); font-family: var(--font-mono); font-size: .8rem;
+}
+.nm-form input:focus, .nm-form select:focus {
+  outline: 1px dashed var(--acc-text); outline-offset: 2px;
+}
+.nm-form .fila { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.nm-form .fila input, .nm-form .fila select { flex: 1; min-width: 90px; }
+.nm-form .op {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--acc-text);
+  flex-shrink: 0;
+}
+.nm-form button { align-self: flex-start; }
+
+/* CRONOS: lienzo de estratos */
+.cr-lienzo { height: 380px; }
+.cr-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+
+/* TABLEROS VW: escalera de dominio */
+.td-lienzo { height: 400px; }
+.td-lienzo canvas { width: 100%; height: 100%; display: block; }
+.tm-lienzo { height: 400px; }
+.tm-lienzo canvas { width: 100%; height: 100%; display: block; }
+.tr-lienzo { height: 400px; }
+.tr-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }
+.tc-lienzo { height: 400px; }
+.tc-lienzo canvas { width: 100%; height: 100%; display: block; }
+.tu-lienzo { height: 460px; }
+.tu-lienzo canvas { width: 100%; height: 100%; display: block; cursor: pointer; }

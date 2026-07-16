@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Vínculos{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco" id="ag-landing">
+
+    <!-- Lienzo -->
+    <section class="ag-centro gr-centro" aria-label="Vínculos del caso">
+      <div class="ag-centro-head">
+        <span class="t">◆ Vínculos</span>
+        <span class="gr-controles">
+          <input type="text" id="vn-desde" class="gr-input" list="vn-nodos"
+                 placeholder="desde…" aria-label="Nodo de origen">
+          <span style="color:var(--t3);font-family:var(--font-mono)">→</span>
+          <input type="text" id="vn-hasta" class="gr-input" list="vn-nodos"
+                 placeholder="hasta…" aria-label="Nodo de destino">
+          <datalist id="vn-nodos"></datalist>
+          <button type="button" id="vn-invertir" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px" title="Invertir origen y destino"
+                  aria-label="Invertir origen y destino">⇄</button>
+          <button type="button" id="vn-trazar" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px">trazar</button>
+          <button type="button" id="vn-limpiar" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px">limpiar</button>
+          <button type="button" id="vn-reencuadrar" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px">reencuadrar</button>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="gr-lienzo" data-inspector="#vn-detalle" data-estado="#gr-estado" data-reset="#vn-reencuadrar">
+        <canvas aria-label="Lienzo de vínculos de la sesión" role="img"></canvas>
+      </div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><span id="gr-estado" role="status">CARGANDO…</span></li>
+      </ul>
+    </section>
+
+    <!-- Panel: camino / hubs -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Camino y hubs">
+      <div class="ag-panel-head">
+        <h2>Análisis de red</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="ag-grupo" id="vn-analisis-tit">Lectura de negocio</div>
+      <label class="vn-deriva">
+        <span>marca</span>
+        <select id="vn-marca" class="gr-input" aria-label="Marca sujeto del análisis">
+        </select>
+      </label>
+      <label class="vn-deriva">
+        <span>comparar contra</span>
+        <select id="vn-deriva" class="gr-input" aria-label="Sesión de referencia para la deriva">
+          <option value="">— sin comparación —</option>
+        </select>
+      </label>
+      <div id="vn-analisis" class="vn-analisis" aria-live="polite">
+        <p class="gr-vacio">Cargando el análisis de red…</p>
+      </div>
+      <div class="ag-grupo">Flujos de origen (esquemático)</div>
+      <canvas id="vn-mapa" class="vn-mapa" width="300" height="150"
+              role="img" aria-label="Mapa esquemático de flujos de origen hacia México"></canvas>
+      <div class="ag-grupo">Camino citado</div>
+      <div id="vn-camino" class="gr-inspector" aria-live="polite">
+        <p class="gr-vacio">Elige origen y destino, y traza. Cada salto llega con
+        sus citas — el camino se puede dockear como producto del caso.</p>
+      </div>
+      <button type="button" id="vn-dockear" class="ag-subir" disabled>Dockear camino</button>
+      <div class="ag-msj" id="vn-msj" role="status"></div>
+      <div class="ag-grupo">Los más conectados</div>
+      <ul class="ag-nav" id="vn-hubs"></ul>
+      <div id="vn-detalle" class="gr-inspector" hidden></div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='fuerzas.js') }}"></script>
+<script src="{{ url_for('static', filename='grafo.js') }}"></script>
+<script src="{{ url_for('static', filename='vinculos.js') }}"></script>
+<script>
+(function () {
+  const landing = document.getElementById('ag-landing');
+  const btn = document.querySelector('.ag-plegar[data-panel=der]');
+  const panel = document.getElementById('ag-panel-der');
+  const aplicar = (off) => {
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  };
+  btn.addEventListener('click', () => aplicar(!panel.classList.contains('plegado')));
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,73 @@
+# GNOSIS — imagen de contenedor para instalar en escritorio (Podman/Docker).
+# Multi-stage: el builder compila las dependencias; el runtime queda delgado.
+# Java (JRE 17) es necesario SOLO para el pipeline legado de extracción de
+# PDFs (tabula/jpype en PDFs_v2.py); todo lo demás es Python puro.
+
+# ===== BUILDER =====
+# Pin a bookworm (Debian 12): el tag rodante python:3.11-slim se movió a
+# trixie (Debian 13), donde openjdk-17 ya no existe. Fijar la variante
+# mantiene el build reproducible y el JRE 17 disponible.
+FROM python:3.11-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# gcc por si alguna dependencia compila extensiones C durante el pip install.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --upgrade pip
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+
+# ===== RUNTIME =====
+FROM python:3.11-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH" \
+    JAVA_HOME=/usr/lib/jvm/java-17 \
+    JARVIS_DB_PATH=/app/data/aduanas.db
+
+# JRE 17 headless (bookworm lo trae en main; openjdk-21 NO está en bookworm).
+# curl para el HEALTHCHECK. tesseract (+ español) y poppler para OCR de
+# facturas escaneadas / imágenes en la Ingesta de Autogenes.
+# El symlink java-17 normaliza la ruta del JRE (…-amd64 en Intel, …-arm64 en
+# Apple Silicon) para que JAVA_HOME sea el mismo en ambas arquitecturas.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        openjdk-17-jre-headless \
+        curl \
+        tesseract-ocr \
+        tesseract-ocr-spa \
+        poppler-utils && \
+    ln -s /usr/lib/jvm/java-17-openjdk-* /usr/lib/jvm/java-17 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY . /app
+
+# Usuario no-root + directorios persistentes escribibles (los volúmenes
+# heredan esta propiedad en el primer arranque).
+RUN groupadd -r gnosis && useradd -r -g gnosis -d /app gnosis && \
+    mkdir -p /app/data /app/uploads /app/downloads && \
+    chown -R gnosis:gnosis /app/data /app/uploads /app/downloads
+USER gnosis
+
+VOLUME ["/app/data", "/app/uploads", "/app/downloads"]
+EXPOSE 5001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:5001/health || exit 1
+
+# Servidor WSGI de producción (no el dev server de Flask). Bind a 0.0.0.0
+# DENTRO del contenedor es correcto: la exposición la controla el mapeo de
+# puerto de Podman. timeout alto por el procesamiento de PDFs.
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", \
+     "--timeout", "1800", "--access-logfile", "-", "app:app"]

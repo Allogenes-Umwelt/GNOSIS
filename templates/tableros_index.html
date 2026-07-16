@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Tableros VW{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing" id="ag-landing" style="display:block">
+    <section class="ag-centro" aria-label="Tableros de negocio VW">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">TBV · TABLEROS DE NEGOCIO</span>
+          <span class="nom">◆ Acuerdos VW · Gnosis Front</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Tableros</div>
+      <div class="qa-lista">
+        <a class="cn-caja qa-item" href="/tableros/dominio" style="text-decoration:none">
+          <span class="clase" style="color:var(--acc-text)">TBV-02 · activo</span>
+          <span class="fila"><span class="titulo">Dominio</span></span>
+          <p class="detalle">Qué modelo dominó las ventas en cada mes, trimestre,
+          semestre o año — escalera de rangos + ranking escalonado por marca
+          con desglose de su unidad más vendida.</p>
+        </a>
+        <a class="cn-caja qa-item" href="/tableros/maduracion" style="text-decoration:none">
+          <span class="clase" style="color:var(--acc-text)">TBV-01 · activo</span>
+          <span class="fila"><span class="titulo">Maduración</span></span>
+          <p class="detalle">Cuánto tardó cada unidad de la importación a la
+          venta, por marca — espectro de densidad con percentiles y toggle
+          de marca.</p>
+        </a>
+        <a class="cn-caja qa-item" href="/tableros/rutas" style="text-decoration:none">
+          <span class="clase" style="color:var(--acc-text)">TBV-03 · activo</span>
+          <span class="fila"><span class="titulo">Rutas</span></span>
+          <p class="detalle">Dónde se concentra el flujo país → aduana, sobre
+          mapa OpenStreetMap con arcos por volumen — lo no ubicable se
+          declara, no se dibuja.</p>
+        </a>
+        <a class="cn-caja qa-item" href="/tableros/rechazos" style="text-decoration:none">
+          <span class="clase" style="color:var(--acc-text)">TBV-04 · activo</span>
+          <span class="fila"><span class="titulo">Rechazos</span></span>
+          <p class="detalle">Waybill o factura que no funcionó y por qué —
+          Pareto de razones de falla con archivos citados.</p>
+        </a>
+        <a class="cn-caja qa-item" href="/tableros/cupo" style="text-decoration:none">
+          <span class="clase" style="color:var(--acc-text)">TBV-05 · activo</span>
+          <span class="fila"><span class="titulo">Cupo</span></span>
+          <p class="detalle">El libro mayor mensual del cupo como cascada de
+          agotamiento — pasado y presente, sin proyección.</p>
+        </a>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

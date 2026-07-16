@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Red del caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: el instrumento -->
+    <section class="ag-centro gr-centro" aria-label="Red topológica del caso">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-01 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Red del caso</span>
+          <span class="qa-pregunta">¿Qué comunidades forman el caso, y qué las une?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia" class="activo" aria-current="page">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="qa-dial" id="qa-dial" role="group" aria-label="Nivel de agrupamiento"></span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qa-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><span style="color:var(--acc-text)">●</span> concentrador de su comunidad — cursor para aislarla, clic para su dossier</li>
+        <li><b>◇</b> puente de articulación — si cae, la red se parte</li>
+        <li><span id="qa-info" role="status">CARGANDO LA RED…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: la ficha -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Ficha estructural">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Lectura</div>
+      <div id="qa-lectura"></div>
+      <div class="qa-sec">Spec</div>
+      <div class="qa-spec" id="qa-spec"></div>
+      <div class="qa-sec">Concentradores</div>
+      <div class="qa-lista" id="qa-hubs"></div>
+      <div class="qa-sec">Puentes</div>
+      <div class="qa-lista" id="qa-puentes"></div>
+      <div class="qa-sec">Anomalías</div>
+      <div class="qa-lista" id="qa-anomalias"></div>
+      <button type="button" id="qa-base" class="qa-accion" style="margin-top:8px">fijar base</button>
+      <div class="ag-msj" id="qa-msj" role="status"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Las comunidades se detectan por propagación de etiquetas determinista;
+        el concentrador de cada una es su nodo de mayor grado ponderado. El «nivel
+        de agrupamiento» colapsa cada comunidad en un supernodo y suma sus
+        vínculos —el mismo agregado que dibuja el tendón del núcleo—. Toda cifra
+        cita fila o fragmento; la misma sesión abre idéntica.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

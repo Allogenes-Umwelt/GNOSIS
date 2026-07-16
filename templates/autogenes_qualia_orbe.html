@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Orbe gravitacional{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: el sistema orbital -->
+    <section class="ag-centro gr-centro" aria-label="Orbe gravitacional">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-05 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Orbe gravitacional</span>
+          <span class="qa-pregunta">¿Qué entidades concentran el caso?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe" class="activo" aria-current="page">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qo-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b>▮</b> concentrador — los tres de mayor peso en la red</li>
+        <li><b>●</b> cuerpo — peso en la red · órbita = rango · plano = comunidad · clic para su dossier</li>
+        <li><span id="qo-info" role="status">CARGANDO EL ORBE…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: por qué pesa -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Masa y contribuciones">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Por qué pesa</div>
+      <div id="qo-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca un cuerpo. Su peso es la suma de los pesos
+        de sus vecinos por la fuerza del vínculo — la explicación honesta ES esa
+        suma.</p>
+      </div>
+      <div class="qa-sec">Peso en la red</div>
+      <div class="qa-lista" id="qo-masas"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>«Peso en la red» = centralidad de vector propio (iteración de
+        potencia sobre la matriz de adyacencia, normalizada al máximo).
+        «Órbita» = rango por peso; «plano» = comunidad. Todo determinista: la
+        misma sesión abre idéntica.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_orbe.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

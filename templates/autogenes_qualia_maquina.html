@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Máquina de inteligencia{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing" id="ag-landing" style="display:block">
+    <section class="ag-centro" aria-label="Máquina de inteligencia Qualia">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-C2 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Máquina de inteligencia</span>
+          <span class="qa-pregunta">¿Qué me dice el caso ahora mismo, y qué hago?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina" class="activo" aria-current="page">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <!-- El diagrama de acoples OODA: cuatro fases, un solo núcleo -->
+      <div class="qm-stage">
+        <div class="qm-lienzo" id="qm-lienzo"><canvas></canvas></div>
+        <div class="qm-kpi nw" id="qm-observar">
+          <div class="qm-fase">[ 1 · Observar ] · <span class="instr">terreno</span></div>
+          <div class="qm-titular" id="qm-obs-titular">—</div>
+          <p class="qm-dato" id="qm-obs-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/terreno">abrir terreno →</a>
+        </div>
+        <div class="qm-kpi ne" id="qm-orientar">
+          <div class="qm-fase"><span class="instr">orbe</span> · [ 2 · Orientar ]</div>
+          <div class="qm-titular" id="qm-ori-titular">—</div>
+          <p class="qm-dato" id="qm-ori-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/orbe">abrir orbe →</a>
+        </div>
+        <div class="qm-kpi sw" id="qm-actuar">
+          <div class="qm-fase">[ 4 · Actuar ] · <span class="instr">horizonte</span></div>
+          <div class="qm-titular" id="qm-act-titular">—</div>
+          <p class="qm-dato" id="qm-act-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/horizonte">abrir horizonte →</a>
+        </div>
+        <div class="qm-kpi se" id="qm-decidir">
+          <div class="qm-fase"><span class="instr">cascada</span> · [ 3 · Decidir ]</div>
+          <div class="qm-titular" id="qm-dec-titular">—</div>
+          <p class="qm-dato" id="qm-dec-dato">Cargando…</p>
+          <a class="qm-abrir" href="/autogenes/qualia/cascada">abrir cascada →</a>
+        </div>
+      </div>
+
+      <p class="qm-lectura-diag">
+        Las cuatro fases no son pasos sueltos — forman un bucle acoplado.
+        <b>Observar → Orientar</b> interpreta lo medido; <b>Decidir → Actuar</b>
+        lo convierte en intervención; <b>Actuar → Observar</b> cierra el lazo
+        midiendo el efecto. Las cuatro alimentan un solo núcleo: el estado del caso.<span id="qm-veredicto-linea"></span>
+      </p>
+
+      <!-- Leer el sistema: el modelo interpreta el digesto ya calculado -->
+      <div class="qm-parte" style="margin-top:14px" aria-label="Parte del sistema">
+        <div class="qa-sec" style="margin-top:0">Leer el sistema</div>
+        <div id="qm-parte-cuerpo">
+          <p class="qa-base-hint">El motor condensa las cuatro fases en un digesto
+          citable; el modelo solo interpreta y el saneador poda en servidor toda
+          lectura que cite una clave no enviada.</p>
+        </div>
+        <button type="button" id="qm-leer" class="qa-accion" style="margin-top:12px">leer el sistema</button>
+        <button type="button" id="qm-dockear" class="qa-accion" style="margin-top:12px; display:none">dockear el parte</button>
+        <span class="ag-msj" id="qm-msj" role="status"></span>
+        <details class="qa-ficha-tec">
+          <summary>▸ Ficha técnica</summary>
+          <p>Las cuatro fases son salida directa del motor (anomalías medidas,
+          centralidad, puentes de articulación, delta de telemetría) — cero teatro.
+          «Leer el sistema» condensa esas fases en un digesto citable; el modelo solo
+          interpreta y el saneador poda en servidor toda lectura que cite una clave no
+          enviada. El parte dockeado se recalcula y sanea antes de escribirse como
+          Producto del grafo.</p>
+        </details>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_maquina.js') }}"></script>
+{% endblock %}

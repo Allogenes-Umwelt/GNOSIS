@@ -1,0 +1,255 @@
+"""Spec for VALIDACIÓN (F10): every rule evaluated over every row of its
+source; zero-violation rules are reported (full conformity is a fact,
+not an omitted line); the USA=J rule is deliberately NOT evaluated."""
+import sqlite3
+
+import pytest
+
+from autogenes.validacion import validar
+from database import models, models_autogenes
+
+
+@pytest.fixture()
+def conn() -> sqlite3.Connection:
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA foreign_keys = ON")
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed, year_processed)"
+        " VALUES ('2026-07-10', 7, 2026)"
+    )
+    # paises viene pre-sembrado por el schema (DEU, BRA, ... ya existen)
+    return c
+
+
+SID = 1
+VIN = "WAUZZZ8Y0000000001"[:17]
+
+
+def _cat(c) -> int:
+    c.execute(
+        "INSERT INTO catalogo_vehiculos (session_id, auto_code) VALUES (?, 'AAA111')",
+        (SID,))
+    return c.execute("SELECT MAX(id) FROM catalogo_vehiculos").fetchone()[0]
+
+
+def _fila_dwh(c, chasis=VIN, factura="F1", precio=1.0, jn="J", pais="DEU",
+              catalogo_id=None):
+    c.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio, j_y_n,"
+        " pais_code, catalogo_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (SID, chasis, factura, precio, jn, pais, catalogo_id))
+
+
+def _fila_pdf(c, chasis=VIN, factura="F1", amount="1", moneda="EUR",
+              jn="J", pais="DEU"):
+    c.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura, amount,"
+        " moneda, j_y_n, pais_code, filename) VALUES (?, ?, ?, ?, ?, ?, ?, 'x.pdf')",
+        (SID, chasis, factura, amount, moneda, jn, pais))
+
+
+def test_sesion_conforme_reporta_reglas_en_cero(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)
+    _fila_pdf(conn)
+    r = validar(conn, SID)
+    assert r["conformidad_pct"] == 100 and r["total_violaciones"] == 0
+    assert all(x["n"] == 0 for x in r["reglas"])
+    assert len(r["reglas"]) == 22           # 16 base + 6 de ola 2
+    # la regla USA=J NO existe: no se valida lo que no se puede verificar
+    assert not any("usa" in x["clave"] for x in r["reglas"])
+
+
+def test_obligatorios_y_vin17_con_refs(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, chasis="CORTO", precio=None, catalogo_id=cat)
+    r = validar(conn, SID)
+    por = {x["clave"]: x for x in r["reglas"]}
+    assert por["val-dwh-precio"]["n"] == 1
+    assert por["val-dwh-vin17"]["n"] == 1
+    assert por["val-dwh-vin17"]["refs"][0]["chasis"] == "CORTO"
+    assert por["val-dwh-chasis"]["n"] == 0      # presente aunque malformado
+    # una fila con dos violaciones cuenta UNA vez en la conformidad
+    assert r["filas_no_conformes"]["dwh"] == 1
+    assert r["conformidad_pct"] == 0
+
+
+def test_pais_desconocido_y_jn_contra_norma(conn):
+    cat = _cat(conn)
+    # producción no siempre corre con foreign_keys=ON: un país fantasma
+    # PUEDE colarse al DWH — la regla existe para atraparlo. (El PRAGMA
+    # es no-op dentro de una transacción: hay que cerrar la abierta.)
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    _fila_dwh(conn, pais="XXX", catalogo_id=cat)               # país fantasma
+    _fila_dwh(conn, chasis="WAUZZZ8Y0000000002"[:17], factura="F2",
+              jn="J", pais="BRA", catalogo_id=cat)             # BRA debe ser N
+    _fila_pdf(conn, jn="N", pais="BRA")                        # conforme
+    r = validar(conn, SID)
+    por = {x["clave"]: x for x in r["reglas"]}
+    assert por["val-dwh-pais"]["n"] == 1
+    assert por["val-dwh-jn-norma"]["n"] == 1
+    assert por["val-pdf-jn-norma"]["n"] == 0
+    assert "glosa" in por["val-dwh-jn-norma"]["norma"]
+
+
+def test_sin_filas_conformidad_es_nula_no_cien(conn):
+    r = validar(conn, SID)
+    assert r["conformidad_pct"] is None
+    assert r["filas"] == {"dwh": 0, "pdf": 0}
+
+
+# ── ola 2: certificado + Radar ───────────────────────────────────────
+
+
+def test_certificado_dockea_conformidad_completa_sin_tope(conn):
+    from autogenes.validacion import dockear_certificado
+    cat = _cat(conn)
+    for i in range(15):     # 15 violaciones de precio > MAX_REFS
+        _fila_dwh(conn, chasis=f"WAUZZZ8Y000000{i:03d}", factura=f"F{i}",
+                  precio=None, catalogo_id=cat)
+    r = dockear_certificado(conn, SID)
+    assert "error" not in r
+    p = r["producto"]
+    assert p["clase"] == "informe" and p["unidad"] == "validacion"
+    assert p["titulo"].startswith("Certificado de conformidad")
+    regla = next(x for x in p["cuerpo"]["reglas"] if x["clave"] == "val-dwh-precio")
+    assert regla["n"] == 15 and len(regla["refs"]) == 15    # SIN tope de 12
+    assert p["evidencia"] == [] and p["entidades"] == []
+
+
+def test_certificado_lleva_sello_verificable(conn):
+    from autogenes.sello import verificar
+    from autogenes.validacion import dockear_certificado
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)
+    r = dockear_certificado(conn, SID)
+    cuerpo = r["producto"]["cuerpo"]
+    assert "sello" in cuerpo
+    assert verificar(cuerpo)["valido"] is True
+
+
+def test_certificado_sin_filas_no_escribe(conn):
+    from autogenes.validacion import dockear_certificado
+    r = dockear_certificado(conn, SID)
+    assert "error" in r
+    assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0
+
+
+def test_ola2_reglas_nuevas(conn):
+    cat = _cat(conn)
+    # DWH: fecha malformada, precio en cero, VIN con 'O' prohibido
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000001', 'F1', 0.0, '99XX24', 'J', 'DEU', ?)",
+        (SID, cat))                                   # VIN largo 17 con 'O'
+    # PDF: importe fabricado '0,00', moneda fuera de catálogo
+    conn.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura, amount,"
+        " moneda, j_y_n, pais_code, filename)"
+        " VALUES (?, ?, 'F1', '0,00', 'XYZ', 'J', 'DEU', 'x.pdf')",
+        (SID, VIN))
+    por = {x["clave"]: x for x in validar(conn, SID)["reglas"]}
+    assert por["val-dwh-fecha"]["n"] == 1            # 99/XX no es DDMMYY válido
+    assert por["val-dwh-precio-cero"]["n"] == 1      # precio 0 = slice vacío
+    assert por["val-dwh-vin-chars"]["n"] == 1        # 'O' prohibido
+    assert por["val-pdf-importe-cero"]["n"] == 1     # '0,00' fabricado
+    assert por["val-pdf-moneda-cat"]["n"] == 1           # 'XYZ' fuera de catálogo
+
+
+def test_ola2_conformes_no_disparan_reglas_nuevas(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)                 # VIN válido, precio 1.0
+    conn.execute("UPDATE importaciones SET fecha_factura = '080924'"
+                 " WHERE session_id = ?", (SID,))    # DDMMYY válido
+    _fila_pdf(conn, moneda="EUR", amount="18500")    # importe real, moneda ISO
+    por = {x["clave"]: x for x in validar(conn, SID)["reglas"]}
+    for clave in ("val-dwh-fecha", "val-dwh-precio-cero", "val-dwh-vin-chars",
+                  "val-pdf-importe-cero", "val-pdf-vin-chars", "val-pdf-moneda-cat"):
+        assert por[clave]["n"] == 0                  # conformidad probada
+
+
+def test_veredicto_por_regla_mapea_capas(conn):
+    # rechazado = glosa segura; observado = a revisar. Ejes fijos (O5.3).
+    from autogenes.validacion import veredicto_regla
+    assert veredicto_regla("val-dwh-jn-norma") == "rechazado"
+    assert veredicto_regla("val-dwh-catalogo") == "rechazado"
+    assert veredicto_regla("val-pdf-pais") == "rechazado"
+    assert veredicto_regla("val-dwh-chasis") == "rechazado"
+    assert veredicto_regla("val-dwh-fecha") == "observado"
+    assert veredicto_regla("val-pdf-importe-cero") == "observado"
+    assert veredicto_regla("val-dwh-vin-chars") == "observado"
+    assert veredicto_regla("val-pdf-moneda-cat") == "observado"
+    r = validar(conn, SID)
+    assert all(x["veredicto"] in ("rechazado", "observado") for x in r["reglas"])
+
+
+def test_reticula_peor_veredicto_una_vez_por_fila(conn):
+    cat = _cat(conn)
+    # una fila DWH con DOS violaciones: sin catálogo (rechazado) + VIN con 'O'
+    # (observado). Su peor veredicto es rechazado; cuenta UNA vez, ahí.
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000001', 'F1', 5.0, '080924', 'J', 'DEU', NULL)",
+        (SID,))
+    # una fila DWH sólo observado: VIN con 'O', pero anclada a catálogo
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000002', 'F2', 5.0, '080924', 'J', 'DEU', ?)",
+        (SID, cat))
+    r = validar(conn, SID)
+    ret = r["reticula"]
+    assert ret["rechazado"] == 1 and ret["observado"] == 1 and ret["pasa"] == 0
+    assert ret["total"] == ret["pasa"] + ret["observado"] + ret["rechazado"]
+    # la retícula (pasa) es consistente con el porcentaje de conformidad
+    assert ret["pasa"] == 0 and r["conformidad_pct"] == 0
+    # descomposición por riel: la fila mala vive en el riel DWH
+    assert r["conformidad"]["dwh"]["rechazado"] == 1
+    assert r["conformidad"]["dwh"]["observado"] == 1
+
+
+def test_reticula_pasa_iguala_conformidad(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, factura="OK1", catalogo_id=cat)          # conforme
+    _fila_dwh(conn, factura="BAD", catalogo_id=None)         # sin catálogo
+    _fila_pdf(conn, factura="OKP")                           # conforme
+    r = validar(conn, SID)
+    ret = r["reticula"]
+    assert ret["total"] == 3 and ret["pasa"] == 2
+    assert round(100 * ret["pasa"] / ret["total"]) == r["conformidad_pct"]
+
+
+def test_conformidad_y_reticula_deterministas(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, factura="A", catalogo_id=cat)
+    _fila_dwh(conn, factura="B", pais="BRA", catalogo_id=cat)   # jn contra norma
+    _fila_pdf(conn, factura="C", moneda="XYZ")                  # observado
+    a = validar(conn, SID)
+    b = validar(conn, SID)
+    assert a["conformidad"] == b["conformidad"]
+    assert a["reticula"] == b["reticula"]
+
+
+def test_radar_publica_violaciones_como_urgencia(conn):
+    from autogenes.metabolismo import metabolismo_de_sesion
+    cat = _cat(conn)
+    _fila_dwh(conn, jn="J", pais="BRA", catalogo_id=cat)   # glosa segura
+    m = metabolismo_de_sesion(conn, SID)
+    norma = next(u for u in m["urgencias"] if u["tipo"] == "norma")
+    assert norma["critico"] is True                        # jn-norma violada
+    assert norma["accion"] == "/autogenes/validacion"
+    assert "glosa segura" in norma["sub"]
+
+
+def test_radar_sin_violaciones_sin_urgencia_de_norma(conn):
+    from autogenes.metabolismo import metabolismo_de_sesion
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)
+    m = metabolismo_de_sesion(conn, SID)
+    assert not any(u["tipo"] == "norma" for u in m["urgencias"])

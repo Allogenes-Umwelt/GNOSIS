@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Expediente de defensa · {{ titulo }}</title>
+<style>
+  /* Documento de defensa: light, imprimible, tipografía sobria. No hereda
+     el chrome del dashboard — es lo que el equipo legal imprime a PDF. */
+  :root{
+    --tinta:#111; --tinta2:#444; --tinta3:#777; --linea:#ccc; --linea2:#e5e5e5;
+    --acc:#005A6E; --alerta:#A4133C; --fondo:#fff; --panel:#fafafa;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#eee;color:var(--tinta);
+    font:14px/1.55 "Helvetica Neue",Arial,sans-serif}
+  .hoja{max-width:820px;margin:24px auto;background:var(--fondo);
+    padding:44px 52px;box-shadow:0 1px 8px rgba(0,0,0,.15)}
+  .mono{font-family:"JetBrains Mono","Courier New",monospace}
+  h1{font-size:19px;margin:0 0 2px;letter-spacing:.3px}
+  h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--tinta3);
+    border-bottom:1px solid var(--linea);padding-bottom:5px;margin:26px 0 12px}
+  .cab{display:flex;justify-content:space-between;align-items:flex-start;
+    border-bottom:2px solid var(--tinta);padding-bottom:14px}
+  .cab .marca{font:700 12px/1 "JetBrains Mono",monospace;letter-spacing:3px;color:var(--tinta)}
+  .cab .kicker{font:600 10px/1 "JetBrains Mono",monospace;letter-spacing:3px;
+    color:var(--alerta);text-transform:uppercase;margin-bottom:6px}
+  .cab .meta{text-align:right;font-size:11px;color:var(--tinta3);line-height:1.7}
+  .cab .meta b{color:var(--tinta2)}
+  .sello{display:flex;gap:12px;align-items:center;margin:16px 0 0;padding:10px 14px;
+    background:var(--panel);border:1px solid var(--linea)}
+  .sello .ok{font:700 11px/1 "JetBrains Mono",monospace;color:var(--acc);
+    border:1px solid var(--acc);border-radius:3px;padding:4px 8px;white-space:nowrap}
+  .sello .no{color:var(--alerta);border-color:var(--alerta)}
+  .sello .h{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--tinta3);
+    word-break:break-all}
+  .sello .h b{color:var(--tinta2)}
+  .kpis{display:flex;gap:26px;flex-wrap:wrap;margin:6px 0 2px}
+  .kpi .n{font:700 22px/1.1 "Helvetica Neue",Arial;color:var(--tinta)}
+  .kpi .n.alerta{color:var(--alerta)}
+  .kpi .l{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--tinta3)}
+  .clase{font:600 10px/1 "JetBrains Mono",monospace;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--alerta)}
+  .detalle{color:var(--tinta2);font-size:13px;margin:6px 0 0}
+  table{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0}
+  th{text-align:left;font:600 9.5px/1 "JetBrains Mono",monospace;letter-spacing:1px;
+    text-transform:uppercase;color:var(--tinta3);border-bottom:1px solid var(--linea);
+    padding:6px 8px}
+  td{padding:6px 8px;border-bottom:1px solid var(--linea2);vertical-align:top}
+  td.mono,th.mono{font-family:"JetBrains Mono",monospace}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;font-family:"JetBrains Mono",monospace}
+  .nota{font-size:11.5px;color:var(--tinta3);font-style:italic;margin:8px 0 0}
+  .pie{margin-top:30px;border-top:1px solid var(--linea);padding-top:12px;
+    font:10px/1.6 "JetBrains Mono",monospace;letter-spacing:.5px;color:var(--tinta3)}
+  .barra{margin:10px 0 2px;height:10px;display:flex;border:1px solid var(--linea);overflow:hidden}
+  .barra .ok{background:var(--acc)}
+  .barra .hueco{background:var(--alerta);opacity:.85}
+  .imprimir{position:fixed;top:16px;right:16px;background:var(--tinta);color:#fff;
+    border:0;padding:9px 16px;font:600 12px/1 "Helvetica Neue",Arial;cursor:pointer}
+  @media print{
+    body{background:#fff}
+    .hoja{box-shadow:none;margin:0;max-width:none;padding:0}
+    .imprimir{display:none}
+    h2{page-break-after:avoid}
+    tr{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+  <button type="button" class="imprimir" onclick="window.print()">Imprimir / PDF</button>
+  <div class="hoja">
+
+    <div class="cab">
+      <div>
+        <div class="kicker">Expediente de defensa · AUTOGENES</div>
+        <h1>{{ titulo }}</h1>
+      </div>
+      <div class="meta">
+        <div>Sesión <b>{{ sesion }}</b></div>
+        <div>Dockeado <b>{{ dockeado }}</b></div>
+        <div>Producto <b>#{{ pid }}</b> · unidad <b>{{ unidad }}</b></div>
+      </div>
+    </div>
+
+    <div class="sello">
+      {% if verif.valido %}
+      <span class="ok">SELLO VÁLIDO</span>
+      {% else %}
+      <span class="ok no">SELLO NO VERIFICABLE</span>
+      {% endif %}
+      <span class="h"><b>sha256:</b> {{ verif.sello_rederivado }}<br>
+        Re-derivable: el hash se recalcula del cuerpo canónico; si el documento
+        se altera, deja de coincidir.</span>
+    </div>
+
+    {% if unidad == 'concilia' %}
+    {% set h = cuerpo.hallazgo %}
+    <h2>Hallazgo</h2>
+    <div class="clase">{{ h.clase|replace('_',' ') }}</div>
+    <div class="kpis">
+      <div class="kpi"><div class="n {% if h.monto %}alerta{% endif %}">
+        {% if h.monto is not none %}${{ '{:,.0f}'.format(h.monto) }} {{ h.moneda }}{% else %}sin monto{% endif %}
+      </div><div class="l">Valor del hallazgo</div></div>
+      <div class="kpi"><div class="n">{{ h.n_unidades }}</div><div class="l">Unidades afectadas</div></div>
+    </div>
+    <div class="detalle">{{ h.detalle }}</div>
+
+    <h2>Flujo tri-fuente (momento del dockeo)</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="n">{{ cuerpo.flujo.vendidos }}</div><div class="l">Vendido · DWH</div></div>
+      <div class="kpi"><div class="n">{{ cuerpo.flujo.conciliados }}</div><div class="l">Conciliado{% if cuerpo.flujo.pct_conciliado is not none %} · {{ cuerpo.flujo.pct_conciliado }}%{% endif %}</div></div>
+      <div class="kpi"><div class="n">{{ cuerpo.flujo.llegados }}</div><div class="l">Llegado · PDF</div></div>
+      <div class="kpi"><div class="n alerta">${{ '{:,.0f}'.format(cuerpo.valor_en_riesgo_mxn) }}</div><div class="l">Valor en riesgo · MXN</div></div>
+    </div>
+
+    {% if cuerpo.cobertura %}
+    {% set c = cuerpo.cobertura %}
+    <h2>Cobertura documental</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="n">{% if c.pct_respaldado is not none %}{{ c.pct_respaldado }}%{% else %}—{% endif %}</div><div class="l">Valor respaldado</div></div>
+      <div class="kpi"><div class="n">${{ '{:,.0f}'.format(c.valor_respaldado_mxn) }}</div><div class="l">Respaldado · MXN</div></div>
+      <div class="kpi"><div class="n">${{ '{:,.0f}'.format(c.valor_medible_mxn) }}</div><div class="l">Medible · MXN</div></div>
+    </div>
+    {% if c.valor_medible_mxn %}
+    <div class="barra">
+      <div class="ok" style="width:{{ c.pct_respaldado }}%"></div>
+      <div class="hueco" style="width:{{ 100 - c.pct_respaldado }}%"></div>
+    </div>
+    {% endif %}
+    <table>
+      <tr><td>Unidades sin factura física</td><td class="num">{{ c.unidades_sin_factura }}</td></tr>
+      <tr><td>Unidades sin precio en el DWH</td><td class="num">{{ c.sin_precio }}</td></tr>
+      <tr><td>PDFs ilegibles</td><td class="num">{{ c.pdfs_ilegibles }}</td></tr>
+    </table>
+    <div class="nota">{{ c.nota }}</div>
+    {% endif %}
+
+    <h2>Unidades afectadas ({{ h.n_unidades }})</h2>
+    <table><tr><th>#</th><th class="mono">Chasis / referencia</th></tr>
+      {% for u in h.unidades %}<tr><td class="num">{{ loop.index }}</td><td class="mono">{{ u }}</td></tr>{% endfor %}
+    </table>
+
+    <h2>Referencias</h2>
+    <table><tr><th>#</th><th>Detalle</th></tr>
+      {% for r in h.refs %}<tr><td class="num">{{ loop.index }}</td><td class="mono">
+        {%- for k, v in r.items() %}{{ k }}: {{ v }}{% if not loop.last %} · {% endif %}{% endfor -%}
+      </td></tr>{% endfor %}
+    </table>
+
+    {% elif unidad == 'validacion' %}
+    <h2>Conformidad</h2>
+    <div class="kpis">
+      <div class="kpi"><div class="n {% if cuerpo.conformidad_pct is not none and cuerpo.conformidad_pct < 100 %}alerta{% endif %}">{% if cuerpo.conformidad_pct is not none %}{{ cuerpo.conformidad_pct }}%{% else %}—{% endif %}</div><div class="l">Filas conformes</div></div>
+      <div class="kpi"><div class="n">{{ cuerpo.filas.dwh }}</div><div class="l">Filas · DWH</div></div>
+      <div class="kpi"><div class="n">{{ cuerpo.filas.pdf }}</div><div class="l">Filas · PDF</div></div>
+      <div class="kpi"><div class="n alerta">{{ cuerpo.total_violaciones }}</div><div class="l">Violaciones</div></div>
+    </div>
+
+    <h2>Reglas con violaciones</h2>
+    <table><tr><th class="mono">Clave</th><th>Regla</th><th>Fuente</th><th class="num">n / base</th></tr>
+      {% for rg in cuerpo.reglas if rg.n > 0 %}
+      <tr><td class="mono">{{ rg.clave }}</td><td>{{ rg.titulo }}<div class="nota" style="margin:2px 0 0">{{ rg.norma }}</div></td>
+        <td>{{ rg.fuente }}</td><td class="num">{{ rg.n }} / {{ rg.base }}</td></tr>
+      {% endfor %}
+    </table>
+    <div class="nota">Las reglas en cero (conformidad probada) se omiten en este
+      resumen; el estado completo con todas las filas violadoras vive en el
+      cuerpo sellado del producto.</div>
+    {% endif %}
+
+    <h2>Cronología (bitácora WORM)</h2>
+    <table><tr><th class="mono">Momento</th><th>Acción</th><th>Detalle</th></tr>
+      {% for b in bitacora %}<tr><td class="mono">{{ b.ts }}</td><td class="mono">{{ b.accion }}</td><td>{{ b.detalle }}</td></tr>{% endfor %}
+    </table>
+
+    <div class="pie">
+      GESTELL · GNOSIS — TRAZO DETERMINISTA · CONTEOS Y MONTOS REALES DEL MOTOR, SIN ESTIMACIONES<br>
+      SELLO sha256 {{ verif.sello_rederivado }}<br>
+      DOCUMENTO RE-DERIVABLE · VERIFICAR EN /api/v1/autogenes/producto/{{ pid }}/verificar
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Horizonte de eventos{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: el osciloscopio -->
+    <section class="ag-centro gr-centro" aria-label="Horizonte de eventos">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-04 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Horizonte de eventos</span>
+          <span class="qa-pregunta">¿Cómo creció el caso en el tiempo, y qué lo movió?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte" class="activo" aria-current="page">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qh-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><span style="color:var(--acc-text)">●</span> conceptos · <b>●</b> vínculos — mismo eje de conteo</li>
+        <li><b>│</b> intervención del operador — tócala para su delta medido</li>
+        <li><span id="qh-info" role="status">CARGANDO EL HORIZONTE…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: la ficha -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Detalle del horizonte">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Intervención</div>
+      <div id="qh-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca una línea vertical para ver la intervención
+        y su delta medido entre las muestras que la flanquean.</p>
+      </div>
+      <div class="qa-sec">Telemetría</div>
+      <div class="qa-spec" id="qh-spec"></div>
+      <div class="qa-sec">Intervenciones</div>
+      <div class="qa-lista" id="qh-lineas"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Los puntos son muestras reales de la bitácora; la línea sólo las une,
+        nada entre muestras se inventa. Eje Y en conteo absoluto y compartido por
+        ambas series (comparables). El delta de una intervención se mide entre
+        las muestras que la flanquean, jamás se interpola. Determinista.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_horizonte.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

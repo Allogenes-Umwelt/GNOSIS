@@ -7,6 +7,9 @@ Flask==2.0.3
 Werkzeug==2.0.3
 jpype1
 pdfplumber
+pytesseract
+pdf2image
+Pillow
 pdfminer.six
 camelot-py
 pywaffle
@@ -14,3 +17,8 @@ bokeh
 plotly
 anthropic>=0.39.0
 python-dotenv
+pydantic>=2.7
+gunicorn>=22.0
+networkx>=3.2
+requests
+xlrd

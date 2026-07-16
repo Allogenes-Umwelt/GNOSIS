@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Dependencias
+        run: |
+          pip install flask pydantic networkx python-dotenv requests \
+            pandas numpy pytest ruff \
+            openpyxl 'xlrd>=2.0.1' anthropic
+      - name: Lint (app + rutas, autogenes, tableros, tests, jarvis)
+        run: ruff check app.py rutas autogenes tableros tests jarvis
+      - name: Suite
+        run: python -m pytest -q

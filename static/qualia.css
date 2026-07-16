@@ -1,0 +1,301 @@
+/* GNOSIS · Qualia — Red del caso (F7d). Lenguaje databook aprobado:
+   designación de unidad, riel de masa, corchetes de sección, barras de
+   dato invertidas con numeral monumental, listas encajonadas ×N e inset
+   "forma renormalizada". Tokens de styles.css únicamente; los trazos del
+   canvas leen --acc-text (AAA por modo). El lienzo es estático: no hay
+   animación que congelar. */
+
+.qa-marco { position: relative; grid-template-columns: 1fr 360px; }
+.qa-marco.der-off { grid-template-columns: 1fr 46px; }
+
+/* cabecera de designación (XMA-01 → QLA-01). Con seis pestañas y dos
+   diales la cabecera envuelve en filas sin romper el título. */
+.qa-marco .ag-centro-head { flex-wrap: wrap; row-gap: 8px; }
+.qa-desig { display: flex; flex-direction: column; flex-shrink: 0; }
+.qa-desig .nom { white-space: nowrap; }
+.qa-desig .cod { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; color: var(--acc-text); }
+.qa-desig .nom { font-family: var(--font-d); font-weight: 700; font-size: 1.05rem; letter-spacing: .5px; color: var(--t1); text-transform: uppercase; }
+/* la pregunta de negocio que responde el instrumento (Q3 uplift) */
+.qa-pregunta { font-family: var(--font-mono); font-size: .7rem; letter-spacing: .5px; color: var(--t3); margin-top: 2px; }
+
+/* sello del Terreno: certificado de estado (calma cian / desviaciones magenta) */
+.qt-sello {
+  border: 1px solid var(--acc-text); color: var(--acc-text);
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 2px;
+  text-transform: uppercase; text-align: center; padding: 8px; margin: 8px 0 12px;
+}
+.qt-sello.alerta { border-color: var(--danger); color: var(--danger); }
+
+/* ficha técnica plegable: la matemática se DECLARA, no se grita */
+.qa-ficha-tec { margin-top: 14px; border-top: 1px solid var(--line-ghost); padding-top: 10px; }
+.qa-ficha-tec summary { font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); cursor: pointer; }
+.qa-ficha-tec summary:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+.qa-ficha-tec p { color: var(--t3); font-size: .72rem; line-height: 1.5; margin: 8px 0 0; }
+
+/* pestañas de instrumento: red · terreno · cascada · horizonte */
+.qa-tabs { display: flex; align-items: center; gap: 2px; border: 1px solid var(--line); }
+.qa-tabs a, .qa-tabs .lat {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 8px 12px; min-height: 40px;
+  display: inline-flex; align-items: center; text-decoration: none;
+  color: var(--t3); border-right: 1px solid var(--line);
+}
+.qa-tabs a:last-child, .qa-tabs .lat:last-child { border-right: 0; }
+.qa-tabs a:hover { color: var(--t1); }
+.qa-tabs a.activo { color: var(--acc-text); background: var(--acc-subtle); }
+.qa-tabs .lat { color: var(--line-2); cursor: default; }
+
+/* item clicable de la lista de anomalías (botón nativo, look de caja) */
+.qa-item { width: 100%; background: transparent; cursor: pointer; text-align: left; }
+.qa-item.activo { background: var(--acc-subtle); border-color: var(--acc-text); }
+/* solo una anomalía activa enciende magenta: alerta real, no selección */
+.qa-caja.anomalia.qa-item.activo { border-color: var(--danger); }
+.qa-item:focus-visible { outline: 1px dashed var(--acc-text); outline-offset: 2px; }
+
+/* dial de escala: la escalera de renormalización */
+.qa-dial { display: flex; border: 1px solid var(--line); margin-left: auto; }
+.qa-dial button {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1.5px;
+  text-transform: uppercase; background: transparent; border: 0;
+  border-right: 1px solid var(--line); color: var(--t3);
+  padding: 8px 14px; min-height: 40px; cursor: pointer;
+}
+.qa-dial button:last-child { border-right: 0; }
+.qa-dial button.activo { color: var(--acc-text); background: var(--acc-subtle); }
+.qa-dial button:hover:not(.activo) { color: var(--t1); }
+
+.qa-lienzo { flex: 1; position: relative; min-height: 420px; }
+.qa-lienzo canvas { width: 100%; display: block; cursor: crosshair; touch-action: none; }
+
+/* ── ficha derecha ── */
+.qa-sec {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 4px;
+  text-transform: uppercase; color: var(--t1); margin-top: 8px;
+}
+.qa-sec::before { content: '['; color: var(--acc-text); font-size: .9rem; }
+.qa-sec::after { content: ']'; color: var(--acc-text); font-size: .9rem; }
+
+.qa-lectura {
+  color: var(--t2); font-size: .8rem; line-height: 1.65; margin: 0 0 8px;
+  border-left: 2px solid var(--line-ghost); padding: 2px 0 2px 12px;
+}
+.qa-lectura b { color: var(--t1); font-weight: 700; }
+
+.qa-spec { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; }
+.qa-bar { text-align: center; }
+.qa-bar .l {
+  display: block; font-family: var(--font-mono); font-size: .578rem;
+  letter-spacing: 2px; text-transform: uppercase;
+  background: var(--t1); color: var(--bg); padding: 3px 6px;
+}
+.qa-bar .v {
+  display: block; font-family: var(--font-d); font-weight: 700;
+  font-size: 1.55rem; line-height: 1.3; color: var(--t1);
+}
+.qa-bar .v small {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1px;
+  color: var(--t3); margin-left: 3px;
+}
+
+.qa-caja {
+  border: 1px solid var(--line); padding: 5px 9px; display: flex;
+  justify-content: space-between; align-items: baseline; gap: 8px;
+  font-family: var(--font-mono); font-size: .7rem; color: var(--t2);
+}
+.qa-caja span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-caja b { color: var(--acc-text); font-size: .78rem; flex-shrink: 0; }
+.qa-caja.puente b { color: var(--t1); }
+.qa-lista { display: flex; flex-direction: column; gap: 5px; }
+
+/* acción primaria (mismo patrón que Síntesis) */
+.qa-accion {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--acc-text);
+  background: transparent; border: 1px solid var(--line);
+  padding: 0 16px; min-height: 40px; cursor: pointer;
+}
+.qa-accion:hover:not(:disabled), .qa-accion:focus-visible {
+  background: var(--acc-subtle); border-color: var(--acc-text);
+}
+.qa-accion:disabled { color: var(--t3); border-color: var(--line-ghost); cursor: default; }
+
+/* anomalías medidas contra la base (magenta = alerta REAL) */
+.qa-caja.anomalia { border-left: 2px solid var(--danger); }
+.qa-caja.anomalia b { color: var(--danger); }
+.qa-base-hint { color: var(--t3); font-size: .74rem; margin: 0; line-height: 1.5; }
+
+@media (max-width: 1100px) {
+  .qa-marco, .qa-marco.der-off { grid-template-columns: 1fr; }
+  .qa-dial { margin-left: 0; }
+}
+
+/* ── Máquina C2: el puente de mando OODA (diagrama de acoples) ── */
+.qm-stage { position: relative; margin-top: 14px; }
+.qm-lienzo { position: relative; height: min(620px, 64vh); min-height: 460px; }
+.qm-lienzo canvas { position: absolute; inset: 0; width: 100%; display: block; }
+/* callouts KPI databook: aireados, regla fina, sin caja pesada */
+.qm-kpi { position: absolute; width: 250px; max-width: 40%; z-index: 2; }
+.qm-kpi.nw { top: 4px; left: 4px; text-align: left; border-left: 2px solid var(--acc-text); padding-left: 12px; }
+.qm-kpi.ne { top: 4px; right: 4px; text-align: right; border-right: 2px solid var(--acc-text); padding-right: 12px; }
+.qm-kpi.sw { bottom: 4px; left: 4px; text-align: left; border-left: 2px solid var(--acc-text); padding-left: 12px; }
+.qm-kpi.se { bottom: 4px; right: 4px; text-align: right; border-right: 2px solid var(--acc-text); padding-right: 12px; }
+.qm-kpi.alerta { border-color: var(--danger); }
+.qm-fase {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2.5px;
+  text-transform: uppercase; color: var(--acc-text);
+}
+.qm-kpi.alerta .qm-fase { color: var(--danger); }
+.qm-fase .instr { color: var(--t3); }
+.qm-titular {
+  font-family: var(--font-d); font-weight: 700; font-size: 1.05rem;
+  line-height: 1.2; color: var(--t1); margin: 5px 0 3px; overflow-wrap: anywhere;
+}
+.qm-kpi.alerta .qm-titular { color: var(--danger); }
+.qm-dato { color: var(--t3); font-size: .74rem; line-height: 1.45; margin: 0; }
+.qm-dato b { color: var(--t2); }
+.qm-abrir {
+  display: inline-block; margin-top: 6px;
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--acc-text); text-decoration: none;
+}
+.qm-abrir:hover { text-decoration: underline; }
+/* lectura del diagrama */
+.qm-lectura-diag {
+  font-family: var(--font-mono); font-size: .78rem; line-height: 1.6;
+  color: var(--t3); border-top: 1px solid var(--line-ghost);
+  padding-top: 12px; margin-top: 6px;
+}
+.qm-lectura-diag b { color: var(--t1); }
+.qm-lectura-diag .alerta { color: var(--danger); }
+/* el parte del sistema (narrativa saneada) */
+.qm-parte { border: 1px solid var(--line); background: var(--surface); padding: 16px; }
+.qm-panorama { color: var(--t1); font-size: .92rem; line-height: 1.6; margin: 8px 0 12px; }
+.qm-lectura {
+  border-left: 2px solid var(--line-ghost); padding: 4px 0 4px 12px;
+  margin: 6px 0; color: var(--t2); font-size: .82rem; line-height: 1.55;
+}
+.qm-lectura .clave {
+  font-family: var(--font-mono); font-size: .625rem; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--acc-text); display: block;
+}
+.qm-obs { color: var(--t2); font-size: .8rem; margin: 4px 0 0; padding-left: 16px; }
+@media (max-width: 900px) {
+  .qm-stage { display: flex; flex-direction: column; }
+  .qm-lienzo { height: 360px; order: -1; }
+  .qm-kpi {
+    position: static; width: auto; max-width: none; text-align: left;
+    border-right: 0; border-left: 2px solid var(--acc-text);
+    padding: 0 0 0 12px; margin-top: 10px;
+  }
+  .qm-kpi.alerta { border-color: var(--danger); }
+}
+
+/* ── Dossier compartido (Q4 drill-down): cajón lateral de expediente ── */
+.qd-overlay {
+  position: fixed; inset: 0; z-index: 60;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  display: flex; justify-content: flex-end;
+}
+.qd-panel {
+  width: min(420px, 92vw); height: 100%; overflow-y: auto;
+  background: var(--surface); border-left: 1px solid var(--line);
+  padding: 20px 22px; animation: qd-entra .18s ease-out;
+}
+@keyframes qd-entra { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .qd-panel { animation: none; } }
+.qd-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.qd-kicker {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--acc-text);
+}
+.qd-titulo { font-family: var(--font-d); font-weight: 700; font-size: 1.3rem; color: var(--t1); margin: 4px 0 2px; overflow-wrap: anywhere; }
+.qd-sub { font-family: var(--font-mono); font-size: .7rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+.qd-cerrar {
+  background: transparent; border: 1px solid var(--line); color: var(--t3);
+  font-size: 1.1rem; line-height: 1; width: 32px; min-height: 32px; cursor: pointer;
+}
+.qd-cerrar:hover { color: var(--acc-text); border-color: var(--acc-text); }
+.qd-sec {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--acc-text);
+  border-top: 1px solid var(--line-ghost); margin: 16px 0 8px; padding-top: 10px;
+}
+.qd-resumen { color: var(--t2); font-size: .85rem; line-height: 1.55; margin: 12px 0 0; }
+.qd-cita {
+  border-left: 2px solid var(--line-ghost); padding: 4px 0 6px 11px; margin-bottom: 8px;
+}
+.qd-cita .fuente { display: block; font-family: var(--font-mono); font-size: .64rem; letter-spacing: .5px; color: var(--acc-text); }
+.qd-cita .ext { display: block; color: var(--t3); font-size: .76rem; line-height: 1.45; margin-top: 2px; }
+.qd-rel { display: flex; gap: 8px; align-items: baseline; font-size: .8rem; color: var(--t2); padding: 3px 0; }
+.qd-rel .dir { color: var(--acc-text); }
+.qd-rel .con { color: var(--t1); flex: 1; overflow-wrap: anywhere; }
+.qd-rel .tipo { color: var(--t3); font-size: .68rem; font-family: var(--font-mono); }
+.qd-ev, .qd-prod { font-size: .8rem; color: var(--t2); padding: 3px 0; }
+.qd-ev b, .qd-prod { color: var(--t1); }
+.qd-prod .clase { color: var(--t3); font-size: .66rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; }
+.qd-saltos { margin-top: 18px; display: flex; gap: 10px; flex-wrap: wrap; }
+.qd-salto {
+  font-family: var(--font-mono); font-size: .66rem; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--acc-text); text-decoration: none;
+  border: 1px solid var(--line); padding: 8px 14px;
+}
+.qd-salto:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+.qd-cands { display: flex; flex-direction: column; gap: 6px; }
+.qd-cand {
+  text-align: left; background: transparent; border: 1px solid var(--line-ghost);
+  color: var(--t2); font-family: var(--font-mono); font-size: .76rem; padding: 8px 11px; cursor: pointer;
+}
+.qd-cand:hover { border-color: var(--acc-text); color: var(--t1); }
+
+/* ── Deriva (QLA-08): selector de referencia + eje divergente ── */
+.qa-ref {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--t3);
+}
+.qa-ref select {
+  font-family: var(--font-mono); font-size: .72rem; letter-spacing: .5px;
+  background: var(--surface); color: var(--acc-text);
+  border: 1px solid var(--line); padding: 6px 8px; cursor: pointer;
+}
+.qa-ref select:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+
+/* ── Export (Q5): control PNG·CSV en la leyenda ── */
+.qa-export { color: var(--t3); }
+.qa-exp-btn {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1.5px;
+  text-transform: uppercase; background: transparent; color: var(--acc-text);
+  border: 1px solid var(--line); padding: 3px 8px; margin-left: 5px; cursor: pointer;
+}
+.qa-exp-btn:hover { background: var(--acc-subtle); border-color: var(--acc-text); }
+.qa-exp-btn:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+
+/* ── Ciclo de vida de anomalías (Q5): disposición del operador ── */
+.qt-ciclo { margin-top: 12px; border-top: 1px solid var(--line-ghost); padding-top: 10px; }
+.qt-estado {
+  display: inline-block; font-family: var(--font-mono); font-size: .56rem;
+  letter-spacing: 2px; text-transform: uppercase; padding: 3px 8px;
+  border: 1px solid var(--line); color: var(--t3);
+}
+.qt-estado.qt-e-nuevo { color: var(--acc-text); border-color: var(--acc-text); }
+.qt-estado.qt-e-en_gestion { color: var(--bg); background: var(--acc-text); border-color: var(--acc-text); }
+.qt-estado.qt-e-resuelto { color: var(--t3); }
+.qt-estado.qt-e-descartado { color: var(--t3); opacity: .7; text-decoration: line-through; }
+.qt-nota-l {
+  display: block; font-family: var(--font-mono); font-size: .56rem;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--t3); margin-top: 10px;
+}
+.qt-nota {
+  display: block; width: 100%; margin-top: 4px; background: var(--bg); color: var(--t1);
+  border: 1px solid var(--line); font-family: var(--font-mono); font-size: .75rem;
+  padding: 6px 8px; resize: vertical;
+}
+.qt-nota:focus-visible { outline: 1px solid var(--acc-text); outline-offset: 1px; }
+.qt-acciones { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.qt-disp {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: 1px;
+  text-transform: uppercase; background: transparent; color: var(--acc-text);
+  border: 1px solid var(--line); padding: 6px 10px; cursor: pointer;
+}
+.qt-disp:hover, .qt-disp.activo { background: var(--acc-subtle); border-color: var(--acc-text); }

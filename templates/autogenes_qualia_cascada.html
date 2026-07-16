@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Cascada de bifurcación{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: la fibra óptica del what-if -->
+    <section class="ag-centro gr-centro" aria-label="Cascada de bifurcación">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-03 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Cascada de bifurcación</span>
+          <span class="qa-pregunta">¿Qué se cae si esta entidad falla?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada" class="activo" aria-current="page">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="qa-dial" id="qc-modo" role="group" aria-label="Dirección del what-if">
+          <button type="button" data-modo="caida" class="activo">caída</button>
+          <button type="button" data-modo="enlace">enlace</button>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qc-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b>✕</b> entidad caída — al centro, todo irradia por profundidad de dependencia</li>
+        <li><b>◌</b> huérfano — se queda sin un solo vínculo · doble clic en una entidad para su dossier</li>
+        <li><span id="qc-info" role="status">CARGANDO LA RED…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: el impacto medido -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Impacto de la simulación">
+      <div class="ag-panel-head">
+        <h2>Impacto</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <p class="qa-base-hint" id="qc-hint">Modo caída: toca una entidad; el sistema
+      la pone al centro y la onda recorre lo que depende de ella. Nada se escribe
+      — es simulación en memoria de tu propia red.</p>
+      <div class="qa-sec">Impacto</div>
+      <div class="qa-spec" id="qc-impacto"></div>
+      <div class="qa-sec">Desconectados</div>
+      <div class="qa-lista" id="qc-huerfanos"></div>
+      <button type="button" id="qc-limpiar" class="qa-accion" style="margin-top:8px" disabled>limpiar</button>
+      <div class="ag-msj" id="qc-msj" role="status"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>El radio es la profundidad de dependencia (frente BFS del motor de
+        cascada, determinista); el ángulo reparte el sub-árbol. «Peso en el
+        tejido» = grado del nodo / grado total. «Unidades desconectadas» = Σ de
+        vehículos individuales que quedan sin conexión al caer el nodo (base
+        atómica medida; marcas y países son vistas agregadas y no se recuentan).
+        Todo se computa en memoria: no muta el sustrato.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_cascada.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

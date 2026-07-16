@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Terreno de anomalías{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: el terreno -->
+    <section class="ag-centro gr-centro" aria-label="Terreno de anomalías">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-02 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Terreno de anomalías</span>
+          <span class="qa-pregunta">¿Qué cambió contra tu referencia — y cuánto?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno" class="activo" aria-current="page">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva">deriva</a>
+        </nav>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qt-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b>▲</b> cresta — la altura ES la severidad; las curvas de nivel la miden · clic para el dossier de su entidad</li>
+        <li><b>◇</b> estación en reposo — detector vigilando, sin desviación</li>
+        <li><span id="qt-info" role="status">CARGANDO EL TERRENO…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: la ficha -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Detalle de anomalías">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qt-sello" id="qt-sello" role="status">CARGANDO…</div>
+      <div class="qa-sec" style="margin-top:0">Detector</div>
+      <div id="qt-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca una cresta para ver qué midió el detector
+        y contra qué referencia.</p>
+      </div>
+      <div class="qa-sec">Detectores</div>
+      <div class="qa-lista" id="qt-detectores"></div>
+      <button type="button" id="qt-base" class="qa-accion" style="margin-top:8px">fijar base</button>
+      <div class="ag-msj" id="qt-msj" role="status"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Nueve detectores deterministas miden tu grafo contra la referencia
+        que fijaste; la altura de una cresta es su severidad ∈ [0,1] y las
+        curvas de nivel son cortes de esa altura. El relieve de fondo es el
+        sustrato vivo del instrumento (huella determinista de tu sesión), no
+        una anomalía. La misma referencia abre idéntica.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_terreno.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

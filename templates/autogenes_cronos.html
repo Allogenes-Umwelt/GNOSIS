@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · CRONOS — Time travel del sustrato{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
+
+    <!-- Izquierda: la bitácora como línea de tiempo navegable -->
+    <section class="ag-centro gr-centro" aria-label="Línea de tiempo del sustrato">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">CRN-05 · AUTOGENES F13</span>
+          <span class="nom">◆ CRONOS · Time travel</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">El instante</div>
+      <div class="cn-flujo">
+        <div class="qa-bar"><span class="l">Momentos</span><span class="v" id="cr-momentos">—</span></div>
+        <div class="qa-bar"><span class="l">Fuentes</span><span class="v" id="cr-artefactos">—</span></div>
+        <div class="qa-bar"><span class="l">Entidades</span><span class="v" id="cr-entidades">—</span></div>
+        <div class="qa-bar"><span class="l">Vínculos</span><span class="v" id="cr-enlaces">—</span></div>
+      </div>
+
+      <div class="qa-sec">Bitácora · momentos</div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Cada mutación registrada
+      es un punto al que puedes volver. La reconstrucción es aditiva: lo
+      creado hasta ese momento que sigue vivo hoy. Lo borrado después no
+      resucita — el borrado con cascada es real — y una entidad fusionada se
+      muestra en su forma actual. CRONOS viaja el sustrato, no el pipeline
+      aduanal.</p>
+      <div class="qa-lista" id="cr-momentos-lista" aria-live="polite">
+        <p class="qa-base-hint">Cargando la línea de tiempo…</p>
+      </div>
+    </section>
+
+    <!-- Derecha: los estratos geológicos + scrubber -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Estratos del caso">
+      <div class="ag-panel-head">
+        <h2>Estratos</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Geología del caso</div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Cada capa es la
+      acumulación real de una parte del sustrato momento a momento —
+      fuentes, fragmentos, entidades, vínculos, productos. Toca un punto (o
+      un momento a la izquierda) para reconstruir ese instante.</p>
+      <div class="qa-lienzo cr-lienzo" id="cr-lienzo"
+           aria-label="Estratos acumulados del sustrato con línea de reconstrucción">
+        <canvas></canvas>
+      </div>
+      <div class="qa-sec">El sustrato en ese instante</div>
+      <div id="cr-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Sin instante seleccionado — se muestra el
+        presente.</p>
+      </div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← AUTOGENES</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='cronos.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

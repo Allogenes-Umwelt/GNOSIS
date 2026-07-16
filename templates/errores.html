@@ -1,0 +1,357 @@
+{% extends "base.html" %}
+
+{% block title %}PDFs con Error — VW Aduanas{% endblock %}
+
+{% block extra_css %}
+<style>
+  .errores-page { width: 100%; max-width: 1180px; margin: 0 auto; padding: 48px 40px 80px; text-align: left; position: relative; z-index: 1; }
+  .errores-header { margin-bottom: 22px; }
+  .errores-header .eyebrow { font-family: var(--font-mono); font-size: .6875rem; letter-spacing: 4px; text-transform: uppercase; color: var(--acc-text); }
+  .errores-header h1 { font-family: var(--font-d); font-weight: 700; font-size: 2rem; letter-spacing: -.01em; color: var(--t1); margin: 14px 0 8px; }
+  .errores-header .subtitle { font-family: var(--font-mono); font-size: .72rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); }
+  .errores-header .subtitle b { color: var(--telos-on); }
+  .errores-header .subtitle a { color: var(--acc-text); text-decoration: none; }
+  .errores-header .subtitle a:hover { text-decoration: underline; }
+
+  /* Banner de flujo (instrucciones) */
+  .flujo-banner {
+    position: relative; background: var(--surface); border: 1px solid var(--line);
+    border-left: 2px solid var(--acc); border-radius: 0; padding: 16px 20px;
+    margin-bottom: 22px; font-family: var(--font-b); font-size: .82rem; color: var(--t2); line-height: 1.9;
+  }
+  .flujo-banner strong { color: var(--t1); font-weight: 700; }
+  .flujo-banner a { color: var(--acc-text); font-weight: 700; text-decoration: none; }
+  .flujo-banner a:hover { text-decoration: underline; }
+
+  /* Banner final (todo corregido) */
+  .banner-final {
+    background: var(--acc-subtle); border: 1px solid var(--acc); border-radius: 0;
+    padding: 16px 22px; margin-bottom: 22px; display: flex; align-items: center; gap: 16px;
+    font-family: var(--font-b); font-size: .9rem; color: var(--acc-text);
+  }
+  .banner-final .ok { color: var(--acc-text); font-family: var(--font-mono); }
+  .banner-final strong { font-weight: 700; }
+
+  /* Badges de categoría (afilados · JS reconstruye estas clases) */
+  .badge-categoria {
+    display: inline-block; font-family: var(--font-mono); font-size: .6rem; font-weight: 700;
+    letter-spacing: .5px; text-transform: uppercase; padding: 2px 7px; border: 1px solid; border-radius: 0; white-space: nowrap;
+  }
+  .cat-factura_formato_desconocido { border-color: var(--umwelt-on); color: var(--umwelt-on); }
+  .cat-datos_incompletos           { border-color: var(--acc); color: var(--acc-text); }
+  .cat-imagen_o_corrupto           { border-color: var(--telos-on); color: var(--telos-on); }
+  .cat-documento_no_relacionado    { border-color: var(--line); color: var(--t3); }
+  .cat-corrupto                    { border-color: var(--telos-on); color: var(--telos-on); }
+  .cat-parsing_failed              { border-color: var(--line); color: var(--t3); }
+
+  .mensaje-celda { font-family: var(--font-mono); font-size: .72rem; color: var(--t3); max-width: 380px; word-break: break-word; line-height: 1.5; }
+  .mensaje-celda details summary { cursor: pointer; color: var(--t3); font-size: .68rem; list-style: none; text-transform: uppercase; letter-spacing: 1px; }
+  .mensaje-celda details div { color: var(--t3); font-size: .68rem; margin-top: 4px; word-break: break-all; }
+  .acciones-celda { white-space: nowrap; }
+
+  /* Tabla HUD (override Bootstrap) */
+  .errores-page .table { width: 100%; margin: 0; border-collapse: collapse; color: var(--t2); }
+  .errores-page .table thead th { font-family: var(--font-mono); font-size: .5625rem; letter-spacing: 2px; text-transform: uppercase; color: var(--t3); background: var(--surface); border-bottom: 1px solid var(--line); padding: 12px 14px; text-align: left; }
+  .errores-page .table tbody td { border-top: 1px solid var(--line); padding: 14px; font-size: .82rem; vertical-align: middle; }
+  .errores-page .table tbody tr:hover { background: var(--surface); }
+  .errores-page .table code { font-family: var(--font-mono); font-size: .75rem; color: var(--t1); background: transparent; padding: 0; }
+  tr.procesando { background: var(--acc-subtle) !important; }
+
+  /* Botón subir corregido (ghost acento) */
+  .upload-label {
+    cursor: pointer; display: inline-block; font-family: var(--font-b); font-weight: 700; font-size: .6rem;
+    letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 11px; border: 1px solid var(--acc);
+    border-radius: 2px; background: transparent; color: var(--acc-text); transition: background .15s, opacity .15s;
+  }
+  .upload-label:hover:not([disabled]) { background: var(--acc-subtle); }
+  .upload-label.cargando { pointer-events: none; opacity: .55; }
+
+  /* Descargar (ghost neutro) */
+  .errores-page .btn-outline-secondary {
+    background: transparent; border: 1px solid var(--line); color: var(--t2); border-radius: 2px;
+    font-family: var(--font-b); font-weight: 700; font-size: .6rem; letter-spacing: 1.5px; text-transform: uppercase; padding: 6px 11px;
+  }
+  .errores-page .btn-outline-secondary:hover { border-color: var(--acc); color: var(--acc-text); background: var(--acc-subtle); }
+
+  /* Borrar (ghost telos) */
+  .btn-borrar {
+    font-family: var(--font-b); font-weight: 700; font-size: .6rem; letter-spacing: 1.5px; text-transform: uppercase;
+    padding: 6px 11px; border: 1px solid var(--telos-on); border-radius: 2px; background: transparent; color: var(--telos-on);
+    cursor: pointer; transition: background .15s; white-space: nowrap;
+  }
+  .btn-borrar:hover { background: transparent; border-color: var(--telos-on); opacity: .8; }
+
+  .toolbar-errores { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+
+  /* Toasts HUD */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; }
+  .toast-msg {
+    padding: 12px 18px; border-radius: 0; border: 1px solid; margin-top: 8px; font-family: var(--font-mono);
+    font-size: .75rem; letter-spacing: .5px; opacity: 0; transition: opacity .3s; max-width: 360px; background: var(--surface-2);
+  }
+  .toast-msg.show { opacity: 1; }
+  .toast-ok  { border-color: var(--acc); color: var(--acc-text); }
+  .toast-err { border-color: var(--telos-on); color: var(--telos-on); }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 90px 0; }
+  .empty-state .g { font-family: var(--font-mono); font-size: 1.6rem; color: var(--acc-text); letter-spacing: 3px; }
+  .empty-state p { font-family: var(--font-mono); font-size: .8rem; letter-spacing: 1px; text-transform: uppercase; color: var(--t3); margin: 16px 0 24px; }
+  .empty-state .btn { background: transparent; border: 1px solid var(--acc); color: var(--acc-text); border-radius: 2px; font-family: var(--font-b); font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 11px 20px; font-size: .72rem; text-decoration: none; }
+  .empty-state .btn:hover { background: var(--acc-subtle); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="errores-page">
+
+  <div class="errores-header">
+    <div class="eyebrow">GNOSIS · CONTROL DE CALIDAD // EXTRACCIÓN</div>
+    <h1>PDFs con Error de Procesamiento</h1>
+    <p class="subtitle">
+      Sesión #{{ session_id }} &nbsp;·&nbsp;
+      <b><span id="contadorPendientes">{{ errores|length }}</span> pendiente(s)</b>
+      &nbsp;·&nbsp;
+      <a href="/procesar">← Volver a Procesar</a>
+    </p>
+  </div>
+
+  {% if errores %}
+
+  <!-- Banner de flujo -->
+  <div class="flujo-banner">
+    <strong>¿Cómo usar esta página?</strong><br>
+    1. Haz clic en <strong>↓ Descargar</strong> para obtener el PDF original con error.<br>
+    2. Corrígelo externamente (o reemplázalo por la versión correcta).<br>
+    3. Haz clic en <strong>↑ Subir corregido</strong> para volver a intentar procesarlo.<br>
+    4. Cuando hayas terminado con todos los errores posibles, <a href="/procesar">regresa a Procesar</a>
+       para continuar con el Concentrado.
+  </div>
+
+  <!-- Banner final (se muestra cuando contador llega a 0) -->
+  <div id="bannerFinal" style="display:none" class="banner-final">
+    <span class="ok">◇ <strong>Todos los errores fueron corregidos.</strong></span>
+    <a href="/procesar" class="btn btn-sm" style="background:transparent;border:1px solid var(--acc);color:var(--acc-text);text-decoration:none;">
+      Continuar al Procesamiento →
+    </a>
+  </div>
+
+  <!-- Toolbar: ZIP download -->
+  <div class="toolbar-errores">
+    <a href="/errores/download-zip?sid={{ session_id }}"
+       class="btn btn-sm btn-outline-secondary"
+       title="Descargar todos los PDFs con error en un ZIP">
+      ↓ Descargar todos (ZIP)
+    </a>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Archivo</th>
+          <th>Categoría</th>
+          <th>Razón del fallo</th>
+          <th class="text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="tablaErrores">
+        {% for err in errores %}
+        <tr id="row-{{ loop.index }}">
+          <td><code>{{ err.filename }}</code></td>
+          <td>
+            <span class="badge-categoria cat-{{ err.error_type or 'parsing_failed' }}">
+              {{ err.error_type or 'parsing_failed' }}
+            </span>
+          </td>
+          <td class="mensaje-celda">
+            {% set parts = (err.error_message or '').split(' | Parsers: ') %}
+            {{ parts[0] or '—' }}
+            {% if parts|length > 1 %}
+            <details style="margin-top:0.25rem;">
+              <summary>▸ detalles técnicos</summary>
+              <div>{{ parts[1] }}</div>
+            </details>
+            {% endif %}
+          </td>
+          <td class="acciones-celda">
+            {# Descargar original — usa el nuevo endpoint dedicado #}
+            <a href="/errores/download?sid={{ session_id }}&f={{ err.filename | urlencode }}"
+               class="btn btn-sm btn-outline-secondary me-1"
+               title="Descargar PDF original">
+              ↓ Descargar
+            </a>
+            {# Subir corregido #}
+            <label class="upload-label"
+                   id="label-{{ loop.index }}"
+                   title="Subir versión corregida del PDF">
+              ↑ Subir corregido
+              <input type="file" accept=".pdf" style="display:none"
+                     class="pdf-input"
+                     data-row="row-{{ loop.index }}"
+                     data-label="label-{{ loop.index }}"
+                     data-session="{{ session_id }}"
+                     data-filename="{{ err.filename }}">
+            </label>
+            {# Borrar de la lista #}
+            <button class="btn-borrar ms-1"
+                    data-row="row-{{ loop.index }}"
+                    data-session="{{ session_id }}"
+                    data-filename="{{ err.filename }}"
+                    title="Eliminar de la lista de errores">
+              × Borrar
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% else %}
+  <div class="flujo-banner" style="margin-bottom:0">
+    <strong>¿Cómo usar esta página?</strong><br>
+    Cuando se procesen facturas con errores, aparecerán aquí con su razón de fallo
+    y opciones para descargar el original y subir una versión corregida.
+  </div>
+  <div class="empty-state">
+    <p class="g">◇</p>
+    <p>No hay PDFs con error en esta sesión.</p>
+    <a href="/procesar" class="btn">Ir a Procesar →</a>
+  </div>
+  {% endif %}
+
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showToast(msg, ok) {
+    const c = document.getElementById('toastContainer');
+    const d = document.createElement('div');
+    d.className = 'toast-msg ' + (ok ? 'toast-ok' : 'toast-err');
+    d.textContent = msg;
+    c.appendChild(d);
+    requestAnimationFrame(() => { d.classList.add('show'); });
+    setTimeout(() => { d.classList.remove('show'); setTimeout(() => d.remove(), 400); }, 4500);
+  }
+
+  function decrementarContador() {
+    const counter = document.getElementById('contadorPendientes');
+    const current = parseInt(counter.textContent) - 1;
+    counter.textContent = Math.max(0, current);
+    if (current <= 0) {
+      document.getElementById('bannerFinal').style.display = 'flex';
+      document.getElementById('bannerFinal').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  document.querySelectorAll('.pdf-input').forEach(input => {
+    input.addEventListener('change', function () {
+      const file = this.files[0];
+      if (!file) return;
+
+      const rowId    = this.dataset.row;
+      const labelId  = this.dataset.label;
+      const sessionId = this.dataset.session;
+      const label    = document.getElementById(labelId);
+      const row      = document.getElementById(rowId);
+
+      // — Estado: cargando —
+      label.classList.add('cargando');
+      label.childNodes[0].textContent = '⏳ Procesando… ';
+      if (row) row.classList.add('procesando');
+
+      const fd = new FormData();
+      fd.append('session_id', sessionId);
+      fd.append('files', file, file.name);
+
+      fetch('/procesar/reprocesar', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(data => {
+          const exitoso = data.exitosos && data.exitosos.includes(file.name);
+
+          if (exitoso) {
+            showToast('✓ ' + file.name + ' procesado correctamente.', true);
+            decrementarContador();
+            if (row) {
+              // 1. Marca de éxito (acento) inmediata
+              row.style.transition = 'background 0.4s';
+              row.style.background = 'var(--acc-subtle)';
+              // file.name lo controla quien re-sube: escapar antes de innerHTML
+              var _fn = String(file.name).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+              row.cells[0].innerHTML = '<strong style="color:var(--acc-text)">✓ Procesado</strong> <code style="color:var(--t2)">' + _fn + '</code>';
+              row.cells[1].innerHTML = '';
+              row.cells[2].innerHTML = '';
+              row.cells[3].innerHTML = '';
+              // 2. Desvanecer y eliminar tras 1.8s
+              setTimeout(() => {
+                row.style.transition = 'opacity 0.7s';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 700);
+              }, 1800);
+            }
+          } else {
+            const fallido = (data.fallidos || []).find(f => f.file === file.name);
+            const cat = fallido ? fallido.categoria : 'error desconocido';
+            showToast('✕ Sigue fallando: ' + cat, false);
+
+            // Actualizar badge y mensaje en la fila
+            if (row && fallido) {
+              const badge = row.querySelector('.badge-categoria');
+              badge.textContent = fallido.categoria;
+              badge.className = 'badge-categoria cat-' + fallido.categoria;
+              row.querySelector('.mensaje-celda').textContent = fallido.detalle || '—';
+            }
+
+            // Restaurar estado del botón
+            label.classList.remove('cargando');
+            if (row) row.classList.remove('procesando');
+            label.childNodes[0].textContent = '↑ Subir corregido ';
+          }
+        })
+        .catch(e => {
+          showToast('Error de red: ' + e.message, false);
+          label.classList.remove('cargando');
+          if (row) row.classList.remove('procesando');
+          label.childNodes[0].textContent = '↑ Subir corregido ';
+        });
+
+      // Limpiar input para permitir re-subir el mismo archivo
+      this.value = '';
+    });
+  });
+
+  document.querySelectorAll('.btn-borrar').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const sid      = this.dataset.session;
+      const filename = this.dataset.filename;
+      const rowId    = this.dataset.row;
+      if (!confirm('¿Eliminar "' + filename + '" de la lista de errores?')) return;
+
+      fetch('/errores/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sid: parseInt(sid), filename: filename })
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          const row = document.getElementById(rowId);
+          if (row) {
+            row.style.transition = 'opacity 0.3s';
+            row.style.opacity = '0';
+            setTimeout(() => row.remove(), 300);
+          }
+          decrementarContador();
+        } else {
+          showToast('Error al borrar: ' + (data.error || ''), false);
+        }
+      })
+      .catch(e => showToast('Error de red: ' + e.message, false));
+    });
+  });
+</script>
+{% endblock %}

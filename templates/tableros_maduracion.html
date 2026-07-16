@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · TBV-01 — Maduración{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sinapsis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco nm-marco" id="ag-landing">
+
+    <!-- Izquierda: ranking por mediana + extremos citados -->
+    <section class="ag-centro gr-centro" aria-label="Maduración por marca">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">TBV-01 · TABLEROS VW</span>
+          <span class="nom">◆ Maduración · Importación a venta</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Medido</div>
+      <div class="cn-flujo">
+        <div class="qa-bar"><span class="l">Unidades medidas</span><span class="v" id="tm-medidas">—</span></div>
+        <div class="qa-bar"><span class="l">Mediana global</span><span class="v" id="tm-mediana">—</span></div>
+        <div class="qa-bar"><span class="l">Sin fechas</span><span class="v" id="tm-sinfechas">—</span></div>
+        <div class="qa-bar"><span class="l">Venta antes de importar</span><span class="v" id="tm-negativos">—</span></div>
+      </div>
+
+      <div class="qa-sec">Marcas · por mediana</div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Días de la fecha del
+      pedimento a la fecha de factura, por unidad. Toca una marca para
+      aislar su espectro; sus unidades más lentas quedan citadas por chasis
+      y factura. Lo sin fechas parseables se cuenta arriba — nunca se
+      adivina.</p>
+      <div class="qa-lista" id="tm-marcas" aria-live="polite">
+        <p class="qa-base-hint">Cargando…</p>
+      </div>
+    </section>
+
+    <!-- Derecha: el espectro de maduración -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Espectro de maduración">
+      <div class="ag-panel-head">
+        <h2>Espectro</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="ag-centro-head" style="border:0; padding:0">
+        <div class="qa-sec" style="margin-top:0">Espectro de maduración</div>
+        <nav class="qa-dial" id="tm-toggle" aria-label="Toggle de marca"></nav>
+      </div>
+      <p class="qa-base-hint" style="margin:0 0 6px">Cada unidad real es un
+      trazo en su día exacto — el espectro se satura donde se acumulan. Los
+      cortes P25 · mediana · P90 son del motor (rango más cercano), no una
+      curva ajustada.</p>
+      <div class="qa-lienzo tm-lienzo" id="tm-lienzo"
+           aria-label="Espectro de días importación a venta por marca">
+        <canvas></canvas>
+      </div>
+      <div id="tm-detalle" class="gr-inspector" aria-live="polite"></div>
+      <a class="ag-volver" href="/tableros" style="margin-top:auto">← Tableros</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='tbv_maduracion.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

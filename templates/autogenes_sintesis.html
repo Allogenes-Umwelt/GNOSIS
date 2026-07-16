@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Síntesis — Informe del caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='sintesis.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing sn-marco" id="ag-landing">
+    <canvas class="sn-trazas" aria-hidden="true"></canvas>
+
+    <!-- Izquierda: digesto del grafo -->
+    <aside class="ag-panel" id="ag-panel-izq" aria-label="Digesto del grafo">
+      <div class="ag-panel-head">
+        <h2>Digesto</h2>
+        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
+      </div>
+      <p class="sn-hint">Lo que el grafo aporta al informe. Toca un nodo para ver
+      qué puntos lo citan; cada cita traza hasta aquí.</p>
+      <div class="ag-grupo">Hechos medidos</div>
+      <ul class="sn-nodos" id="sn-hechos"></ul>
+      <div class="ag-grupo">Entidades</div>
+      <ul class="sn-nodos" id="sn-entidades"></ul>
+      <div class="ag-grupo">Fragmentos</div>
+      <ul class="sn-nodos" id="sn-fragmentos"></ul>
+    </aside>
+
+    <!-- Centro: informe -->
+    <section class="ag-centro gr-centro" aria-label="Informe del caso">
+      <div class="ag-centro-head">
+        <span class="t">◆ Síntesis · Informe del caso</span>
+        <span class="gr-controles">
+          <button type="button" id="sn-redactar" class="sn-accion">redactar</button>
+          <button type="button" id="sn-dockear" class="sn-accion" disabled>dockear</button>
+          <button type="button" id="sn-imprimir" class="sn-accion" disabled>imprimir</button>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="sn-print-cab" aria-hidden="true">GNOSIS · Síntesis · Informe citado del caso — Sesión {{ sesion_etiqueta }}</div>
+      <div class="sn-informe" id="sn-informe" aria-live="polite">
+        <div class="sn-vacio">
+          <span class="marca" aria-hidden="true">◆</span>
+          <div class="e">Informe ejecutivo citado</div>
+          <p>Redacta el informe del caso sobre el grafo. Cada afirmación llega
+          anclada a su fragmento o entidad — lo que no se puede citar, no se
+          escribe.</p>
+        </div>
+      </div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b>▬</b> cita a fragmento</li>
+        <li><b>◇</b> cita a entidad</li>
+        <li><b>◆</b> cita a hecho medido</li>
+        <li><span id="sn-info" role="status">—</span></li>
+      </ul>
+      <div class="sn-print-pie" id="sn-print-pie" aria-hidden="true"></div>
+    </section>
+
+    <!-- Derecha: cita / procedencia -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Cita y procedencia">
+      <div class="ag-panel-head">
+        <h2>Cita</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div id="sn-cita" class="gr-inspector" aria-live="polite">
+        <p class="gr-vacio">Toca un punto del informe para ver su procedencia: el texto
+        del fragmento citado y las entidades que lo sostienen.</p>
+      </div>
+      <div class="ag-msj" id="sn-msj" role="status"></div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='sintesis.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  function plegar(lado) {
+    var btn = document.querySelector('.ag-plegar[data-panel=' + lado + ']');
+    var panel = document.getElementById('ag-panel-' + lado);
+    var clase = lado + '-off';
+    btn.addEventListener('click', function () {
+      var off = !panel.classList.contains('plegado');
+      landing.classList.toggle(clase, off);
+      panel.classList.toggle('plegado', off);
+      btn.textContent = off ? (lado === 'izq' ? '›' : '‹') : (lado === 'izq' ? '‹' : '›');
+      window.dispatchEvent(new Event('resize'));
+    });
+  }
+  plegar('izq');
+  plegar('der');
+})();
+</script>
+{% endblock %}

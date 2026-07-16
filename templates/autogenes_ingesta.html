@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Ingesta{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing ing3" id="ag-landing">
+
+    <!-- IZQUIERDA · Bandeja de ingesta -->
+    <aside class="ag-panel" id="ag-panel-izq" aria-label="Bandeja de documentos">
+      <div class="ag-panel-head">
+        <h2>Bandeja</h2>
+        <button type="button" class="ag-plegar" data-panel="izq" aria-label="Plegar panel">‹</button>
+      </div>
+      <label class="ag-drop" id="in-drop" for="in-file">
+        <span class="mas">[ + ]</span>
+        <span>PDF · TXT · XML · EXCEL · ZIP — CLIC O ARRASTRA (VARIOS O CARPETA)</span>
+        <input type="file" id="in-file"
+               accept=".pdf,.txt,.md,.xml,.csv,.xls,.xlsx,.zip,.jpg,.jpeg,.png,.gif,.bmp,.webp,.tif,.tiff,.heic" multiple hidden>
+      </label>
+      <div class="ag-msj" id="in-msj" role="status"></div>
+      <button type="button" id="in-cancelar" class="ag-subir in-cancelar" hidden>
+        Cancelar carga
+      </button>
+      <label class="in-quorum-lbl">
+        <input type="checkbox" id="in-quorum"> QUÓRUM (2 MODELOS SI HAY)
+      </label>
+      <button type="button" id="in-extraer-todo" class="ag-subir" hidden>
+        Extraer de todos
+      </button>
+      <div class="ag-grupo in-arte-head">Artefactos del sustrato
+        <label class="in-frias-lbl"><input type="checkbox" id="in-solo-frias"> solo frías</label>
+      </div>
+      <ul class="ag-nav" id="in-artefactos"></ul>
+    </aside>
+
+    <!-- CENTRO · Chord de ingesta (fuentes → entidades) -->
+    <section class="ag-centro gr-centro" id="ag-centro-mapa" aria-label="Mapa de ingesta">
+      <div class="ag-centro-head">
+        <span class="t">◆ Vía de Ingesta</span>
+        <span class="ag-centro-tools">
+          <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+          <button type="button" class="ag-plegar" data-panel="cen" aria-label="Plegar el mapa">◧</button>
+        </span>
+      </div>
+      <div class="ch-lienzo gr-lienzo" data-info="#ch-info" data-tabla="#ch-tabla">
+        <canvas tabindex="0" aria-label="Chord de ingesta: fuentes a la izquierda, entidades a la derecha, cintas por citas. Usa las flechas para recorrer los arcos, Enter para abrir su dossier." role="img"></canvas>
+      </div>
+      <div id="ch-tabla" class="ch-tabla" hidden></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b style="color:var(--acc-text)">◜</b> fuente</li>
+        <li><b style="color:var(--acc-text)">◝</b> entidad</li>
+        <li><b style="color:var(--danger)">◠</b> fuente fría (nadie la cita)</li>
+        <li><button type="button" id="ch-tabla-btn" class="ag-modo-tabla" aria-pressed="false">Ver como tabla</button></li>
+        <li><span id="ch-info" role="status">CARGANDO…</span></li>
+        <li style="margin-left:auto;color:var(--t3)">flechas: recorre arcos · Enter: dossier</li>
+      </ul>
+    </section>
+
+    <!-- DERECHA · Revisa e Integra (exclusivo) -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Revisa e integra la extracción">
+      <div class="ag-panel-head">
+        <h2>Revisa e Integra</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div id="in-prop-titulo" class="ag-grupo" hidden>Propuesta de entidades</div>
+      <div id="in-propuesta" class="gr-inspector">
+        <p class="gr-vacio">Extrae un artefacto de la bandeja para revisar sus
+          entidades y relaciones antes de integrarlas al grafo.</p>
+      </div>
+      <button type="button" id="in-integrar" class="ag-subir" hidden>Integrar seleccionadas</button>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='chord.js') }}"></script>
+<script src="{{ url_for('static', filename='ingesta.js') }}"></script>
+<script>
+// Colapso de los tres paneles (izq · centro · der).
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var mapa = document.getElementById('ag-centro-mapa');
+  document.querySelectorAll('.ag-plegar[data-panel]').forEach(function (btn) {
+    var lado = btn.getAttribute('data-panel');
+    var panel = document.getElementById('ag-panel-' + lado) || (lado === 'cen' ? mapa : null);
+    btn.addEventListener('click', function () {
+      var off = !panel.classList.contains('plegado');
+      landing.classList.toggle(lado + '-off', off);
+      panel.classList.toggle('plegado', off);
+      if (lado === 'izq') btn.textContent = off ? '›' : '‹';
+      if (lado === 'der') btn.textContent = off ? '‹' : '›';
+      window.dispatchEvent(new Event('resize'));
+    });
+  });
+})();
+</script>
+{% endblock %}

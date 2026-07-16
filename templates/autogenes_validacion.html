@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · VALIDACIÓN — Glosa preventiva{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: conformidad + normas -->
+    <section class="ag-centro gr-centro" aria-label="Glosa preventiva">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">VLD-02 · AUTOGENES F10</span>
+          <span class="nom">◆ VALIDACIÓN · Glosa preventiva</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Conformidad de la sesión</div>
+      <div id="vl-hero" class="vl-hero" aria-live="polite"></div>
+
+      <div class="qa-sec" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Lattice de conformidad</span>
+        <button type="button" id="vl-export" class="qa-exp-btn"
+                aria-label="Exportar normas en CSV">exportar CSV</button>
+      </div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Cada regla es un tamiz: el
+      universo <b>U</b> de la sesión desciende por los tamices de norma y cada
+      fila cae en su <b>peor</b> capa (rechazado sobre observado). Lo que
+      sobrevive todos los tamices es <b>⊥ = ⋂ V̄ᵣ</b>, la conformidad probada.
+      Un tamiz en cero (V = ∅) no se omite: colapsa a la línea de conformidad.
+      La regla «C.O + USA = J» no se evalúa: el certificado de origen no está en
+      estas tablas y validar sin poder verificar la premisa sería ruido. Toca un
+      tamiz para disponerlo; el motor te contradice si dices resuelto lo que
+      sigue midiéndose.</p>
+      <div id="vl-lattice" class="cn-caudal"
+           aria-label="Lattice de conformidad: el universo filtrado por tamices de norma"></div>
+
+      <div class="qa-sec">Gestión</div>
+      <div id="vl-ledger" aria-label="Estado de la gestión"></div>
+      <div id="vl-verificadas" aria-live="polite"></div>
+
+      <div class="qa-sec">La sesión en su historia</div>
+      <div id="vl-control" aria-label="Control estadístico de proceso"></div>
+    </section>
+
+    <!-- Derecha: el tamiz y sus filas capturadas -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Tamiz y filas capturadas">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">El tamiz</div>
+      <div id="vl-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca un tamiz del lattice. La ficha lista las
+        filas que captura (factura, chasis, PDF) y su ciclo de vida para
+        disponerlas una a una.</p>
+      </div>
+      <button type="button" id="vl-certificar" class="qa-accion" style="margin-top:10px">dockear certificado</button>
+      <span class="ag-msj" id="vl-msj" role="status"></span>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← AUTOGENES</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
+<script src="{{ url_for('static', filename='control.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='vin_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='validacion.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+  });
+})();
+</script>
+{% endblock %}

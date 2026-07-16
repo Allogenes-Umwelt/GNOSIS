@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · CONCILIA — Conciliación tri-fuente{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='concilia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: flujo + hallazgos -->
+    <section class="ag-centro gr-centro" aria-label="Conciliación tri-fuente">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">CNC-01 · AUTOGENES F9</span>
+          <span class="nom">◆ CONCILIA · Conciliación tri-fuente</span>
+        </span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+
+      <div class="qa-sec" style="margin-top:14px">Flujo tri-fuente</div>
+      <div class="cn-flujo" id="cn-flujo" aria-label="Balance vendido, conciliado, llegado">
+        <div class="qa-bar"><span class="l">Vendido · DWH</span><span class="v" id="cn-vendidos">—</span></div>
+        <div class="qa-bar"><span class="l">Conciliado</span><span class="v" id="cn-conciliados">—</span></div>
+        <div class="qa-bar"><span class="l">Llegado · PDF</span><span class="v" id="cn-llegados">—</span></div>
+        <div class="qa-bar"><span class="l">Valor en riesgo · MXN</span><span class="v" id="cn-riesgo">—</span></div>
+      </div>
+      <!-- las dos bandas: cada fuente contra lo conciliado; el hueco es magenta -->
+      <div class="cn-bandas" aria-hidden="true">
+        <div class="cn-banda"><span class="tag">DWH</span><div class="pista" id="cn-banda-dwh"></div><span class="pct" id="cn-pct-dwh"></span></div>
+        <div class="cn-banda"><span class="tag">PDF</span><div class="pista" id="cn-banda-pdf"></div><span class="pct" id="cn-pct-pdf"></span></div>
+      </div>
+
+      <div class="qa-sec" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Hallazgos</span>
+        <button type="button" id="cn-export" class="qa-exp-btn"
+                aria-label="Exportar hallazgos en CSV">exportar CSV</button>
+      </div>
+      <p class="qa-base-hint" style="margin:0 0 8px">Cada hallazgo es una
+      discrepancia medida entre fuentes ya conciliadas por el pipeline; el
+      monto es la suma de valores reales de las unidades afectadas, en su
+      moneda — nunca una estimación. Dispón cada uno: la decisión queda en
+      bitácora y el motor te contradice si dices resuelto lo que sigue vivo.</p>
+      <div id="cn-ledger" aria-label="Estado de la gestión"></div>
+      <div id="cn-filtros" role="group" aria-label="Filtrar por estado"></div>
+      <div class="qa-lista" id="cn-hallazgos" aria-live="polite"></div>
+      <div id="cn-verificadas" aria-live="polite"></div>
+
+      <div class="qa-sec">Anatomía del caudal</div>
+      <div class="cn-caudal" id="cn-caudal"
+           aria-label="Escalera de derivaciones: caudal conciliado y sus fugas"></div>
+
+      <div class="qa-sec">La sesión en su historia</div>
+      <div id="cn-control" aria-label="Control estadístico de proceso"></div>
+
+      <div class="qa-sec">Cupos · What-if</div>
+      <div class="qa-lista" id="cn-cupos" aria-live="polite">
+        <p class="qa-base-hint">Cargando cupos…</p>
+      </div>
+    </section>
+
+    <!-- Derecha: la ficha del hallazgo -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Ficha del hallazgo">
+      <div class="ag-panel-head">
+        <h2>Ficha</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Lookup · VIN</div>
+      <form id="cn-vin-form" class="cn-vin">
+        <input type="text" id="cn-vin" placeholder="chasis o fragmento"
+               autocomplete="off" spellcheck="false" aria-label="Buscar chasis">
+        <button type="submit" class="qa-accion">buscar</button>
+      </form>
+
+      <div class="qa-sec">El hallazgo</div>
+      <div id="cn-detalle" class="gr-inspector" aria-live="polite">
+        <p class="qa-base-hint">Toca un hallazgo. La ficha lista las unidades
+        afectadas y las referencias exactas (factura, chasis, PDF) para
+        auditarlo fila por fila.</p>
+      </div>
+      <button type="button" id="cn-dossier" class="qa-accion" style="display:none; margin-top:10px">dockear dossier</button>
+      <span class="ag-msj" id="cn-msj" role="status"></span>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← AUTOGENES</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
+<script src="{{ url_for('static', filename='control.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='vin_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='concilia.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+  });
+})();
+</script>
+{% endblock %}

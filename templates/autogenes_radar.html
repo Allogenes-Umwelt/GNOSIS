@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Radar — Avance del Caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco" id="ag-landing">
+
+    <!-- Avance por etapas -->
+    <section class="ag-centro gr-centro" aria-label="Avance del caso por etapas">
+      <div class="ag-centro-head">
+        <span class="t">◆ Radar · Avance del Caso</span>
+        <span class="s">SESIÓN {{ sesion_etiqueta }} · QUÉ SE PROCESÓ Y QUÉ QUEDA PENDIENTE</span>
+      </div>
+      <div class="mt-lienzo gr-lienzo" data-detalle="#mt-detalle" data-info="#mt-info"
+           data-urgencias="#mt-urgencias">
+        <canvas aria-label="Avance del caso por etapas de procesamiento" role="img"></canvas>
+      </div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><b style="opacity:.4">▭</b> recibido</li>
+        <li><b>▬</b> procesado</li>
+        <li><b style="color:var(--danger)">▼</b> pendiente · tócalo para resolver</li>
+        <li><span id="mt-info" role="status">CARGANDO…</span></li>
+      </ul>
+    </section>
+
+    <!-- Riel de urgencias + detalle -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Urgencias y pendientes">
+      <div class="ag-panel-head">
+        <h2>Urgencias</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <p style="color:var(--t3);font-size:.75rem;margin:0">
+        Alertas de tiempo y de negocio, aparte del avance por etapas.
+      </p>
+      <ul class="ag-nav" id="mt-urgencias"></ul>
+      <div class="ag-grupo">Detalle</div>
+      <div id="mt-detalle" class="gr-inspector" aria-live="polite">
+        <p class="gr-vacio">Toca lo que aparece en rojo para ver qué quedó pendiente y cómo resolverlo.</p>
+      </div>
+      <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='metabolismo.js') }}"></script>
+<script>
+(function () {
+  const landing = document.getElementById('ag-landing');
+  const btn = document.querySelector('.ag-plegar[data-panel=der]');
+  const panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', () => {
+    const off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}

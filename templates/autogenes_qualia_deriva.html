@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}GNOSIS · Qualia — Deriva del caso{% endblock %}
+{% block nav_autogenes %}active{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='constelacion.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='qualia.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="ag-wrap">
+  <div class="ag-landing gr-marco qa-marco" id="ag-landing">
+
+    <!-- Centro: la deriva entre sesiones -->
+    <section class="ag-centro gr-centro" aria-label="Deriva del caso entre sesiones">
+      <div class="ag-centro-head">
+        <span class="qa-desig">
+          <span class="cod">QLA-08 · AUTOGENES F7</span>
+          <span class="nom">◆ Qualia · Deriva del caso</span>
+          <span class="qa-pregunta">¿En qué cambió el caso desde la sesión de referencia?</span>
+        </span>
+        <nav class="qa-tabs" aria-label="Instrumentos Qualia">
+          <a href="/autogenes/qualia/maquina">máquina</a>
+          <a href="/autogenes/qualia">red</a>
+          <a href="/autogenes/qualia/orbe">orbe</a>
+          <a href="/autogenes/qualia/cuerdas">cuerdas</a>
+          <a href="/autogenes/qualia/terreno">terreno</a>
+          <a href="/autogenes/qualia/cascada">cascada</a>
+          <a href="/autogenes/qualia/horizonte">horizonte</a>
+          <a href="/autogenes/qualia/deriva" class="activo" aria-current="page">deriva</a>
+        </nav>
+        <label class="qa-ref" for="qv-ref">referencia
+          <select id="qv-ref" aria-label="Sesión de referencia"></select>
+        </label>
+        <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
+      </div>
+      <div class="qa-lienzo" id="qv-lienzo"><canvas></canvas></div>
+      <ul class="ag-leyenda" style="margin-top:8px">
+        <li><span style="color:var(--acc-text)">▶</span> ganó — el caso creció ahí desde la referencia</li>
+        <li><span style="color:var(--t3)">◁</span> perdió — el caso se encogió ahí</li>
+        <li><span id="qv-info" role="status">CARGANDO LA DERIVA…</span></li>
+      </ul>
+    </section>
+
+    <!-- Derecha: el detalle medido -->
+    <aside class="ag-panel" id="ag-panel-der" aria-label="Detalle de la deriva">
+      <div class="ag-panel-head">
+        <h2>Deriva</h2>
+        <button type="button" class="ag-plegar" data-panel="der" aria-label="Plegar panel">›</button>
+      </div>
+      <div class="qa-sec" style="margin-top:0">Lectura</div>
+      <div id="qv-lectura"></div>
+      <div class="qa-sec">Cambios medidos</div>
+      <div class="qa-spec" id="qv-deltas"></div>
+      <div class="qa-sec">Anomalías de deriva</div>
+      <div class="qa-lista" id="qv-hallazgos"></div>
+      <div class="qa-sec">Huella de cohesión</div>
+      <div class="qa-spec" id="qv-cohesion"></div>
+      <details class="qa-ficha-tec">
+        <summary>▸ Ficha técnica</summary>
+        <p>Cada cambio es la diferencia medida entre el resumen de dos sesiones
+        (referencia → actual); los deltas son hechos, no opinión. Las anomalías de
+        deriva reúsan los mismos detectores del Terreno con la referencia como base.
+        La huella de cohesión resume el código de barras de persistencia H0: cuántos
+        grupos hay y cuán separados están; comparar dos sesiones dice si el caso se
+        apretó o se fragmentó. Determinista.</p>
+      </details>
+      <a class="ag-volver" href="/autogenes/qualia" style="margin-top:auto">← Red del caso</a>
+    </aside>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='qualia_comun.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_export.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_dossier.js') }}"></script>
+<script src="{{ url_for('static', filename='qualia_deriva.js') }}"></script>
+<script>
+(function () {
+  var landing = document.getElementById('ag-landing');
+  var btn = document.querySelector('.ag-plegar[data-panel=der]');
+  var panel = document.getElementById('ag-panel-der');
+  btn.addEventListener('click', function () {
+    var off = !panel.classList.contains('plegado');
+    landing.classList.toggle('der-off', off);
+    panel.classList.toggle('plegado', off);
+    btn.textContent = off ? '‹' : '›';
+    window.dispatchEvent(new Event('resize'));
+  });
+})();
+</script>
+{% endblock %}
