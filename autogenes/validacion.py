@@ -55,6 +55,28 @@ def severidad_regla(clave: str) -> str:
     return "danger" if "jn-norma" in clave else "warn"
 
 
+# O5.3 — el veredicto en capas (mapeo del operador, aprobado). Las reglas
+# 'observado' son sospechas a revisar (fecha, ceros fabricados, VIN con I/O/Q,
+# moneda fuera de catálogo, VIN de largo ≠ 17); TODA otra regla violada es
+# 'rechazado' = glosa segura (obligatorios ausentes, sin catálogo, país fuera
+# de catálogo, preferencia contra la norma). Eje distinto de `severidad_regla`
+# (que colorea el grafo): aquí clasificamos la CAPA del lattice, no el nodo.
+_OBSERVADO = frozenset({
+    "val-dwh-fecha",
+    "val-dwh-precio-cero", "val-pdf-importe-cero",
+    "val-dwh-vin-chars", "val-pdf-vin-chars",
+    "val-pdf-moneda-cat",
+    "val-dwh-vin17", "val-pdf-vin17",
+})
+
+
+def veredicto_regla(clave: str) -> str:
+    """La capa del veredicto de una regla (O5.3): 'observado' si es una
+    sospecha a revisar, 'rechazado' si es glosa segura. Fija y pura: una
+    fila hereda el PEOR veredicto de las reglas que la capturan."""
+    return "observado" if clave in _OBSERVADO else "rechazado"
+
+
 def _vacio(v: Any) -> bool:
     return v is None or (isinstance(v, str) and not v.strip())
 
@@ -79,7 +101,7 @@ def validar(conn: sqlite3.Connection, session_id: int,
     reglas: list[dict[str, Any]] = []
     malas_dwh: set[int] = set()
     malas_pdf: set[int] = set()
-    ids_dwh_por_regla: dict[str, set[int]] = {}
+    ids_por_regla: dict[str, set[int]] = {}
 
     def regla(clave: str, titulo: str, norma: str, fuente: str,
               filas: list[sqlite3.Row], viola, ref) -> None:
@@ -88,13 +110,13 @@ def validar(conn: sqlite3.Connection, session_id: int,
         v = [r for r in filas if viola(r)]
         marca = malas_dwh if fuente == "dwh" else malas_pdf
         marca.update(r["id"] for r in v)
-        if fuente == "dwh":
-            ids_dwh_por_regla[clave] = {r["id"] for r in v}
+        ids_por_regla[clave] = {r["id"] for r in v}
         reglas.append({
             "clave": clave,
             "titulo": titulo,
             "norma": norma,
             "fuente": fuente,
+            "veredicto": veredicto_regla(clave),
             "base": len(filas),
             "n": len(v),
             "refs": [ref(r) for r in v[:tope]],
@@ -210,6 +232,30 @@ def validar(conn: sqlite3.Connection, session_id: int,
     reglas.sort(key=lambda r: (-r["n"], r["clave"]))
     total_filas = len(dwh) + len(pdf)
     conformes = total_filas - len(malas_dwh) - len(malas_pdf)
+
+    # descomposición del veredicto por riel: cada fila cuenta UNA vez, en su
+    # PEOR capa (rechazado manda sobre observado). Alimenta el flujo del
+    # lattice (base → base-rechazado → conformes) y la retícula. Determinista.
+    dwh_ids = {r["id"] for r in dwh}
+    pdf_ids = {r["id"] for r in pdf}
+    rech_dwh: set[int] = set()
+    rech_pdf: set[int] = set()
+    for rg in reglas:
+        if rg["veredicto"] != "rechazado":
+            continue
+        pool = rech_dwh if rg["fuente"] == "dwh" else rech_pdf
+        pool.update(ids_por_regla.get(rg["clave"], set()))
+
+    def _capa(base_ids: set[int], malas: set[int], rech: set[int]) -> dict:
+        rech = rech & malas                 # defensivo: rechazado ⊆ no-conforme
+        return {"base": len(base_ids),
+                "rechazado": len(rech),
+                "observado": len(malas - rech),
+                "pasa": len(base_ids - malas)}
+
+    conf_dwh = _capa(dwh_ids, malas_dwh, rech_dwh)
+    conf_pdf = _capa(pdf_ids, malas_pdf, rech_pdf)
+
     salida = {
         "session_id": session_id,
         "reglas": reglas,
@@ -218,11 +264,20 @@ def validar(conn: sqlite3.Connection, session_id: int,
         "filas_no_conformes": {"dwh": len(malas_dwh), "pdf": len(malas_pdf)},
         "conformidad_pct": (round(100 * conformes / total_filas)
                             if total_filas else None),
+        # O5.4: la conformidad por riel y la retícula (una celda por fila,
+        # coloreada por su peor veredicto). pasa == conformes por construcción.
+        "conformidad": {"dwh": conf_dwh, "pdf": conf_pdf},
+        "reticula": {
+            "pasa": conf_dwh["pasa"] + conf_pdf["pasa"],
+            "observado": conf_dwh["observado"] + conf_pdf["observado"],
+            "rechazado": conf_dwh["rechazado"] + conf_pdf["rechazado"],
+            "total": total_filas,
+        },
     }
     if con_particion:
         # la partición VALIDACIÓN del universo DWH (para SINAPSIS): cada
         # fila en UNA celda — contra_norma manda sobre otra_violacion
-        contra_norma = ids_dwh_por_regla.get("val-dwh-jn-norma", set())
+        contra_norma = ids_por_regla.get("val-dwh-jn-norma", set())
         otra = malas_dwh - contra_norma
         todos = {r["id"] for r in dwh}
         salida["particion_dwh"] = {

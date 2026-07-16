@@ -225,7 +225,7 @@ def test_concilia_renderiza():
 def test_validacion_renderiza():
     html = _flask_render("autogenes_validacion.html", sesion_etiqueta="07/2026")
     assert "VLD-02" in html
-    assert "vl-reglas" in html and "vl-detalle" in html
+    assert "vl-hero" in html and "vl-lattice" in html and "vl-detalle" in html
     assert "validacion.js" in html
 
 

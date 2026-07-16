@@ -173,6 +173,69 @@ def test_ola2_conformes_no_disparan_reglas_nuevas(conn):
         assert por[clave]["n"] == 0                  # conformidad probada
 
 
+def test_veredicto_por_regla_mapea_capas(conn):
+    # rechazado = glosa segura; observado = a revisar. Ejes fijos (O5.3).
+    from autogenes.validacion import veredicto_regla
+    assert veredicto_regla("val-dwh-jn-norma") == "rechazado"
+    assert veredicto_regla("val-dwh-catalogo") == "rechazado"
+    assert veredicto_regla("val-pdf-pais") == "rechazado"
+    assert veredicto_regla("val-dwh-chasis") == "rechazado"
+    assert veredicto_regla("val-dwh-fecha") == "observado"
+    assert veredicto_regla("val-pdf-importe-cero") == "observado"
+    assert veredicto_regla("val-dwh-vin-chars") == "observado"
+    assert veredicto_regla("val-pdf-moneda-cat") == "observado"
+    r = validar(conn, SID)
+    assert all(x["veredicto"] in ("rechazado", "observado") for x in r["reglas"])
+
+
+def test_reticula_peor_veredicto_una_vez_por_fila(conn):
+    cat = _cat(conn)
+    # una fila DWH con DOS violaciones: sin catálogo (rechazado) + VIN con 'O'
+    # (observado). Su peor veredicto es rechazado; cuenta UNA vez, ahí.
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000001', 'F1', 5.0, '080924', 'J', 'DEU', NULL)",
+        (SID,))
+    # una fila DWH sólo observado: VIN con 'O', pero anclada a catálogo
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000002', 'F2', 5.0, '080924', 'J', 'DEU', ?)",
+        (SID, cat))
+    r = validar(conn, SID)
+    ret = r["reticula"]
+    assert ret["rechazado"] == 1 and ret["observado"] == 1 and ret["pasa"] == 0
+    assert ret["total"] == ret["pasa"] + ret["observado"] + ret["rechazado"]
+    # la retícula (pasa) es consistente con el porcentaje de conformidad
+    assert ret["pasa"] == 0 and r["conformidad_pct"] == 0
+    # descomposición por riel: la fila mala vive en el riel DWH
+    assert r["conformidad"]["dwh"]["rechazado"] == 1
+    assert r["conformidad"]["dwh"]["observado"] == 1
+
+
+def test_reticula_pasa_iguala_conformidad(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, factura="OK1", catalogo_id=cat)          # conforme
+    _fila_dwh(conn, factura="BAD", catalogo_id=None)         # sin catálogo
+    _fila_pdf(conn, factura="OKP")                           # conforme
+    r = validar(conn, SID)
+    ret = r["reticula"]
+    assert ret["total"] == 3 and ret["pasa"] == 2
+    assert round(100 * ret["pasa"] / ret["total"]) == r["conformidad_pct"]
+
+
+def test_conformidad_y_reticula_deterministas(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, factura="A", catalogo_id=cat)
+    _fila_dwh(conn, factura="B", pais="BRA", catalogo_id=cat)   # jn contra norma
+    _fila_pdf(conn, factura="C", moneda="XYZ")                  # observado
+    a = validar(conn, SID)
+    b = validar(conn, SID)
+    assert a["conformidad"] == b["conformidad"]
+    assert a["reticula"] == b["reticula"]
+
+
 def test_radar_publica_violaciones_como_urgencia(conn):
     from autogenes.metabolismo import metabolismo_de_sesion
     cat = _cat(conn)
