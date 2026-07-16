@@ -51,6 +51,17 @@
         return esc(k) + ' ' + esc(Array.isArray(v) ? v.join(', ') : v);
       }).join(' · ');
     }
+    // O5.2: la regla derivada del insight, empaquetada como query para
+    // sembrar el formulario NOMOS (nombre + condición + esperado, origen)
+    function reglaQuery(ins) {
+      var rs = ins.regla_sugerida, c = rs.condiciones[0], e = rs.entonces;
+      return 'nombre=' + encodeURIComponent(rs.nombre) +
+        '&desde=' + encodeURIComponent(ins.clave) +
+        '&c_campo=' + encodeURIComponent(c.campo) +
+        '&c_valor=' + encodeURIComponent(c.valor) +
+        '&e_campo=' + encodeURIComponent(e.campo) +
+        '&e_valor=' + encodeURIComponent(e.valor);
+    }
 
     // ── izquierda: tarjetas de insight ───────────────────────────────
     function pintarInsights(resaltar) {
@@ -80,8 +91,10 @@
           '%"></div></div>' +
           '<span class="valor">' + Math.round(ins.gravedad * 100) + '%</span>' +
           '<a href="' + esc(ins.accion) + '">actuar →</a>' +
-          '<a href="/autogenes/nomos?nombre=' + encodeURIComponent(ins.titulo) +
-          '&desde=' + encodeURIComponent(ins.clave) + '">regla →</a>' +
+          // O5.2: sólo se ofrece formalizar donde el insight es campo=valor;
+          // los topológicos/de flujo no traen regla_sugerida y no lo muestran
+          (ins.regla_sugerida ? '<a href="/autogenes/nomos?' +
+            reglaQuery(ins) + '">formalizar regla →</a>' : '') +
           '<button type="button" class="sn-dockear" data-clave="' +
           esc(ins.clave) + '">dockear</button></div>';
         if ((ins.refs || []).length) {

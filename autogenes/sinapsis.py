@@ -212,6 +212,7 @@ def insights_de_sesion(conn: sqlite3.Connection,
     val = validar(conn, session_id, con_particion=True)
 
     insights = componer_insights(resumen, monolitos, conc, cupos, val)
+    _sugerir_regla(conn, session_id, insights)      # O5.2: el volante insight→regla
     reticula = componer_reticula(veredicto_por_fila(conn, session_id),
                                  val["particion_dwh"], insights)
     return {
@@ -221,6 +222,49 @@ def insights_de_sesion(conn: sqlite3.Connection,
         "reticula": reticula,
         "motores": ["qualia.topologia", "qualia.centralidad", "concilia",
                     "concilia.cupos", "validacion"],
+    }
+
+
+# ── ola 5: el volante insight→regla (NOMOS) ──────────────────────────
+
+
+def _sugerir_regla(conn: sqlite3.Connection, session_id: int,
+                   insights: list[dict]) -> None:
+    """Adjunta a los insights RULE-SHAPED la regla NOMOS derivable de sus
+    datos vivos, para que el operador la formalice PRE-LLENADA (HITL: la
+    confirma, no se auto-crea). Hoy solo `error_confirmado` es campo=valor:
+    un chasis contra la norma J/N por país se formaliza como «pais_code = P
+    ⇒ j_y_n = N». Los insights topológicos o de flujo (puente, monolito,
+    cupo) no son campo=valor y NO reciben sugerencia — no se ofrece una
+    regla donde no la hay. El país sale de las filas confirmadas reales;
+    jamás se inventa. Muta los dicts de `insights` en su lugar."""
+    from autogenes.validacion import _JN_POR_PAIS
+
+    err = next((i for i in insights if i["clave"] == "sin-error-confirmado"),
+               None)
+    if err is None:
+        return
+    chasis = [r["chasis"] for r in err.get("refs", []) if r.get("chasis")]
+    if not chasis:
+        return
+    marcadores = ",".join("?" * len(chasis))
+    filas = conn.execute(
+        f"SELECT pais_code AS p, COUNT(*) AS n FROM importaciones"
+        f" WHERE session_id = ? AND chasis IN ({marcadores})"  # noqa: S608
+        f" AND pais_code IS NOT NULL GROUP BY pais_code"
+        f" ORDER BY n DESC, pais_code",
+        (session_id, *chasis)).fetchall()
+    # solo países bajo la norma documentada (BRA/IND ⇒ N): el país dominante
+    cand = [f for f in filas if (f["p"] or "").upper() in _JN_POR_PAIS]
+    if not cand:
+        return
+    pais = cand[0]["p"].upper()
+    esperado = _JN_POR_PAIS[pais]
+    err["regla_sugerida"] = {
+        "nombre": f"C.O + {pais} = {esperado}",
+        "condiciones": [{"campo": "pais_code", "valor": pais}],
+        "entonces": {"campo": "j_y_n", "valor": esperado},
+        "cobertura": sum(f["n"] for f in cand),
     }
 
 

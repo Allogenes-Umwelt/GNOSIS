@@ -106,6 +106,59 @@ def test_orquestador_sobre_base_real():
     assert r["total"] >= 1
 
 
+def _base_error_confirmado():
+    """DB en memoria con un error de preferencia confirmado (BRA + J en DWH,
+    N en PDF) — la base rule-shaped del volante insight→regla."""
+    import sqlite3
+
+    from database import models, models_autogenes
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute(
+        "INSERT INTO processing_sessions (session_date, month_processed,"
+        " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    c.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " j_y_n, pais_code) VALUES (1, 'WVWBRA00000090002', 'F2700-BR1',"
+        " 298000, 'J', 'BRA')")
+    c.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura,"
+        " amount, moneda, j_y_n, pais_code, filename) VALUES (1,"
+        " 'WVWBRA00000090002', 'F2700-BR', '12,000.00', 'EUR', 'N', 'BRA',"
+        " 'tiguan.pdf')")
+    return c
+
+
+def test_volante_deriva_regla_del_error_confirmado():
+    from autogenes.sinapsis import insights_de_sesion
+    c = _base_error_confirmado()
+    r = insights_de_sesion(c, 1)
+    err = next(i for i in r["insights"] if i["clave"] == "sin-error-confirmado")
+    rs = err["regla_sugerida"]                        # derivada de la fila viva
+    assert rs["nombre"] == "C.O + BRA = N"
+    assert rs["condiciones"] == [{"campo": "pais_code", "valor": "BRA"}]
+    assert rs["entonces"] == {"campo": "j_y_n", "valor": "N"}
+    assert rs["cobertura"] == 1
+    # la regla derivada es válida en la puerta única (Sustrato la acepta)
+    from autogenes.sustrato import Sustrato
+    regla = Sustrato(c, 1).crear_regla(rs["nombre"], rs["condiciones"],
+                                       rs["entonces"], origen="insight")
+    assert regla["origen"] == "insight"
+
+
+def test_volante_no_sugiere_regla_en_insights_no_campo_valor():
+    # un cupo comprometido es insight de flujo, no campo=valor: sin sugerencia
+    conc = {"flujo": {"sin_llegada": 4}, "hallazgos": []}
+    cupos = {"cupos": [{"tipo": "A", "numero": "C-1", "saldo": 8,
+                        "inicial": 20, "meses_restantes": 3}]}
+    r = componer_insights({"hubs": [], "puentes": []}, [], conc, cupos,
+                          VAL_VACIO)
+    assert r and r[0]["clave"].startswith("sin-cupo-")
+    assert "regla_sugerida" not in r[0]        # el compositor puro no la pone
+
+
 # ── el lattice de refinamiento ───────────────────────────────────────
 
 

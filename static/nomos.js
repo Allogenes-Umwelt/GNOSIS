@@ -269,10 +269,22 @@
     var desdeInsight = params.get('desde') || '';
     if (params.get('nombre')) {
       document.getElementById('nm-nombre').value = params.get('nombre');
-      if (desdeInsight) {
-        document.getElementById('nm-msj').textContent =
-          'Promovida desde SINAPSIS — declara la condición y el esperado';
-      }
+    }
+    // O5.2: si el insight es campo=valor, llega la regla YA derivada — se
+    // pre-llena condición y esperado (los selects ya tienen sus opciones);
+    // el operador la revisa y la crea (HITL: nunca auto-creada)
+    function sembrar(id, clave) {
+      var v = params.get(clave);
+      if (v) document.getElementById(id).value = v;
+    }
+    sembrar('nm-c-campo', 'c_campo');
+    sembrar('nm-c-valor', 'c_valor');
+    sembrar('nm-e-campo', 'e_campo');
+    sembrar('nm-e-valor', 'e_valor');
+    if (desdeInsight) {
+      document.getElementById('nm-msj').textContent = params.get('c_valor')
+        ? 'Regla derivada del insight — revísala y créala'
+        : 'Promovida desde SINAPSIS — declara la condición y el esperado';
     }
 
     document.getElementById('nm-form').addEventListener('submit', function (ev) {
