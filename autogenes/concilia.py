@@ -94,8 +94,11 @@ def _hallazgo(clave: str, clase: str, titulo: str, detalle: str,
 
 
 def _mxn(filas: list[sqlite3.Row]) -> tuple[Optional[float], int]:
-    """Suma de precios DWH (MXN) presentes + cuántas unidades no lo tienen."""
-    con_precio = [r["precio"] for r in filas if r["precio"] is not None]
+    """Suma de precios DWH (MXN) presentes + cuántas unidades no lo tienen.
+    Un precio 0 NO es un precio real: es un slice de precio VACÍO del DWH
+    (concentrado1 arma '.000' de un campo en blanco). Contarlo como $0 sería
+    afirmar que la unidad vale cero — se declara sin precio, no se estima."""
+    con_precio = [r["precio"] for r in filas if r["precio"]]
     sin = len(filas) - len(con_precio)
     return (sum(con_precio) if con_precio else None), sin
 
@@ -158,7 +161,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
 
     def _al_riesgo(filas_dwh: list[sqlite3.Row]) -> None:
         for r in filas_dwh:
-            if r["precio"] is not None:
+            if r["precio"]:                 # 0 = slice vacío, no un precio real
                 riesgo_por_unidad[r["id"]] = r["precio"]
 
     # ── vendido sin llegada ──────────────────────────────────────────
@@ -191,12 +194,15 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
         for moneda in sorted(por_moneda):
             grupo = por_moneda[moneda]
             montos = [parse_monto(r["amount"]) for r in grupo]
-            legibles = [m for m in montos if m is not None]
+            # un importe 0 es fabricación de la extracción ('0,00' cuando el
+            # regex de precio no casa, PDFs_v2) — no un importe real de $0
+            legibles = [m for m in montos if m]
             ilegibles = len(grupo) - len(legibles)
             detalle = ("Facturas físicamente llegadas que ninguna venta del "
                        "DWH cita — inventario en tránsito o venta sin registrar.")
             if ilegibles:
-                plural = "importe ilegible" if ilegibles == 1 else "importes ilegibles"
+                plural = ("importe ilegible o en cero" if ilegibles == 1
+                          else "importes ilegibles o en cero")
                 detalle += f" {ilegibles} {plural}: no se suman."
             hallazgos.append(_h(
                 f"conc-llegado-sin-venta-{moneda}", "llegado_sin_venta",

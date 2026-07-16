@@ -325,6 +325,22 @@ def test_vin_una_sola_sesion_sin_hallazgo(conn):
     assert not any(x["clase"] == "vin_inter_sesion" for x in r["hallazgos"])
 
 
+def test_cero_fabricado_no_es_precio_real(conn):
+    # DWH precio 0 (slice vacío) y PDF amount '0,00' (fabricado) NO se cuentan
+    # como $0 real: se declaran no estimables (ley cero-snake-oil).
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3", precio=0.0)   # sin llegada
+    _llegar(conn, "VIN00000000000000009", "SUELTA-1", amount="0,00",
+            moneda="USD")                                            # sin venta
+    r = conciliar(conn, SID)
+    vsl = next(x for x in r["hallazgos"] if x["clase"] == "vendido_sin_llegada")
+    assert vsl["monto"] is None                       # precio 0 no suma
+    assert "sin precio" in vsl["detalle"]
+    lsv = next(x for x in r["hallazgos"] if x["clase"] == "llegado_sin_venta")
+    assert lsv["monto"] is None                       # '0,00' no suma
+    assert "en cero" in lsv["detalle"]
+    assert r["valor_en_riesgo_mxn"] == 0.0            # ningún $0 fabricado infla
+
+
 def test_ola2_lectura_pura_doble_corrida(conn):
     ped = _pedimento(conn)
     _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1", pedimento_id=ped)
