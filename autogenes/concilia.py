@@ -48,6 +48,9 @@ SEVERIDAD = {
     "vin_duplicado_dwh": "warn",
     "vin_duplicado_llegadas": "warn",
     "extraccion_fallida": "warn",
+    # ola 2
+    "pedimento_sin_unidades": "warn",
+    "vin_inter_sesion": "warn",
 }
 
 # la regla de casamiento compartida con proyeccion.construir_grafo
@@ -302,6 +305,49 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
             None, None,
             [r["filename"] for r in errores],
             [{"filename": r["filename"]} for r in errores],
+        ))
+
+    # ── pedimento sin unidades: declarado sin vendido (F9 · ola 2) ────
+    ped_huerfanos = conn.execute(
+        "SELECT p.numero_pedimento, p.aduana FROM pedimentos p"
+        " WHERE p.session_id = ? AND NOT EXISTS ("
+        "   SELECT 1 FROM importaciones i WHERE i.pedimento_id = p.id)"
+        " ORDER BY p.numero_pedimento", (session_id,)).fetchall()
+    if ped_huerfanos:
+        hallazgos.append(_h(
+            "conc-pedimento-sin-unidades", "pedimento_sin_unidades",
+            _n(len(ped_huerfanos), "pedimento sin unidades vinculadas",
+               "pedimentos sin unidades vinculadas"),
+            "Declaraciones aduanales de la sesión que ninguna fila del DWH "
+            "cita — papel sin vendido que lo respalde. El monto no se adivina.",
+            None, None,
+            [r["numero_pedimento"] or "s/n" for r in ped_huerfanos],
+            [{"numero_pedimento": r["numero_pedimento"], "aduana": r["aduana"]}
+             for r in ped_huerfanos],
+        ))
+
+    # ── VIN en más de una sesión: reimportación o doble conteo ────────
+    # Lectura transversal read-only (mismo precedente que nomos.backtest):
+    # el mismo chasis vendido en sesiones distintas. Determinista.
+    inter = conn.execute(
+        "SELECT chasis, COUNT(DISTINCT session_id) AS n,"
+        "       GROUP_CONCAT(DISTINCT session_id) AS sesiones"
+        " FROM importaciones"
+        " WHERE chasis IS NOT NULL AND chasis != ''"
+        "   AND chasis IN (SELECT chasis FROM importaciones WHERE session_id = ?)"
+        " GROUP BY chasis HAVING COUNT(DISTINCT session_id) > 1"
+        " ORDER BY n DESC, chasis", (session_id,)).fetchall()
+    if inter:
+        hallazgos.append(_h(
+            "conc-vin-inter-sesion", "vin_inter_sesion",
+            _n(len(inter), "chasis vendido en más de una sesión",
+               "chasis vendidos en más de una sesión"),
+            "El mismo VIN aparece vendido en distintas sesiones procesadas — "
+            "reimportación o doble conteo histórico. Cuál corresponde a esta "
+            "sesión es decisión del operador; el monto no se adivina.",
+            None, None,
+            [r["chasis"] for r in inter],
+            [{"chasis": r["chasis"], "sesiones": r["sesiones"]} for r in inter],
         ))
 
     hallazgos.sort(key=lambda h: (h["monto"] is None, -(h["monto"] or 0),

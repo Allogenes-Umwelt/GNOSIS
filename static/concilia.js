@@ -29,7 +29,9 @@
       'conc-vin-dup-dwh': 'VIN repetido en el DWH',
       'conc-vin-dup-llegadas': 'VIN repetido en las llegadas',
       'conc-sin-pedimento': 'Vendidas sin pedimento vinculado',
-      'conc-extraccion-fallida': 'PDFs ilegibles'
+      'conc-extraccion-fallida': 'PDFs ilegibles',
+      'conc-pedimento-sin-unidades': 'Pedimentos sin unidades vinculadas',
+      'conc-vin-inter-sesion': 'Chasis vendido en más de una sesión'
     };
 
     function esc(s) {
@@ -333,6 +335,7 @@
     // a qué manifold pertenece cada clase de hallazgo
     var LADO = {
       vendido_sin_llegada: 'izq', sin_pedimento: 'izq', vin_duplicado_dwh: 'izq',
+      pedimento_sin_unidades: 'izq', vin_inter_sesion: 'izq',
       llegado_sin_venta: 'der', vin_duplicado_llegadas: 'der',
       extraccion_fallida: 'der',
       jn_en_disputa: 'centro', pais_en_disputa: 'centro'

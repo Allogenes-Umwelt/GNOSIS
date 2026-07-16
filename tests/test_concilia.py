@@ -278,3 +278,60 @@ def test_estado_vin_ambiguo_y_ausente(conn):
     # exacto gana aunque haya otros parciales
     ex = estado_vin(conn, SID, "VIN00000000000000001")
     assert ex["chasis"] == "VIN00000000000000001" and ex["conciliado"] is False
+
+
+# ── ola 2: pedimento sin unidades + VIN inter-sesión ─────────────────
+
+
+def test_pedimento_sin_unidades(conn):
+    ped_usado = _pedimento(conn)                       # 26-001, sí citado
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3", pedimento_id=ped_usado)
+    conn.execute("INSERT INTO pedimentos (session_id, numero_pedimento, aduana)"
+                 " VALUES (?, '26-777', 'Veracruz')", (SID,))   # nadie lo cita
+    r = conciliar(conn, SID)
+    h = next(x for x in r["hallazgos"]
+             if x["clave"] == "conc-pedimento-sin-unidades")
+    assert h["clase"] == "pedimento_sin_unidades"
+    assert h["n_unidades"] == 1 and h["monto"] is None          # no se adivina
+    assert h["unidades"] == ["26-777"]
+    assert h["refs"][0]["aduana"] == "Veracruz"
+
+
+def test_pedimento_todos_citados_sin_hallazgo(conn):
+    ped = _pedimento(conn)
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3", pedimento_id=ped)
+    r = conciliar(conn, SID)
+    assert not any(x["clase"] == "pedimento_sin_unidades" for x in r["hallazgos"])
+
+
+def test_vin_inter_sesion(conn):
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-06-10', 6, 2026)")
+    _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1")               # sesión 1
+    conn.execute("INSERT INTO importaciones (session_id, chasis, factura, precio)"
+                 " VALUES (2, 'WVGZZZ5NZMW900001', 'F2599-5N1', 500000)")  # sesión 2
+    r = conciliar(conn, SID)
+    h = next(x for x in r["hallazgos"] if x["clave"] == "conc-vin-inter-sesion")
+    assert h["clase"] == "vin_inter_sesion" and h["monto"] is None
+    assert h["unidades"] == ["WVGZZZ5NZMW900001"]
+    ses = h["refs"][0]["sesiones"]
+    assert "1" in ses and "2" in ses
+
+
+def test_vin_una_sola_sesion_sin_hallazgo(conn):
+    _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1")
+    _vender(conn, "WVGZZZ5NZMW900002", "F2699-5N2")
+    r = conciliar(conn, SID)
+    assert not any(x["clase"] == "vin_inter_sesion" for x in r["hallazgos"])
+
+
+def test_ola2_lectura_pura_doble_corrida(conn):
+    ped = _pedimento(conn)
+    _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1", pedimento_id=ped)
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-06-10', 6, 2026)")
+    conn.execute("INSERT INTO importaciones (session_id, chasis, factura, precio)"
+                 " VALUES (2, 'WVGZZZ5NZMW900001', 'F2599-5N1', 500000)")
+    conn.execute("INSERT INTO pedimentos (session_id, numero_pedimento)"
+                 " VALUES (?, '26-777')", (SID,))
+    assert conciliar(conn, SID) == conciliar(conn, SID)   # misma base, misma salida
