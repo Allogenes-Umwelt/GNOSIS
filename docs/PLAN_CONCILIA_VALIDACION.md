@@ -413,6 +413,19 @@ capturas antes/después en ambos temas.
     construcción. Color desde tokens (el cambio de tema no redibuja). Medio:
     SVG (no canvas) — decisión consciente avisada, pues vuelve imposible el
     bug de texto truncado y es vanilla (no toca la ley de sin-bundler).
+- **OLA 2 — COMPLETA** (commits `4990887`, `9023dd5`, `f1b5008`). El
+  antes/después completo del backend vive en
+  `docs/OLA2_CONCILIA_VALIDACION_ANTES_DESPUES.md`. Resumen: la verificación
+  de datos reales (gate del plan) descartó 2 detectores como ruido (D4
+  patente desalineada, D6 leyenda solo-fila-0) y reformó 2 (D2 fechas →
+  regla `val-dwh-fecha`; D7 dígito verificador → `val-*-vin-chars` I/O/Q).
+  Embarcaron: CONCILIA `pedimento_sin_unidades` + `vin_inter_sesion`, y el
+  endurecimiento de honestidad (ceros fabricados/vacíos ya no cuentan como
+  $0 real — `valor_en_riesgo` sin cambio, conteos "sin precio" crecen);
+  VALIDACIÓN +6 reglas (16→22): fecha, precio-cero, importe-cero, vin-chars
+  ×2, moneda-cat. La regla de casamiento y los 8 hallazgos originales,
+  intactos. 486 tests verdes; verificado end-to-end en la escalera del
+  caudal (9 estaciones, escala por construcción) y en VALIDACIÓN.
 - **OLA 0 — pendiente** (paridad con QUALIA: tool Jarvis de validación,
   métrica de conformidad en el landing, export PNG/CSV, `?sel=`). No
   bloquea; se intercalará cuando se pida.
