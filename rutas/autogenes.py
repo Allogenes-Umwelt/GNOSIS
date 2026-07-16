@@ -876,6 +876,20 @@ def api_validacion_disponer():
     return _disponer_hallazgo('validacion')
 
 
+@bp.route('/api/v1/autogenes/control', methods=['GET'])
+def api_control():
+    """CONTROL (A3): SPC transversal — cada métrica citada de la sesión
+    contra su historia, con banda medida y señal de cambio de régimen."""
+    from autogenes.control import control
+
+    def handler(conn, session_id):
+        return jsonify(control(conn, session_id))
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/sinapsis', methods=['GET'])
 def api_sinapsis():
     """SINAPSIS (F11): conjunciones verificadas entre las salidas vivas
