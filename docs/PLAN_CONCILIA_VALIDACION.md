@@ -1,9 +1,13 @@
 # PLAN — CONCILIA & VALIDACIÓN: de motores de lectura a flujo de investigación
 
-**Estado: PROPUESTA — nada de este documento se construye sin el visto bueno del
-operador (Jesús).** Ejecutor previsto: Opus 4.8, sobre la rama designada
-`claude/gnosis-autogenes-i-85bwsd-2zxb65` con espejo en
-`claude/gnosis-autogenes-i-85bwsd` (cada commit se empuja a ambas).
+**Estado: EJECUTADO — OLAS 0–5 completas + remates de backlog cerrados**
+(ver §Bitácora de ejecución). La propuesta se construyó por olas con visto
+bueno del operador (Jesús) en cada punto de decisión visual. Ejecutor: Opus
+4.8, sobre la rama designada `claude/gnosis-autogenes-i-85bwsd-2zxb65` con
+espejo en `claude/gnosis-autogenes-i-85bwsd` (cada commit se empujó a ambas).
+El cuerpo del plan (§0–§5) se conserva como el intento rector; la bitácora
+registra lo que embarcó y en qué se desvió (verificación de datos, rediseños
+visuales) — el diseño ganó, no la fidelidad al boceto.
 
 Este plan eleva CONCILIA (F9) y VALIDACIÓN (F10) desde su estado actual —
 dos motores de lectura excelentes pero pasivos — hacia el hueco que el propio
@@ -401,8 +405,8 @@ capturas antes/después en ambos temas.
   (POST → re-deriva → contradicción) en Nocturne y Daylight. 14 tests nuevos;
   suite 478 verde. Decisión de diseño ratificada por el operador: pills en
   acento, magenta sólo en la contradicción, selección en acento (no magenta).
-  - Pendiente menor: la disposición de NOMOS (motor admitido por el esquema)
-    no tiene UI aún — se atará cuando NOMOS deje de estar «Latente».
+  - ~~Pendiente menor: la disposición de NOMOS no tiene UI aún.~~ **RESUELTO**
+    (remate `0149b5a`, ver abajo): NOMOS ya tiene el ciclo de vida O1.
   - **Rediseño del caudal (post-O1):** la «Anatomía del caudal» pasó de un
     Sankey-tabla (chips con texto truncado, sin foco, no escalaba) a una
     **escalera de derivaciones tipo P&ID** en SVG determinista: espina
@@ -426,9 +430,60 @@ capturas antes/después en ambos temas.
   ×2, moneda-cat. La regla de casamiento y los 8 hallazgos originales,
   intactos. 486 tests verdes; verificado end-to-end en la escalera del
   caudal (9 estaciones, escala por construcción) y en VALIDACIÓN.
-- **OLA 0 — pendiente** (paridad con QUALIA: tool Jarvis de validación,
-  métrica de conformidad en el landing, export PNG/CSV, `?sel=`). No
-  bloquea; se intercalará cuando se pida.
+- **OLA 3 — COMPLETA** (commit `9929ce0`). El expediente de defensa como
+  producto imprimible: índice de cobertura (qué fracción del riesgo cita fila /
+  pedimento / fragmento), sello sha256 re-derivable (`autogenes/sello.py`,
+  `verificar` devuelve guardado vs re-derivado) que hace el producto a prueba
+  de manipulación, y `templates/autogenes_expediente.html` print-first
+  (`@media print`, ruta con id string no int) que ramifica por unidad
+  (concilia/validacion). CONCILIA y VALIDACIÓN dockean con sello + cobertura.
+- **OLA 4 — COMPLETA** (commits `1e49693` motor, `182697a` visual). CONTROL
+  (A3): SPC transversal en `autogenes/control.py` — cada métrica citada
+  (conformidad_pct, pct_conciliado, valor_en_riesgo_mxn) contra su historia
+  con banda medida (mediana ± k·MAD, k=3) y señal dentro/fuera de régimen.
+  Puro y determinista (doble corrida). UI `static/control.js`: tres cartas de
+  control SVG (banda, mediana, serie, punto focal, ficha técnica) montadas en
+  ambos tableros; el metabolismo publica al Radar un régimen «fuera» como
+  urgencia informativa (no crítica: un cambio de régimen no es por sí malo).
+- **OLA 5 — COMPLETA** (commits `95818dc` lattice, `53969e7` espaciado,
+  `cf2a9a3` volante). El uplift de VALIDACIÓN a un **lattice de conformidad**
+  de teoría de conjuntos: ⊤ = U desciende por los tamices de norma y cada fila
+  cae en su PEOR capa (rechazado sobre observado); ⊥ = ⋂ V̄ᵣ es la conformidad
+  probada; los tamices en cero (V = ∅) colapsan a una línea. O5.3 veredicto en
+  capas: `veredicto_regla` (eje distinto de `severidad`, que colorea el grafo).
+  O5.4 backend: descomposición de conformidad por riel + retícula (una celda
+  por fila, peor veredicto), con `pasa == conformes` por construcción y test de
+  doble corrida. O5.1 convergencia NOMOS: las reglas del operador entran a su
+  estrato con marca `·NOMOS·` y P&L, traídas aparte — jamás tocan
+  `conformidad_pct`. Frontend: retícula héroe + lattice SVG determinista + el
+  ciclo de vida O1 movido a la ficha (tamiz cerrado = fantasma, contradicho =
+  ≠). O5.2 volante insight→regla: SINAPSIS ofrece «formalizar regla» SOLO donde
+  el insight es campo=valor (hoy `error_confirmado`), derivando «pais_code = P
+  ⇒ j_y_n = N» de las filas confirmadas reales y pre-llenando el formulario
+  NOMOS (HITL: el operador la crea, nunca se auto-crea; los insights
+  topológicos/de flujo no reciben botón — no se ofrece regla donde no la hay).
+  Verificado en vivo en Nocturne y Daylight; 504 tests verdes.
+- **OLA 0 — COMPLETA** (commit `6bfc25a` paridad, `4465aad` O0.4). Paridad con
+  QUALIA: tool Jarvis de validación, métrica de conformidad en el landing,
+  export CSV. **O0.4** (el último ítem, `4465aad`): el cajón de dossier
+  compartido (`QualiaDossier`) y su selección `?sel` cross-tab, antes solo en
+  la familia QUALIA, cableados en CONCILIA/VALIDACIÓN/NOMOS: cada VIN citado es
+  un enlace al expediente de la entidad (`static/vin_dossier.js` → `vinChip` +
+  delegación única), y `?sel=<vin>` auto-abre el cajón. Degradación honesta:
+  donde el caso no ingirió documento para ese VIN, el cajón dice «No hay
+  entidad» — enciende en el caso de uso de AUTOGENES, donde la fila DWH y la
+  entidad de conocimiento son el mismo VIN.
+- **Remates de backlog — COMPLETOS.**
+  - **Ciclo de vida O1 para NOMOS** (commit `0149b5a`): NOMOS era el único
+    motor de descuadre sin la capa de disposición. `api_nomos` anota las reglas
+    incumplidas (por id de regla) con su disposición; una regla marcada
+    resuelta que sigue incumpliéndose se contradice (≠); una en paz verifica su
+    resolución. Ruta `/nomos/disponer` (puerta única Sustrato, ya admitía
+    `motor='nomos'`). UI en la ficha (la tarjeta es `<button>`, no anida el seg)
+    + ledger de triaje + tira de verificados; el tamiz NOMOS del lattice de
+    VALIDACIÓN refleja la misma disposición (fantasma / ≠) — un ciclo, dos
+    superficies. 2 tests nuevos.
+  - **O0.4** (documentado arriba bajo OLA 0).
 
 ## 6. Criterios de aceptación globales
 
