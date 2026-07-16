@@ -461,6 +461,63 @@ def cupos_what_if(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     }
 
 
+# ── ola 3: índice de cobertura documental (A4) ───────────────────────
+
+
+def cobertura(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+    """Índice de cobertura documental: qué fracción del valor vendido
+    MEDIBLE está respaldada por factura física, y el complemento declarado.
+    Una unidad está respaldada si tiene precio legible en el DWH Y una
+    factura física que la ampara (misma regla de casamiento). Declarar la
+    propia fragilidad ES la credibilidad — el complemento se dice, no se
+    esconde. Lectura pura y determinista."""
+    filas = conn.execute(
+        f"SELECT i.id, i.precio, ef.id AS ef_id"
+        f" FROM importaciones i"
+        f" LEFT JOIN extraccion_facturas ef ON{_JOIN_PAR}"
+        f" WHERE i.session_id = ? ORDER BY i.id", (session_id,),
+    ).fetchall()
+    por_imp: dict[int, list[sqlite3.Row]] = {}
+    for r in filas:
+        por_imp.setdefault(r["id"], []).append(r)
+
+    con_precio = sin_precio = sin_factura = 0
+    valor_medible = valor_respaldado = 0.0
+    for pares in por_imp.values():
+        precio = pares[0]["precio"]
+        casada = any(p["ef_id"] is not None for p in pares)
+        if precio:
+            con_precio += 1
+            valor_medible += precio
+            if casada:
+                valor_respaldado += precio
+        else:
+            sin_precio += 1
+        if not casada:
+            sin_factura += 1
+
+    pdfs_ilegibles = conn.execute(
+        "SELECT COUNT(*) FROM facturas_errores WHERE session_id = ?",
+        (session_id,)).fetchone()[0]
+    pct = (round(100 * valor_respaldado / valor_medible)
+           if valor_medible else None)
+    return {
+        "session_id": session_id,
+        "unidades": len(por_imp),
+        "con_precio": con_precio,
+        "sin_precio": sin_precio,
+        "unidades_sin_factura": sin_factura,
+        "valor_medible_mxn": round(valor_medible, 2),
+        "valor_respaldado_mxn": round(valor_respaldado, 2),
+        "pct_respaldado": pct,
+        "pdfs_ilegibles": pdfs_ilegibles,
+        "nota": ("El respaldo es el valor de las unidades con precio en el "
+                 "DWH Y factura física que las ampara; el complemento "
+                 "descansa en unidades sin factura, sin precio o con PDF "
+                 "ilegible — declarado, no escondido."),
+    }
+
+
 # ── ola 2: dossier de defensa ────────────────────────────────────────
 
 TOPE_DOSSIER = 2000
@@ -483,11 +540,15 @@ def dockear_dossier(conn: sqlite3.Connection, session_id: int,
         return {"error": f"El hallazgo «{clave}» ya no existe — el estado "
                          "vivo cambió; recarga el tablero."}
 
+    from autogenes.sello import sellar
+
     cuerpo = {
         "hallazgo": hallazgo,
         "flujo": r["flujo"],
         "valor_en_riesgo_mxn": r["valor_en_riesgo_mxn"],
+        "cobertura": cobertura(conn, session_id),
     }
+    cuerpo["sello"] = sellar(cuerpo)     # integridad re-derivable (C1-lite)
     producto = Sustrato(conn, session_id).dockear_producto(
         clase="informe",
         titulo=f"Dossier CONCILIA — {hallazgo['titulo']}",

@@ -289,7 +289,9 @@
             return;
           }
           btnDossier.textContent = 'dossier dockeado';
-          elMsj.textContent = '«' + res.j.producto.titulo + '» ya es producto del grafo';
+          elMsj.innerHTML = '«' + esc(res.j.producto.titulo) + '» dockeado · ' +
+            '<a href="/autogenes/expediente/' + esc(res.j.producto.id) +
+            '" target="_blank" rel="noopener">abrir expediente</a>';
         })
         .catch(function () {
           btnDossier.disabled = false;

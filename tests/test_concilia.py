@@ -341,6 +341,36 @@ def test_cero_fabricado_no_es_precio_real(conn):
     assert r["valor_en_riesgo_mxn"] == 0.0            # ningún $0 fabricado infla
 
 
+def test_cobertura_respaldo_documental(conn):
+    from autogenes.concilia import cobertura
+    ped = _pedimento(conn)
+    # respaldada: precio + factura física
+    _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1", precio=500000, pedimento_id=ped)
+    _llegar(conn, "WVGZZZ5NZMW900001", "F2699-5N", amount="500,000.00")
+    # vendida sin llegada: precio pero sin factura
+    _vender(conn, "WVGZZZ5NZMW900002", "F2699-5N2", precio=300000)
+    # sin precio (slice vacío): no medible
+    _vender(conn, "WVGZZZ5NZMW900003", "F2699-5N3", precio=0.0)
+    c = cobertura(conn, SID)
+    assert c["unidades"] == 3
+    assert c["con_precio"] == 2 and c["sin_precio"] == 1
+    assert c["unidades_sin_factura"] == 2         # la 2 y la 3
+    assert c["valor_medible_mxn"] == 800000.0     # 500k + 300k (el 0 no medible)
+    assert c["valor_respaldado_mxn"] == 500000.0  # solo la casada
+    assert c["pct_respaldado"] == 62              # 500k / 800k = 62.5, round→62
+    assert cobertura(conn, SID) == c              # doble corrida idéntica
+
+
+def test_dossier_lleva_cobertura_y_sello_verificable(conn):
+    from autogenes.concilia import dockear_dossier
+    from autogenes.sello import verificar
+    _vender(conn, "WVGZZZ5NZMW900002", "F2699-5N2", precio=300000)  # sin llegada
+    r = dockear_dossier(conn, SID, "conc-vendido-sin-llegada")
+    cuerpo = r["producto"]["cuerpo"]
+    assert "cobertura" in cuerpo and "sello" in cuerpo
+    assert verificar(cuerpo)["valido"] is True    # sello re-derivable
+
+
 def test_ola2_lectura_pura_doble_corrida(conn):
     ped = _pedimento(conn)
     _vender(conn, "WVGZZZ5NZMW900001", "F2699-5N1", pedimento_id=ped)

@@ -793,7 +793,7 @@ def api_concilia():
                                          resumen_estados)
 
     def handler(conn, session_id):
-        from autogenes.concilia import SEVERIDAD
+        from autogenes.concilia import SEVERIDAD, cobertura
         r = conciliar(conn, session_id)
         disp = leer_disposiciones(conn, session_id, 'concilia')
         anotar(r['hallazgos'], disp)
@@ -802,6 +802,7 @@ def api_concilia():
         claves = {h['clave'] for h in r['hallazgos']}
         r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
         r['estados'] = resumen_estados(r['hallazgos'])
+        r['cobertura'] = cobertura(conn, session_id)
         return jsonify(r)
     try:
         return _con_sesion(handler)
@@ -1071,6 +1072,65 @@ def api_validacion_certificado():
         if 'error' in r:
             return jsonify(r), 422
         return jsonify(r)
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/autogenes/expediente/<producto_id>')
+def autogenes_expediente(producto_id):
+    """Expediente de defensa imprimible (A8): renderiza un producto dockeado
+    (dossier CONCILIA o certificado VALIDACIÓN) como documento de defensa —
+    hallazgo/reglas → filas → cobertura → sello → cronología de bitácora.
+    El navegador imprime a PDF; cero dependencias nuevas. Lectura pura."""
+    import json as _json
+
+    from autogenes.sello import verificar
+    from database import get_connection
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT p.id, p.session_id, p.titulo, p.unidad, p.cuerpo,"
+            " p.created_at, s.month_processed, s.year_processed"
+            " FROM ag_productos p JOIN processing_sessions s"
+            " ON p.session_id = s.id WHERE p.id = ?", (producto_id,)).fetchone()
+        if row is None:
+            return "Expediente inexistente", 404
+        cuerpo = _json.loads(row['cuerpo']) if row['cuerpo'] else {}
+        bitacora = [dict(b) for b in conn.execute(
+            "SELECT ts, accion, detalle FROM ag_bitacora WHERE session_id = ?"
+            " ORDER BY id DESC LIMIT 20", (row['session_id'],))]
+    finally:
+        conn.close()
+    return render_template(
+        'autogenes_expediente.html',
+        pid=row['id'], titulo=row['titulo'], unidad=row['unidad'],
+        sesion=f"{row['month_processed']:02d}/{row['year_processed']}",
+        dockeado=row['created_at'], cuerpo=cuerpo,
+        verif=verificar(cuerpo), bitacora=bitacora)
+
+
+@bp.route('/api/v1/autogenes/producto/<producto_id>/verificar', methods=['GET'])
+def api_producto_verificar(producto_id):
+    """SELLO (C1-lite): re-deriva el hash del cuerpo del producto dockeado
+    (dossier/certificado) y lo compara con el sello guardado — el expediente
+    es tamper-evident. Lectura pura; jamás escribe."""
+    import json as _json
+
+    from autogenes.sello import verificar
+
+    def handler(conn, session_id):
+        row = conn.execute(
+            "SELECT id, titulo, unidad, cuerpo FROM ag_productos"
+            " WHERE id = ? AND session_id = ?",
+            (producto_id, session_id)).fetchone()
+        if row is None:
+            return jsonify({'error': f'Producto inexistente: {producto_id}'}), 404
+        cuerpo = _json.loads(row['cuerpo']) if row['cuerpo'] else {}
+        v = verificar(cuerpo)
+        return jsonify({'producto_id': row['id'], 'titulo': row['titulo'],
+                        'unidad': row['unidad'], **v})
     try:
         return _con_sesion(handler)
     except Exception as e:

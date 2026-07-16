@@ -121,6 +121,17 @@ def test_certificado_dockea_conformidad_completa_sin_tope(conn):
     assert p["evidencia"] == [] and p["entidades"] == []
 
 
+def test_certificado_lleva_sello_verificable(conn):
+    from autogenes.sello import verificar
+    from autogenes.validacion import dockear_certificado
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)
+    r = dockear_certificado(conn, SID)
+    cuerpo = r["producto"]["cuerpo"]
+    assert "sello" in cuerpo
+    assert verificar(cuerpo)["valido"] is True
+
+
 def test_certificado_sin_filas_no_escribe(conn):
     from autogenes.validacion import dockear_certificado
     r = dockear_certificado(conn, SID)

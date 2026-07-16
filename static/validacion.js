@@ -163,7 +163,9 @@
             return;
           }
           btnCert.textContent = 'certificado dockeado';
-          msj.textContent = '«' + res.j.producto.titulo + '» ya es producto del grafo';
+          msj.innerHTML = '«' + esc(res.j.producto.titulo) + '» dockeado · ' +
+            '<a href="/autogenes/expediente/' + esc(res.j.producto.id) +
+            '" target="_blank" rel="noopener">abrir expediente</a>';
         })
         .catch(function () {
           btnCert.disabled = false;

@@ -247,11 +247,14 @@ def dockear_certificado(conn: sqlite3.Connection,
     aduanales, no fragmentos: evidencia vacía, jamás fabricada."""
     from autogenes.sustrato import Sustrato
 
+    from autogenes.sello import sellar
+
     r = validar(conn, session_id, tope=TOPE_CERTIFICADO)
     if not r["filas"]["dwh"] and not r["filas"]["pdf"]:
         return {"error": "La sesión no tiene filas que certificar"}
 
     pct = r["conformidad_pct"]
+    r["sello"] = sellar(r)               # integridad re-derivable (C1-lite)
     producto = Sustrato(conn, session_id).dockear_producto(
         clase="informe",
         titulo=f"Certificado de conformidad — {pct}%",
