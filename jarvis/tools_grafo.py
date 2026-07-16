@@ -66,6 +66,12 @@ def conciliacion(session_id=None):
     return _ejecutar(_todo, session_id)
 
 
+def validacion(session_id=None):
+    """VALIDACIÓN (F10): conformidad por regla + % de filas conformes."""
+    from autogenes.validacion import validar
+    return _ejecutar(validar, session_id)
+
+
 GRAFO_TOOL_FUNCTIONS = {
     'expediente_entidad': expediente_entidad,
     'camino_entre': camino_entre,
@@ -74,6 +80,7 @@ GRAFO_TOOL_FUNCTIONS = {
     'senales_caso': senales_caso,
     'hallazgos_pendientes': hallazgos_pendientes,
     'conciliacion': conciliacion,
+    'validacion': validacion,
 }
 
 _SESSION_PROP = {"type": "integer",
@@ -189,6 +196,23 @@ GRAFO_TOOL_DEFINITIONS = [
             "MXN por unidad distinta, y what-if de cupos con run-rate "
             "medido. Usar para 'cuanto valor esta en riesgo', 'que no "
             "concilia' o 'cuando se agota el cupo'."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"session_id": _SESSION_PROP},
+            "required": [],
+        },
+    },
+    {
+        "name": "validacion",
+        "description": (
+            "Estado VALIDACION de la sesion (glosa preventiva F10): cada "
+            "regla determinista evaluada sobre todas las filas (obligatorios, "
+            "VIN de 17 y sin I/O/Q, pais y moneda en catalogo, fecha DDMMYY, "
+            "precio/importe en cero fabricado, preferencia J/N contra la "
+            "norma por pais), el conteo de violaciones y el porcentaje de "
+            "filas plenamente conformes. Usar para 'que no cumple la norma', "
+            "'que glosaria el SAT' o 'cual es la conformidad de la sesion'."
         ),
         "input_schema": {
             "type": "object",

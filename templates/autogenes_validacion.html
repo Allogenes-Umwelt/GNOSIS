@@ -30,7 +30,11 @@
         <div class="qa-bar"><span class="l">Violaciones</span><span class="v" id="vl-total">—</span></div>
       </div>
 
-      <div class="qa-sec">Normas</div>
+      <div class="qa-sec" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Normas</span>
+        <button type="button" id="vl-export" class="qa-exp-btn"
+                aria-label="Exportar normas en CSV">exportar CSV</button>
+      </div>
       <p class="qa-base-hint" style="margin:0 0 8px">Cada regla se evalúa
       sobre TODAS las filas de su fuente; una regla en cero es conformidad
       probada, no un renglón omitido. La regla «C.O + USA = J» no se evalúa:

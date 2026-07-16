@@ -141,6 +141,21 @@
         });
     }
 
+    // export CSV de los hallazgos (datos crudos del motor)
+    var btnExport = document.getElementById('cn-export');
+    if (btnExport) btnExport.addEventListener('click', function () {
+      if (!datos) return;
+      CV.exportarCSV('CNC-01 · CONCILIA', datos.session_id,
+        ['clave', 'clase', 'titulo', 'monto', 'moneda', 'n_unidades',
+         'estado', 'contradice'],
+        datos.hallazgos.map(function (h) {
+          return [h.clave, h.clase, h.titulo, h.monto == null ? '' : h.monto,
+                  h.moneda || '', h.n_unidades, h.estado || 'nuevo',
+                  h.contradice ? 'sí' : 'no'];
+        }), 'concilia',
+        'conteos y montos reales del motor — sin estimaciones');
+    });
+
     // disposición (delegada) + filtro
     CV.conectar(elLista, 'concilia', recargar);
     elFiltros.addEventListener('click', function (ev) {

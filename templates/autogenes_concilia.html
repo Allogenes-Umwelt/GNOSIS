@@ -35,7 +35,11 @@
         <div class="cn-banda"><span class="tag">PDF</span><div class="pista" id="cn-banda-pdf"></div><span class="pct" id="cn-pct-pdf"></span></div>
       </div>
 
-      <div class="qa-sec">Hallazgos</div>
+      <div class="qa-sec" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Hallazgos</span>
+        <button type="button" id="cn-export" class="qa-exp-btn"
+                aria-label="Exportar hallazgos en CSV">exportar CSV</button>
+      </div>
       <p class="qa-base-hint" style="margin:0 0 8px">Cada hallazgo es una
       discrepancia medida entre fuentes ya conciliadas por el pipeline; el
       monto es la suma de valores reales de las unidades afectadas, en su

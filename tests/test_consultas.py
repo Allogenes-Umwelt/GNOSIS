@@ -157,7 +157,7 @@ def test_tools_grafo_publicadas_al_modelo():
     nombres = {t["name"] for t in TOOL_DEFINITIONS}
     esperadas = {"expediente_entidad", "camino_entre", "vecindario",
                  "resumen_grafo", "senales_caso", "hallazgos_pendientes",
-                 "conciliacion"}
+                 "conciliacion", "validacion"}
     assert esperadas <= nombres
     assert esperadas == set(GRAFO_TOOL_FUNCTIONS)
     # cada definición es un input_schema válido con required presente

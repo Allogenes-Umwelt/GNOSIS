@@ -86,9 +86,21 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
         # hallazgos CONCILIA (F9): conteo real con datos aduanales; una
         # sesión puramente de sustrato queda latente, no en cero falso
         "hallazgos": _hallazgos_concilia(conn, session_id, vehiculos, facturas),
+        # conformidad VALIDACIÓN (F10): % de filas plenamente conformes; sin
+        # filas aduanales queda latente (None), no un 100% falso
+        "conformidad_pct": _conformidad_validacion(conn, session_id,
+                                                   vehiculos, facturas),
         # reglas NOMOS (F12): conteo real; sin tabla migrada queda latente
         "reglas": _reglas_nomos(conn, session_id),
     }
+
+
+def _conformidad_validacion(conn: sqlite3.Connection, session_id: int,
+                            vehiculos: int, facturas: int) -> Optional[int]:
+    if not vehiculos and not facturas:
+        return None
+    from autogenes.validacion import validar
+    return validar(conn, session_id)["conformidad_pct"]
 
 
 def _reglas_nomos(conn: sqlite3.Connection, session_id: int) -> Optional[int]:

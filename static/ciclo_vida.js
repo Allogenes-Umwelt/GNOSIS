@@ -205,10 +205,30 @@ window.CicloVida = (function () {
     });
   }
 
+  // ── export CSV: los datos crudos del motor con pie de fuente ───────
+  function exportarCSV(desig, sesion, head, filas, nombre, metodo) {
+    function celda(v) {
+      v = v == null ? '' : String(v);
+      return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }
+    var d = new Date();
+    var fecha = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) +
+      '-' + ('0' + d.getDate()).slice(-2);
+    var lin = ['# GNOSIS · ' + desig + ' · sesión ' + (sesion || '—') +
+      ' · ' + fecha + ' · ' + metodo];
+    lin.push(head.map(celda).join(','));
+    filas.forEach(function (f) { lin.push(f.map(celda).join(',')); });
+    var blob = new Blob([lin.join('\n')], { type: 'text/csv;charset=utf-8' });
+    var u = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = u; a.download = nombre + '-' + fecha + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+  }
+
   return {
     ESTADOS: ESTADOS, CERRADOS: CERRADOS, esc: esc, dinero: dinero,
     sevChip: sevChip, seg: seg, traza: traza, contra: contra, ledger: ledger,
     filtros: filtros, pasa: pasa, verificadas: verificadas,
-    disponer: disponer, conectar: conectar
+    disponer: disponer, conectar: conectar, exportarCSV: exportarCSV
   };
 })();

@@ -99,6 +99,17 @@
         });
     }
 
+    var btnExport = document.getElementById('vl-export');
+    if (btnExport) btnExport.addEventListener('click', function () {
+      if (!datos) return;
+      CV.exportarCSV('VLD-02 · VALIDACIÓN', datos.session_id,
+        ['clave', 'fuente', 'titulo', 'base', 'violaciones', 'norma'],
+        datos.reglas.map(function (r) {
+          return [r.clave, r.fuente, r.titulo, r.base, r.n, r.norma];
+        }), 'validacion',
+        'todas las reglas evaluadas — salida determinista del motor');
+    });
+
     CV.conectar(elReglas, 'validacion', recargar);
     elFiltros.addEventListener('click', function (ev) {
       var b = ev.target.closest('.cv-filtro');
