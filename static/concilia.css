@@ -342,6 +342,7 @@
 .cv-contra .tx b { color: var(--danger); }
 .cn-caja.contradicha { border-color: var(--danger); }
 .cn-caja.cerrada { opacity: .62; }
+.nm-contra { color: var(--danger); font-weight: 700; font-family: var(--font-mono); }
 
 /* resoluciones verificadas por el motor */
 .cv-verif {

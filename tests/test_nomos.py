@@ -48,6 +48,44 @@ def test_regla_mp_anatomia_disparos_y_pnl(conn):
         "SELECT COUNT(*) FROM ag_bitacora WHERE accion='regla'").fetchone()[0] == 1
 
 
+def test_disposicion_contradice_regla_incumplida(conn):
+    # O1 para NOMOS: 'vivo' = la regla SIGUE incumpliéndose. Marcarla resuelta
+    # sin corregir el dato la deja contradicha — el motor no cree la palabra.
+    from autogenes.disposiciones import (anotar, leer_disposiciones,
+                                         resoluciones_verificadas)
+    s = Sustrato(conn, 1)
+    rg = s.crear_regla("BRA = N", [{"campo": "pais_code", "valor": "BRA"}],
+                       {"campo": "j_y_n", "valor": "N"})
+    s.disponer_hallazgo("nomos", rg["id"], "resuelto", "supuestamente corregido")
+    r = evaluar_reglas(conn, 1)
+    disp = leer_disposiciones(conn, 1, "nomos")
+    for e in r["reglas"]:
+        e["clave"] = e["id"]
+    incumplidas = [e for e in r["reglas"] if e["n_violaciones"] > 0]
+    anotar(incumplidas, disp)
+    e = next(x for x in incumplidas if x["id"] == rg["id"])
+    assert e["estado"] == "resuelto" and e["contradice"] is True
+    # sigue viva: no cuenta como resolución verificada
+    assert resoluciones_verificadas({x["clave"] for x in incumplidas}, disp) == []
+
+
+def test_disposicion_de_regla_en_paz_se_verifica(conn):
+    # una regla SIN violaciones marcada resuelta: sale del triaje y el motor
+    # confirma la resolución (no aparece entre las incumplidas vivas)
+    from autogenes.disposiciones import leer_disposiciones, resoluciones_verificadas
+    s = Sustrato(conn, 1)
+    rg = s.crear_regla("DEU = J", [{"campo": "pais_code", "valor": "DEU"}],
+                       {"campo": "j_y_n", "valor": "J"})          # V4 cumple
+    s.disponer_hallazgo("nomos", rg["id"], "resuelto", "modelo confirmado")
+    r = evaluar_reglas(conn, 1)
+    e = next(x for x in r["reglas"] if x["id"] == rg["id"])
+    assert e["n_violaciones"] == 0
+    disp = leer_disposiciones(conn, 1, "nomos")
+    incumplidas = {x["id"] for x in r["reglas"] if x["n_violaciones"] > 0}
+    verif = resoluciones_verificadas(incumplidas, disp)
+    assert any(v["clave"] == rg["id"] for v in verif)
+
+
 def test_regla_multicondicion_es_and_con_umbral_n(conn):
     s = Sustrato(conn, 1)
     s.crear_regla("BRA con J", [{"campo": "pais_code", "valor": "BRA"},

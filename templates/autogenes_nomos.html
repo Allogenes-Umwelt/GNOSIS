@@ -37,9 +37,11 @@
       esperado. Aquí ves cuántas filas caen en cada regla, cuántas cumplen y
       cuánto vale lo que no cumple. Toca una regla para ver cómo decide, a la
       derecha.</p>
+      <div id="nm-ledger" aria-label="Estado de la gestión"></div>
       <div class="qa-lista" id="nm-reglas" aria-live="polite">
         <p class="qa-base-hint">Cargando reglas…</p>
       </div>
+      <div id="nm-verificadas" aria-live="polite"></div>
 
       <div class="qa-sec">Declarar regla</div>
       <form id="nm-form" class="nm-form">
@@ -86,6 +88,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="{{ url_for('static', filename='ciclo_vida.js') }}"></script>
 <script src="{{ url_for('static', filename='nomos.js') }}"></script>
 <script>
 (function () {

@@ -988,15 +988,38 @@ def api_autogenes_bitacora():
 @bp.route('/api/v1/autogenes/nomos', methods=['GET'])
 def api_nomos():
     """NOMOS (F12): todas las reglas evaluadas como neuronas M-P, con
-    anatomía por condición, disparos, violaciones y P&L en MXN."""
+    anatomía por condición, disparos, violaciones y P&L en MXN. Las reglas
+    CON violaciones son 'hallazgos' con ciclo de vida (O1): se anotan con su
+    disposición y el motor las contradice si dices resuelto lo que sigue
+    incumpliéndose. La clave de disposición es el id de la regla."""
+    from autogenes.disposiciones import (anotar, leer_disposiciones,
+                                         resoluciones_verificadas,
+                                         resumen_estados)
     from autogenes.nomos import evaluar_reglas
 
     def handler(conn, session_id):
-        return jsonify(evaluar_reglas(conn, session_id))
+        r = evaluar_reglas(conn, session_id)
+        disp = leer_disposiciones(conn, session_id, 'nomos')
+        for e in r['reglas']:
+            e['clave'] = e['id']
+        # 'vivo' para NOMOS = la regla SIGUE incumpliéndose (n_violaciones>0);
+        # una regla ya en paz sale del triaje y verifica su resolución
+        incumplidas = [e for e in r['reglas'] if e['n_violaciones'] > 0]
+        anotar(incumplidas, disp)
+        claves = {e['clave'] for e in incumplidas}
+        r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
+        r['estados'] = resumen_estados(incumplidas)
+        return jsonify(r)
     try:
         return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@bp.route('/api/v1/autogenes/nomos/disponer', methods=['POST'])
+def api_nomos_disponer():
+    """Dispone una regla NOMOS incumplida por su id (O1)."""
+    return _disponer_hallazgo('nomos')
 
 
 @bp.route('/api/v1/autogenes/nomos/regla', methods=['POST'])

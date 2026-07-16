@@ -101,7 +101,8 @@
         if (e.n_violaciones > 0) {
           q.rd.push({
             clave: 'nomos:' + e.id, titulo: e.nombre, n: e.n_violaciones,
-            base: e.base, cap: 'rechazado', pnl: e.pnl_mxn, nomos: true, side: 'l'
+            base: e.base, cap: 'rechazado', pnl: e.pnl_mxn, nomos: true,
+            side: 'l', estado: e.estado, contradice: e.contradice
           });
         } else {
           nconf.push(e);

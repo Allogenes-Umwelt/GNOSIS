@@ -13,11 +13,15 @@
   document.addEventListener('DOMContentLoaded', function () {
     var elReglas = document.getElementById('nm-reglas');
     var elRefs = document.getElementById('nm-refs');
+    var elLedger = document.getElementById('nm-ledger');
+    var elVerif = document.getElementById('nm-verificadas');
     var lienzo = document.getElementById('nm-lienzo');
     var canvas = lienzo && lienzo.querySelector('canvas');
     var ctx = canvas && canvas.getContext('2d');
+    var CV = window.CicloVida;
     var datos = null;
     var activo = -1;
+    var activaId = null;      // la regla seleccionada, por id (sobrevive el re-rank)
     var colores = {};
 
     function esc(s) {
@@ -140,8 +144,17 @@
                    rg.entonces.valor, xOut, ySum + 20);
     }
 
+    function pintarGestion() {
+      if (!CV) return;
+      elLedger.innerHTML = CV.ledger(datos.estados || {}, 0);
+      var glosa = {};
+      datos.reglas.forEach(function (rg) { glosa[rg.clave || rg.id] = rg.nombre; });
+      elVerif.innerHTML = CV.verificadas(datos.resoluciones_verificadas, glosa);
+    }
+
     // ── izquierda: lista de reglas ───────────────────────────────────
     function pintarReglas() {
+      pintarGestion();
       if (!datos.reglas.length) {
         elReglas.innerHTML = '<p class="qa-base-hint">Sin reglas declaradas — ' +
           'la primera nace abajo, o promovida desde un insight SINAPSIS.</p>';
@@ -151,11 +164,20 @@
       datos.reglas.forEach(function (rg, i) {
         var pnl = rg.pnl_mxn != null
           ? '$' + num(Math.round(rg.pnl_mxn)) + ' MXN' : 'sin monto';
+        // ciclo de vida (O1): sólo las reglas incumplidas se disponen; una
+        // cerrada que sigue incumpliéndose se marca contradicha (magenta)
+        var cerrada = rg.estado === 'resuelto' || rg.estado === 'descartado';
         html += '<button type="button" class="cn-caja qa-item' +
           (i === activo ? ' activo' : '') + (rg.n_violaciones ? '' : ' vl-ok') +
+          (rg.n_violaciones && rg.contradice ? ' contradicha'
+            : (rg.n_violaciones && cerrada ? ' cerrada' : '')) +
           '" data-i="' + i + '">' +
           '<span class="clase">' + esc(rg.origen) +
-          (rg.activa ? '' : ' · inactiva') + '</span>' +
+          (rg.activa ? '' : ' · inactiva') +
+          (rg.n_violaciones && rg.estado && rg.estado !== 'nuevo'
+            ? ' · ' + esc(rg.estado.replace('_', ' ')) : '') +
+          (rg.contradice ? ' <span class="nm-contra">≠</span>' : '') +
+          '</span>' +
           '<span class="fila"><span class="titulo">' + esc(rg.nombre) + '</span>' +
           '<span class="monto' + (rg.n_violaciones ? '' : ' neutro') + '">' +
           (rg.n_violaciones ? pnl : 'en paz') + '</span></span>' +
@@ -169,6 +191,7 @@
       elReglas.querySelectorAll('.cn-caja').forEach(function (btn) {
         btn.addEventListener('click', function () {
           activo = Number(btn.dataset.i);
+          activaId = datos.reglas[activo] ? datos.reglas[activo].id : null;
           pintarReglas();
           pintarRefs();
           dibujarNeurona();
@@ -178,12 +201,22 @@
 
     function pintarRefs() {
       var rg = datos.reglas[activo];
-      if (!rg || !rg.refs.length) {
-        elRefs.innerHTML = '<p class="qa-base-hint">' +
-          (rg ? 'Ninguna fila viola esta regla.' : 'Toca una regla.') + '</p>';
+      if (!rg) {
+        elRefs.innerHTML = '<p class="qa-base-hint">Toca una regla.</p>';
         return;
       }
       var html = '';
+      // ciclo de vida (O1) en la ficha: sólo las reglas incumplidas se
+      // disponen (una regla en paz no es un hallazgo que gestionar)
+      if (rg.n_violaciones && CV) {
+        html += '<div class="cv-vida">' + CV.seg(rg.clave || rg.id, rg.estado) +
+          CV.traza(rg) + '</div>' + CV.contra(rg);
+      }
+      if (!rg.refs.length) {
+        html += '<p class="qa-base-hint">Ninguna fila viola esta regla.</p>';
+        elRefs.innerHTML = html;
+        return;
+      }
       rg.refs.forEach(function (r) {
         html += '<div class="cn-ref"><span>factura <b>' + esc(r.factura) +
           '</b> · chasis <b>' + esc(r.chasis) + '</b></span></div>';
@@ -233,8 +266,12 @@
           }
           datos = j;
           // la lista se re-rankea por P&L en cada carga: un índice viejo
-          // apuntaría a OTRA regla — la selección se suelta, no se miente
-          activo = -1;
+          // apuntaría a OTRA regla — se reancla por id, no por posición, para
+          // que disponer una regla no suelte la selección
+          activo = activaId
+            ? j.reglas.findIndex(function (r) { return r.id === activaId; })
+            : -1;
+          if (activo < 0) activaId = null;
           document.getElementById('nm-total').textContent = num(j.total);
           document.getElementById('nm-activas').textContent = num(j.activas);
           var v = document.getElementById('nm-violaciones');
@@ -333,6 +370,10 @@
         setTimeout(dibujarNeurona, 60);
       });
     }
+
+    // el ciclo de vida (O1) se dispone desde la ficha (delegación de eventos);
+    // al disponer, se recarga preservando la regla seleccionada por id
+    if (CV) CV.conectar(elRefs, 'nomos', cargar);
     cargar();
   });
 })();
