@@ -33,6 +33,19 @@ _OBLIGATORIOS_PDF = [("chasis", "chasis"), ("factura", "factura"),
 # norma de negocio verificable: país -> J/N obligado
 _JN_POR_PAIS = {"BRA": "N", "IND": "N"}
 
+# ISO 3779 excluye I, O, Q del VIN (para no confundir con 1 y 0)
+_VIN_PROHIBIDOS = frozenset("IOQ")
+
+# catálogo ISO 4217 acotado al dominio: MXN/USD/EUR/GBP observados en la
+# extracción real, más las divisas mayores y las europeas de la flota
+# VW-grupo. Método declarado: un código fuera de este conjunto se marca para
+# REVISIÓN, no se rechaza — suele ser extracción fallida (p. ej. el centinela
+# 'No se encontro coincidencia' que emite PDFs_v2).
+_MONEDAS_ISO = frozenset({
+    "MXN", "USD", "EUR", "GBP", "JPY", "CAD", "CHF", "CNY",
+    "CZK", "HUF", "PLN", "SEK", "DKK", "NOK", "BRL", "INR", "ZAR", "ARS",
+})
+
 
 def severidad_regla(clave: str) -> str:
     """Clasificación FIJA de severidad de una regla: preferencia contra la
@@ -54,8 +67,8 @@ def validar(conn: sqlite3.Connection, session_id: int,
     certificado pide más); `con_particion` agrega la partición del
     universo DWH por ids de fila (la pide SINAPSIS, no el API)."""
     dwh = conn.execute(
-        "SELECT id, chasis, factura, precio, j_y_n, pais_code, catalogo_id"
-        " FROM importaciones WHERE session_id = ? ORDER BY id",
+        "SELECT id, chasis, factura, precio, fecha_factura, j_y_n, pais_code,"
+        " catalogo_id FROM importaciones WHERE session_id = ? ORDER BY id",
         (session_id,)).fetchall()
     pdf = conn.execute(
         "SELECT id, chasis, factura, amount, moneda, j_y_n, pais_code, filename"
@@ -144,6 +157,56 @@ def validar(conn: sqlite3.Connection, session_id: int,
     regla("val-pdf-jn-norma", "Preferencia contra la norma en factura",
           norma_jn, "pdf", pdf, jn_contra_norma, ref_pdf)
 
+    # ── ola 2: fecha de factura malformada (formato documentado DDMMYY) ─
+    def fecha_mala(r: sqlite3.Row) -> bool:
+        f = (r["fecha_factura"] or "").strip()
+        if not f:
+            return False                    # ausente no se penaliza aquí
+        if not (len(f) == 6 and f.isdigit()):
+            return True
+        dia, mes = int(f[0:2]), int(f[2:4])
+        return not (1 <= dia <= 31 and 1 <= mes <= 12)
+
+    regla("val-dwh-fecha", "Fecha de factura malformada en DWH",
+          "La fecha de factura sigue el formato DDMMYY (6 dígitos, día 01-31 "
+          "y mes 01-12) que el pipeline declara; otra cosa es dato sucio.",
+          "dwh", dwh, fecha_mala, ref_dwh)
+
+    # ── ola 2: ceros fabricados / slices de precio vacíos ────────────
+    from autogenes.concilia import parse_monto
+    regla("val-dwh-precio-cero", "Precio en cero en DWH",
+          "Un precio de 0 es un campo de precio VACÍO en el DWH, no un auto "
+          "que valga cero — se revisa, no se monetiza.",
+          "dwh", dwh, lambda r: r["precio"] == 0, ref_dwh)
+    regla("val-pdf-importe-cero", "Importe fabricado en cero en factura",
+          "Un importe que extrae exactamente 0 es fabricación de la extracción "
+          "('0,00' cuando el precio no casa) — no un importe real de $0.",
+          "pdf", pdf, lambda r: parse_monto(r["amount"]) == 0, ref_pdf)
+
+    # ── ola 2: VIN con caracteres prohibidos (ISO 3779: sin I, O, Q) ──
+    def vin_chars_malo(r: sqlite3.Row) -> bool:
+        c = (r["chasis"] or "").strip().upper()
+        return len(c) == LARGO_VIN and bool(set(c) & _VIN_PROHIBIDOS)
+
+    norma_vin_chars = ("Un VIN válido no contiene I, O ni Q (ISO 3779 los "
+                       "excluye para no confundir con 1 y 0); su presencia en "
+                       "un VIN de largo correcto suele ser error de OCR.")
+    regla("val-dwh-vin-chars", "VIN con caracteres prohibidos en DWH",
+          norma_vin_chars, "dwh", dwh, vin_chars_malo, ref_dwh)
+    regla("val-pdf-vin-chars", "VIN con caracteres prohibidos en factura",
+          norma_vin_chars, "pdf", pdf, vin_chars_malo, ref_pdf)
+
+    # ── ola 2: moneda fuera de catálogo ISO 4217 ─────────────────────
+    def moneda_mala(r: sqlite3.Row) -> bool:
+        m = (r["moneda"] or "").strip().upper()
+        return bool(m) and m not in _MONEDAS_ISO
+
+    regla("val-pdf-moneda-cat", "Moneda fuera de catálogo en factura",
+          "La moneda debe ser un código ISO 4217 conocido del dominio "
+          "(MXN, USD, EUR, GBP…); fuera de catálogo suele ser extracción "
+          "fallida (p. ej. el centinela 'No se encontro coincidencia').",
+          "pdf", pdf, moneda_mala, ref_pdf)
+
     reglas.sort(key=lambda r: (-r["n"], r["clave"]))
     total_filas = len(dwh) + len(pdf)
     conformes = total_filas - len(malas_dwh) - len(malas_pdf)
@@ -178,7 +241,7 @@ TOPE_CERTIFICADO = 2000
 def dockear_certificado(conn: sqlite3.Connection,
                         session_id: int) -> dict[str, Any]:
     """Dockea el estado de conformidad COMPLETO como Producto{informe,
-    unidad validacion} — el expediente certificado: las 16 reglas con
+    unidad validacion} — el expediente certificado: todas las reglas con
     todas sus filas violadoras (sin tope), listo para glosa externa. El
     motor se re-ejecuta aquí: certifica el estado vivo. Cita filas
     aduanales, no fragmentos: evidencia vacía, jamás fabricada."""

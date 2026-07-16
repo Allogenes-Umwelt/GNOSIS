@@ -58,7 +58,7 @@ def test_sesion_conforme_reporta_reglas_en_cero(conn):
     r = validar(conn, SID)
     assert r["conformidad_pct"] == 100 and r["total_violaciones"] == 0
     assert all(x["n"] == 0 for x in r["reglas"])
-    assert len(r["reglas"]) == 16           # todas evaluadas, ninguna omitida
+    assert len(r["reglas"]) == 22           # 16 base + 6 de ola 2
     # la regla USA=J NO existe: no se valida lo que no se puede verificar
     assert not any("usa" in x["clave"] for x in r["reglas"])
 
@@ -126,6 +126,40 @@ def test_certificado_sin_filas_no_escribe(conn):
     r = dockear_certificado(conn, SID)
     assert "error" in r
     assert conn.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 0
+
+
+def test_ola2_reglas_nuevas(conn):
+    cat = _cat(conn)
+    # DWH: fecha malformada, precio en cero, VIN con 'O' prohibido
+    conn.execute(
+        "INSERT INTO importaciones (session_id, chasis, factura, precio,"
+        " fecha_factura, j_y_n, pais_code, catalogo_id)"
+        " VALUES (?, 'WAUOZZ8Y000000001', 'F1', 0.0, '99XX24', 'J', 'DEU', ?)",
+        (SID, cat))                                   # VIN largo 17 con 'O'
+    # PDF: importe fabricado '0,00', moneda fuera de catálogo
+    conn.execute(
+        "INSERT INTO extraccion_facturas (session_id, chasis, factura, amount,"
+        " moneda, j_y_n, pais_code, filename)"
+        " VALUES (?, ?, 'F1', '0,00', 'XYZ', 'J', 'DEU', 'x.pdf')",
+        (SID, VIN))
+    por = {x["clave"]: x for x in validar(conn, SID)["reglas"]}
+    assert por["val-dwh-fecha"]["n"] == 1            # 99/XX no es DDMMYY válido
+    assert por["val-dwh-precio-cero"]["n"] == 1      # precio 0 = slice vacío
+    assert por["val-dwh-vin-chars"]["n"] == 1        # 'O' prohibido
+    assert por["val-pdf-importe-cero"]["n"] == 1     # '0,00' fabricado
+    assert por["val-pdf-moneda-cat"]["n"] == 1           # 'XYZ' fuera de catálogo
+
+
+def test_ola2_conformes_no_disparan_reglas_nuevas(conn):
+    cat = _cat(conn)
+    _fila_dwh(conn, catalogo_id=cat)                 # VIN válido, precio 1.0
+    conn.execute("UPDATE importaciones SET fecha_factura = '080924'"
+                 " WHERE session_id = ?", (SID,))    # DDMMYY válido
+    _fila_pdf(conn, moneda="EUR", amount="18500")    # importe real, moneda ISO
+    por = {x["clave"]: x for x in validar(conn, SID)["reglas"]}
+    for clave in ("val-dwh-fecha", "val-dwh-precio-cero", "val-dwh-vin-chars",
+                  "val-pdf-importe-cero", "val-pdf-vin-chars", "val-pdf-moneda-cat"):
+        assert por[clave]["n"] == 0                  # conformidad probada
 
 
 def test_radar_publica_violaciones_como_urgencia(conn):
