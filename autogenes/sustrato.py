@@ -18,6 +18,7 @@ writes ag_* tables):
   filtered against REAL fragment ids; synesis proposals citing nothing
   are dropped — no caller can fabricate provenance.
 """
+import hashlib
 import json
 import re
 import sqlite3
@@ -55,6 +56,16 @@ def _jl(raw: Optional[str]) -> list:
 
 def _norm(nombre: str) -> str:
     return nombre.strip().lower()
+
+
+def _sello_bitacora(prev_hash: str, rid: int, session_id: int, ts: str,
+                    accion: str, detalle: str) -> str:
+    """sha256 encadenado de una fila de bitácora: incluye el sello previo y el
+    id (posición), de modo que reescribir o reordenar una fila invalida el
+    resto de la cadena. Puro y determinista (mismo contenido ⇒ mismo sello)."""
+    base = json.dumps([prev_hash, rid, session_id, ts, accion, detalle],
+                      ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
 class Sustrato:
@@ -98,10 +109,49 @@ class Sustrato:
     # ── bitácora (append-only; never rewritten) ──────────────────────
 
     def _registrar(self, accion: str, detalle: str) -> None:
-        self.conn.execute(
-            "INSERT INTO ag_bitacora (session_id, accion, detalle) VALUES (?, ?, ?)",
-            (self.session_id, accion, detalle),
+        # bitácora WORM con sello encadenado: cada fila hashea el sello previo
+        # (cadena global, no por sesión) + su propio contenido. Una edición o un
+        # borrado fuera de esta puerta rompe la cadena y verificar_bitacora lo
+        # detecta — la propiedad write-once deja de ser solo disciplina.
+        prev = self.conn.execute(
+            "SELECT hash FROM ag_bitacora ORDER BY id DESC LIMIT 1").fetchone()
+        prev_hash = (prev[0] if prev else None) or ""
+        cur = self.conn.execute(
+            "INSERT INTO ag_bitacora (session_id, accion, detalle, prev_hash)"
+            " VALUES (?, ?, ?, ?)",
+            (self.session_id, accion, detalle, prev_hash or None),
         )
+        rid = cur.lastrowid
+        ts = self.conn.execute(
+            "SELECT ts FROM ag_bitacora WHERE id = ?", (rid,)).fetchone()[0]
+        sello = _sello_bitacora(prev_hash, rid, self.session_id, ts, accion, detalle)
+        self.conn.execute(
+            "UPDATE ag_bitacora SET hash = ? WHERE id = ?", (sello, rid))
+
+    def verificar_bitacora(self) -> dict[str, Any]:
+        """Re-deriva la cadena de sellos de TODA la bitácora (global) y la
+        compara fila por fila. Devuelve {valido, filas, roto_en, motivo}. Solo
+        se sellan las filas escritas por _registrar; una historia previa al
+        sello (prev_hash/hash NULL) se declara `sin_sellar`, no rota."""
+        filas = self.conn.execute(
+            "SELECT id, session_id, ts, accion, detalle, prev_hash, hash"
+            " FROM ag_bitacora ORDER BY id").fetchall()
+        prev = ""
+        sellados = 0
+        for r in filas:
+            if r["hash"] is None:                      # fila anterior al sello
+                continue
+            esperado = _sello_bitacora(prev, r["id"], r["session_id"], r["ts"],
+                                       r["accion"], r["detalle"])
+            if (r["prev_hash"] or "") != prev or r["hash"] != esperado:
+                return {"valido": False, "filas": len(filas),
+                        "roto_en": r["id"],
+                        "motivo": "cadena" if (r["prev_hash"] or "") != prev
+                        else "hash"}
+            prev = r["hash"]
+            sellados += 1
+        return {"valido": True, "filas": len(filas), "sellados": sellados,
+                "roto_en": None, "motivo": None}
 
     def bitacora(self, limite: int = 100) -> list[dict]:
         rows = self.conn.execute(

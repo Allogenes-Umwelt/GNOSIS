@@ -59,6 +59,28 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_desde ON ag_relaciones(desde_id)",
         "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_hasta ON ag_relaciones(hasta_id)",
     ]),
+    # Add ag_bitacora.prev_hash/hash (WORM tamper-evidence). Recreate-and-copy
+    # (house style) so it works whether or not the columns already exist: the
+    # copy names only the pre-seal columns, so legacy rows keep NULL seals
+    # (declared: history before the chain isn't sealed). ag_bitacora is
+    # referenced by no FK, so recreate is safe.
+    (3, "ag_bitacora_add_hash_chain", [
+        """CREATE TABLE ag_bitacora_new (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id  INTEGER NOT NULL,
+            ts          TEXT DEFAULT (datetime('now')),
+            accion      TEXT NOT NULL,
+            detalle     TEXT NOT NULL,
+            prev_hash   TEXT,
+            hash        TEXT,
+            FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+        )""",
+        "INSERT INTO ag_bitacora_new (id, session_id, ts, accion, detalle)"
+        " SELECT id, session_id, ts, accion, detalle FROM ag_bitacora",
+        "DROP TABLE ag_bitacora",
+        "ALTER TABLE ag_bitacora_new RENAME TO ag_bitacora",
+        "CREATE INDEX IF NOT EXISTS idx_ag_bitacora_session ON ag_bitacora(session_id)",
+    ]),
 ]
 
 
