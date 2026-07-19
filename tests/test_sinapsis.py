@@ -257,3 +257,53 @@ def test_dockear_insight_ancla_entidades_reales(conn=None):
     r2 = dockear_insight(c, 1, "sin-fantasma")
     assert "error" in r2
     assert c.execute("SELECT COUNT(*) FROM ag_productos").fetchone()[0] == 1
+
+
+def _confirmado_multi(paises):
+    """DB con un error de preferencia confirmado (J en DWH, N en PDF) por cada
+    país dado — para probar la cobertura/nombre de la regla sugerida cuando el
+    conjunto confirmado abarca varios países de la norma."""
+    import sqlite3
+
+    from database import models, models_autogenes
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+              " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    for i, pais in enumerate(paises):
+        vin = f"WVWZZZ0000009{i:04d}"[:17].ljust(17, "0")
+        # DWH y PDF deben compartir los 8 primeros chars de la factura para que
+        # CONCILIA los case (regla de casamiento por prefijo)
+        pref = f"F27{i:02d}BRX"                        # 8 chars, único por fila
+        c.execute("INSERT INTO importaciones (session_id, chasis, factura,"
+                  " precio, j_y_n, pais_code) VALUES (1, ?, ?, 298000, 'J', ?)",
+                  (vin, pref + "1", pais))
+        c.execute("INSERT INTO extraccion_facturas (session_id, chasis, factura,"
+                  " amount, moneda, j_y_n, pais_code, filename) VALUES"
+                  " (1, ?, ?, '12,000.00', 'EUR', 'N', ?, ?)",
+                  (vin, pref, pais, f"f{i}.pdf"))
+    return c
+
+
+def test_volante_cobertura_es_del_pais_dominante_no_la_suma():
+    # confirmados en dos países de la norma (BRA×2, IND×1): la regla ataca solo
+    # el dominante; la cobertura debe ser la suya (2), NO la suma de ambos (3),
+    # que sería un número no derivable de la propia regla.
+    from autogenes.sinapsis import insights_de_sesion
+    c = _confirmado_multi(["BRA", "BRA", "IND"])
+    r = insights_de_sesion(c, 1)
+    err = next(i for i in r["insights"] if i["clave"] == "sin-error-confirmado")
+    rs = err["regla_sugerida"]
+    assert rs["condiciones"] == [{"campo": "pais_code", "valor": "BRA"}]
+    assert rs["cobertura"] == 2                        # solo BRA, no 3
+
+
+def test_volante_marcador_de_regla_depende_del_pais():
+    # IND dominante ⇒ el marcador de origen es CUPO, no C.O (norma documentada)
+    from autogenes.sinapsis import insights_de_sesion
+    c = _confirmado_multi(["IND", "IND", "BRA"])
+    r = insights_de_sesion(c, 1)
+    err = next(i for i in r["insights"] if i["clave"] == "sin-error-confirmado")
+    assert err["regla_sugerida"]["nombre"] == "CUPO + IND = N"
