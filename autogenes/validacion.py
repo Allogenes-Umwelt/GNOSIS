@@ -262,8 +262,15 @@ def validar(conn: sqlite3.Connection, session_id: int,
         "total_violaciones": sum(r["n"] for r in reglas),
         "filas": {"dwh": len(dwh), "pdf": len(pdf)},
         "filas_no_conformes": {"dwh": len(malas_dwh), "pdf": len(malas_pdf)},
-        "conformidad_pct": (round(100 * conformes / total_filas)
-                            if total_filas else None),
+        # el redondeo no debe cruzar los extremos: 100% (hero "plenamente
+        # conformes") solo si NO sobrevive ninguna no-conforme, y 0% solo si
+        # ninguna conforma — 99.6% mostrado como 100 afirmaría conformidad
+        # plena teniendo una fila rechazada/glosa-segura
+        "conformidad_pct": (
+            None if not total_filas else
+            100 if conformes == total_filas else
+            0 if conformes == 0 else
+            max(1, min(99, round(100 * conformes / total_filas)))),
         # O5.4: la conformidad por riel y la retícula (una celda por fila,
         # coloreada por su peor veredicto). pasa == conformes por construcción.
         "conformidad": {"dwh": conf_dwh, "pdf": conf_pdf},

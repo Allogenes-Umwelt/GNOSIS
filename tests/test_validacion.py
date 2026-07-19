@@ -253,3 +253,28 @@ def test_radar_sin_violaciones_sin_urgencia_de_norma(conn):
     _fila_dwh(conn, catalogo_id=cat)
     m = metabolismo_de_sesion(conn, SID)
     assert not any(u["tipo"] == "norma" for u in m["urgencias"])
+
+
+def test_conformidad_pct_no_cruza_los_extremos_por_redondeo(conn):
+    # 249 de 250 conformes = 99.6% -> el hero "plenamente conformes" NO puede
+    # decir 100 mientras sobrevive una fila rechazada (glosa segura). Simétrico
+    # abajo: 0.4% no puede redondear a 0 teniendo una fila conforme.
+    from autogenes.validacion import validar
+    cat = _cat(conn)
+    for i in range(249):
+        _fila_dwh(conn, chasis=f"WAUZZZ8Y{i:09d}", factura=f"F{i}",
+                  catalogo_id=cat)                        # conforme
+    _fila_dwh(conn, chasis="WAUZZZ8Y000000999", factura="FBAD",
+              catalogo_id=None)                           # rechazado (sin catálogo)
+    r = validar(conn, SID)
+    assert r["reticula"]["pasa"] == 249 and r["reticula"]["total"] == 250
+    assert r["conformidad_pct"] == 99                     # no 100
+
+    conn.execute("DELETE FROM importaciones")
+    _fila_dwh(conn, chasis="WAUZZZ8Y000000001", factura="OK", catalogo_id=cat)
+    for i in range(249):
+        _fila_dwh(conn, chasis=f"WAUZZZ8Y{i:09d}", factura=f"B{i}",
+                  catalogo_id=None)                       # rechazado
+    r = validar(conn, SID)
+    assert r["reticula"]["pasa"] == 1 and r["reticula"]["total"] == 250
+    assert r["conformidad_pct"] == 1                      # no 0
