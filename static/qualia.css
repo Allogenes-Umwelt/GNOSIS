@@ -197,6 +197,9 @@
   background: color-mix(in srgb, var(--bg) 72%, transparent);
   display: flex; justify-content: flex-end;
 }
+/* [hidden] es display:none de UA; el display:flex de autor lo vencería y el
+   cajón quedaría abierto para siempre. Se restablece el ocultamiento. */
+.qd-overlay[hidden] { display: none; }
 .qd-panel {
   width: min(420px, 92vw); height: 100%; overflow-y: auto;
   background: var(--surface); border-left: 1px solid var(--line);
