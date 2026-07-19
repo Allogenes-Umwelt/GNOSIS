@@ -193,6 +193,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
                                   []).append(r)
         for moneda in sorted(por_moneda):
             grupo = por_moneda[moneda]
+            sin_moneda = moneda == "sin moneda"
             montos = [parse_monto(r["amount"]) for r in grupo]
             # un importe 0 es fabricación de la extracción ('0,00' cuando el
             # regex de precio no casa, PDFs_v2) — no un importe real de $0
@@ -200,31 +201,48 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
             ilegibles = len(grupo) - len(legibles)
             detalle = ("Facturas físicamente llegadas que ninguna venta del "
                        "DWH cita — inventario en tránsito o venta sin registrar.")
-            if ilegibles:
-                plural = ("importe ilegible o en cero" if ilegibles == 1
-                          else "importes ilegibles o en cero")
-                detalle += f" {ilegibles} {plural}: no se suman."
+            if sin_moneda:
+                # sin unidad declarada los importes no son sumables (podrían ser
+                # divisas distintas): se reporta el conteo, no un total sin unidad
+                detalle += " Sin moneda declarada: los importes no se suman."
+                monto: Optional[float] = None
+            else:
+                if ilegibles:
+                    plural = ("importe ilegible o en cero" if ilegibles == 1
+                              else "importes ilegibles o en cero")
+                    detalle += f" {ilegibles} {plural}: no se suman."
+                monto = sum(legibles) if legibles else None
             hallazgos.append(_h(
                 f"conc-llegado-sin-venta-{moneda}", "llegado_sin_venta",
                 _n(len(grupo), "llegada sin venta", "llegadas sin venta")
                 + f" ({moneda})",
                 detalle,
-                sum(legibles) if legibles else None,
-                moneda if moneda != "sin moneda" else None,
+                monto,
+                None if sin_moneda else moneda,
                 [r["chasis"] or r["factura"] or f"fila {r['id']}" for r in grupo],
                 [{"factura": r["factura"], "chasis": r["chasis"],
                   "filename": r["filename"]} for r in grupo],
             ))
 
     # ── afirmaciones en competencia sobre pares conciliados ──────────
+    # Una importación puede casar con varias facturas: la disputa manda si
+    # CUALQUIERA de ellas contradice el DWH (misma semántica que
+    # veredicto_por_fila — los dos motores nunca se contradicen). Mirar solo
+    # pares[0] subcontaba disputas y omitía su valor del riesgo agregado.
     def _disputa(campo_i: str, campo_ef: str, clave: str, clase: str,
                  singular: str, plural: str, detalle: str) -> None:
-        en_disputa = [
-            r for r in casadas
-            if (r[campo_i] or "").strip() and (r[campo_ef] or "").strip()
-            and (r[campo_i] or "").strip().upper()
-            != (r[campo_ef] or "").strip().upper()
-        ]
+        en_disputa: list[sqlite3.Row] = []
+        for pares in por_importacion.values():
+            if pares[0]["ef_id"] is None:
+                continue                        # sin factura: no es un par
+            conflicto = next(
+                (p for p in pares
+                 if (p[campo_i] or "").strip() and (p[campo_ef] or "").strip()
+                 and (p[campo_i] or "").strip().upper()
+                 != (p[campo_ef] or "").strip().upper()),
+                None)
+            if conflicto is not None:
+                en_disputa.append(conflicto)    # el par que sostiene la disputa
         if not en_disputa:
             return
         monto, sin_precio = _mxn(en_disputa)
@@ -361,8 +379,11 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
 
     # ── flujo tri-fuente ─────────────────────────────────────────────
     vendidos = len(por_importacion)
+    # solo precios legibles (> 0): un slice vacío del DWH suma 0, y un total 0
+    # cuando NADA tiene precio sería un $0 fabricado — se declara None (ausente),
+    # distinguible de un cero real, igual que _mxn y los montos de hallazgo
     valor_vendido = conn.execute(
-        "SELECT COALESCE(SUM(precio), 0) FROM importaciones WHERE session_id = ?",
+        "SELECT SUM(precio) FROM importaciones WHERE session_id = ? AND precio > 0",
         (session_id,)).fetchone()[0]
     valor_conciliado, _ = _mxn(casadas)
     flujo = {
@@ -373,8 +394,8 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
         "sin_venta": len(llegadas_sueltas),
         "pct_conciliado": (max(0, min(100, round(100 * len(casadas) / vendidos)))
                            if vendidos else None),
-        "valor_vendido_mxn": round(valor_vendido, 2),
-        "valor_conciliado_mxn": round(valor_conciliado or 0, 2),
+        "valor_vendido_mxn": round(valor_vendido, 2) if valor_vendido is not None else None,
+        "valor_conciliado_mxn": round(valor_conciliado, 2) if valor_conciliado is not None else None,
     }
 
     valor_en_riesgo = sum(riesgo_por_unidad.values())
