@@ -180,3 +180,17 @@ def test_dossier_de_arco_agregado_lista_miembros(conn):
     assert d["tipo"] == "agregado" and d["n"] == agg["n"]
     assert len(d["miembros"]) == agg["n"]
     assert all("nombre" in m and "kind" in m for m in d["miembros"])
+
+
+def test_arcos_agrupados_por_kind_para_huecos_con_significado(conn):
+    # kinds intercalados por señal (fragmentos): el chord debe emitirlos
+    # CONTIGUOS por grupo, para que los huecos de repartir marquen fronteras
+    # de kind reales y no cada alternancia
+    s = Sustrato(conn, 1)
+    for i, (kind, nf) in enumerate([("pdf", 3), ("imagen", 2), ("pdf", 1), ("imagen", 4)]):
+        a = s.crear_artefacto(kind, f"{kind}{i}.doc")
+        s.agregar_fragmentos(a.id, [(p + 1, "x") for p in range(nf)])
+    ch = chord_ingesta(conn, 1)
+    grupos = [a["grupo"] for a in ch["artefactos"]]
+    assert grupos == sorted(grupos)               # contiguo por kind
+    assert set(grupos) == {"pdf", "imagen"}

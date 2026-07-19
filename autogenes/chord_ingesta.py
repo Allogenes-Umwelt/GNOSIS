@@ -238,7 +238,12 @@ def _rollup(arcos: list[dict], maximo: int, prefijo: str,
     aggregate carries the real count and total weight."""
     ordenados = sorted(arcos, key=clave_orden)
     if len(ordenados) <= maximo:
-        return ordenados
+        # supervivencia por señal, PERO display agrupado por kind: el chord dibuja
+        # los arcos contiguos por grupo (repartir mete un hueco por grupo). Sin
+        # esto, ordenar por señal intercalaba kinds y sembraba huecos sin
+        # significado en cada alternancia. sorted es estable ⇒ orden de señal
+        # preservado dentro de cada grupo.
+        return sorted(ordenados, key=lambda x: x["grupo"])
     visibles = ordenados[:maximo]
     resto = ordenados[maximo:]
     por_grupo: dict[str, list[dict]] = {}
@@ -257,7 +262,9 @@ def _rollup(arcos: list[dict], maximo: int, prefijo: str,
             "_peso": sum(peso(m) for m in miembros),
             "_miembros": [m["id"] for m in miembros],
         })
-    return visibles
+    # display agrupado por kind (ver rama sin rollup): el "+N más" de cada grupo
+    # queda al final de su grupo por la estabilidad del sort
+    return sorted(visibles, key=lambda x: x["grupo"])
 
 
 def _remap_de(arcos: list[dict], prefijo: str) -> dict[str, str]:
