@@ -306,3 +306,74 @@ def test_anomalias_no_escriben_nada(conn):
     antes = _conteos(conn)
     construir_grafo(conn, SID)  # CONCILIA corre dentro: debe ser lectura pura
     assert _conteos(conn) == antes
+
+
+def test_anomalia_vin_duplicado_cita_todos_los_duplicados(conn):
+    # dos filas DWH con el MISMO chasis: el hallazgo de VIN duplicado debe
+    # implicar AMBOS nodos vehículo, no solo el último (last-wins los perdía)
+    conn.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                 " chasis, factura, pais_code, precio, auto_code) VALUES"
+                 " (1, 1, 1, 'VIN00000000000001', 'FACDUP-Z', 'DEU', 500000, 'AAA111')")
+    conn.commit()
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    anom = next(n for n in g["nodos"] if n["id"] == "anom:conc-vin-dup-dwh")
+    objetivos = {e["target"] for e in g["enlaces"] if e["source"] == anom["id"]}
+    dup = {n["id"] for n in g["nodos"]
+           if n["kind"] == "vehiculo" and n["etiqueta"] == "VIN00000000000001"}
+    assert len(dup) == 2
+    assert dup <= objetivos                       # AMBOS duplicados citados
+
+
+def test_vehiculo_con_pedimento_cross_sesion_se_ancla_al_nucleo(conn):
+    # un pedimento de OTRA sesión (deriva referencial: la FK no obliga misma
+    # sesión) no se proyecta aquí; el vehículo cuelga del núcleo, sin arista a
+    # un nodo pedimento ausente (que rompería el invariante de conteo y crashea)
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-06-10', 6, 2026)")
+    conn.execute("INSERT INTO pedimentos (session_id, numero_pedimento)"
+                 " VALUES (2, 'PED-OTRA')")
+    ped_otra = conn.execute("SELECT MAX(id) FROM pedimentos").fetchone()[0]
+    conn.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                 " chasis, factura, pais_code, precio, auto_code) VALUES"
+                 " (1, ?, 1, 'VINCROSS000000001', 'FACX-1', 'DEU', 100000, 'AAA111')",
+                 (ped_otra,))
+    conn.commit()
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    ids = {n["id"] for n in g["nodos"]}
+    for e in g["enlaces"]:                         # ninguna arista a un nodo ausente
+        assert e["source"] in ids and e["target"] in ids
+    assert f"ped:{ped_otra}" not in ids
+    veh = next(n["id"] for n in g["nodos"]
+               if n["kind"] == "vehiculo" and n["etiqueta"] == "VINCROSS000000001")
+    pares = {(e["source"], e["target"]) for e in g["enlaces"]}
+    assert ("nucleo-sesion-1", veh) in pares       # anclado al núcleo
+
+
+def test_cap_no_reproyecta_conciliado_como_sin_conciliar():
+    # un chasis conciliado (en importaciones) fuera del cap NO debe reaparecer
+    # como vehfac (sin conciliar): la misma unidad con tipo contradictorio
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA foreign_keys = ON")
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+              " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    # 3 filas conciliadas; la 3ª (fuera del cap=2 por id) ordena 1ª por chasis
+    # en extraccion — el escenario exacto que doble-proyectaba
+    vins = ["MMM00000000000001", "MMM00000000000002", "AAA00000000000003"]
+    for i, vin in enumerate(vins):
+        c.execute("INSERT INTO importaciones (session_id, chasis, factura, pais_code,"
+                  " precio) VALUES (1, ?, ?, 'DEU', 100000)", (vin, f"F{i}0000-X"))
+        c.execute("INSERT INTO extraccion_facturas (session_id, factura, chasis,"
+                  " filename, pais_code) VALUES (1, ?, ?, ?, 'DEU')",
+                  (f"F{i}0000", vin, f"c{i}.pdf"))
+    c.commit()
+    red_mod.invalidar()
+    g = construir_grafo(c, 1, limite_vehiculos=2, con_analitica=False,
+                        con_anomalias=False)
+    conciliados = set(vins)
+    vehfac = {n["etiqueta"] for n in g["nodos"] if n["id"].startswith("vehfac:")}
+    assert not (vehfac & conciliados)             # ningún conciliado como vehfac

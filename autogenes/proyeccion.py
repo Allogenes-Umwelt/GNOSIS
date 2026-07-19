@@ -111,10 +111,16 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
     TYPE, never an estimated amount (ZERO SNAKE OIL). Mutates nodos/enlaces
     in place; returns the anomaly count."""
     nucleo_id = f"{NUCLEO_PREFIX}{session_id}"
-    chasis_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
-                     if n["kind"] == "vehiculo"}
-    archivo_a_nodo = {n["etiqueta"]: n["id"] for n in nodos
-                      if n["kind"] == "artefacto"}
+    # etiqueta → TODOS los nodos con esa etiqueta: un chasis duplicado tiene
+    # varios nodos vehículo, y el hallazgo de VIN-duplicado debe citarlos a
+    # todos (last-wins dejaba fuera al co-protagonista de la duplicación)
+    chasis_a_nodo: dict[str, list[str]] = {}
+    archivo_a_nodo: dict[str, list[str]] = {}
+    for n in nodos:
+        if n["kind"] == "vehiculo":
+            chasis_a_nodo.setdefault(n["etiqueta"], []).append(n["id"])
+        elif n["kind"] == "artefacto":
+            archivo_a_nodo.setdefault(n["etiqueta"], []).append(n["id"])
 
     def _objetivos(refs: list[dict], unidades: Optional[list] = None) -> list[str]:
         cadenas = list(unidades or [])
@@ -125,10 +131,10 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
         resueltos: list[str] = []
         vistos: set[str] = set()
         for c in cadenas:
-            nid = chasis_a_nodo.get(c) or archivo_a_nodo.get(c)
-            if nid and nid not in vistos:
-                vistos.add(nid)
-                resueltos.append(nid)
+            for nid in chasis_a_nodo.get(c) or archivo_a_nodo.get(c) or []:
+                if nid not in vistos:
+                    vistos.add(nid)
+                    resueltos.append(nid)
         return resueltos
 
     # disposición del operador por motor (O1): el Δ carga su estado del ciclo
@@ -245,8 +251,10 @@ def construir_grafo(
         ped_agg[r["pid"]] = {"n_vehiculos": r["n"], "valor": r["valor"]}
 
     # ── pedimentos ────────────────────────────────────────────────────
+    ped_proyectados: set[str] = set()
     for r in _q(conn, "SELECT * FROM pedimentos WHERE session_id = ?", (session_id,)):
         pid = f"ped:{r['id']}"
+        ped_proyectados.add(pid)
         extra = {"patente": r["patente"], "aduana": r["aduana"],
                  "fecha": r["fecha_pedimento"]}
         extra.update(ped_agg.get(r["id"], {}))
@@ -307,6 +315,8 @@ def construir_grafo(
                            extra=pais_agg.get(r["pais_code"])))
 
     # ── vehiculos (la fila del JOIN tri-fuente, con el PDF que lo ampara) ──
+    # ORDER BY id antes del cap: qué filas sobreviven al recorte es determinista
+    # (mismo grafo se abre idéntico), no orden físico no especificado de SQLite.
     limit_clause = f" LIMIT {int(limite_vehiculos)}" if limite_vehiculos else ""
     vehiculos = _q(conn, f"""
             SELECT i.id, i.chasis, i.auto_code, i.precio, i.pedimento_id,
@@ -317,17 +327,20 @@ def construir_grafo(
                        AND ef.session_id = i.session_id) AS pdf
             FROM importaciones i
             LEFT JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
-            WHERE i.session_id = ?{limit_clause}""", (session_id,))
+            WHERE i.session_id = ? ORDER BY i.id{limit_clause}""", (session_id,))
 
     pdf_ids: dict[str, str] = {}
     for v in vehiculos:
         vid = f"veh:{v['id']}"
         nodos.append(_nodo(vid, "vehiculo", v["chasis"] or f"vehículo {v['id']}",
                            tipo=v["auto_code"], extra={"precio": v["precio"]}))
-        if v["pedimento_id"]:
+        ped_nodo = f"ped:{v['pedimento_id']}" if v["pedimento_id"] else None
+        if ped_nodo and ped_nodo in ped_proyectados:
             enlaces.append(_enlace(f"cita-ped{v['pedimento_id']}-{vid}",
-                                   f"ped:{v['pedimento_id']}", vid, "cita", 0.5))
+                                   ped_nodo, vid, "cita", 0.5))
         else:
+            # pedimento_id nulo O colgante (deriva referencial / cross-sesión):
+            # se ancla al núcleo en vez de emitir una arista a un nodo ausente
             enlaces.append(_enlace(f"cita-{nucleo_id}-{vid}", nucleo_id, vid, "cita", 0.3))
         if v["marca_id"]:
             enlaces.append(_enlace(f"cita-{vid}-marca{v['marca_id']}",
@@ -356,7 +369,13 @@ def construir_grafo(
     # proyecta su contenido — país + vehículo por chasis citando su PDF —
     # para que el grafo tenga cuerpo antes de la conciliación completa.
     # Se saltan los chasis ya proyectados desde importaciones (sin doble).
-    chasis_conciliados = {v["chasis"] for v in vehiculos if v["chasis"]}
+    # chasis ya vendidos (DWH), UNCAPPED: derivarlo de la lista capada haría que
+    # un conciliado fuera del cap reapareciera aquí como 'vehfac' (sin conciliar)
+    # — la misma unidad proyectada dos veces con tipos contradictorios
+    chasis_conciliados = {
+        r["chasis"] for r in _q(conn,
+            "SELECT chasis FROM importaciones WHERE session_id = ?"
+            " AND chasis IS NOT NULL AND chasis != ''", (session_id,))}
     paises_vistos = {n["id"] for n in nodos if n["kind"] == "pais"}
     vehfac_vistos: set[str] = set()
     lim_fac = int(limite_vehiculos) if limite_vehiculos else 100000
@@ -364,7 +383,7 @@ def construir_grafo(
             SELECT chasis, auto, pais_code, j_y_n, amount, moneda, filename
             FROM extraccion_facturas
             WHERE session_id = ? AND chasis IS NOT NULL AND chasis != ''
-            LIMIT {lim_fac}""", (session_id,)):
+            ORDER BY chasis LIMIT {lim_fac}""", (session_id,)):
         if r["chasis"] in chasis_conciliados or r["chasis"] in vehfac_vistos:
             continue
         vehfac_vistos.add(r["chasis"])
