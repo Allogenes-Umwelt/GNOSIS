@@ -518,6 +518,10 @@ def api_autogenes_integrar():
              'relaciones': data.get('relaciones', [])})
     except Exception:
         return jsonify({'error': 'Propuesta malformada'}), 400
+    # una propuesta vacía es un no-op: no debe escribir una fila de bitácora
+    # WORM ("0 entidades, 0 relaciones") ni un snapshot de telemetría perpetuos
+    if not propuesta.entidades and not propuesta.relaciones:
+        return jsonify({'error': 'Propuesta vacía: nada que integrar'}), 400
 
     def handler(conn, session_id):
         resultado = Sustrato(conn, session_id).integrar_propuesta(propuesta)
