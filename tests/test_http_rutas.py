@@ -210,6 +210,18 @@ def test_api_405_responde_json(cliente):
     assert r.get_json()["status"] == 405
 
 
+@pytest.mark.parametrize("ruta", [
+    "/api/v1/autogenes/grafo", "/api/v1/autogenes/arbol",
+    "/api/v1/autogenes/chord_ingesta",
+])
+def test_grafo_sesion_inexistente_es_404_no_200_fabricado(cliente, ruta):
+    # un session_id explícito inexistente se declara 404, no se fabrica un 200
+    # "vacío" indistinguible de una sesión real sin datos
+    r = cliente.get(ruta + "?session_id=999999")
+    assert r.status_code == 404
+    assert "999999" in r.get_json()["error"]
+
+
 def test_camino_evitar_nodo_inexistente_es_404_declarado(cliente):
     # una restricción evitar/via sobre un nodo que no existe se declara, no se
     # ignora en silencio devolviendo caminos que no la respetan

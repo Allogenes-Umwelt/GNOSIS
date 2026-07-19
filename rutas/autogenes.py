@@ -1629,20 +1629,16 @@ def api_autogenes_grafo():
 
     Query params: session_id (default: la sesion mas reciente),
     limite_vehiculos (opcional, acota los nodos vehiculo)."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.proyeccion import construir_grafo
-    try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            limite = request.args.get('limite_vehiculos', type=int)
-            grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
-        finally:
-            conn.close()
+    limite = request.args.get('limite_vehiculos', type=int)
+
+    def handler(conn, session_id):
+        # _con_sesion 404ea una sesión inexistente en vez de fabricar un 200
+        # "vacío" indistinguible de una sesión real sin datos
+        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
         return jsonify({'session_id': session_id, **grafo})
+    try:
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1650,19 +1646,13 @@ def api_autogenes_grafo():
 @bp.route('/api/v1/autogenes/arbol', methods=['GET'])
 def api_autogenes_arbol():
     """La ontologia de una sesion como arbol jerarquico (mapa de ingesta)."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.proyeccion import arbol_ontologia
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id,
+                        'arbol': arbol_ontologia(conn, session_id)})
     try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            arbol = arbol_ontologia(conn, session_id)
-        finally:
-            conn.close()
-        return jsonify({'session_id': session_id, 'arbol': arbol})
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1671,19 +1661,12 @@ def api_autogenes_arbol():
 def api_autogenes_chord_ingesta():
     """El mapa de ingesta como chord bipartito: fuentes -> entidades, con las
     fuentes frias (que nadie cita) visibles como arcos sin cintas."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.chord_ingesta import chord_ingesta
+
+    def handler(conn, session_id):
+        return jsonify(chord_ingesta(conn, session_id))
     try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            chord = chord_ingesta(conn, session_id)
-        finally:
-            conn.close()
-        return jsonify(chord)
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
