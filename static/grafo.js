@@ -371,7 +371,16 @@
             badgeFrag[t.id] = (badgeFrag[t.id] || 0) + 1;
           }
         });
-        sel = null; pintarInspector(null);
+        // reset del estado de interacción: todo lo que referencia ids/objetos
+        // del payload ANTERIOR (resalte, whatif, camino, multiSel, hover,
+        // funnel) queda obsoleto al recargar; dejarlo pintaba el grafo nuevo
+        // atenuado o con cables a nodos muertos. Los filtros de leyenda (por
+        // kind) sí persisten — no dependen de ids.
+        sel = null; hover = null; resalte = null; whatif = null;
+        modoCamino = null; multiSel = {}; lasso = null;
+        canvas.style.cursor = 'grab';
+        replegarFunnel(false);
+        pintarInspector(null);
         colapsar();          // deriva nodos/enlaces visibles + estado
         reconstruirSim();
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
@@ -407,7 +416,8 @@
       });
 
       // meta-nodos ν×N para racimos grandes; los expandidos muestran las hojas
-      var metaDe = {}, metaNodos = [];
+      var metaDe = {}, metaNodos = [], metaPrevio = {};
+      (nodos || []).forEach(function (n) { if (n && n.meta) metaPrevio[n.id] = n; });
       Object.keys(racimo).forEach(function (pedId) {
         var vehs = racimo[pedId];
         if (vehs.length <= UMBRAL_COLAPSO) return;
@@ -432,15 +442,23 @@
           if (v.tipo) mTipos[v.tipo] = (mTipos[v.tipo] || 0) + 1;
         });
         var mTipo = Object.keys(mTipos).sort(function (a, b) { return mTipos[b] - mTipos[a]; })[0] || null;
-        metaNodos.push({
-          id: metaId, kind: 'vehiculo', meta: true, abierto: abierto,
-          conteo: vehs.length, glifo: 'ν', etiqueta: vehs.length + ' vehículos',
-          ped: pedId, comunidad: ped ? ped.comunidad : 0, centralidad: 0.35,
+        // reutiliza el meta previo (misma id) para PRESERVAR su posición: crear
+        // uno nuevo en ped.x en cada colapsar (repintar estado, cancelar modo,
+        // limpiar selección) lo teletransportaba sobre el pedimento y lo dejaba
+        // inerte — la sim tenía capturado el objeto anterior, no el recreado.
+        var meta = metaPrevio[metaId] || {
+          id: metaId, kind: 'vehiculo', meta: true, glifo: 'ν', ped: pedId,
           seed: (ped ? ped.seed : 0) || 0,
-          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined,
-          extra: { valor: mVal || null, precio_min: isFinite(mMin) ? mMin : null,
-                   precio_max: isFinite(mMax) ? mMax : null, tipo: mTipo }
-        });
+          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined
+        };
+        meta.abierto = abierto;
+        meta.conteo = vehs.length;
+        meta.etiqueta = vehs.length + ' vehículos';
+        meta.comunidad = ped ? ped.comunidad : 0;
+        meta.centralidad = 0.35;
+        meta.extra = { valor: mVal || null, precio_min: isFinite(mMin) ? mMin : null,
+                       precio_max: isFinite(mMax) ? mMax : null, tipo: mTipo };
+        metaNodos.push(meta);
       });
 
       nodos = nodosRaw.filter(function (n) { return !oculto[n.id]; }).concat(metaNodos);
@@ -732,7 +750,7 @@
         var apagado = leyOculta(a.kind) || leyOculta(b.kind) ||
           (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
-        var cae = whatif && resalte && resalte.enlaces[e.id];   // arista que muere en la simulación
+        var cae = resalte && resalte.origen === 'whatif' && resalte.enlaces[e.id];   // arista que muere en la simulación
         // alfa por peso (E3): la estructura pesa lo que pesa (cita 0.18–0.52)
         ctx.globalAlpha = apagado ? 0.07 : (cae ? 0.85
           : (e.kind === 'relacion' ? 0.8 : 0.18 + (e.peso || 0.5) * 0.34));
@@ -813,7 +831,7 @@
         // efectos DETRÁS del nodo: glow/burn de la alerta (no para lo cerrado)
         if (n.kind === 'anomalia' && n.severidad && !cerradaDisp) glowBurn(n, r, ts);
         // el nodo que se simula caer arde como alerta crítica (P3)
-        if (whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
+        if (resalte && resalte.origen === 'whatif' && whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
 
         var detalle = r * vista.k >= 13;   // LOD: el detalle mecha se apaga de lejos
         if (n.kind === 'nucleo') {
@@ -1029,13 +1047,19 @@
     // marca/país ya son agregados, así que no suman al total de vehículos.
     function resumenMultiSel() {
       if (!estadoLinea) return;
+      // poda ids ya no visibles (colapso/recarga): la línea de estado y los
+      // anillos deben concordar con lo que está en el lienzo
+      Object.keys(multiSel).forEach(function (id) { if (!porId[id]) delete multiSel[id]; });
       var ids = Object.keys(multiSel);
       if (!ids.length) { colapsar(); return; }   // repinta la línea de estado normal
       var veh = 0, suma = 0;
       ids.forEach(function (id) {
         var n = porId[id]; if (!n) return;
-        if (n.meta) { veh += n.conteo || 0; suma += (n.extra ? +n.extra.valor : 0) || 0; }
-        else if (n.kind === 'vehiculo') { veh++; suma += (n.extra ? +n.extra.precio : 0) || 0; }
+        // un meta ABIERTO se representa por sus hojas visibles (contadas abajo):
+        // sumarlo también duplicaría vehículos y $. Solo el cerrado agrega.
+        if (n.meta) {
+          if (!n.abierto) { veh += n.conteo || 0; suma += (n.extra ? +n.extra.valor : 0) || 0; }
+        } else if (n.kind === 'vehiculo') { veh++; suma += (n.extra ? +n.extra.precio : 0) || 0; }
       });
       var txt = ids.length + ' SELECCIONADOS';
       if (veh) txt += ' · ' + veh + ' VEHÍCULOS';
@@ -1160,6 +1184,12 @@
     }
     canvas.addEventListener('pointerup', soltar);
     canvas.addEventListener('pointercancel', soltar);
+    // salir del lienzo apaga el hover: sin esto foco = sel || hover retenía un
+    // nodo del payload anterior (comparación por identidad) y el grafo recargado
+    // quedaba atenuado hasta re-entrar el puntero
+    canvas.addEventListener('pointerleave', function () {
+      if (hover) { hover = null; canvas.style.cursor = 'grab'; if (!animando) dibujar(0); }
+    });
     canvas.addEventListener('dblclick', function (ev) {
       var p = xy(ev);
       if (!nodoEn(p[0], p[1])) { encuadrar(); if (!animando) dibujar(0); }
@@ -1554,7 +1584,9 @@
         simularCaida(n);
       } else if (a === 'expandir' && n.ped) {
         expandidos[n.ped] = !expandidos[n.ped];   // despliega el racimo ν×N
-        colapsar(); if (!animando) dibujar(0);
+        // cambia el SET visible (aparecen/ocultan hojas): hay que reconstruir la
+        // sim como el camino del tap, o las hojas reveladas quedan congeladas
+        colapsar(); reconstruirSim();
       }
     }
     function abrirTarjeta(n) {
@@ -1644,7 +1676,10 @@
           enlaces.forEach(function (e) {
             if (e.source === n.id || e.target === n.id) re[e.id] = true;
           });
-          resalte = { nodos: rn, enlaces: re };
+          // origen:'whatif' marca ESTE resalte como la caída simulada: el estilo
+          // de "arista que muere" (magenta) se condiciona a él, así un resalte
+          // posterior (camino/vecindario) NO pinta sus aristas como caída
+          resalte = { nodos: rn, enlaces: re, origen: 'whatif' };
           pintarWhatif(n, d);
           if (estadoLinea) estadoLinea.textContent = 'SIMULACIÓN · CAÍDA DE ' +
             (n.etiqueta || n.id).toUpperCase().slice(0, 24);
