@@ -233,6 +233,15 @@ def test_integrar_propuesta_vacia_es_400_sin_ruido_worm(cliente):
     assert despues == antes                       # la bitácora NO creció
 
 
+@pytest.mark.parametrize("valor", ["0", "-3", "abc"])
+def test_session_id_invalido_es_400_no_fallback_silencioso(cliente, valor):
+    # un session_id explícito inválido se declara 400, no cae en silencio a la
+    # última sesión (serviría datos de la sesión equivocada sin aviso)
+    r = cliente.get("/api/v1/autogenes/grafo?session_id=" + valor)
+    assert r.status_code == 400
+    assert "inválido" in r.get_json()["error"]
+
+
 def test_camino_evitar_nodo_inexistente_es_404_declarado(cliente):
     # una restricción evitar/via sobre un nodo que no existe se declara, no se
     # ignora en silencio devolviendo caminos que no la respetan
