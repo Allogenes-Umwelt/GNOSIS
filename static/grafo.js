@@ -680,6 +680,17 @@
         var sx = w / 2 + vista.x + mx * vista.k, sy = h / 2 + vista.y + my * vista.k;
         return sx >= -m && sx <= w + m && sy >= -m && sy <= h + m;
       }
+      // outcode Cohen-Sutherland: un enlace se descarta SOLO si ambos extremos
+      // caen del MISMO lado del viewport (entonces no puede cruzarlo). Descartar
+      // por "ambos fuera" borraba aristas que sí lo atraviesan (extremos en
+      // lados opuestos), invisibles al hacer zoom sobre el centro de un vano.
+      function codigoFuera(mx, my) {
+        var sx = w / 2 + vista.x + mx * vista.k, sy = h / 2 + vista.y + my * vista.k;
+        var c = 0;
+        if (sx < 0) c |= 1; else if (sx > w) c |= 2;
+        if (sy < 0) c |= 4; else if (sy > h) c |= 8;
+        return c;
+      }
       // Limpieza a prueba de estado sucio: si un frame anterior murió a
       // media transformación, un clearRect relativo deja residuo (el
       // "glitch" de estelas). Reset absoluto y se vuelve a la base DPR.
@@ -706,7 +717,7 @@
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
-        if (!dentro(a.x, a.y, 0) && !dentro(b.x, b.y, 0)) return;   // culling: ambos extremos fuera
+        if (codigoFuera(a.x, a.y) & codigoFuera(b.x, b.y)) return;   // culling: mismo lado (Cohen-Sutherland)
         // cable-estela: arista activa del funnel (centro ↔ órbita)
         if (despliegue && ((e.source === despliegue.centro.id && despliegue.ids[e.target]) ||
                            (e.target === despliegue.centro.id && despliegue.ids[e.source]))) {
