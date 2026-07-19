@@ -55,13 +55,18 @@ def version_de_sesion(conn: sqlite3.Connection, session_id: int) -> tuple:
     )
     # huella de contenido: dos bases DISTINTAS con los mismos conteos no
     # deben compartir caché (los ids ag_* son uuid — únicos por base) y la
-    # ruta del archivo separa una base restaurada de la viva
-    huella = conn.execute(
-        "SELECT COALESCE(MIN(id), '') || COALESCE(MAX(id), '') FROM ag_relaciones"
-        " WHERE session_id = ?", (session_id,),
-    ).fetchone()[0]
+    # ruta del archivo separa una base restaurada de la viva. Se cubre
+    # entidades Y relaciones: sin relaciones, la huella de relaciones sola es ''
+    # para ambas bases y colisionaban (una servía la lente de la otra).
+    def _huella_ids(tabla: str) -> str:
+        return conn.execute(
+            f"SELECT COALESCE(MIN(id), '') || COALESCE(MAX(id), '') FROM {tabla}"  # noqa: S608 — tabla de literal fijo
+            " WHERE session_id = ?", (session_id,),
+        ).fetchone()[0]
+
+    huella = (_huella_ids("ag_entidades"), _huella_ids("ag_relaciones"))
     ruta = conn.execute("PRAGMA database_list").fetchone()[2] or ":memory:"
-    return (ruta, marca, huella, *conteos, *aduanal)
+    return (ruta, marca, *huella, *conteos, *aduanal)
 
 
 def construir_red(conn: sqlite3.Connection, session_id: int,

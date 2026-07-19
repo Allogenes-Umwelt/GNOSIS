@@ -391,3 +391,23 @@ def test_pdf_ingerido_no_se_duplica_como_virtual(conn):
     assert "art:pdf:lote_alemania.pdf" not in {n["id"] for n in g["nodos"]}
     pares = {(e["source"], e["target"]) for e in g["enlaces"]}
     assert ("veh:1", art.id) in pares             # el vehículo cita el nodo REAL
+
+
+def test_version_distingue_bases_sin_relaciones_por_entidades():
+    # dos bases DISTINTAS con iguales conteos y CERO relaciones no deben
+    # compartir versión (ni, por tanto, caché de lente): la huella de
+    # relaciones sola es '' para ambas y colisionaban
+    from autogenes.red import version_de_sesion
+
+    def _db(nombre):
+        c = sqlite3.connect(":memory:")
+        c.row_factory = sqlite3.Row
+        c.executescript(models.SCHEMA_SQL)
+        c.executescript(models_autogenes.AG_SCHEMA_SQL)
+        c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                  " year_processed) VALUES ('2026-07-10', 7, 2026)")
+        Sustrato(c, 1).upsert_entidad(nombre, "organizacion", "operador")
+        return c
+
+    a, b = _db("Empresa Alfa"), _db("Empresa Beta")
+    assert version_de_sesion(a, 1) != version_de_sesion(b, 1)
