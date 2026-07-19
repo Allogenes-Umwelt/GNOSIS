@@ -176,8 +176,13 @@ def similitud_conductual(filas: list[dict], marca_foco: str,
         vm, nm = _vector_marca(filas, m)
         if not vm or nm < minimo:
             continue
+        # clave secundaria por nombre de feature: sin ella los empates de
+        # min-share se rompen por el orden de iteración del set (dependiente de
+        # PYTHONHASHSEED), y el [:2] elegiría un subconjunto distinto entre
+        # reinicios de Flask — la cita del panel cambiaría con el mismo dato
         comp = sorted(((k, min(vfoco.get(k, 0.0), vm.get(k, 0.0)))
-                       for k in set(vfoco) & set(vm)), key=lambda kv: -kv[1])
+                       for k in sorted(set(vfoco) & set(vm))),
+                      key=lambda kv: (-kv[1], kv[0]))
         out.append({"marca": m, "similitud": round(_coseno(vfoco, vm), 4), "n": nm,
                     "comparten": [k for k, v in comp if v > 0.1][:2]})
     out.sort(key=lambda o: (-o["similitud"], -o["n"], o["marca"]))
