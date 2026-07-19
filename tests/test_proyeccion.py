@@ -377,3 +377,17 @@ def test_cap_no_reproyecta_conciliado_como_sin_conciliar():
     conciliados = set(vins)
     vehfac = {n["etiqueta"] for n in g["nodos"] if n["id"].startswith("vehfac:")}
     assert not (vehfac & conciliados)             # ningún conciliado como vehfac
+
+
+def test_pdf_ingerido_no_se_duplica_como_virtual(conn):
+    # tras F4, un PDF que existe como ag_artefacto NO debe aparecer también
+    # como artefacto virtual: un documento, un nodo, evidencia no partida
+    art = Sustrato(conn, SID).crear_artefacto("pdf", "lote_alemania.pdf")
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    homonimos = [n for n in g["nodos"] if n["etiqueta"] == "lote_alemania.pdf"]
+    assert len(homonimos) == 1                    # un solo nodo para el documento
+    assert homonimos[0]["id"] == art.id           # el real, no el virtual
+    assert "art:pdf:lote_alemania.pdf" not in {n["id"] for n in g["nodos"]}
+    pares = {(e["source"], e["target"]) for e in g["enlaces"]}
+    assert ("veh:1", art.id) in pares             # el vehículo cita el nodo REAL

@@ -329,6 +329,22 @@ def construir_grafo(
             LEFT JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
             WHERE i.session_id = ? ORDER BY i.id{limit_clause}""", (session_id,))
 
+    # artefactos reales ya ingeridos (F4): un PDF que existe como ag_artefacto
+    # NO debe duplicarse como artefacto virtual (dos nodos para un documento,
+    # evidencia partida). Se remapea la cita al nodo real por nombre.
+    art_real_por_nombre = {
+        r["nombre"]: r["id"] for r in _q(conn,
+            "SELECT id, nombre FROM ag_artefactos"
+            " WHERE session_id = ? AND kind = 'pdf'", (session_id,))}
+
+    def _artefacto_pdf(filename: str) -> str:
+        """Id del nodo del PDF: el ag_artefacto real si ya fue ingerido, si no
+        el virtual (registrado en pdf_ids para materializarse una sola vez)."""
+        real = art_real_por_nombre.get(filename)
+        if real:
+            return real
+        return pdf_ids.setdefault(filename, f"art:pdf:{filename}")
+
     pdf_ids: dict[str, str] = {}
     for v in vehiculos:
         vid = f"veh:{v['id']}"
@@ -349,14 +365,16 @@ def construir_grafo(
             enlaces.append(_enlace(f"cita-{vid}-pais{v['pais_code']}",
                                    vid, f"pais:{v['pais_code']}", "cita", 0.4))
         if v["pdf"]:
-            art_id = pdf_ids.setdefault(v["pdf"], f"art:pdf:{v['pdf']}")
+            art_id = _artefacto_pdf(v["pdf"])
             enlaces.append(_enlace(f"cita-{vid}-{art_id}", vid, art_id, "cita", 0.7))
 
     # Unmatched invoice PDFs: physically arrived, nothing sold cites them.
     for r in _q(conn, """
             SELECT DISTINCT filename FROM extraccion_facturas
             WHERE session_id = ? AND filename IS NOT NULL""", (session_id,)):
-        if r["filename"] not in pdf_ids:
+        # un PDF ya real (ingerido) cuelga del núcleo como ag_artefacto más
+        # abajo; aquí solo se tethera el virtual que aún no existe como real
+        if r["filename"] not in pdf_ids and r["filename"] not in art_real_por_nombre:
             art_id = f"art:pdf:{r['filename']}"
             pdf_ids[r["filename"]] = art_id
             enlaces.append(_enlace(f"cita-{nucleo_id}-{art_id}", nucleo_id, art_id,
@@ -390,7 +408,7 @@ def construir_grafo(
         vid = f"vehfac:{r['chasis']}"
         nodos.append(_nodo(vid, "vehiculo", r["chasis"], tipo=r["auto"],
                            extra={"j_y_n": r["j_y_n"], "moneda": r["moneda"]}))
-        art_id = pdf_ids.get(r["filename"])
+        art_id = pdf_ids.get(r["filename"]) or art_real_por_nombre.get(r["filename"])
         if art_id:
             enlaces.append(_enlace(f"cita-{vid}-{art_id}", vid, art_id, "cita", 0.6))
         if r["pais_code"]:
