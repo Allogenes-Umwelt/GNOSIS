@@ -370,10 +370,13 @@ class Sustrato:
             return self.entidad_por_id(existente.id)  # type: ignore[return-value]
 
         eid = _uuid()
+        # dedupe la evidencia también en la creación (la fusión ya lo hacía): un
+        # frag_id repetido inflaría el peso de la cinta en el chord de ingesta
         self.conn.execute(
             "INSERT INTO ag_entidades (id, session_id, nombre, tipo, resumen, campo,"
             " origen, evidencia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (eid, self.session_id, nombre.strip(), tipo, resumen, campo, origen, _js(evidencia)),
+            (eid, self.session_id, nombre.strip(), tipo, resumen, campo, origen,
+             _js(list(dict.fromkeys(evidencia)))),
         )
         self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})")
         self._commit()
@@ -823,7 +826,9 @@ class Sustrato:
         reales = self.fragmento_ids()
 
         def sanear(ev: list[str]) -> list[str]:
-            return [x for x in ev if x in reales]
+            # filtra a ids reales Y dedupe (orden estable): un frag repetido no
+            # debe contarse dos veces en el peso de la cinta del chord de ingesta
+            return [x for x in dict.fromkeys(ev) if x in reales]
 
         # una transacción para toda la propuesta (y BEGIN IMMEDIATE toma
         # el candado de escritura: dos integraciones concurrentes no

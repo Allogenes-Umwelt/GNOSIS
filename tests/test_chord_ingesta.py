@@ -141,3 +141,42 @@ def test_detalle_dossier_artefacto_y_entidad(conn):
 def test_detalle_nodo_ajeno_es_error(conn):
     _sembrar(conn)
     assert "error" in detalle_ingesta(conn, 1, "no-existe")
+
+
+def test_evidencia_duplicada_no_infla_peso_de_cinta(conn):
+    # un frag_id repetido en evidencia NO debe pesar la cinta 2 veces
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "doc.pdf")
+    fr = s.agregar_fragmentos(art.id, [(1, "x")])
+    s.upsert_entidad("Dup", "concepto", "operador",
+                     evidencia=[fr[0].id, fr[0].id, fr[0].id])
+    ch = chord_ingesta(conn, 1)
+    cinta = next(c for c in ch["cintas"] if c["artefacto_id"] == art.id)
+    assert cinta["peso"] == 1                     # 1 fragmento distinto, no 3
+
+
+def _muchas_frias(conn, n):
+    s = Sustrato(conn, 1)
+    for i in range(n):
+        a = s.crear_artefacto("pdf", f"f{i:03d}.pdf")
+        s.agregar_fragmentos(a.id, [(1, "x")])
+    return s
+
+
+def test_rollup_agregado_sin_peso_con_miembros_y_frias(conn):
+    _muchas_frias(conn, 52)                        # > MAX_ARCOS_ARTEFACTO (48)
+    ch = chord_ingesta(conn, 1)
+    agg = next(a for a in ch["artefactos"] if a.get("agregado"))
+    assert "_peso" not in agg                      # R2: no viaja al payload
+    assert agg["_miembros"]                        # DI3: miembros sí (para el dossier)
+    assert agg["frias"] > 0 and agg["frias"] == agg["n"]   # R13: conserva señal fría
+
+
+def test_dossier_de_arco_agregado_lista_miembros(conn):
+    _muchas_frias(conn, 52)
+    ch = chord_ingesta(conn, 1)
+    agg = next(a for a in ch["artefactos"] if a.get("agregado"))
+    d = detalle_ingesta(conn, 1, agg["id"])
+    assert d["tipo"] == "agregado" and d["n"] == agg["n"]
+    assert len(d["miembros"]) == agg["n"]
+    assert all("nombre" in m and "kind" in m for m in d["miembros"])
