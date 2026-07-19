@@ -222,3 +222,16 @@ def test_volumen_no_anota_extremos_sin_flujo():
            "hasta": {"id": "e2", "etiqueta": "Puerto", "kind": "entidad"}, "saltos": []}
     anotar_volumen_extremos([cam], {"pais": {}, "marca": {}})
     assert "volumen" not in cam["desde"] and "volumen" not in cam["hasta"]
+
+
+def test_cuerpo_guardado_preserva_direccion_de_relacion_al_reves(caso):
+    # 'opera en' es agencia->puerto; recorrerlo AL REVÉS (puerto->agencia por
+    # alcanzabilidad no-dirigida) no debe hacer que el Producto WORM afirme
+    # 'Puerto opera en Agencia' — la evidencia dice lo contrario
+    c, _, d = caso
+    cam = camino_mas_corto(c, 1, d["puerto"].id, d["agencia"].id)
+    assert cam["largo"] == 1
+    assert cam["saltos"][0]["de"]["etiqueta"] == "Puerto"   # marcha: puerto->agencia
+    salto = cuerpo_camino_guardado(cam)["saltos"][0]
+    assert salto["tipo"] == "opera en"
+    assert salto["de"] == "Agencia" and salto["a"] == "Puerto"   # sentido real

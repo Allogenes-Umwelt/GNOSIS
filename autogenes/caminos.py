@@ -258,13 +258,24 @@ def cuerpo_camino_guardado(camino: dict[str, Any]) -> dict[str, Any]:
         "desde": camino["desde"]["etiqueta"],
         "hasta": camino["hasta"]["etiqueta"],
         "largo": camino["largo"],
-        "saltos": [
-            {
-                "de": s["de"]["etiqueta"],
-                "a": s["a"]["etiqueta"],
-                "tipo": s["arista"].get("tipo") or s["arista"].get("kind"),
-                "evidencia": s["evidencia"],
-            }
-            for s in camino["saltos"]
-        ],
+        "saltos": [_salto_orientado(s) for s in camino["saltos"]],
+    }
+
+
+def _salto_orientado(s: dict[str, Any]) -> dict[str, Any]:
+    """Aplana un salto respetando la orientación REAL de una relación tipada.
+    El recorrido es no-dirigido (alcanzabilidad), pero un verbo dirigido
+    ('opera en') debe leerse en el sentido de la arista (desde→hasta), no en
+    el de la marcha: aplanarlo al orden de marcha afirmaría la relación
+    invertida en un Producto citado y bitacorado (WORM)."""
+    de, a = s["de"], s["a"]
+    arista = s["arista"]
+    if (arista.get("kind") == "relacion" and arista.get("desde")
+            and arista["desde"] != de["id"]):
+        de, a = a, de
+    return {
+        "de": de["etiqueta"],
+        "a": a["etiqueta"],
+        "tipo": arista.get("tipo") or arista.get("kind"),
+        "evidencia": s["evidencia"],
     }

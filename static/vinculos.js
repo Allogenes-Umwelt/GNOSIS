@@ -112,11 +112,17 @@
         det.appendChild(v);
       });
       cam.saltos.forEach(function (s) {
+        // una relación tipada recorrida al revés se lee en su sentido real
+        // (arista.desde→hasta), no en el de la marcha, o el verbo se invierte
+        var de = s.de, a = s.a, ar = s.arista;
+        if (ar && ar.kind === 'relacion' && ar.desde && ar.desde !== s.de.id) {
+          de = s.a; a = s.de;
+        }
         var fila = document.createElement('div');
         fila.className = 'gr-fila';
-        fila.innerHTML = '<span>' + esc((s.de.etiqueta || '').slice(0, 16)) + ' → ' +
-          esc((s.a.etiqueta || '').slice(0, 16)) + '</span><b>' +
-          esc(s.arista.tipo || s.arista.kind || '—') +
+        fila.innerHTML = '<span>' + esc((de.etiqueta || '').slice(0, 16)) + ' → ' +
+          esc((a.etiqueta || '').slice(0, 16)) + '</span><b>' +
+          esc(ar.tipo || ar.kind || '—') +
           (s.evidencia.length ? ' · ' + s.evidencia.length + ' citas' : '') + '</b>';
         det.appendChild(fila);
       });
