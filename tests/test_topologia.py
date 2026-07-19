@@ -170,6 +170,17 @@ def test_persistencia_una_barra_por_nodo_cruzada_con_componentes():
     assert muertes == sorted(muertes)        # más persistente primero
 
 
+def test_persistencia_ignora_arista_con_extremo_no_proyectado():
+    # una arista a un nodo ausente (deriva referencial: pedimento colgante) NO
+    # debe crashear el motor — degrada como todos sus hermanos
+    red = {"nodos": [{"id": "a"}, {"id": "b"}],
+           "enlaces": [{"origen": "a", "destino": "b", "peso": 0.9},
+                       {"origen": "a", "destino": "fantasma", "peso": 0.5}]}
+    per = persistencia_h0(red)                    # no lanza KeyError
+    assert per["n_componentes"] == 1              # a-b fundidos; fantasma ignorado
+    assert len(per["barras"]) == 2               # una por nodo proyectado
+
+
 def test_huella_cohesion_determinista_y_forma():
     red = dos_cliques()
     a = huella_cohesion(red)
