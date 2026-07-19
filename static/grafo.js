@@ -64,7 +64,7 @@
     var expandidos = {};                  // pedimento ids con su racimo de vehículos abierto
     var UMBRAL_COLAPSO = 24;              // racimo de vehículos que se colapsa en meta-nodo
     var sesionId = null;
-    var sim = null, animando = false, latiendo = false, t0 = 0;
+    var sim = null, animando = false, latiendo = false;
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
@@ -1196,7 +1196,10 @@
     });
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
-      var factor = Math.pow(1.0015, -ev.deltaY);
+      // normaliza el modo de rueda: Firefox entrega deltaY en líneas (≈±3) o
+      // páginas, no en px — sin esto el zoom queda casi inerte en ese navegador
+      var dy = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1);
+      var factor = Math.pow(1.0015, -dy);
       var p = xy(ev);
       var antes = aMundo(p[0], p[1]);
       vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
@@ -1506,7 +1509,7 @@
       } else if (k === 'anomalia') {
         var sev = n.severidad === 'danger';
         sub = 'motor ' + (ex(n, 'motor') || '—');
-        cuerpo = '<span class="gr-chip ' + (sev ? 'crit' : 'warn') + '">● ' +
+        cuerpo = '<span class="gr-sev-chip ' + (sev ? 'crit' : 'warn') + '">● ' +
           (sev ? 'Crítico' : 'Revisar') + ' · ' + esc(n.severidad || 'warn') + '</span>';
         if (ex(n, 'detalle')) cuerpo += '<div class="gr-diag">' + esc(ex(n, 'detalle')) + '</div>';
         cuerpo += fila('motor', ex(n, 'motor')) + fila('regla', ex(n, 'regla_id')) +
@@ -2144,11 +2147,11 @@
           } }
       ];
       if (sel && (sel.kind === 'marca' || sel.kind === 'pais' || sel.kind === 'pedimento')) {
-        cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
+        cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'simulación',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
       if (sel) cmds.push({ et: (vigilados[sel.id] ? 'Dejar de vigilar ' : 'Vigilar ') + sel.etiqueta,
-        hint: 'watchlist', run: (function (n) { return function () { alternarVigilado(n); }; })(sel) });
+        hint: 'vigilancia', run: (function (n) { return function () { alternarVigilado(n); }; })(sel) });
       // search-around tipado (P2): aísla los vecinos de un kind del nodo activo
       if (sel && vecinos[sel.id]) {
         var kindsVec = {};
@@ -2156,7 +2159,7 @@
           var v = porId[id]; if (v && v.kind !== 'fragmento') kindsVec[v.kind] = true;
         });
         Object.keys(kindsVec).sort().forEach(function (kk) {
-          cmds.push({ et: 'Vecinos ' + kk + ' de ' + sel.etiqueta, hint: 'search-around',
+          cmds.push({ et: 'Vecinos ' + kk + ' de ' + sel.etiqueta, hint: 'vecindario',
             run: (function (k, n) { return function () {
               var rn = {}, re = {}; rn[n.id] = true;
               Object.keys(vecinos[n.id] || {}).forEach(function (id) {
@@ -2172,8 +2175,8 @@
       }
       cmds.push({ et: 'Guardar investigación', hint: 'P1',
         run: function () { guardarInvestigacion(); } });
-      cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'export', run: exportarExhibit });
-      cmds.push({ et: 'Copiar enlace de esta vista', hint: 'export', run: copiarEnlaceVista });
+      cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'exportar', run: exportarExhibit });
+      cmds.push({ et: 'Copiar enlace de esta vista', hint: 'exportar', run: copiarEnlaceVista });
       cmds.push({ et: (histoVisible ? 'Ocultar' : 'Mostrar') + ' histograma de precios', hint: 'facetas',
         run: function () {
           histoVisible = !histoVisible; histoCanvas.hidden = !histoVisible;
