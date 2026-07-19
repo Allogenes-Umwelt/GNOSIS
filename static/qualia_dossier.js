@@ -125,7 +125,9 @@ window.QualiaDossier = (function () {
   function abrir(nombre, opts) {
     if (!nombre) return;
     construir();
-    ultimoFoco = document.activeElement;
+    // solo al abrir de verdad: reabrir desde un candidato del propio panel no
+    // debe capturar un botón que render() destruirá (foco perdido al cerrar).
+    if (overlay.hidden) ultimoFoco = document.activeElement;
     overlay.hidden = false;
     document.body.classList.add('qd-abierto');
     titulo.textContent = nombre; sub.textContent = '';
@@ -133,10 +135,17 @@ window.QualiaDossier = (function () {
     panel.querySelector('.qd-cerrar').focus();
     ponerSel(nombre);
     fetch('/api/v1/autogenes/qualia/dossier?nombre=' + encodeURIComponent(nombre))
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        // distingue "el sustrato respondió con error" de "no hubo conexión"
+        if (!r.ok) throw new Error('http');
+        return r.json();
+      })
       .then(function (j) { render(j, opts || {}); })
-      .catch(function () {
-        cuerpo.innerHTML = '<p class="qa-base-hint">Sin conexión con el sustrato.</p>';
+      .catch(function (err) {
+        cuerpo.innerHTML = '<p class="qa-base-hint">' +
+          (err && err.message === 'http'
+            ? 'No se pudo leer el dossier.'
+            : 'Sin conexión con el sustrato.') + '</p>';
       });
   }
   function cerrar() {
