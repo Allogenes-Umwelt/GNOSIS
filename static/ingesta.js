@@ -42,16 +42,26 @@
 
     // ── panel derecho: resumen por defecto (mata la pantalla muerta) ──
     // Gramática de tarjeta: cifra+unidad+periodo → so-what → now-what → fuente.
+    var seqResumen = 0;
     function pintarResumen() {
       propTitulo.hidden = true; integrarBtn.hidden = true;
+      var mia = ++seqResumen;
       fetch('/api/v1/autogenes/chord_ingesta')
-        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
         .then(function (j) {
-          if (!j || j.error) { propCont.innerHTML = ''; return; }
+          if (mia !== seqResumen) return;   // una respuesta vieja no pisa a la nueva
+          if (!j || j.error) {
+            // NO borrar el panel (pantalla muerta): declarar el error
+            propCont.innerHTML = '<p class="gr-vacio">' +
+              esc((j && j.error) || 'No se pudo leer el mapa de ingesta.') + '</p>';
+            return;
+          }
           var r = j.resumen;
-          var ahora = r.frias
-            ? 'Extrae las ' + r.frias + ' frías o suelta más fuentes.'
-            : 'Todas las fuentes citadas — suelta nuevas o sintetiza.';
+          var ahora = r.fuentes === 0
+            ? 'Sin fuentes aún — suelta un PDF o un ZIP para empezar.'
+            : (r.frias
+                ? 'Extrae las ' + r.frias + ' frías o suelta más fuentes.'
+                : 'Todas las fuentes citadas — suelta nuevas o sintetiza.');
           propCont.innerHTML =
             '<div class="gr-kind">' + esc(j.etiqueta) + '</div>' +
             '<div class="gr-fila"><span>Cobertura</span><b>' + esc(r.cobertura) +
@@ -61,25 +71,49 @@
             '<div class="gr-fila"><span>Entidades</span><b>' + esc(r.entidades) + '</b></div>' +
             '<p class="gr-vacio" style="margin-top:10px">' + esc(ahora) +
             ' · clic en un arco para su dossier.</p>';
-        }).catch(function () {});
+        }).catch(function () {
+          if (mia !== seqResumen) return;
+          if (!propCont.innerHTML) {
+            propCont.innerHTML = '<p class="gr-vacio">Sin conexión con el sustrato.</p>';
+          }
+        });
     }
 
     // ── dossier de un arco (artefacto o entidad) ──
+    var seqDossier = 0;
     function pintarDossier(nodo) {
-      if (!nodo || nodo.agregado) { pintarResumen(); return; }
+      if (!nodo) { pintarResumen(); return; }
       propTitulo.hidden = true; integrarBtn.hidden = true;
       propCont.innerHTML = '<p class="gr-vacio">Cargando dossier…</p>';
+      var mia = ++seqDossier;
       fetch('/api/v1/autogenes/detalle_ingesta?id=' + encodeURIComponent(nodo.id))
         .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (res) {
+          if (mia !== seqDossier) return;   // una respuesta vieja no pisa a la nueva
           if (!res.ok) { propCont.innerHTML = '<p class="gr-vacio">' +
             esc(res.j.error || 'Sin dossier') + '</p>'; return; }
           var d = res.j;
           if (d.tipo === 'artefacto') { dossierArtefacto(d); }
+          else if (d.tipo === 'agregado') { dossierAgregado(d); }
           else { dossierEntidad(d); }
         }).catch(function () {
+          if (mia !== seqDossier) return;
           propCont.innerHTML = '<p class="gr-vacio">Sin conexión</p>';
         });
+    }
+
+    // dossier de un arco agregado ("+N más"): lista las fuentes/entidades que
+    // colapsó, cada una enlazada a su nodo en el grafo
+    function dossierAgregado(d) {
+      var html = '<div class="gr-kind">' + esc(String(d.grupo || '').toUpperCase()) +
+        ' · AGRUPADO</div><div class="gr-fila"><span>' + esc(d.nombre) +
+        '</span><b>' + esc(d.n) + ' miembros</b></div>';
+      (d.miembros || []).forEach(function (m) {
+        html += '<div class="gr-fila"><a href="/autogenes/grafo#n=' +
+          encodeURIComponent(m.id) + '"><span>' + esc((m.nombre || '').slice(0, 24)) +
+          '</span><b>' + esc(m.kind || m.tipo || '') + '</b></a></div>';
+      });
+      propCont.innerHTML = html;
     }
 
     function dossierArtefacto(d) {
@@ -203,16 +237,20 @@
           var loteId = res.j.lote_id;
           var url = '/api/v1/autogenes/ingestar/lote/' + encodeURIComponent(loteId);
           return new Promise(function (resolve) {
+            var ultimo = { ingeridos: 0, duplicados: 0 };
             (function tanda() {
               if (cancelado) {
                 fetch(url, { method: 'DELETE' }).catch(function () {});
-                resolve({ cancelado: true, ingeridos: 0, duplicados: 0, errores: 0 });
+                // conserva lo que YA entró: las tandas completadas están en la BD
+                resolve({ cancelado: true, ingeridos: ultimo.ingeridos || 0,
+                          duplicados: ultimo.duplicados || 0, errores: 0 });
                 return;
               }
               fetch(url, { method: 'POST' })
                 .then(function (r) { return r.json(); })
                 .then(function (p) {
                   if (p.error) { resolve({ errores: 1, ingeridos: 0, duplicados: 0, motivo: p.error }); return; }
+                  ultimo = p;
                   if (onProgreso) onProgreso(p);
                   if (p.done) { resolve(p); } else { tanda(); }
                 })
@@ -409,15 +447,17 @@
       extraccionEnVuelo = true;
       if (extraerTodoBtn) { extraerTodoBtn.disabled = true; }
       propCont.innerHTML = ''; propTitulo.hidden = true; integrarBtn.hidden = true;
-      var total = cola.length;
+      var total = cola.length, fallidos = 0;
       (function siguiente(i) {
         if (i >= total) {
           extraccionEnVuelo = false;
           if (extraerTodoBtn) extraerTodoBtn.disabled = false;
           propuestaActual = combinada;
-          aviso('Extracción de ' + total + ' artefactos · ' +
+          // copy honesto: no declarar éxito de N si K fallaron
+          aviso('Extracción · ' + (total - fallidos) + ' de ' + total + ' artefactos' +
+                (fallidos ? ' · ' + fallidos + ' fallidos' : '') + ' · ' +
                 combinada.entidades.length + ' entidades · ' +
-                combinada.relaciones.length + ' relaciones', 'ok');
+                combinada.relaciones.length + ' relaciones', fallidos ? 'error' : 'ok');
           if (combinada.entidades.length || combinada.relaciones.length) {
             pintarPropuesta(combinada);
           } else {
@@ -437,9 +477,9 @@
               combinada.entidades = combinada.entidades.concat(res.j.entidades);
               combinada.relaciones = combinada.relaciones.concat(res.j.relaciones || []);
               if (!res.j.quorum) combinada.quorum = false;
-            }
+            } else { fallidos++; }
             siguiente(i + 1);
-          }).catch(function () { siguiente(i + 1); });
+          }).catch(function () { fallidos++; siguiente(i + 1); });
       })(0);
     }
     if (extraerTodoBtn) extraerTodoBtn.addEventListener('click', extraerTodo);
@@ -450,7 +490,7 @@
         var fila = document.createElement('label');
         fila.className = 'gr-fila';
         fila.style.cursor = 'pointer';
-        var marca = e.acuerdo === false ? ' ⚠ sin acuerdo'
+        var marca = e.acuerdo === false ? ' · sin acuerdo'
                   : e.acuerdo === true ? ' ✓✓' : '';
         // merge-preview: si ya existe, integrarla suma evidencia, no crea nodo
         var merge = e.nueva === false ? '<i class="in-existe">ya existe</i>'

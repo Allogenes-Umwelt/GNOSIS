@@ -29,20 +29,27 @@
     var animando = false, entrada = null, idsPrevios = null;
 
     function conAlfa(hex, a) {
-      var h = (hex || '#00D4FF').replace('#', '');
+      var h = String(hex || '').replace('#', '');
       if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      if (h.length < 6) return 'rgba(0,0,0,' + a + ')';   // token no-hex ⇒ no NaN
       return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
              ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
     }
     function leerColores() {
       var cs = getComputedStyle(document.documentElement);
+      var claro = document.documentElement.getAttribute('data-theme') === 'light';
+      // fallbacks POR TEMA: un token no resuelto ya no pinta Nocturne sobre
+      // Daylight (texto claro-sobre-claro invisible)
+      function tok(nombre, oscuro, luz) {
+        return cs.getPropertyValue(nombre).trim() || (claro ? luz : oscuro);
+      }
       colores = {
-        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
-        danger: cs.getPropertyValue('--danger').trim() || '#F57F9C',
-        line: cs.getPropertyValue('--line-2').trim() || '#777',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t2: cs.getPropertyValue('--t2').trim() || '#CCC',
-        t3: cs.getPropertyValue('--t3').trim() || '#AAA'
+        acc: tok('--acc-text', '#00D4FF', '#005A6E'),
+        danger: tok('--danger', '#F57F9C', '#A4133C'),
+        line: tok('--line-2', '#777777', '#737373'),
+        t1: tok('--t1', '#FAFAF8', '#030303'),
+        t2: tok('--t2', '#CCCCCC', '#2F2F2F'),
+        t3: tok('--t3', '#AAAAAA', '#474747')
       };
     }
 
@@ -115,7 +122,12 @@
       var cursor = {};
       arts.concat(ents).forEach(function (n) { cursor[n.id] = n.a0; });
       var cintas = datos.cintas.slice().sort(function (x, y) {
-        return y.peso - x.peso || (x.artefacto_id < y.artefacto_id ? -1 : 1);
+        // comparador consistente (con caso de igualdad): sin el desempate por
+        // entidad_id dos cintas del mismo artefacto y peso devolvían 1 en ambos
+        // órdenes -> orden dependiente de la implementación del motor JS
+        return y.peso - x.peso ||
+          (x.artefacto_id < y.artefacto_id ? -1 : x.artefacto_id > y.artefacto_id ? 1 :
+            x.entidad_id < y.entidad_id ? -1 : x.entidad_id > y.entidad_id ? 1 : 0);
       }).map(function (c) {
         var A = porId[c.artefacto_id], E = porId[c.entidad_id];
         if (!A || !E) return null;
@@ -156,9 +168,12 @@
       var hid = hover ? hover.id : (focoId() || (sel ? sel.id : null));
       // k de entrada: los arcos nuevos barren su ángulo una sola vez
       var kEnt = 1;
-      if (entrada) {
-        if (entrada.inicio == null) entrada.inicio = ts || 0;
-        kEnt = Math.min(1, ((ts || 0) - entrada.inicio) / 600);
+      // solo avanza el barrido con un timestamp REAL: sembrar inicio con
+      // dibujar(0) lo saltaba (kEnt salta a 1), y un dibujar(0) a media entrada
+      // daba kEnt negativo (arcos desaparecían un frame). Sin ts, estado final.
+      if (entrada && ts) {
+        if (entrada.inicio == null) entrada.inicio = ts;
+        kEnt = Math.min(1, (ts - entrada.inicio) / 600);
         kEnt = 1 - Math.pow(1 - kEnt, 3);
         if (kEnt >= 1) entrada = null;
       }
@@ -240,12 +255,13 @@
       if (reduce || (!hover && !entrada)) { dibujar(0); return; }
       if (animando) return;
       animando = true;
-      (function paso(ts) {
+      function paso(ts) {
         if (document.hidden) { animando = false; return; }
         dibujar(ts);
         if (!hover && !entrada) { animando = false; return; }
         requestAnimationFrame(paso);
-      })(0);
+      }
+      requestAnimationFrame(paso);      // arranca con timestamp REAL, no 0
     }
 
     function dibujarEtiqueta(n, esHover) {
@@ -385,17 +401,21 @@
       }
       if (n.lado === 'art') {
         info.textContent = (n.fria ? 'FRÍA · ' : '') + n.nombre + ' · ' +
-          n.fragmentos + ' frag · ' + n.entidades + ' entidad(es) citante(s)';
+          (n.agregado ? n.n + ' agrupadas' + (n.frias ? ' · ' + n.frias + ' frías' : '')
+            : n.fragmentos + ' frag · ' + n.entidades + ' entidad(es) citante(s)');
       } else {
         info.textContent = n.nombre + ' · ' + (n.agregado ? n.n + ' agrupadas'
           : n.citas + ' citas · ' + n.fuentes + ' fuente(s)');
       }
     }
 
+    var reqSeq = 0;   // token de secuencia: una respuesta vieja nunca pisa a la nueva
     function cargar() {
+      var mia = ++reqSeq;
       fetch('/api/v1/autogenes/chord_ingesta')
-        .then(function (r) { return r.json(); })
+        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
         .then(function (j) {
+          if (mia !== reqSeq) return;
           if (!j || j.error) { if (info) info.textContent = (j && j.error) || 'SIN DATOS'; return; }
           datos = j;
           calcularLayout();
@@ -413,7 +433,11 @@
           pintarInfo(null);
           animar();
         })
-        .catch(function () { if (info) info.textContent = 'SIN CONEXIÓN'; });
+        .catch(function (e) {
+          if (mia !== reqSeq) return;
+          if (info) info.textContent = (e && e.message === 'http')
+            ? 'NO SE PUDO LEER EL MAPA' : 'SIN CONEXIÓN';
+        });
     }
 
     leerColores();

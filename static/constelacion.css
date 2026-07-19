@@ -621,6 +621,10 @@ button.tr-urg { align-items: baseline; }
   color: var(--acc-text); background: none; border: 1px solid var(--line-2);
   border-radius: 3px; padding: 2px 8px; cursor: pointer; }
 .ag-modo-tabla:hover, .ag-modo-tabla:focus-visible { border-color: var(--acc-text); }
+/* el chord NO es paneable (hover/clic, no arrastre): anula el cursor:grab y el
+   touch-action:none que hereda de .gr-lienzo canvas — ese bloqueaba el scroll de
+   página iniciado sobre el lienzo (móvil, una columna, el mapa va primero) */
+.ch-lienzo canvas { cursor: default; touch-action: auto; }
 .ch-tabla { max-height: 420px; overflow: auto; margin-top: 8px; }
 .ch-tabla table { width: 100%; border-collapse: collapse; font-family: var(--font-mono);
   font-size: .72rem; color: var(--t2); }
