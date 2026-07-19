@@ -88,26 +88,33 @@
     // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
     // por modo (--acc-text), nunca el cyan real fijo.
     function conAlfa(hex, a) {
-      var h = hex.replace('#', '');
+      var h = String(hex || '').replace('#', '');
       if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      if (h.length < 6) return 'rgba(0,0,0,' + a + ')';   // token no-hex ⇒ no NaN
       return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
              ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
     }
     function leerColores() {
       var cs = getComputedStyle(document.documentElement);
+      esLight = document.documentElement.getAttribute('data-theme') === 'light';
+      // fallbacks POR TEMA (patrón QualiaComun): un token no resuelto ya no
+      // pinta la paleta Nocturne sobre Daylight (invisible claro-sobre-claro)
+      function tok(nombre, oscuro, luz) {
+        return cs.getPropertyValue(nombre).trim() || (esLight ? luz : oscuro);
+      }
       colores = {
-        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
-        cobalt: cs.getPropertyValue('--cobalt-on').trim() || '#8C9EFF',
-        warn: cs.getPropertyValue('--warn').trim() || '#FF80AA',
-        danger: cs.getPropertyValue('--danger').trim() || '#F57F9C',
-        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
-        linea2: cs.getPropertyValue('--line-2').trim() || '#777',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t3: cs.getPropertyValue('--t3').trim() || '#AAA',
-        bg: cs.getPropertyValue('--bg').trim() || '#050505',
+        acc: tok('--acc-text', '#00D4FF', '#005A6E'),
+        cobalt: tok('--cobalt-on', '#8C9EFF', '#2A3EB1'),
+        warn: tok('--warn', '#FF80AA', '#8C0038'),
+        danger: tok('--danger', '#F57F9C', '#A4133C'),
+        linea: tok('--line', '#5B5B5B', '#919191'),
+        linea2: tok('--line-2', '#777777', '#737373'),
+        t1: tok('--t1', '#FAFAF8', '#030303'),
+        t3: tok('--t3', '#AAAAAA', '#474747'),
+        bg: tok('--bg', '#050505', '#FAFAF8'),
+        surface: tok('--surface', '#0A0A0A', '#F8F8F6'),
         fondo: 'transparent'
       };
-      esLight = document.documentElement.getAttribute('data-theme') === 'light';
     }
 
     // ── paleta y formas por nodo (PANOPTES §1.1, §5) ──────────────────
@@ -171,7 +178,7 @@
       var L = largoDardo(r), ang = anguloDardo(n);
       ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(ang);
       ctx.beginPath(); trazarHoja(L, DARDO_SK);
-      ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+      ctx.fillStyle = conAlfa(colores.bg, esLight ? 0.94 : 0.96);
       ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = esFoco ? 2.0 : Math.max(1, L * 0.014);
       ctx.stroke();
@@ -238,7 +245,7 @@
         ctx.rotate(ab + Math.PI / 2);
         var L = S * 0.88;
         ctx.beginPath(); trazarHoja(L, 0);
-        ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+        ctx.fillStyle = conAlfa(colores.bg, esLight ? 0.94 : 0.96);
         ctx.fill();
         ctx.strokeStyle = colores.acc; ctx.lineWidth = Math.max(1, L * 0.016);
         ctx.stroke();
@@ -2056,7 +2063,7 @@
       out.width = canvas.width;
       out.height = canvas.height + pie;
       var o = out.getContext('2d');
-      o.fillStyle = colores.bg || '#050505';
+      o.fillStyle = colores.bg;   // colores.bg ya trae fallback por tema
       o.fillRect(0, 0, out.width, out.height);
       o.drawImage(canvas, 0, 0);
       o.strokeStyle = colores.acc; o.globalAlpha = 0.5;
