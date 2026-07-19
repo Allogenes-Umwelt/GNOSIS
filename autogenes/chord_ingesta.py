@@ -5,11 +5,16 @@ aduanal VIN leaves: *what did I bring in, what is still cold, and what did
 each source produce?* This projects exactly that and nothing else — no
 vehiculo/marca/pais nodes — as a chord:
 
-    left hemisphere  = artefactos (documentary sources), grouped by kind
-    right hemisphere = entidades (produced knowledge), grouped by tipo
+    left hemisphere  = artefactos (documentary sources), coldest and most
+                       fragment-rich first (the actionable signal leads)
+    right hemisphere = entidades (produced knowledge), most cited first
     ribbons          = artefacto -> entidad, weight = that artefacto's
                        fragments cited by that entidad
     cold source      = an artefacto no entity cites (ribbonless arc)
+
+Arcs are ordered by SIGNAL, not clustered by kind/tipo: the ring reads as a
+smooth continuum led by what matters, and repartir keeps a hairline gap between
+consecutive same-group runs without fragmenting it.
 
 The law of `proyeccion.py` holds here: NEVER writes; every number derives
 from ag_artefactos/ag_fragmentos/ag_entidades and is citable. Deterministic:
@@ -238,12 +243,7 @@ def _rollup(arcos: list[dict], maximo: int, prefijo: str,
     aggregate carries the real count and total weight."""
     ordenados = sorted(arcos, key=clave_orden)
     if len(ordenados) <= maximo:
-        # supervivencia por señal, PERO display agrupado por kind: el chord dibuja
-        # los arcos contiguos por grupo (repartir mete un hueco por grupo). Sin
-        # esto, ordenar por señal intercalaba kinds y sembraba huecos sin
-        # significado en cada alternancia. sorted es estable ⇒ orden de señal
-        # preservado dentro de cada grupo.
-        return sorted(ordenados, key=lambda x: x["grupo"])
+        return ordenados
     visibles = ordenados[:maximo]
     resto = ordenados[maximo:]
     por_grupo: dict[str, list[dict]] = {}
@@ -262,9 +262,7 @@ def _rollup(arcos: list[dict], maximo: int, prefijo: str,
             "_peso": sum(peso(m) for m in miembros),
             "_miembros": [m["id"] for m in miembros],
         })
-    # display agrupado por kind (ver rama sin rollup): el "+N más" de cada grupo
-    # queda al final de su grupo por la estabilidad del sort
-    return sorted(visibles, key=lambda x: x["grupo"])
+    return visibles
 
 
 def _remap_de(arcos: list[dict], prefijo: str) -> dict[str, str]:
