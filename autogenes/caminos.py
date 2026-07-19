@@ -137,7 +137,11 @@ def caminos(conn: sqlite3.Connection, session_id: int, desde_id: str,
             simple[u][v]["w"] = min(simple[u][v]["w"], w)
         else:
             simple.add_edge(u, v, w=w)
-    if evitar and evitar in simple and evitar not in (desde_id, hasta_id):
+    # el método declarado debe reflejar lo que REALMENTE pasó: un evitar que no
+    # está en el grafo (o que es un extremo) no quita nada, y etiquetarlo
+    # "evitando un nodo" sería mentir sobre el cómputo
+    quito_nodo = bool(evitar) and evitar in simple and evitar not in (desde_id, hasta_id)
+    if quito_nodo:
         simple = simple.subgraph([n for n in simple if n != evitar])
 
     if via and via in simple and via not in (desde_id, hasta_id):
@@ -154,7 +158,7 @@ def caminos(conn: sqlite3.Connection, session_id: int, desde_id: str,
         rutas = list(itertools.islice(gen, max(1, k)))
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         return []
-    base = "evitando un nodo" if evitar else "topológico"
+    base = "evitando un nodo" if quito_nodo else "topológico"
     salida = []
     for i, ruta in enumerate(rutas):
         metodo = (f"más corto ({base})" if i == 0

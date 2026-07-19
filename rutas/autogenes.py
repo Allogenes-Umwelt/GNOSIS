@@ -1419,6 +1419,15 @@ def api_autogenes_camino():
     via = request.args.get('via') or None
 
     def handler(conn, session_id):
+        # una restricción evitar/via sobre un nodo inexistente NO se ignora en
+        # silencio (devolvería caminos que no respetan lo pedido): se declara
+        if evitar or via:
+            from autogenes.red import red_de_sesion
+            red = red_de_sesion(conn, session_id)
+            for etq in (evitar, via):
+                if etq and etq not in red:
+                    return jsonify(
+                        {'error': f'Nodo desconocido para la restricción: {etq}'}), 404
         vols = volumenes_por_nodo(conn, session_id)
         if k <= 1 and not evitar and not via:
             cam = camino_mas_corto(conn, session_id, desde, hasta)

@@ -210,6 +210,15 @@ def test_api_405_responde_json(cliente):
     assert r.get_json()["status"] == 405
 
 
+def test_camino_evitar_nodo_inexistente_es_404_declarado(cliente):
+    # una restricción evitar/via sobre un nodo que no existe se declara, no se
+    # ignora en silencio devolviendo caminos que no la respetan
+    r = cliente.get("/api/v1/autogenes/camino"
+                    "?desde=a&hasta=b&k=2&evitar=nodo-fantasma")
+    assert r.status_code == 404
+    assert "fantasma" in r.get_json()["error"]
+
+
 def test_api_sin_sesion_es_404_honesto(tmp_path):
     """Sin sesiones procesadas, _con_sesion devuelve 404 declarado (no un
     500 críptico). Base virgen, sin sembrar."""

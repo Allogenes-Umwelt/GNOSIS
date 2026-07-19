@@ -235,3 +235,13 @@ def test_cuerpo_guardado_preserva_direccion_de_relacion_al_reves(caso):
     salto = cuerpo_camino_guardado(cam)["saltos"][0]
     assert salto["tipo"] == "opera en"
     assert salto["de"] == "Agencia" and salto["a"] == "Puerto"   # sentido real
+
+
+def test_caminos_metodo_no_miente_con_evitar_inexistente(caso):
+    # evitar un nodo que no está en el grafo no quita nada: el método NO puede
+    # declarar 'evitando un nodo' (mentiría sobre el cómputo)
+    c, _, d = caso
+    lista = caminos(c, 1, d["fianza"].id, d["puerto"].id, k=2, evitar="id-fantasma")
+    assert lista
+    assert all("evitando un nodo" not in cam["metodo"] for cam in lista)
+    assert "topológico" in lista[0]["metodo"]
