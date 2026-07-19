@@ -375,3 +375,11 @@ def test_bitacora_migracion_desde_esquema_sin_sello():
     v = Sustrato(conn, 1).verificar_bitacora()
     assert v["valido"] is True                        # legado sin sellar no rompe
     assert v["sellados"] >= 1 and v["filas"] == 2
+
+
+def test_propuesta_relacion_nan_cae_al_default_no_a_nan():
+    # NaN atraviesa min/max y sqlite lo liga NULL -> 500 opaco; el validador
+    # debe caer al default honesto 0.5, no propagar NaN a la puerta
+    r = PropuestaRelacion(desde="a", hasta="b", tipo="x", peso=float("nan"))
+    assert r.peso == 0.5
+    assert PropuestaRelacion(desde="a", hasta="b", tipo="x", peso=5.0).peso == 1.0

@@ -141,6 +141,11 @@ class PropuestaRelacion(BaseModel):
     @field_validator("peso")
     @classmethod
     def _acotar_peso(cls, v: float) -> float:
+        # NaN atraviesa min/max (toda comparación con NaN es falsa) y sqlite lo
+        # liga como NULL → 500 opaco en una propuesta por lo demás válida. Un
+        # peso no numérico no es dato: cae al default honesto de "sin confianza".
+        if v != v:
+            return 0.5
         return min(max(v, 0.0), 1.0)
 
 
