@@ -189,7 +189,9 @@ def vecindario(conn: sqlite3.Connection, session_id: int,
     }
 
 
-KINDS_RUIDO = {"vehiculo", "fragmento"}
+# las anomalías Δ son hallazgos DERIVADOS, no entidades del sustrato: no compiten
+# como "los más conectados" ni como extremos de camino (serían ruido semántico)
+KINDS_RUIDO = {"vehiculo", "fragmento", "anomalia"}
 
 
 def mas_conectadas(conn: sqlite3.Connection, session_id: int, top: int = 10,

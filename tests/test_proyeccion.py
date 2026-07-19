@@ -411,3 +411,27 @@ def test_version_distingue_bases_sin_relaciones_por_entidades():
 
     a, b = _db("Empresa Alfa"), _db("Empresa Beta")
     assert version_de_sesion(a, 1) != version_de_sesion(b, 1)
+
+
+def test_hubs_excluyen_nodos_de_anomalia(conn):
+    # un hallazgo Δ es derivado, no una entidad: no debe salir como "el más
+    # conectado" (KINDS_RUIDO lo excluye del ranking de hubs)
+    from autogenes.caminos import mas_conectadas
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    assert any(n["kind"] == "anomalia" for n in g["nodos"])   # hay Δ en el grafo
+    hubs = mas_conectadas(conn, SID)
+    assert all(h["kind"] != "anomalia" for h in hubs)
+
+
+def test_delta_nomos_carga_su_disposicion_ghost_ink(conn):
+    # el Δ de NOMOS debe leer su disposición O1 (como concilia/validación) para
+    # que el lienzo apague con tinta fantasma lo ya resuelto, no gritar 'nuevo'
+    s = Sustrato(conn, SID)
+    rg = s.crear_regla("DEU debe ser N", [{"campo": "pais_code", "valor": "DEU"}],
+                       {"campo": "j_y_n", "valor": "N"})   # filas DEU la incumplen
+    s.disponer_hallazgo("nomos", rg["id"], "resuelto", "corregido")
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    delta = next(n for n in g["nodos"] if n["id"] == "anom:nomos:" + rg["id"])
+    assert delta["extra"]["estado"] == "resuelto"

@@ -144,16 +144,9 @@ def _de_analisis(conn: sqlite3.Connection, session_id: int) -> list[dict]:
     m = a["marca"]
     marca = m.get("nombre", "la marca")
     out = []
-    cc = m.get("corte_critico")
-    if cc and cc.get("pct_suministro") is not None:
-        pct = cc["pct_suministro"]
-        out.append(_hecho(
-            "ANALISIS", "corte-critico",
-            f"Un corte de {cc.get('n_rutas', 0)} ruta(s) interrumpe el "
-            f"{round(pct * 100)}% del suministro de {marca}",
-            cifra=round(pct * 100), unidad="% del suministro",
-            fuente="análisis de red · max-flow/min-cut sobre volumen medido",
-            severidad=pct))
+    # sin hecho de "corte crítico": su pct_suministro era 1.0 por construcción
+    # (max-flow/min-cut con capacidades = flujos observados). La redundancia
+    # unitaria de abajo es la señal honesta del cuello de botella.
     if m.get("redundancia_rutas") is not None and m["redundancia_rutas"] <= 1:
         out.append(_hecho(
             "ANALISIS", "punto-unico-falla",

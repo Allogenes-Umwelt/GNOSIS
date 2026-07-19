@@ -85,13 +85,14 @@ def test_redundancia_es_el_numero_de_origenes_independientes(conn):
     assert a["marca"]["redundancia_rutas"] == 2
 
 
-def test_corte_critico_cubre_todo_el_suministro(conn):
-    # red en serie país→aduana→marca sin bypass: el cuello lleva el 100%
+def test_corte_critico_degenerado_retirado_queda_redundancia(conn):
+    # el corte_critico ponderado se retiró: su pct_suministro era 1.0 por
+    # construcción (max-flow/min-cut con capacidades = flujos observados). La
+    # redundancia unitaria (conectividad) es la cifra honesta del cuello.
     a = analisis_vw.analisis(conn, 1)
-    cc = a["marca"]["corte_critico"]
-    assert cc["pct_suministro"] == pytest.approx(1.0)
-    assert cc["n_rutas"] >= 1
-    assert cc["volumen"] == 10
+    assert "corte_critico" not in a["marca"]
+    assert isinstance(a["marca"]["redundancia_rutas"], int)
+    assert a["marca"]["redundancia_rutas"] >= 1
 
 
 def test_desglose_de_origenes_ordenado_por_volumen(conn):

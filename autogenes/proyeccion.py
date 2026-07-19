@@ -144,6 +144,7 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
     from autogenes.disposiciones import leer_disposiciones
     disp_conc = leer_disposiciones(conn, session_id, "concilia")
     disp_val = leer_disposiciones(conn, session_id, "validacion")
+    disp_nomos = leer_disposiciones(conn, session_id, "nomos")
     total = 0
 
     def _delta(clave: str, titulo: str, tipo: str, motor: str, severidad: str,
@@ -184,7 +185,8 @@ def _proyectar_anomalias(conn: sqlite3.Connection, session_id: int,
             continue
         _delta(f"nomos:{e['id']}", f"{e['nombre']} incumplida", "nomos", "nomos",
                "warn", f"Regla del operador con {e['n_violaciones']} violaciones",
-               e["n_violaciones"], _objetivos(e.get("refs", [])))
+               e["n_violaciones"], _objetivos(e.get("refs", [])),
+               disp_nomos.get(e["id"], {}).get("estado", "nuevo"))
 
     return total
 

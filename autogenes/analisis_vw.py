@@ -333,8 +333,13 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             por_pais[f["pais"]] = por_pais.get(f["pais"], 0) + f["unidades"]
             por_aduana[f["aduana"]] = por_aduana.get(f["aduana"], 0) + f["unidades"]
 
-        # corte crítico y redundancia sobre la subred de la marca, con una
-        # super-fuente ORIGEN conectada a cada país (capacidad = su aporte).
+        # redundancia de suministro (conectividad de aristas) sobre la subred de
+        # la marca, con una super-fuente ORIGEN conectada a cada país. NO se
+        # reporta un "corte crítico" ponderado: con capacidades = flujos
+        # observados, por el teorema max-flow/min-cut TODO corte completo sesga el
+        # 100% del flujo entregado, así que su pct sería 1.0 por construcción
+        # (snake oil). La redundancia unitaria (mínimo de rutas para desconectar)
+        # sí es una cifra honesta y no degenerada.
         sub = _subred_marca(filas, foco)
         sub_nodos = list(sub["nodos"])
         sub_enlaces = list(sub["enlaces"])
@@ -343,9 +348,7 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             sub_enlaces.append({"origen": ORIGEN, "destino": _pais_id(pais), "peso": u})
         red_sub = {"nodos": sub_nodos, "enlaces": sub_enlaces}
         destino = _marca_id(foco)
-        corte = topologia.min_corte(red_sub, ORIGEN, destino)
         redun = topologia.min_corte(red_sub, ORIGEN, destino, capacidad_unitaria=True)
-        vol_corte = sum(c["peso"] for c in corte["corte"])
 
         def _desglose(d: dict[str, int]) -> list[dict]:
             return [{"nombre": k, "unidades": u,
@@ -365,16 +368,6 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             "similitud_conductual": similitud_conductual(filas, foco),
             "brecha_jn": brecha_jn(filas, foco),
             "rutas_ausentes": rutas_ausentes_vs_pares(filas, foco),
-            "corte_critico": {
-                "n_rutas": len(corte["corte"]),
-                "volumen": vol_corte,
-                "pct_suministro": round(vol_corte / vol_total, 4) if vol_total else 0.0,
-                "rutas": [
-                    {"de": c["etiqueta_origen"], "a": c["etiqueta_destino"],
-                     "unidades": c["peso"]}
-                    for c in corte["corte"]
-                ],
-            },
         })
         if sesion_ref and sesion_ref != session_id:
             try:

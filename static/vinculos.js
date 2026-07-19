@@ -300,18 +300,6 @@
           fte: 'corte mínimo unitario sobre la subred de la marca'
         }));
       }
-      var cc = m.corte_critico;
-      if (cc) {
-        cards.push(tarjeta({
-          tit: 'Corte crítico de suministro',
-          cifra: pct(cc.pct_suministro), unidad: 'del suministro',
-          bench: 'en ' + cc.n_rutas + (cc.n_rutas === 1 ? ' ruta · ' : ' rutas · ') + cc.volumen + ' unidades',
-          sw: 'Si caen estas rutas, se interrumpe ese flujo.',
-          nw: 'Vigilar: ' + (cc.rutas || []).map(function (r) {
-            return r.de + '→' + r.a + ' (' + r.unidades + ')'; }).join(', '),
-          fte: 'max-flow / min-cut sobre volumen medido'
-        }));
-      }
       if (a.brokers && a.brokers.length) {
         var b0 = a.brokers[0];
         var otras = a.brokers.slice(1).map(function (b) {
