@@ -206,9 +206,9 @@
         return;
       }
       var html = '';
-      // ciclo de vida (O1) en la ficha: sólo las reglas incumplidas se
-      // disponen (una regla en paz no es un hallazgo que gestionar)
-      if (rg.n_violaciones && CV) {
+      // ciclo de vida (O1) en la ficha: sólo las reglas ACTIVAS incumplidas se
+      // disponen (una en paz no es hallazgo; una inactiva es solo backtest)
+      if (rg.n_violaciones && rg.activa && CV) {
         html += '<div class="cv-vida">' + CV.seg(rg.clave || rg.id, rg.estado) +
           CV.traza(rg) + '</div>' + CV.contra(rg);
       }

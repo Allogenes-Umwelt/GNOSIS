@@ -992,24 +992,15 @@ def api_nomos():
     CON violaciones son 'hallazgos' con ciclo de vida (O1): se anotan con su
     disposición y el motor las contradice si dices resuelto lo que sigue
     incumpliéndose. La clave de disposición es el id de la regla."""
-    from autogenes.disposiciones import (anotar, leer_disposiciones,
-                                         resoluciones_verificadas,
-                                         resumen_estados)
-    from autogenes.nomos import evaluar_reglas
+    from autogenes.disposiciones import leer_disposiciones
+    from autogenes.nomos import evaluar_reglas, triaje_o1
 
     def handler(conn, session_id):
         r = evaluar_reglas(conn, session_id)
         disp = leer_disposiciones(conn, session_id, 'nomos')
-        for e in r['reglas']:
-            e['clave'] = e['id']
-        # 'vivo' para NOMOS = la regla SIGUE incumpliéndose (n_violaciones>0);
-        # una regla ya en paz sale del triaje y verifica su resolución
-        incumplidas = [e for e in r['reglas'] if e['n_violaciones'] > 0]
-        anotar(incumplidas, disp)
-        claves = {e['clave'] for e in incumplidas}
-        r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
-        r['estados'] = resumen_estados(incumplidas)
-        return jsonify(r)
+        # 'vivo' para NOMOS = regla ACTIVA que SIGUE incumpliéndose; una inactiva
+        # es backtest, no un hallazgo que contradiga o cuente en estados (O1)
+        return jsonify(triaje_o1(r, disp))
     try:
         return _con_sesion(handler)
     except Exception as e:
