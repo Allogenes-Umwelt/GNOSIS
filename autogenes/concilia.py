@@ -371,7 +371,12 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
             "sesión es decisión del operador; el monto no se adivina.",
             None, None,
             [r["chasis"] for r in inter],
-            [{"chasis": r["chasis"], "sesiones": r["sesiones"]} for r in inter],
+            # GROUP_CONCAT no garantiza orden: se reordena por id de sesión para
+            # que la cita sea idéntica entre corridas (doble-corrida determinista)
+            [{"chasis": r["chasis"],
+              "sesiones": ",".join(map(str, sorted(
+                  int(s) for s in r["sesiones"].split(","))))}
+             for r in inter],
         ))
 
     hallazgos.sort(key=lambda h: (h["monto"] is None, -(h["monto"] or 0),

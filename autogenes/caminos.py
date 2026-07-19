@@ -48,7 +48,11 @@ def _mejor_arista(red: nx.MultiDiGraph, a: str, b: str) -> Optional[dict[str, An
             })
     if not candidatas:
         return None
-    candidatas.sort(key=lambda c: (c["kind"] == "relacion", c["peso"]), reverse=True)
+    # desempate por tipo: sin él, entre aristas paralelas de igual kind/peso
+    # ganaría el orden de iteración de networkx (dependiente de inserción)
+    candidatas.sort(
+        key=lambda c: (c["kind"] == "relacion", c["peso"], str(c.get("tipo") or "")),
+        reverse=True)
     return candidatas[0]
 
 
@@ -194,7 +198,9 @@ def mas_conectadas(conn: sqlite3.Connection, session_id: int, top: int = 10,
         if not incluir_ruido and n.get("kind") in KINDS_RUIDO:
             continue
         hubs.append({**_nodo(red, nid), "grado": grado})
-    hubs.sort(key=lambda h: h["grado"], reverse=True)
+    # -grado, luego id: sin el desempate por id, hubs de igual grado dependían
+    # del orden de inserción de nodos en networkx para sobrevivir el [:top]
+    hubs.sort(key=lambda h: (-h["grado"], h["id"]))
     return hubs[:top]
 
 
