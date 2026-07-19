@@ -62,7 +62,10 @@ def red_de_sesion(conn: sqlite3.Connection, session_id: int,
         "nodos": [{"id": n["id"], "etiqueta": n["etiqueta"], "kind": n.get("kind")}
                   for n in nodos],
         "enlaces": [{"origen": e["source"], "destino": e["target"],
-                     "peso": e.get("peso") or 0.5}
+                     # 'or 0.5' reescribía un 0.0 explícito del operador a 0.5:
+                     # un peso fabricado alimentando la huella de cohesión citada.
+                     # Solo el ausente (None) cae al default; el 0.0 se preserva.
+                     "peso": 0.5 if e.get("peso") is None else e["peso"]}
                     for e in enlaces],
     }
 
