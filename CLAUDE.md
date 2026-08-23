@@ -58,6 +58,17 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
 - `docs/` — planes rectores: `PROPUESTA_GRAFO.md` (v3, el plan del grafo),
   `BENCHMARK_PALANTIR.md`, `EVALUACION_ESTANDAR_A.md`.
 
+## Documentación de arquitectura
+- C4 (Contexto → Contenedores → Componentes) + arc42, según
+  `~/architecture-standards.md` — doctrina común de cualquier repo del
+  ecosistema. Ejemplar propio: `docs/ARQUITECTURA.md`.
+- Diagramas como Mermaid; un cambio estructural requiere ADR y actualizar el
+  diagrama en el MISMO commit (regla de staleness).
+- Documentos de marca: `~/gestell-documentos-guia.md` (contrato GESTELL,
+  elevado de `docs/GUIA_DOCUMENTOS_GESTELL.md`).
+- Playbook: skill `architecture-diagram`; validación headless:
+  `node scripts/validate-mermaid.mjs` (del skill) — C4 parse limpio antes de merge.
+
 ## Git & commits
 - **Conventional Commits** en inglés: `feat:`/`fix:`/`refactor:`/`chore:`/`test:`/`docs:`
   con scope opcional (`feat(grafo): …`). Un cambio lógico por commit.
