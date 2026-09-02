@@ -148,3 +148,62 @@ def test_la_ingesta_se_mantiene_lineal(conn):
         lambda i: ingestar_texto(conn, 1, f"c{i}.txt", doc(i + 20_000)), BLOQUE)
     assert t3 < t1 * 2.5, (
         f"la ingesta se degrada con el tamaño: {t1:.2f}s → {t2:.2f}s → {t3:.2f}s")
+
+
+# ── el enmascarado de la frontera LLM (R1 del diagnóstico v02) ───────
+
+def _identificadores(n: int) -> dict[str, str]:
+    ids = {f"WVWZZZ3CZWE{i:06d}": "chasis" for i in range(n)}
+    ids.update({f"FA-2026-{i:05d}": "factura" for i in range(n // 2)})
+    return ids
+
+
+def test_el_enmascarado_no_depende_del_numero_de_identificadores():
+    """Se aplica a CADA resultado de tool y a CADA mensaje del operador.
+
+    `enmascarar_troceado` compilaba una regex por identificador y la corría
+    sobre el texto entero: 2,33 s por llamada con 15 000 identificadores —
+    una sesión de 10 000 vehículos— o ~7 s de regex por turno de chat. Las
+    pruebas de la ola 1 usaban dos identificadores y no podían verlo.
+
+    Lo que se fija es la independencia: el coste lo pone el TEXTO, no cuántos
+    identificadores tenga la sesión."""
+    import json
+
+    from jarvis.identidades import enmascarar
+    from jarvis.ofuscation import ObfuscationLayer
+
+    texto = json.dumps([{"chasis": f"WVWZZZ3CZWE{i:06d}", "nota": "x" * 40}
+                        for i in range(150)])
+
+    def coste(n: int) -> float:
+        ids = _identificadores(n)
+        capa = ObfuscationLayer("hilo")
+        t0 = time.perf_counter()
+        enmascarar(texto, ids, capa)
+        return time.perf_counter() - t0
+
+    chico = coste(150)
+    grande = coste(15000)
+    assert grande < max(chico, 0.02) * 8, (
+        f"el enmascarado escala con el nº de identificadores: {chico:.3f}s con 225 "
+        f"→ {grande:.3f}s con 22 500 ({grande / max(chico, 1e-9):.0f}×)")
+
+
+def test_el_enmascarado_sigue_atrapando_las_evasiones_a_escala():
+    """Rápido no sirve si deja pasar el dato: el corpus de evasión de la ola 1
+    tiene que seguir cerrado con el conjunto grande."""
+    from jarvis.identidades import enmascarar
+    from jarvis.ofuscation import ObfuscationLayer
+
+    ids = _identificadores(15000)
+    secreto = "WVWZZZ3CZWE000042"
+    assert secreto in ids
+    capa = ObfuscationLayer("hilo")
+    for forma in (secreto, secreto.lower(),
+                  secreto[:8] + "-" + secreto[8:],
+                  secreto.encode().hex().upper(),
+                  f"el chasis {secreto} viene de Emden"):
+        salida = enmascarar(forma, ids, capa)
+        plano = "".join(ch for ch in salida.lower() if ch.isalnum())
+        assert secreto.lower() not in plano, f"se escapó en la forma: {forma[:40]}"

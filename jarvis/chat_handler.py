@@ -7,7 +7,7 @@ import json
 import uuid
 
 from .ambito import ambito_de_sesion
-from .identidades import enmascarar_texto, enmascarar_troceado, identificadores_de_sesion
+from .identidades import enmascarar, identificadores_de_sesion
 from .llm_interface import LLMProvider
 from .ofuscation import ObfuscationLayer
 from .tool_executor import ToolExecutor
@@ -56,6 +56,7 @@ class ChatHandler:
         self.total_tokens_in = 0
         self.total_tokens_out = 0
         self._ids_precargados = False
+        self._ids_turno = None
 
     def reset(self):
         """Olvida el hilo — en la base, para todos los procesos."""
@@ -66,6 +67,7 @@ class ChatHandler:
         self.total_tokens_in = 0
         self.total_tokens_out = 0
         self._ids_precargados = False
+        self._ids_turno = None
 
     def _precargar_tokens(self):
         """Siembra el mapa de ofuscacion con los identificadores de la sesion.
@@ -108,24 +110,31 @@ class ChatHandler:
         """Los identificadores reales de la sesion, para enmascarar lo que
         escribe el OPERADOR. La ley de ADR-0007 no distingue entre lo que
         dice el modelo y lo que dice el operador: si pega un VIN en el chat,
-        el VIN saldria en claro al proveedor."""
+        el VIN saldria en claro al proveedor.
+
+        Se cargan UNA vez por turno y se comparten con el executor: son seis
+        SELECT DISTINCT, y se pedian tres veces por turno (precargar tokens,
+        enmascarar la entrada, y otra vez dentro del executor)."""
+        if self._ids_turno is not None:
+            return self._ids_turno
         sid = self._sesion()
         if not sid:
-            return {}
+            self._ids_turno = {}
+            return self._ids_turno
         conn = get_connection()
         try:
-            return identificadores_de_sesion(conn, sid)
+            self._ids_turno = identificadores_de_sesion(conn, sid)
         except Exception:
-            return {}
+            self._ids_turno = {}
         finally:
             conn.close()
+        return self._ids_turno
 
     def _enmascarar(self, texto):
         ids = self._identificadores()
         if not ids:
             return texto
-        texto = enmascarar_texto(texto, ids, self.obfuscation)
-        return enmascarar_troceado(texto, ids, self.obfuscation)
+        return enmascarar(texto, ids, self.obfuscation)
 
     def handle_message(self, user_message):
         """Procesa un mensaje del usuario y retorna la respuesta.
@@ -135,7 +144,10 @@ class ChatHandler:
             return self._handle_message(user_message)
 
     def _handle_message(self, user_message):
+        self._ids_turno = None                 # turno nuevo: una lectura fresca
         self._precargar_tokens()
+        # el executor reusa el conjunto ya cargado en vez de repetir la consulta
+        self.tool_executor.usar_identificadores(self._identificadores())
         # El texto del OPERADOR se enmascara antes de salir: pegar un VIN
         # en el chat no debe filtrarlo (hallazgo H6 del diagnostico).
         mensaje_seguro = self._enmascarar(user_message)

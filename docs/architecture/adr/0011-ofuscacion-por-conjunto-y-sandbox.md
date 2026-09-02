@@ -74,6 +74,30 @@ enmascarado por conjunto solo cubre valores de ≥ 6 caracteres
 en `mask_row`, que es donde su significado está declarado. `mask_row` no se
 retira: es la capa barata y con semántica; la nueva es la que no se evade.
 
+## Corrección (2026-09-02): el coste no podía depender del conjunto
+
+La primera implementación recorría los identificadores —cuatro variantes de
+cada uno, y una regex compilada **por identificador**— así que su coste
+crecía con cuántos hubiera. Medido después, sobre 12 KB de texto: 0,03 s con
+225 formas, **3,77 s con 22 500** — y esto se aplica a cada resultado de tool
+y a cada mensaje del operador, o sea ~7 s de regex por turno de chat en una
+sesión de 10 000 vehículos. Las pruebas de esta ADR usaban dos
+identificadores: correctas, y ciegas a ello
+(`docs/DIAGNOSTICO_FABLE_v02.md` §2, R1).
+
+El arreglo es algorítmico, no una caché. `enmascarar()` normaliza el texto
+**una vez** (sin separadores, minúsculas, guardando el índice original de
+cada carácter) y desliza ventanas de las **longitudes** que el conjunto
+contiene —VIN 17, factura ~12, pedimento 15, más sus hexadecimales—
+consultando un `set`. Las longitudes distintas son un puñado, tenga el
+conjunto diez identificadores o cien mil, así que **el coste lo pone el
+texto**. De paso, una sola pasada cubre lo que antes eran dos funciones:
+literal, mayúsculas/minúsculas, troceado por separadores y hexadecimal.
+
+Resultado: 3,77 s → **37 ms** con 15 000 identificadores, con el corpus de
+evasión intacto. `tests/test_escala.py` fija la independencia respecto al
+tamaño del conjunto, no un número de milisegundos.
+
 ## Consecuencias
 
 - La ley de ADR-0007 pasa de ser disciplina a ser estructura.

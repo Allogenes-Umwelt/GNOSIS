@@ -155,7 +155,7 @@ def test_consulta_sql_no_escribe(base):
 
 def test_enmascarado_cubre_alias_expresion_y_anidado(base):
     from jarvis.ambito import ambito_de_sesion
-    from jarvis.identidades import enmascarar_texto, identificadores_de_sesion
+    from jarvis.identidades import enmascarar, identificadores_de_sesion
     import database
 
     conn = database.get_connection()
@@ -169,7 +169,7 @@ def test_enmascarado_cubre_alias_expresion_y_anidado(base):
     o = ObfuscationLayer()
     crudo = json.dumps({"nota": f"el {VIN_A} y la {FACTURA_A}",
                         "anidado": [{"x": VIN_A.lower()}]})
-    salida = enmascarar_texto(crudo, ident, o)
+    salida = enmascarar(crudo, ident, o)
     assert VIN_A not in salida and VIN_A.lower() not in salida.lower()
     assert FACTURA_A not in salida
     with ambito_de_sesion(base["a"]):
@@ -177,7 +177,7 @@ def test_enmascarado_cubre_alias_expresion_y_anidado(base):
 
 
 def test_enmascarado_es_reversible(base):
-    from jarvis.identidades import enmascarar_texto, identificadores_de_sesion
+    from jarvis.identidades import enmascarar, identificadores_de_sesion
     from jarvis.ofuscation import ObfuscationLayer
     import database
 
@@ -186,7 +186,7 @@ def test_enmascarado_es_reversible(base):
     conn.close()
     o = ObfuscationLayer()
     texto = f"revisa {VIN_A}"
-    enmascarado = enmascarar_texto(texto, ident, o)
+    enmascarado = enmascarar(texto, ident, o)
     assert o.unmask_text(enmascarado) == texto
 
 

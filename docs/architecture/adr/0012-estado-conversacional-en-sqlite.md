@@ -43,6 +43,20 @@ conversación.**
   lectura. No hay singleton que invalidar: un cambio en admin aplica en todos
   los workers de inmediato.
 
+## Lo que la historia reconstruida NO lleva — declarado
+
+`chat_conversations` guarda los turnos de **texto** (`user`/`assistant`), no
+los bloques `tool_use`/`tool_result` intermedios. Al reconstruir el hilo, el
+modelo recibe lo que se dijo, no las tablas que consultó: una cifra que
+obtuvo por tool y no llegó a escribir en su respuesta, no la "recuerda" —
+vuelve a pedir la tool.
+
+Es deliberado (los resultados de tool son el grueso del contexto y el
+enmascarado los cubre igual), pero no estaba escrito, y una omisión sin
+declarar se lee como un olvido. Si algún día hace falta continuidad sobre
+resultados, la pieza es persistir los `tool_result` enmascarados junto al
+turno, no ampliar la ventana.
+
 ## Consecuencia sobre los tokens de ofuscación
 
 Un token era `[VIN-001-<uuid4>]`: contador **de proceso** y azar. Un worker no

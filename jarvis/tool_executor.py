@@ -7,7 +7,7 @@ import json
 
 from . import tools as t
 from .ambito import FueraDeAmbito, sesion_en_ambito
-from .identidades import enmascarar_texto, enmascarar_troceado, identificadores_de_sesion
+from .identidades import enmascarar, identificadores_de_sesion
 from .ofuscation import ObfuscationLayer
 from .tools_grafo import GRAFO_TOOL_FUNCTIONS
 
@@ -55,6 +55,14 @@ class ToolExecutor:
         self.obfuscation = obfuscation_layer
         self._identificadores: dict[str, str] | None = None
         self._sesion_cargada: int | None = None
+
+    def usar_identificadores(self, ids: dict[str, str]) -> None:
+        """Recibe el conjunto ya cargado por quien atiende el turno.
+
+        Sin esto, el executor repetia los seis SELECT DISTINCT que el
+        ChatHandler acababa de hacer."""
+        self._identificadores = ids
+        self._sesion_cargada = sesion_en_ambito(None) if ids else None
 
     def _ids_de_sesion(self) -> dict[str, str]:
         """Los identificadores reales de la sesion en ambito, cacheados por
@@ -107,8 +115,7 @@ class ToolExecutor:
         # nueva queda protegida sin tener que acordarse de listarla.
         ids = self._ids_de_sesion()
         if ids:
-            result_str = enmascarar_texto(result_str, ids, self.obfuscation)
-            result_str = enmascarar_troceado(result_str, ids, self.obfuscation)
+            result_str = enmascarar(result_str, ids, self.obfuscation)
 
         # Truncar si es muy largo (proteccion de contexto)
         if len(result_str) > 15000:

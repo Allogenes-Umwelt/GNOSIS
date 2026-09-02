@@ -14,7 +14,6 @@ que se buscan como texto en todo lo que sale hacia el modelo, en el único
 punto donde ya está serializado. Eso cubre alias, expresiones, JSON anidado
 a cualquier profundidad y prosa libre, sin listas especiales por tool.
 """
-import re
 import sqlite3
 from typing import Optional
 
@@ -57,51 +56,99 @@ def identificadores_de_sesion(conn: sqlite3.Connection,
     return fuera
 
 
-def _variantes(valor: str) -> list[str]:
-    """Formas del mismo identificador que una expresión SQL puede producir
-    y que siguen siendo el dato: mayúsculas/minúsculas y su hexadecimal."""
-    formas = {valor, valor.upper(), valor.lower()}
-    formas.add(valor.encode("utf-8").hex().upper())
-    formas.add(valor.encode("utf-8").hex().lower())
-    return [f for f in formas if f]
+def _formas_normalizadas(valor: str) -> set[str]:
+    """Las formas del identificador que hay que reconocer, ya normalizadas
+    (sin separadores, minúsculas):
+
+    - el dato mismo — cubre el literal, `lower()`, `replace()` y el troceado
+      por cualquier separador, porque la normalización los aplana todos;
+    - su hexadecimal — `hex(chasis)` devuelve el dato codificado, y ninguna
+      normalización de puntuación lo recupera.
+    """
+    plano = _solo_alfanumerico(valor)
+    if not plano:
+        return set()
+    return {plano, valor.encode("utf-8").hex().lower()}
 
 
-def enmascarar_texto(texto: Optional[str], identificadores: dict[str, str],
-                     capa) -> Optional[str]:
-    """Sustituye toda ocurrencia de un identificador real por su token.
+def _solo_alfanumerico(texto: str) -> str:
+    return "".join(ch for ch in texto if ch.isalnum()).lower()
 
-    Búsqueda, no coincidencia: da igual que venga como valor de columna,
-    dentro de una frase o troceado por el JSON. `capa` es la
-    `ObfuscationLayer` de la conversación, así que el token es estable y
-    `unmask_text` lo revierte para el operador.
 
-    Los valores más largos se sustituyen primero: si uno contiene a otro,
-    enmascarar el corto antes rompería al largo.
+def _plano(texto: str) -> tuple[str, list[int]]:
+    """El texto sin separadores en minúsculas, y el índice ORIGINAL de cada
+    carácter que sobrevive. Permite localizar en el texto real algo que solo
+    se reconoce después de quitarle la puntuación."""
+    limpio: list[str] = []
+    indices: list[int] = []
+    for i, ch in enumerate(texto):
+        if ch.isalnum():
+            limpio.append(ch.lower())
+            indices.append(i)
+    return "".join(limpio), indices
+
+
+def enmascarar(texto: Optional[str], identificadores: dict[str, str],
+               capa) -> Optional[str]:
+    """Sustituye por su token toda aparición de un identificador real.
+
+    Una sola pasada que cubre el literal, las mayúsculas/minúsculas, el
+    troceado por separadores (`substr(a,1,8)||'-'||substr(a,9)`) y el
+    hexadecimal (`hex(a)`).
+
+    **El coste lo pone el TEXTO, no el tamaño del conjunto.** La versión
+    anterior recorría los identificadores —cuatro variantes de cada uno, y
+    una regex compilada por identificador— así que crecía con cuántos
+    hubiera: medido, 3,77 s con 22 500 formas sobre 12 KB de texto, aplicado
+    a CADA resultado de tool y a CADA mensaje del operador (~7 s de regex por
+    turno de chat en una sesión de 10 000 vehículos).
+
+    Aquí el texto se normaliza una vez y se deslizan ventanas de las
+    LONGITUDES que existen —VIN 17, factura ~12, pedimento 15 sin espacios,
+    más sus hexadecimales— consultando un `set`. Las longitudes distintas son
+    un puñado, tenga el conjunto diez identificadores o cien mil.
+
+    `capa` es la `ObfuscationLayer` de la conversación: el token es estable y
+    `unmask_text` lo revierte para la pantalla del operador.
     """
     if not texto or not identificadores:
         return texto
-    pares: list[tuple[str, str]] = []
+
+    por_longitud: dict[int, dict[str, tuple[str, str]]] = {}
     for valor, tipo in identificadores.items():
-        for forma in _variantes(valor):
-            pares.append((forma, capa.mask_value(valor, tipo)))
-    pares.sort(key=lambda p: len(p[0]), reverse=True)
-    for forma, token in pares:
-        if forma in texto:
-            texto = texto.replace(forma, token)
-    return texto
-
-
-#: Un identificador troceado por SQL (`substr(a,1,8)||'-'||substr(a,9)`) no
-#: aparece literal, pero sus mitades sí. Se detecta el patrón inverso: dos
-#: fragmentos de un identificador conocido separados por un solo carácter.
-def enmascarar_troceado(texto: Optional[str], identificadores: dict[str, str],
-                        capa) -> Optional[str]:
-    if not texto or not identificadores:
+        for forma in _formas_normalizadas(valor):
+            if len(forma) >= MIN_LONGITUD:
+                por_longitud.setdefault(len(forma), {}).setdefault(forma, (valor, tipo))
+    if not por_longitud:
         return texto
-    for valor, tipo in identificadores.items():
-        if len(valor) < MIN_LONGITUD * 2:
+
+    plano, indices = _plano(texto)
+    if not plano:
+        return texto
+
+    # (inicio, fin) en el texto ORIGINAL de cada coincidencia
+    hallazgos: list[tuple[int, int, str, str]] = []
+    for longitud, tabla in por_longitud.items():
+        if longitud > len(plano):
             continue
-        patron = re.compile(
-            "".join(re.escape(c) + r"\W?" for c in valor), re.IGNORECASE)
-        texto = patron.sub(lambda _m, v=valor, t=tipo: capa.mask_value(v, t), texto)
+        for i in range(len(plano) - longitud + 1):
+            encontrado = tabla.get(plano[i:i + longitud])
+            if encontrado:
+                hallazgos.append((indices[i], indices[i + longitud - 1] + 1,
+                                  encontrado[0], encontrado[1]))
+    if not hallazgos:
+        return texto
+
+    # la coincidencia más LARGA gana el solape: si un identificador contiene a
+    # otro, enmascarar el corto primero rompería al largo
+    hallazgos.sort(key=lambda h: (h[0], -(h[1] - h[0])))
+    elegidos: list[tuple[int, int, str, str]] = []
+    tope = -1
+    for ini, fin, valor, tipo in hallazgos:
+        if ini >= tope:
+            elegidos.append((ini, fin, valor, tipo))
+            tope = fin
+    # de derecha a izquierda: sustituir no mueve los índices pendientes
+    for ini, fin, valor, tipo in reversed(elegidos):
+        texto = texto[:ini] + capa.mask_value(valor, tipo) + texto[fin:]
     return texto
