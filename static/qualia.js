@@ -315,8 +315,7 @@
     function cargarNivel(n, alTerminar) {
       if (cache[n]) { if (alTerminar) alTerminar(); return; }
       var mia = ++reqSeq;
-      fetch('/api/v1/autogenes/qualia/red?nivel=' + n)
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('qualia_red', '/api/v1/autogenes/qualia/red?nivel=' + n)
         .then(function (j) {
           if (mia !== reqSeq && cache[n]) return;
           if (!j || j.error) {
@@ -353,8 +352,7 @@
       if (elDial.children[nivel]) elDial.children[nivel].className = 'activo';
     }
     function cargarEstado() {
-      fetch('/api/v1/autogenes/qualia/estado')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('qualia_estado', '/api/v1/autogenes/qualia/estado')
         .then(function (j) { if (j && !j.error) pintarEstado(j); })
         .catch(function () { /* la ficha vive sin red; el lienzo ya avisó */ });
     }

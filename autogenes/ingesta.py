@@ -6,6 +6,7 @@ GNOSIS ya usa), texto plano por bloques de párrafos. Todo pasa por
 Sustrato — bitácora incluida.
 """
 import hashlib
+import os
 import sqlite3
 from typing import Any, Optional
 
@@ -82,6 +83,66 @@ _OCR_LOTE_PAGINAS = 8
 # Tope de seguridad: un PDF escaneado con miles de páginas no debe monopolizar
 # un worker. Más allá de esto no se OCR-ea; la truncación se declara (aviso).
 MAX_OCR_PAGINAS = 300
+# El OCR es el techo real de la ingesta a escala (hallazgo S5 del v02):
+# Tesseract va página a página, en el hilo del request, y con 1-3 s/página unas
+# 2 000 facturas escaneadas de 3 páginas son 2-5 HORAS secuenciales.
+#
+# Tesseract es un proceso externo, así que paraleliza sin pelearse con el GIL.
+# El tope existe porque el contenedor solo tiene dos workers de gunicorn: una
+# ingesta no puede quedarse con todos los núcleos y dejar la app sin atender.
+MAX_OCR_PROCESOS = 4
+
+#: El PDF vive en el proceso hijo, puesto UNA vez por el initializer del pool.
+#: Mandarlo en cada tarea lo picklearía una vez por página.
+_PDF_DEL_PROCESO: dict[str, bytes] = {}
+
+
+def _init_ocr(contenido: bytes) -> None:      # pragma: no cover - proceso hijo
+    _PDF_DEL_PROCESO["pdf"] = contenido
+
+
+def _ocr_una_pagina(pagina: int) -> tuple[int, str]:  # pragma: no cover - hijo
+    """Rasteriza y OCR-ea UNA página. Vive al nivel del módulo porque
+    `multiprocessing` tiene que poder picklearla por nombre."""
+    try:
+        import pytesseract
+        from pdf2image import convert_from_bytes
+    except ImportError:
+        return pagina, ""
+    try:
+        imagenes = convert_from_bytes(_PDF_DEL_PROCESO.get("pdf", b""),
+                                      dpi=_OCR_DPI, first_page=pagina,
+                                      last_page=pagina)
+        if not imagenes:
+            return pagina, ""
+        texto = pytesseract.image_to_string(imagenes[0], lang=_OCR_LANG).strip()
+    except Exception:
+        return pagina, ""
+    return pagina, texto[:12000]
+
+
+def _ocr_en_paralelo(contenido: bytes, paginas: list[int]) -> Optional[list[tuple[int, str]]]:
+    """Las páginas OCR-eadas en varios procesos, o `None` si no se pudo.
+
+    Devolver `None` en vez de lanzar es deliberado: un entorno que no permite
+    `multiprocessing` (sandbox, /dev/shm ausente) tiene que degradar al camino
+    secuencial, no quedarse sin ingesta."""
+    if len(paginas) < 2:
+        return None
+    procesos = min(len(paginas), MAX_OCR_PROCESOS, os.cpu_count() or 1)
+    if procesos < 2:
+        return None
+    try:
+        import multiprocessing as mp
+
+        ctx = mp.get_context("fork")
+        with ctx.Pool(processes=procesos, initializer=_init_ocr,
+                      initargs=(contenido,)) as pool:
+            # `map` conserva el orden de entrada: el resultado es el mismo
+            # con uno o con cuatro procesos (ley de doble corrida)
+            return [par for par in pool.map(_ocr_una_pagina, paginas) if par[1]]
+    except Exception:
+        return None
 
 
 def _pdf_num_paginas(contenido: bytes) -> int:
@@ -107,6 +168,17 @@ def _ocr_paginas_pdf(contenido: bytes, saltar: set[int],
         return []
     total = _pdf_num_paginas(contenido)
     tope = min(total, max_paginas) if total > 0 else max_paginas
+
+    # Con el total conocido se sabe QUÉ páginas hay que leer, y se pueden
+    # repartir. Sin él no: el bucle de abajo descubre el final de un PDF
+    # rasterizando hasta que una tanda sale corta, y eso no se puede paralelizar
+    # sin trabajo desperdiciado. Se prefiere secuencial a especulativo.
+    if total > 0:
+        pendientes = [p for p in range(1, tope + 1) if p not in saltar]
+        en_paralelo = _ocr_en_paralelo(contenido, pendientes)
+        if en_paralelo is not None:
+            return en_paralelo
+
     out: list[tuple[int, str]] = []
     primera = 1
     while primera <= tope:

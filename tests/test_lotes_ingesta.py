@@ -141,3 +141,39 @@ def test_descartar_borra_staging_y_es_idempotente(conn, base, tmp_path):
     descartar(base, 1, r["lote_id"])
     descartar(base, 1, r["lote_id"])   # idempotente
     assert not os.path.isdir(lote_dir)
+
+
+def test_no_se_expande_un_zip_que_no_cabe_en_el_disco(tmp_path, monkeypatch):
+    """Hallazgo D3 del v02: el tope de 2 GB descomprimidos no miraba cuánto
+    quedaba en el volumen. Un ZIP legítimo podía llenar el disco a media
+    expansión y dejar el lote a medias, sin manifiesto y sin nada que
+    explicara qué pasó."""
+    import shutil as _shutil
+    from collections import namedtuple
+
+    zip_path = tmp_path / "lote.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("uno.txt", "contenido del documento uno")
+
+    Uso = namedtuple("Uso", "total used free")
+    monkeypatch.setattr(_shutil, "disk_usage", lambda _: Uso(1, 1, 1024))
+
+    with pytest.raises(LoteError) as e:
+        expandir_zip(str(tmp_path / "staging"), 1, str(zip_path))
+    assert "No hay espacio" in str(e.value)
+    assert "Libera espacio" in str(e.value), "el error no dice qué hacer"
+
+
+def test_si_no_se_puede_saber_el_espacio_no_se_inventa_un_limite(tmp_path, monkeypatch):
+    """Un `disk_usage` que falla no es razón para rechazar un lote válido."""
+    import shutil as _shutil
+
+    zip_path = tmp_path / "lote.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("uno.txt", "contenido")
+
+    def explota(_):
+        raise OSError("volumen raro")
+    monkeypatch.setattr(_shutil, "disk_usage", explota)
+
+    assert expandir_zip(str(tmp_path / "staging"), 1, str(zip_path))["total"] == 1

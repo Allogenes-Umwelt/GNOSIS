@@ -112,6 +112,32 @@ def _nombre_unico(usados: set[str], crudo: str) -> Optional[str]:
     return nombre
 
 
+#: Margen que se deja libre en el volumen tras expandir. Llenar el disco al
+#: 100 % no rompe solo la ingesta: SQLite deja de poder escribir su WAL, y la
+#: bitácora WORM con él.
+MARGEN_DISCO = 512 * 1024 * 1024
+
+
+def _comprobar_disco(base_dir: str, necesarios: int) -> None:
+    """Que quepa ANTES de empezar a escribir (hallazgo D3 del v02).
+
+    El tope de 2 GB descomprimidos no miraba cuánto quedaba en el volumen. Un
+    ZIP legítimo podía llenar el disco a la mitad de la expansión y dejar un
+    lote a medias, con el manifiesto sin escribir y sin nada que explicara qué
+    pasó. Comprobarlo cuesta una llamada y convierte un fallo opaco en una
+    frase que el operador puede accionar."""
+    try:
+        os.makedirs(base_dir, exist_ok=True)
+        libre = shutil.disk_usage(base_dir).free
+    except OSError:
+        return                    # si no se puede saber, no se inventa un límite
+    if libre < necesarios + MARGEN_DISCO:
+        raise LoteError(
+            f"No hay espacio: el ZIP necesita {necesarios // (1024*1024)} MB y "
+            f"quedan {libre // (1024*1024)} MB libres. Libera espacio o sube el "
+            "lote en partes.")
+
+
 def expandir_zip(base_dir: str, session_id: int, zip_path: str) -> dict[str, Any]:
     """Valida y expande el ZIP a un directorio de staging con manifiesto.
     NO procesa nada — devuelve {lote_id, total, ...}. El caller pide tandas."""
@@ -135,6 +161,7 @@ def expandir_zip(base_dir: str, session_id: int, zip_path: str) -> dict[str, Any
             raise LoteError(
                 f"El ZIP se expande a {total_crudo // (1024*1024)} MB, supera el "
                 f"tope de {MAX_UNZIPPED_BYTES // (1024*1024*1024)} GB")
+        _comprobar_disco(base_dir, total_crudo)
 
         lote_id = uuid.uuid4().hex
         lote_dir = _lote_dir(base_dir, session_id, lote_id)

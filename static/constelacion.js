@@ -11,6 +11,9 @@
    carga métrica real o se marca latente — nunca un adorno. */
 (function () {
   'use strict';
+
+  // el escape compartido (H14): este archivo no tenía ninguno
+  var esc = GestellComun.esc;
   var NS = 'http://www.w3.org/2000/svg';
 
   function el(tag, attrs) {
@@ -339,8 +342,11 @@
           ['IV', 'NOMOS', est.reglas == null ? 'latente — fase F12' : fmt(est.reglas) + ' reglas activas']
         ].forEach(function (fila) {
           var li = document.createElement('li');
-          li.innerHTML = '<b>' + fila[0] + '</b> ' + fila[1] +
-                         ' <span>' + fila[2] + '</span>';
+          // los tres vienen de la tabla literal de arriba (fmt() da números),
+          // pero se escapan igual: la garantía no puede depender de que el
+          // siguiente que edite esa tabla se acuerde de dónde salen sus datos
+          li.innerHTML = '<b>' + esc(fila[0]) + '</b> ' + esc(fila[1]) +
+                         ' <span>' + esc(fila[2]) + '</span>';
           ley.appendChild(li);
         });
       }

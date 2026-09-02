@@ -27,11 +27,9 @@
     var DUR_TRANS = 600;
 
     // Ítems pendientes traen nombres de origen documental: escapar SIEMPRE.
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    }
+    // `esc` vive en gestell_comun.js (H14): una sola casa, y esa sí
+    // escapa la comilla simple — la copia local no lo hacía.
+    var esc = GestellComun.esc;
     // Las acciones son rutas internas; nada de javascript: ni URLs externas.
     function rutaSegura(u) {
       return typeof u === 'string' && u.charAt(0) === '/' && u.charAt(1) !== '/' ? u : null;
@@ -343,8 +341,7 @@
 
     function cargarEntidades(cb) {
       if (entidadesCache) { cb(); return; }
-      fetch('/api/v1/autogenes/entidades')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('entidades', '/api/v1/autogenes/entidades')
         .then(function (j) {
           entidadesCache = (j && j.entidades) || [];
           verbosCache = (j && j.verbos) || [];
@@ -671,8 +668,7 @@
         layout.reacciones.forEach(function (rc) { rends0[rc.r.clave] = rc.rend; });
         salud0 = datos.salud;
       }
-      fetch('/api/v1/autogenes/metabolismo')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('metabolismo', '/api/v1/autogenes/metabolismo')
         .then(function (m) {
           if (!m || m.error) { if (info) info.textContent = (m && m.error) || 'SIN DATOS'; return; }
           datos = m;

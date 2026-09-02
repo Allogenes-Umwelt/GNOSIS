@@ -3,10 +3,19 @@
 > **Nivel:** Suplementario (no C4) — **Notación:** Tablas + reglas del design system
 > **Pregunta que responde:** ¿Qué superficies visuales existen, qué pregunta responde cada una y con qué ley visual se dibuja?
 > **Leyenda:** Cada fila: superficie · ruta · renderizador · pregunta que responde.
-> **ADR:** [ADR-0008](adr/0008-sin-build-step-en-el-frontend.md)
+> **ADR:** [ADR-0008](adr/0008-sin-build-step-en-el-frontend.md) · [ADR-0020](adr/0020-frontera-comun-del-frontend.md)
 > **Índice de vistas:** [docs/architecture/README.md](README.md)
 
 **Nota de la vista.** El frontend es la mitad del sistema y C4 no tiene un nivel para él; esta vista es el complemento declarado, no un nivel C4 disfrazado.
+
+**La casa común (ADR-0020).** `static/gestell_comun.js` guarda `esc` y
+`fetchUltimo`. Toda lectura que repinta un panel va por `fetchUltimo(clave,
+url)`: la última petición de la clave gana, siempre — sin eso, cambiar de
+sesión dos veces hace que la respuesta lenta de la primera pinte encima de la
+segunda, y la pantalla miente sin fallar. Las mutaciones NO van por ahí:
+cancelar un POST a media escritura sería peor que la carrera. El orden de los
+`<script>` es parte del contrato y hay pruebas que lo vigilan
+(`tests/test_frontend_contrato.py`, `tests/test_frontend_carreras.py`).
 
 La mitad del sistema es visual. Cada superficie declara su **medio** (canvas
 2D para campos densos y continuos; **SVG para diagramas** — donde el texto

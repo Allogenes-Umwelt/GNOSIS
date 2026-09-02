@@ -20,11 +20,9 @@
     var nomos = null;      // salida de /nomos (overlay del operador)
     var activa = null;     // clave del tamiz seleccionado
 
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    }
+    // `esc` vive en gestell_comun.js (H14): una sola casa, y esa sí
+    // escapa la comilla simple — la copia local no lo hacía.
+    var esc = GestellComun.esc;
     function num(n) {
       return n == null ? '—' : Number(n).toLocaleString('es-MX');
     }
@@ -364,8 +362,7 @@
     }
 
     function recargar() {
-      fetch('/api/v1/autogenes/validacion')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('validacion', '/api/v1/autogenes/validacion')
         .then(function (j) {
           if (!j || j.error) return;
           datos = j;
@@ -419,8 +416,8 @@
 
     // ── arranque: validación + NOMOS en paralelo, luego el lattice ──────
     Promise.all([
-      fetch('/api/v1/autogenes/validacion').then(function (r) { return r.json(); }),
-      fetch('/api/v1/autogenes/nomos').then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('validacion_inicio', '/api/v1/autogenes/validacion'),
+      GestellComun.fetchUltimo('nomos_inicio', '/api/v1/autogenes/nomos')
         .catch(function () { return null; })
     ]).then(function (res) {
       var j = res[0];

@@ -6,13 +6,18 @@ Frontend: JS vanilla + canvas 2D servido por plantillas Jinja (sin build step,
 sin framework SPA — decisión deliberada, ver `docs/EVALUACION_ESTANDAR_A.md`).
 
 ## Comandos
-- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 704 verdes + 1
+- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 726 verdes + 1
   skip (`test_ingesta_ocr` se salta sin Pillow/Tesseract en el contenedor).
 - **Tests (un archivo):** `python3 -m pytest tests/test_X.py -q` — prefiérelo al iterar.
 - **Sin el banco de escala:** `python3 -m pytest -q -m "not slow"` — `tests/test_escala.py`
   tarda segundos y afirma RATIOS (forma de la curva), no milisegundos.
 - **Lint Python:** `python3 -m ruff check .`  — debe salir limpio.
 - **Lint JS:** `npx eslint static`  — 0 errores (warnings de vars sin usar toleradas).
+- **Escape del frontend:** `node scripts/check-innerhtml.mjs` — HARD si un
+  archivo interpola en `innerHTML` sin ningún `esc` disponible; SOFT lista las
+  líneas a revisar.
+- **Pruebas de navegador:** `tests/test_frontend_carreras.py` corre en Chromium
+  (`/opt/pw-browsers/`) y se salta solo si falta Playwright o el binario.
 - **App:** `docker/compose.yaml` → http://127.0.0.1:5001. Rebuild Podman:
   `podman rm -f gnosis; podman rmi -f gnosis:local; podman-compose -f docker/compose.yaml up -d --build`
 
@@ -81,8 +86,10 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
   `docs/architecture/auditoria-backend.md`.
 - Documentos de marca: `docs/GUIA_DOCUMENTOS_GESTELL.md` (contrato GESTELL).
 - Compuertas (en `scripts/`, corren en CI):
-  `node scripts/validate-mermaid.mjs docs/architecture` (cabeceras + parseo) y
-  `node scripts/check-diagram-staleness.mjs` (staleness HARD, ADR SOFT).
+  `node scripts/validate-mermaid.mjs docs/architecture` (cabeceras + parseo),
+  `node scripts/check-diagram-staleness.mjs` (staleness HARD, ADR SOFT) y
+  `node scripts/check-innerhtml.mjs` (escape del frontend: HARD el archivo sin
+  `esc`, SOFT la línea sospechosa).
 
 ## Git & commits
 - **Conventional Commits** en inglés: `feat:`/`fix:`/`refactor:`/`chore:`/`test:`/`docs:`

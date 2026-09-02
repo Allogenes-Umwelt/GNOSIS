@@ -16,6 +16,7 @@ export default [
         window: "readonly", document: "readonly", navigator: "readonly",
         location: "readonly", history: "readonly", console: "readonly",
         fetch: "readonly", matchMedia: "readonly", getComputedStyle: "readonly",
+        AbortController: "readonly", Promise: "readonly",
         requestAnimationFrame: "readonly", cancelAnimationFrame: "readonly",
         setTimeout: "readonly", clearTimeout: "readonly",
         setInterval: "readonly", clearInterval: "readonly",
@@ -25,7 +26,7 @@ export default [
         localStorage: "readonly", sessionStorage: "readonly",
         performance: "readonly", alert: "readonly", confirm: "readonly",
         // del propio proyecto (exportados por un módulo a window)
-        Fuerzas: "readonly",
+        Fuerzas: "readonly", GestellComun: "readonly",
       },
     },
     rules: {

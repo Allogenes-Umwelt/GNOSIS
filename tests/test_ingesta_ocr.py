@@ -131,3 +131,33 @@ def test_ocr_con_basura_o_sin_deps_devuelve_lista_vacia():
     """Bytes ilegibles (o deps de OCR ausentes) -> [] sin excepción."""
     from autogenes.ingesta import _ocr_paginas_pdf
     assert _ocr_paginas_pdf(b"esto no es un pdf", saltar=set()) == []
+
+
+# ── OCR en paralelo (hallazgo S5) — lo que necesita Tesseract ────────
+
+@pytest.mark.skipif(not TIENE_TESSERACT, reason="Tesseract no instalado")
+def test_paralelo_y_secuencial_leen_lo_mismo(tmp_path):
+    """La prueba que el diagnóstico pedía: mismo PDF escaneado, los dos
+    caminos, el mismo texto. Se salta sin Tesseract, como el resto del
+    archivo."""
+    from pdf2image import convert_from_bytes  # noqa: F401  (deps de OCR)
+
+    from autogenes.ingesta import _ocr_en_paralelo, _ocr_paginas_pdf
+
+    paginas = []
+    for i in range(1, 4):
+        img = Image.new("RGB", (1200, 400), "white")
+        ImageDraw.Draw(img).text((40, 150), f"FACTURA NUMERO {i}00",
+                                 fill="black", font=ImageFont.load_default(size=48))
+        paginas.append(img)
+    buf = io.BytesIO()
+    paginas[0].save(buf, format="PDF", save_all=True, append_images=paginas[1:])
+    pdf = buf.getvalue()
+
+    secuencial = {p: t for p, t in _ocr_paginas_pdf(pdf, saltar=set())}
+    paralelo = _ocr_en_paralelo(pdf, [1, 2, 3])
+    if paralelo is None:
+        pytest.skip("multiprocessing no disponible en este contenedor")
+    assert {p for p, _ in paralelo} == set(secuencial)
+    for pagina, texto in paralelo:
+        assert texto.split() == secuencial[pagina].split()

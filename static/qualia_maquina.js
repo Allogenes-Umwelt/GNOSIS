@@ -157,8 +157,7 @@
     }
 
     // ── OBSERVAR + ACTUAR: /qualia/estado ────────────────────────────
-    fetch('/api/v1/autogenes/qualia/estado')
-      .then(function (r) { return r.json(); })
+    GestellComun.fetchUltimo('qualia_estado', '/api/v1/autogenes/qualia/estado')
       .then(function (j) {
         if (!j || j.error) return;
         var hallazgos = j.hallazgos || [];
@@ -215,8 +214,7 @@
       });
 
     // ── ORIENTAR + DECIDIR: /qualia/red ──────────────────────────────
-    fetch('/api/v1/autogenes/qualia/red')
-      .then(function (r) { return r.json(); })
+    GestellComun.fetchUltimo('qualia_red', '/api/v1/autogenes/qualia/red')
       .then(function (j) {
         if (!j || j.error) return;
         var etiquetaDe = {};

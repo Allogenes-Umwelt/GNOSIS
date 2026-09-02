@@ -957,7 +957,12 @@ def procesar_pipeline():
     if not os.path.isfile(output_file_path):
         raise FileUploadError("No hay facturas extraidas. Ejecute primero la Fase 1.")
 
-    # Crear siempre una sesion nueva para cada ejecucion del pipeline
+    # Una sesion por ejecucion del pipeline, salvo que ya exista una VACIA de
+    # este mes: entonces se reutiliza. Es el caso de H17 — el operador dockea
+    # evidencia antes de procesar y `_asegurar_sesion` abre la sesion del mes;
+    # sin reutilizarla, el dato aduanal caeria en otra y CONCILIA (que filtra
+    # por session_id) no podria cruzarlos nunca. Una sesion YA procesada no se
+    # toca: reprocesar un mes es una corrida nueva.
     now = datetime.datetime.now()
     db_session_id = create_session(now.month, now.year)
 

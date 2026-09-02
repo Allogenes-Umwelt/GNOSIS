@@ -52,6 +52,11 @@ jobs:
         run: npm install --no-save --no-fund --no-audit mermaid jsdom
       - name: Diagramas (cabeceras + parseo Mermaid)
         run: node scripts/validate-mermaid.mjs docs/architecture
+      # Sin bundler que revise nada (ADR-0008), un innerHTML que interpola en
+      # un archivo sin `esc` a mano solo se descubre en el navegador del
+      # operador. HARD el archivo sin escape; SOFT la linea sospechosa.
+      - name: Escape en innerHTML (frontend)
+        run: node scripts/check-innerhtml.mjs
       - name: Staleness de diagramas
         # En un PR: contra la base. En un push: contra el estado ANTERIOR del
         # remoto, no contra HEAD~1 — un push de varios commits solo revisaria

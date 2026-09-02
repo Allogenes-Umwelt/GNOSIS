@@ -25,11 +25,9 @@
     var reqSeq = 0;   // una respuesta vieja nunca fija caminoActual
 
     // Etiquetas de origen documental: SIEMPRE escapadas antes del DOM.
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    }
+    // `esc` vive en gestell_comun.js (H14): una sola casa, y esa sí
+    // escapa la comilla simple — la copia local no lo hacía.
+    var esc = GestellComun.esc;
 
     lienzo.addEventListener('grafo:listo', function (ev) {
       lista.innerHTML = '';
@@ -424,7 +422,7 @@
     function cargarSesiones() {
       var sel = document.getElementById('vn-deriva');
       if (!sel) return;
-      fetch('/api/v1/autogenes/sesiones').then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('sesiones', '/api/v1/autogenes/sesiones')
         .then(function (j) {
           var ses = (j && j.sesiones) || [];
           sel.innerHTML = '<option value="">— sin comparación —</option>' +
@@ -500,8 +498,7 @@
     cargarSesiones();
 
     // hubs: atajos de foco
-    fetch('/api/v1/autogenes/hubs?top=8')
-      .then(function (r) { return r.json(); })
+    GestellComun.fetchUltimo('hubs', '/api/v1/autogenes/hubs?top=8')
       .then(function (j) {
         (j.hubs || []).forEach(function (h) {
           var li = document.createElement('li');

@@ -34,11 +34,9 @@
       'conc-vin-inter-sesion': 'Chasis vendido en más de una sesión'
     };
 
-    function esc(s) {
-      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-      });
-    }
+    // `esc` vive en gestell_comun.js (H14): una sola casa, y esa sí
+    // escapa la comilla simple — la copia local no lo hacía.
+    var esc = GestellComun.esc;
     function num(n) {
       return n == null ? '—' : Number(n).toLocaleString('es-MX');
     }
@@ -127,8 +125,7 @@
     // recarga viva tras disponer: el motor re-deriva y contrasta
     function recargar() {
       var claveActiva = activo >= 0 && datos ? datos.hallazgos[activo].clave : null;
-      fetch('/api/v1/autogenes/concilia')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('concilia', '/api/v1/autogenes/concilia')
         .then(function (j) {
           if (!j || j.error) return;
           datos = j;
@@ -214,8 +211,7 @@
       if (!q) return;
       btnDossier.style.display = 'none';
       elDetalle.innerHTML = '<p class="qa-base-hint">Buscando…</p>';
-      fetch('/api/v1/autogenes/concilia/vin?chasis=' + encodeURIComponent(q))
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('concilia_vin', '/api/v1/autogenes/concilia/vin?chasis=' + encodeURIComponent(q))
         .then(function (v) {
           if (v.error) {
             elDetalle.innerHTML = '<p class="qa-base-hint">' + esc(v.error) + '</p>';
@@ -330,8 +326,7 @@
       elCupos.innerHTML = html;
     }
 
-    fetch('/api/v1/autogenes/concilia/cupos')
-      .then(function (r) { return r.json(); })
+    GestellComun.fetchUltimo('concilia_cupos', '/api/v1/autogenes/concilia/cupos')
       .then(function (j) {
         if (!j || j.error) {
           elCupos.innerHTML = '<p class="qa-base-hint">' +
@@ -511,8 +506,7 @@
     }
 
     
-    fetch('/api/v1/autogenes/concilia')
-      .then(function (r) { return r.json(); })
+    GestellComun.fetchUltimo('concilia', '/api/v1/autogenes/concilia')
       .then(function (j) {
         if (!j || j.error) {
           elLista.innerHTML = '<p class="qa-base-hint">' +
