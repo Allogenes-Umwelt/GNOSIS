@@ -101,6 +101,7 @@ from database.backup import backup_database
 
 UPLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__)) + '/uploads'
 DOWNLOAD_FOLDER = os.path.dirname(os.path.abspath(__file__)) + '/downloads'
+DATA_DIR_TICKETS = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -109,11 +110,31 @@ app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
 # facturas rebasa 50 MB con facilidad; el guardia real contra zip-bombs
 # es _MAX_UNZIPPED_BYTES al extraer.
 app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024
+# Los tickets de traceback viven aparte de DOWNLOAD_FOLDER: ese directorio se
+# sirve entero por /download/<filename> y un traceback no es una descarga de
+# negocio (ver log_error_to_file y la ruta /ticket/<filename>).
+app.config['TICKET_FOLDER'] = os.path.join(DATA_DIR_TICKETS, 'tickets')
 
 
 # ── candado de operador (opcional): con GNOSIS_TOKEN en el entorno,
-# toda mutación via API exige el header X-Gnosis-Token. Sin la variable
-# el candado no existe — el uso local de un solo operador no cambia.
+# toda mutación —y toda LECTURA sensible— exige el header X-Gnosis-Token.
+# Sin la variable el candado no existe: el uso local de un solo operador no
+# cambia en nada.
+
+#: Prefijos de LECTURA que entregan dato del expediente o configuración del
+#: operador. El contenedor escucha en 0.0.0.0, y estas rutas servían con
+#: nombres FIJOS y adivinables (`/download/ZipGeneral.zip` es el concentrado
+#: aduanal completo del mes: VIN, facturas y precios). Un candado que solo
+#: cubre POST protege la escritura y deja la lectura abierta a la red.
+_LECTURA_PROTEGIDA = (
+    '/download/',
+    '/errores/download',
+    '/api/v1/admin/',
+    '/admin/',
+    '/ticket/',
+)
+
+
 @app.before_request
 def _candado_operador():
     esperado = os.environ.get('GNOSIS_TOKEN')
@@ -122,7 +143,9 @@ def _candado_operador():
     # El candado se ancla al MÉTODO mutante, no al prefijo /api/: rutas
     # destructivas como /processing, /procesar/*, /admin/dedup y
     # /errores/delete no viven bajo /api/ y antes quedaban libres.
-    if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
+    mutante = request.method in ('POST', 'PUT', 'DELETE', 'PATCH')
+    lectura_sensible = request.path.startswith(_LECTURA_PROTEGIDA)
+    if mutante or lectura_sensible:
         if request.headers.get('X-Gnosis-Token') != esperado:
             return jsonify({'error': 'Token de operador requerido'}), 401
     return None
@@ -204,11 +227,16 @@ def log_error_to_file(error_type, error_message, error_traceback):
     timestamp_filename = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     timestamp_display = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
     log_filename = f"Ticket_de_Servicio_ADUANAS_{timestamp_filename}.txt"
-    log_filepath = os.path.join(app.config['DOWNLOAD_FOLDER'], log_filename)
+    # FUERA del árbol servible: un traceback nombra rutas de disco, consultas
+    # y fragmentos de dato, y `/download/<filename>` entregaba el directorio
+    # entero. El ticket sigue existiendo y el operador lo baja por su ruta
+    # propia, que sí pasa por el candado.
+    carpeta = app.config['TICKET_FOLDER']
+    log_filepath = os.path.join(carpeta, log_filename)
     # el manejador de errores no puede fallar: sin este directorio, el
     # ticket que explica el error moría en FileNotFoundError y el 500
     # original se perdía tras un segundo 500
-    os.makedirs(app.config['DOWNLOAD_FOLDER'], exist_ok=True)
+    os.makedirs(carpeta, exist_ok=True)
 
     with open(log_filepath, 'w', encoding='utf-8') as log_file:
         log_file.write("="*80 + "\n")
@@ -1023,6 +1051,14 @@ def dashboard2(filename):
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
     return send_from_directory(app.config['DOWNLOAD_FOLDER'], filename, as_attachment=True)
+
+
+@app.route('/ticket/<filename>', methods=['GET'])
+def download_ticket(filename):
+    """Baja un ticket de servicio. Vive fuera de `downloads/` a propósito
+    (un traceback no es una salida de negocio) y pasa por el candado."""
+    return send_from_directory(app.config['TICKET_FOLDER'], filename,
+                               as_attachment=True)
 
 @app.route('/error')
 def error():

@@ -13,7 +13,7 @@
   {% endif %}
   <div class="sp-actions">
     <a href="{{ url_for('welcome') }}" class="btn">Regresar a ingesta</a>
-    {% if log_file %}<a href="{{ url_for('download_file', filename=log_file) }}" class="btn btn-danger" id="manualDownload">Descargar log</a>{% endif %}
+    {% if log_file %}<a href="{{ url_for('download_ticket', filename=log_file) }}" class="btn btn-danger" id="manualDownload">Descargar log</a>{% endif %}
   </div>
 </div>
 {% endblock %}
@@ -22,7 +22,7 @@
 {% if log_file %}
 <script>
   window.addEventListener('load', function() {
-    var downloadUrl = "{{ url_for('download_file', filename=log_file) }}";
+    var downloadUrl = "{{ url_for('download_ticket', filename=log_file) }}";
     var statusDiv = document.getElementById('downloadStatus');
     function show(msg) { if (statusDiv) { statusDiv.style.display = 'inline-block'; statusDiv.textContent = msg; } }
     setTimeout(function() {

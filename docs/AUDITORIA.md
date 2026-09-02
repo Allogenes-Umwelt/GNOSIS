@@ -67,11 +67,12 @@ Tests: las 4 tools en el set, `mask_row` bloquea alias VIN
 Ítems de menor impacto o cuyo cambio arriesga romper comportamiento; se dejan
 para priorización del operador:
 
-- **Tickets de traceback descargables** (`app.py` `handle_generic_error` +
-  `/download/<filename>`, media): un 500 escribe el traceback a un directorio
-  servible sin auth. Tocar la ruta de descarga arriesga romper descargas
-  legítimas (ZipGeneral, Histórico). Recomendación: escribir los tickets fuera
-  del árbol servible.
+- ~~**Tickets de traceback descargables**~~ **RESUELTO (2026-09-02).** Los
+  tickets se escriben en `TICKET_FOLDER`, fuera de `downloads/`, y se bajan
+  por `/ticket/<filename>`, que pasa por el candado. Las descargas legítimas
+  no se tocaron. Además el candado dejó de cubrir solo métodos mutantes:
+  `/download/*`, `/errores/download` y `/admin/*` exigen token cuando
+  `GNOSIS_TOKEN` está definido (hallazgo H4 del diagnóstico).
 - **DeepSeek sin reintentos** (`jarvis/llm_interface.py`, baja): un 5xx/timeout
   puntual aborta el turno; Anthropic sí reintenta vía SDK.
 - **Fecha de 2 dígitos → +2000 incondicional** (`tableros/fechas.py`, baja):
@@ -79,8 +80,13 @@ para priorización del operador:
   sería más correcto.
 - **`reprocesar_temp` es un dir fijo** (`app.py`, baja): con >1 worker dos
   reprocesos concurrentes se pisan. Usar `tempfile.mkdtemp` como fase1.
-- **`/processing` limpia todo `downloads`** (`app.py`, baja): borra salidas y
-  tickets de otras corridas. Subdirectorio por sesión.
+- ~~**`/processing` limpia todo `downloads`**~~ **INEXACTO, corregido
+  2026-09-02.** `app.py` limpia los directorios de *staging* de subida
+  (`dwh`, `incrementales`, `pdfInversion`, `pdfProduccion`), no `downloads`.
+  Lo que sí sigue abierto es que las salidas usan nombres FIJOS
+  (`ZipGeneral.zip`, `Concentrado2.xlsx`…), así que una corrida pisa a la
+  anterior y no se puede distinguir el mes por el nombre. Sufijo por sesión
+  pendiente.
 
 ---
 
