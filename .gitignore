@@ -7,6 +7,14 @@ __pycache__/
 downloads/
 uploads/
 
+# Salida de herramientas de medicion (se regenera; nunca se commitea)
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
 # Secretos locales (nunca commitear)
 .env
 .env.*
