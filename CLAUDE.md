@@ -73,7 +73,8 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
   de staleness) — ambas cosas las verifica CI.
 - Doctrina backend (Python/seguridad/testing/observabilidad):
   `docs/estandares/backend-engineering.md` (copia en-repo del master
-  `~/backend-engineering.md`).
+  `~/backend-engineering.md`). Auditoría medida contra sus benchmarks §13:
+  `docs/architecture/auditoria-backend.md`.
 - Documentos de marca: `docs/GUIA_DOCUMENTOS_GESTELL.md` (contrato GESTELL).
 - Compuertas (en `scripts/`, corren en CI):
   `node scripts/validate-mermaid.mjs docs/architecture` (cabeceras + parseo) y

@@ -45,6 +45,7 @@ de identificadores** (chasis/factura) antes de exponerlos a un LLM.
 | [Modelo de datos](data-model.md) | ER | ¿Qué tablas hay y cómo se relacionan? |
 | [Despliegue](deployment.md) | Despliegue | ¿Dónde corre cada pieza y qué cruza la frontera? |
 | [Calidad](quality.md) | arc42 §10 | ¿Qué impide que un cambio malo llegue a `main`? |
+| [Auditoría backend](auditoria-backend.md) | arc42 §10 | ¿Dónde está el repo respecto a los benchmarks §13, medido? |
 
 Cada nivel es la **caja blanca** del anterior: L1 es la única caja negra;
 L2 abre `System(gnosis)`; los L3 abren un contenedor cada uno. Las aristas que
