@@ -298,6 +298,39 @@ class Sustrato:
         )
         return [self._entidad(r) for r in rows]
 
+    def _por_clave(self, clave: str) -> Optional[Entidad]:
+        """La entidad cuyo nombre o alias normaliza a `clave`, o None."""
+        if not clave:
+            return None
+        fila = self.conn.execute(
+            "SELECT entidad_id FROM ag_entidad_alias"
+            " WHERE session_id = ? AND alias_norm = ?",
+            (self.session_id, clave),
+        ).fetchone()
+        return self.entidad_por_id(fila[0]) if fila else None
+
+    def _indexar_claves(self, entidad_id: str, nombre: str,
+                        alias: Optional[Sequence[str]] = None) -> None:
+        """Mantiene el índice de resolución al día.
+
+        `INSERT OR IGNORE`: si otra entidad ya reclamó ese alias, gana la
+        primera y la segunda no lo roba — el conflicto se resuelve por
+        construcción, no por orden de filas."""
+        self.conn.execute(
+            "INSERT OR IGNORE INTO ag_entidad_alias"
+            " (session_id, alias_norm, entidad_id, es_nombre) VALUES (?, ?, ?, 1)",
+            (self.session_id, _norm(nombre), entidad_id),
+        )
+        for a in alias or []:
+            clave = _norm(a)
+            if clave:
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO ag_entidad_alias"
+                    " (session_id, alias_norm, entidad_id, es_nombre)"
+                    " VALUES (?, ?, ?, 0)",
+                    (self.session_id, clave, entidad_id),
+                )
+
     def entidad_por_id(self, entidad_id: str) -> Optional[Entidad]:
         r = self.conn.execute(
             "SELECT * FROM ag_entidades WHERE session_id = ? AND id = ?",
@@ -362,18 +395,19 @@ class Sustrato:
         campo: Optional[str] = None,
         evidencia: Optional[list[str]] = None,
     ) -> Entidad:
-        """Resolve by lowercased name OR alias; merge under the additive law."""
+        """Resolve by lowercased name OR alias; merge under the additive law.
+
+        La resolución va por `ag_entidad_alias` (índice único sobre
+        `(session_id, alias_norm)`), no por escaneo en Python. Antes esto
+        cargaba TODAS las entidades de la sesión por pydantic y comparaba una
+        a una: O(E) por llamada y O(E²) por ingesta — medido, reencontrar una
+        entidad costaba 13,7× más con 2 100 dentro que con 100
+        (`docs/DIAGNOSTICO_FABLE_v02.md` §1). El UNIQUE del índice hace
+        además imposible el empate que el escaneo resolvía según el orden
+        físico de filas."""
         evidencia = evidencia or []
         clave = _norm(nombre)
-        existente = next(
-            (
-                e
-                for e in self._entidades()
-                if _norm(e.nombre) == clave
-                or any(_norm(a) == clave for a in e.alias)
-            ),
-            None,
-        )
+        existente = self._por_clave(clave)
         if existente:
             # Additive law: a synesis write may ENRICH an operator-curated
             # entity but must not OVERWRITE the operator's curation.
@@ -402,6 +436,7 @@ class Sustrato:
             (eid, self.session_id, nombre.strip(), tipo, resumen, campo, origen,
              _js(list(dict.fromkeys(evidencia)))),
         )
+        self._indexar_claves(eid, nombre)
         self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})")
         self._commit()
         return self.entidad_por_id(eid)  # type: ignore[return-value]
@@ -421,6 +456,20 @@ class Sustrato:
             valores.append(_js(v) if k in ("alias", "propiedades") else v)
         valores.append(entidad_id)
         self.conn.execute(f"UPDATE ag_entidades SET {', '.join(sets)} WHERE id = ?", valores)  # noqa: S608 — SQL estático: la f-string no interpola entrada
+        # El índice de resolución tiene que seguir al nombre y a los alias: si
+        # no, renombrar una entidad la deja inencontrable por su nombre nuevo y
+        # encontrable por el viejo. Se reconstruyen SUS claves (no las de otras
+        # entidades, que no han cambiado).
+        if "nombre" in campos or "alias" in campos:
+            self.conn.execute(
+                "DELETE FROM ag_entidad_alias WHERE session_id = ? AND entidad_id = ?",
+                (self.session_id, entidad_id),
+            )
+            self._indexar_claves(
+                entidad_id,
+                campos.get("nombre", entidad.nombre),
+                campos.get("alias", entidad.alias),
+            )
         self._registrar(
             "editar-entidad",
             f"Entidad editada por el operador: {campos.get('nombre', entidad.nombre)}",
@@ -835,7 +884,13 @@ class Sustrato:
                 (_js(repuntadas), row["id"]),
             )
 
+        # Borrar al perdedor arrastra SUS claves de resolución (ON DELETE
+        # CASCADE), así que el nombre fusionado dejaría de encontrar a nadie y
+        # la siguiente mención crearía un duplicado — justo lo contrario de
+        # fusionar. Se reindexa al ganador con la lista de alias ya unida, que
+        # incluye el nombre del perdedor.
         self.conn.execute("DELETE FROM ag_entidades WHERE id = ?", (perdedor_id,))
+        self._indexar_claves(ganador_id, ganador.nombre, alias)
         self._registrar("fusion", f"Fusión: {ganador.nombre} absorbe a {perdedor.nombre}")
         self._commit()
         return self.entidad_por_id(ganador_id)

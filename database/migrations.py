@@ -81,7 +81,76 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         "ALTER TABLE ag_bitacora_new RENAME TO ag_bitacora",
         "CREATE INDEX IF NOT EXISTS idx_ag_bitacora_session ON ag_bitacora(session_id)",
     ]),
+    # Índice de resolución de entidad. `upsert_entidad` cargaba TODAS las
+    # entidades de la sesión por pydantic y buscaba en Python el nombre
+    # normalizado o un alias: O(E) por llamada, y por tanto O(E²) para una
+    # ingesta. Medido en docs/DIAGNOSTICO_FABLE_v02.md §1: reencontrar una
+    # entidad costaba 13,7× más con 2 100 dentro que con 100.
+    #
+    # Cada nombre y cada alias pasa a ser una FILA con su forma normalizada.
+    # El UNIQUE(session_id, alias_norm) hace además imposible el empate que
+    # el escaneo en Python resolvía según el orden físico de filas.
+    #
+    # Se rellena desde lo que ya existe; es idempotente (INSERT OR IGNORE),
+    # así que una base a medio migrar converge sola.
+    # La tabla la crea también el esquema (models_autogenes.AG_SCHEMA_SQL), pero
+    # se repite aquí a propósito: esta migración tiene que bastarse sola sobre
+    # una base ANTERIOR a que el esquema la trajera, sin depender del orden en
+    # que se apliquen esquema y migraciones. Lo que el esquema no puede
+    # expresar es el RELLENO desde las entidades ya existentes.
+    (4, "ag_entidad_alias_relleno", [
+        """CREATE TABLE IF NOT EXISTS ag_entidad_alias (
+            session_id  INTEGER NOT NULL,
+            alias_norm  TEXT NOT NULL,
+            entidad_id  TEXT NOT NULL,
+            es_nombre   INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (session_id, alias_norm),
+            FOREIGN KEY (entidad_id) REFERENCES ag_entidades(id) ON DELETE CASCADE
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_ag_entidad_alias_entidad"
+        " ON ag_entidad_alias(entidad_id)",
+        # El RELLENO va en `_rellenar_alias` (Python), no aquí: una base
+        # legada puede no tener siquiera `ag_entidades`, y una migración que
+        # explota sobre un esquema parcial bloquea el arranque entero.
+    ]),
 ]
+
+
+def _rellenar_alias(conn: sqlite3.Connection) -> None:
+    """Rellena el índice de resolución desde las entidades ya existentes.
+
+    Va en Python y no en la lista SQL de la migración por dos razones: los
+    alias viven serializados en JSON, que SQL no sabe abrir; y una base legada
+    puede no tener `ag_entidades` en absoluto, así que el relleno tiene que
+    poder no hacer nada sin romper el arranque. Idempotente."""
+    import json as _json
+
+    try:
+        # nombres canónicos
+        conn.execute(
+            "INSERT OR IGNORE INTO ag_entidad_alias"
+            " (session_id, alias_norm, entidad_id, es_nombre)"
+            " SELECT session_id, LOWER(TRIM(nombre)), id, 1 FROM ag_entidades")
+        # y los alias, que viven serializados en JSON
+        filas = conn.execute(
+            "SELECT id, session_id, alias FROM ag_entidades"
+            " WHERE alias IS NOT NULL AND alias NOT IN ('', '[]')").fetchall()
+    except sqlite3.OperationalError:
+        # esquema parcial (una base legada puede no tener ag_entidades): no hay
+        # nada que rellenar y desde luego no hay que tumbar el arranque
+        return
+    for fila in filas:
+        try:
+            alias = _json.loads(fila[2] or "[]")
+        except ValueError:
+            continue
+        for a in alias:
+            clave = (a or "").strip().lower()
+            if clave:
+                conn.execute(
+                    "INSERT OR IGNORE INTO ag_entidad_alias"
+                    " (session_id, alias_norm, entidad_id, es_nombre)"
+                    " VALUES (?, ?, ?, 0)", (fila[1], clave, fila[0]))
 
 
 def apply_migrations(conn: sqlite3.Connection) -> None:
@@ -104,3 +173,5 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
             "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
             (version, name),
         )
+        if version == 4:
+            _rellenar_alias(conn)

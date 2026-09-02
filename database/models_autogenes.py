@@ -61,6 +61,23 @@ CREATE TABLE IF NOT EXISTS ag_entidades (
 CREATE INDEX IF NOT EXISTS idx_ag_entidades_session ON ag_entidades(session_id);
 CREATE INDEX IF NOT EXISTS idx_ag_entidades_nombre ON ag_entidades(session_id, nombre);
 
+-- Índice de RESOLUCIÓN de entidad: cada nombre y cada alias es una fila con
+-- su forma normalizada (TRIM+LOWER, el `_norm` de autogenes/sustrato.py).
+-- `upsert_entidad` resuelve aquí en vez de escanear todas las entidades por
+-- pydantic; sin esto la ingesta era O(E²) (docs/DIAGNOSTICO_FABLE_v02.md §1).
+-- El PRIMARY KEY (session_id, alias_norm) hace además IMPOSIBLE que dos
+-- entidades reclamen el mismo alias — antes ganaba la que el orden físico de
+-- filas pusiera primero.
+CREATE TABLE IF NOT EXISTS ag_entidad_alias (
+    session_id  INTEGER NOT NULL,
+    alias_norm  TEXT NOT NULL,
+    entidad_id  TEXT NOT NULL,
+    es_nombre   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, alias_norm),
+    FOREIGN KEY (entidad_id) REFERENCES ag_entidades(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ag_entidad_alias_entidad ON ag_entidad_alias(entidad_id);
+
 CREATE TABLE IF NOT EXISTS ag_relaciones (
     id          TEXT PRIMARY KEY,
     session_id  INTEGER NOT NULL,

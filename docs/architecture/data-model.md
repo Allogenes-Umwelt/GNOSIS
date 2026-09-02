@@ -2,8 +2,8 @@
 
 > **Nivel:** Suplementario · datos — **Notación:** Mermaid `erDiagram`
 > **Pregunta que responde:** ¿Qué tablas existen, cuáles son aduanales y cuáles del sustrato, y cómo se relacionan?
-> **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal.
-> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md)
+> **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal. `ag_entidad_alias` es índice, no evidencia: se deriva de `ag_entidades` y se reconstruye desde ella.
+> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md)
 > **Índice de vistas:** [docs/architecture/README.md](README.md)
 
 **Nota de la vista.** 26 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
@@ -29,6 +29,7 @@ erDiagram
 
     ag_artefactos ||--o{ ag_fragmentos : contiene
     ag_fragmentos ||--o{ ag_entidades : "cita (procedencia)"
+    ag_entidades ||--o{ ag_entidad_alias : "se resuelve por (nombre+alias)"
     ag_entidades ||--o{ ag_relaciones : conecta
     ag_entidades ||--o{ ag_eventos : "participa (por nombre)"
     ag_entidades ||--o{ ag_productos : "ancla (por id)"

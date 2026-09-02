@@ -36,6 +36,11 @@
   fijado `hoy`, dos corridas bajo relojes distintos dan lo mismo
   ([ADR-0010](adr/0010-metricas-citadas-evaluables-por-fecha.md)). Una prueba
   que siembra fechas y lee el reloj real es una bomba de tiempo, no una prueba.
+- **Escala como compuerta.** `tests/test_escala.py` (marca `slow`) fija la
+  FORMA de las curvas que importan: resolución de entidad e ingesta no pueden
+  volverse cuadráticas. Afirma **ratios**, no segundos — un umbral absoluto se
+  vuelve flaky en una máquina lenta, y lo que se persigue es la forma
+  ([ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md)).
 - **1:1 con el motor.** Cada módulo de `autogenes/` tiene su archivo en
   `tests/`. Un motor sin spec es un motor sin contrato.
 - **Regresión con nombre.** Cada defecto corregido en `docs/AUDITORIA.md` deja
