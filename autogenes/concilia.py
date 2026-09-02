@@ -125,7 +125,7 @@ def conciliar(conn: sqlite3.Connection, session_id: int,
         return _hallazgo(*args, tope=tope)
 
     filas = conn.execute(
-        f"SELECT i.id, i.chasis, i.factura, i.precio, i.j_y_n, i.pais_code,"
+        f"SELECT i.id, i.chasis, i.factura, i.precio, i.j_y_n, i.pais_code,"  # noqa: S608 — SQL estático: la f-string no interpola entrada
         f"       i.pedimento_id,"
         f"       ef.id AS ef_id, ef.j_y_n AS ef_jn, ef.pais_code AS ef_pais,"
         f"       ef.filename, ef.factura AS ef_factura"
@@ -498,7 +498,7 @@ def cobertura(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     propia fragilidad ES la credibilidad — el complemento se dice, no se
     esconde. Lectura pura y determinista."""
     filas = conn.execute(
-        f"SELECT i.id, i.precio, ef.id AS ef_id"
+        f"SELECT i.id, i.precio, ef.id AS ef_id"  # noqa: S608 — SQL estático: la f-string no interpola entrada
         f" FROM importaciones i"
         f" LEFT JOIN extraccion_facturas ef ON{_JOIN_PAR}"
         f" WHERE i.session_id = ? ORDER BY i.id", (session_id,),
@@ -623,7 +623,7 @@ def estado_vin(conn: sqlite3.Connection, session_id: int,
         " ORDER BY id", (session_id, vin))]
 
     pares = conn.execute(
-        f"SELECT i.j_y_n, ef.j_y_n AS ef_jn, i.pais_code, ef.pais_code AS ef_pais"
+        f"SELECT i.j_y_n, ef.j_y_n AS ef_jn, i.pais_code, ef.pais_code AS ef_pais"  # noqa: S608 — SQL estático: la f-string no interpola entrada
         f" FROM importaciones i JOIN extraccion_facturas ef ON{_JOIN_PAR}"
         f" WHERE i.session_id = ? AND i.chasis = ?",
         (session_id, vin)).fetchall()
@@ -657,7 +657,7 @@ def veredicto_por_fila(conn: sqlite3.Connection,
     (concilió pero las fuentes afirman J/N o país distintos) o
     sin_llegada. Misma regla de casamiento de siempre; ids de fila."""
     filas = conn.execute(
-        f"SELECT i.id, i.j_y_n, i.pais_code,"
+        f"SELECT i.id, i.j_y_n, i.pais_code,"  # noqa: S608 — SQL estático: la f-string no interpola entrada
         f"       ef.id AS ef_id, ef.j_y_n AS ef_jn, ef.pais_code AS ef_pais"
         f" FROM importaciones i"
         f" LEFT JOIN extraccion_facturas ef ON{_JOIN_PAR}"

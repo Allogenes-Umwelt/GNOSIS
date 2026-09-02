@@ -10,8 +10,9 @@
 
 | Compuerta | Herramienta | Dureza | Regla |
 |---|---|---|---|
-| Lint Python | `ruff check .` | HARD | Selección declarada en `ruff.toml` (`E4,E7,E9,F`), nunca heredada de la versión instalada — [ADR-0009](adr/0009-seleccion-de-reglas-ruff-declarada.md). Alcance por `exclude`: el pipelegado y los scripts legados quedan fuera a propósito. |
+| Lint Python | `ruff check .` | HARD | Selección declarada en `ruff.toml` (`E4,E7,E9,F` **+ `S`**), nunca heredada de la versión instalada — [ADR-0009](adr/0009-seleccion-de-reglas-ruff-declarada.md). Alcance por `exclude`: el pipelegado y los scripts legados quedan fuera a propósito. |
 | Lint JS | `npx eslint static` | HARD | 0 errores. Warnings de variables sin usar toleradas. |
+| SAST | `ruff check .` (reglas `S`) | HARD | Toda construcción de SQL por interpolación, `except: pass` o hash débil se declara con `# noqa: S… — razón`. Sin razón escrita, no pasa. |
 | Suite | `python -m pytest -q` | HARD | Verde completa. Sin `xfail` de conveniencia, sin tests saltados para pasar. |
 | Diagramas Mermaid | `node scripts/validate-mermaid.mjs docs/architecture` | HARD | Cabecera de vista completa (nivel · notación · pregunta · leyenda) y bloques Mermaid que parsean. |
 | Staleness de diagramas | `node scripts/check-diagram-staleness.mjs` | HARD | Un cambio estructural sin tocar `docs/architecture/` en el mismo diff no pasa. |

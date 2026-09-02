@@ -11,6 +11,10 @@ from typing import Any, Optional
 
 from autogenes.sustrato import Sustrato
 
+from registro import log
+
+_log = log("autogenes.ingesta")
+
 MAX_BLOQUE = 1600
 
 
@@ -154,8 +158,10 @@ def ingestar_pdf(conn: sqlite3.Connection, session_id: int,
                 if texto:
                     paginas.append((i + 1, texto[:12000]))
     except Exception:
-        # un PDF 100% imagen (escaneado) puede fallar en pdfplumber pero SÍ en OCR
-        pass
+        # un PDF 100% imagen (escaneado) puede fallar en pdfplumber pero SÍ en OCR.
+        # Se registra: un artefacto que acaba con 0 fragmentos y sin motivo es
+        # evidencia muda, y zero snake oil pide declarar por qué no hay dato.
+        _log.info("pdfplumber no extrajo texto; se intenta OCR", exc_info=True)
     # OCR de relleno para las páginas sin capa de texto (o el PDF entero)
     truncado = 0
     if len(paginas) < n_paginas or n_paginas == 0:

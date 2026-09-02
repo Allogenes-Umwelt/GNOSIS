@@ -457,7 +457,7 @@ def dashboard():
                             ('extraccion_facturas', 'total_extraccion'),
                             ('facturas_faltantes', 'total_faltantes'),
                             ('facturas_errores', 'total_errores')]:
-            row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (session_id,)).fetchone()
+            row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (session_id,)).fetchone()  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
             stats[key] = row['cnt']
 
         por_marca = [dict(r) for r in conn.execute(
@@ -1114,15 +1114,15 @@ def api_status():
         stats = {}
         for table in ['processing_sessions', 'importaciones', 'extraccion_facturas',
                        'catalogo_vehiculos', 'pedimentos', 'cupos', 'insumos_archivos']:
-            row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table}").fetchone()
+            row = conn.execute(f"SELECT COUNT(*) as cnt FROM {table}").fetchone()  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
             stats[table] = row['cnt']
         conn.close()
         return jsonify({'status': 'ok', 'tables': stats})
     except Exception as e:
         try:
             conn.close()
-        except Exception:
-            pass
+        except Exception:   # noqa: S110 — cerrar es best-effort; el fallo real
+            pass            # ya se registra en error_api, y esto no debe taparlo
         return error_api(e, codigo=500)
 
 
@@ -1159,7 +1159,7 @@ def api_session_detail(session_id):
         for table in ['importaciones', 'extraccion_facturas', 'catalogo_vehiculos',
                        'pedimentos', 'facturas_errores', 'facturas_faltantes']:
             cnt = conn.execute(
-                f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (session_id,)
+                f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (session_id,)  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
             ).fetchone()
             detail[f'total_{table}'] = cnt['cnt']
 
@@ -1168,8 +1168,8 @@ def api_session_detail(session_id):
     except Exception as e:
         try:
             conn.close()
-        except Exception:
-            pass
+        except Exception:   # noqa: S110 — cerrar es best-effort; el fallo real
+            pass            # ya se registra en error_api, y esto no debe taparlo
         return error_api(e)
 
 

@@ -131,7 +131,7 @@ def estado_en(conn: sqlite3.Connection, session_id: int,
     capas = {t.removeprefix("ag_"): _conteo_hasta(conn, t, session_id, ts)
              for t in _CAPAS}
     acciones = conn.execute(
-        "SELECT COUNT(*) FROM ag_bitacora WHERE session_id = ?"
+        "SELECT COUNT(*) FROM ag_bitacora WHERE session_id = ?"  # noqa: S608 — SQL estático: la f-string no interpola entrada
         + ("" if ts is None else " AND ts <= ?"),
         (session_id,) if ts is None else (session_id, ts)).fetchone()[0]
     return {

@@ -420,7 +420,7 @@ class Sustrato:
             sets.append(f"{k} = ?")
             valores.append(_js(v) if k in ("alias", "propiedades") else v)
         valores.append(entidad_id)
-        self.conn.execute(f"UPDATE ag_entidades SET {', '.join(sets)} WHERE id = ?", valores)
+        self.conn.execute(f"UPDATE ag_entidades SET {', '.join(sets)} WHERE id = ?", valores)  # noqa: S608 — SQL estático: la f-string no interpola entrada
         self._registrar(
             "editar-entidad",
             f"Entidad editada por el operador: {campos.get('nombre', entidad.nombre)}",

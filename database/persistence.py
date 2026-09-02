@@ -49,7 +49,7 @@ def update_session_stats(session_id, **kwargs):
             if key not in _STATS_COLUMNAS:
                 raise ValueError(f"Columna no permitida en stats: {key}")
             conn.execute(
-                f"UPDATE processing_sessions SET {key} = ? WHERE id = ?",
+                f"UPDATE processing_sessions SET {key} = ? WHERE id = ?",  # noqa: S608 — columna validada contra allowlist antes de llegar aquí
                 (value, session_id)
             )
         conn.commit()
@@ -446,8 +446,13 @@ def save_facturas_faltantes(session_id, faltantes):
 # ============================================================
 
 def _file_md5(filepath):
-    """Calculate MD5 hash of a file."""
-    h = hashlib.md5()
+    """Hash de contenido para DEDUPE, no para seguridad.
+
+    `usedforsecurity=False` lo declara en el código y no solo en un comentario:
+    md5 aquí responde «¿es el mismo archivo que ya ingerí?», no protege de un
+    adversario que fabrique colisiones. En sistemas con FIPS, además, es lo que
+    permite seguir usándolo."""
+    h = hashlib.md5(usedforsecurity=False)
     with open(filepath, 'rb') as f:
         for chunk in iter(lambda: f.read(8192), b''):
             h.update(chunk)
@@ -577,7 +582,7 @@ def get_historico_concentrado2(session_ids=None):
         LEFT JOIN pedimentos p          ON i.pedimento_id = p.id
         {filter_clause}
         ORDER BY i.session_id, i.id
-    """
+    """  # noqa: S608 — la cláusula IN se arma con "?" ligados
 
     rows = conn.execute(query, params).fetchall()
     conn.close()
@@ -604,7 +609,7 @@ def get_facturas_faltantes_historico(session_ids=None):
         WHERE ef.chasis IS NULL
           AND i.factura != '*'
           {filter_clause}
-    """
+    """  # noqa: S608 — la cláusula IN se arma con "?" ligados
 
     rows = conn.execute(query, params).fetchall()
     conn.close()

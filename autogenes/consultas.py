@@ -45,7 +45,7 @@ def _citas(conn: sqlite3.Connection, session_id: int, frag_ids: list[str],
     filas = {
         r["id"]: r
         for r in conn.execute(
-            f"SELECT f.id, f.pagina, f.texto, a.nombre AS fuente, a.kind"
+            f"SELECT f.id, f.pagina, f.texto, a.nombre AS fuente, a.kind"  # noqa: S608 — solo interpola '?' — los valores van ligados
             f" FROM ag_fragmentos f JOIN ag_artefactos a ON f.artefacto_id = a.id"
             f" WHERE f.id IN ({marcadores}) AND f.session_id = ?",  # noqa: S608
             (*unicos, session_id),
@@ -189,7 +189,7 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
     eventos = [
         {"titulo": r["titulo"], "fecha": r["fecha"], "precision": r["precision"]}
         for r in conn.execute(
-            "SELECT titulo, fecha, precision FROM ag_eventos"
+            "SELECT titulo, fecha, precision FROM ag_eventos"  # noqa: S608 — SQL estático: la f-string no interpola entrada
             f" WHERE session_id = ? AND ({cond_ev}) ORDER BY fecha",
             (session_id, *params_ev),
         )

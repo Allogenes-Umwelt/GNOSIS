@@ -78,7 +78,7 @@ def conexion_sandbox(ruta_db: str, session_id: int) -> sqlite3.Connection:
     for tabla in TABLAS_VISIBLES:
         try:
             conn.execute(
-                f"CREATE TEMP VIEW {tabla} AS SELECT * FROM main.{tabla}"
+                f"CREATE TEMP VIEW {tabla} AS SELECT * FROM main.{tabla}"  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
                 f" WHERE session_id = {int(session_id)}")
         except sqlite3.Error:
             continue          # tabla ausente en una base a medio migrar
@@ -86,7 +86,7 @@ def conexion_sandbox(ruta_db: str, session_id: int) -> sqlite3.Connection:
         bases.add(tabla)
     for tabla in CATALOGOS:
         try:
-            conn.execute(f"CREATE TEMP VIEW {tabla} AS SELECT * FROM main.{tabla}")
+            conn.execute(f"CREATE TEMP VIEW {tabla} AS SELECT * FROM main.{tabla}")  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
         except sqlite3.Error:
             continue
         vistas.add(tabla)
@@ -114,7 +114,7 @@ def ejecutar_select(ruta_db: str, session_id: int, query: str) -> Any:
 
     conn = conexion_sandbox(ruta_db, session_id)
     try:
-        envuelta = f"SELECT * FROM ({limpia}) LIMIT {_LIMITE_FILAS}"
+        envuelta = f"SELECT * FROM ({limpia}) LIMIT {_LIMITE_FILAS}"  # noqa: S608 — el LIMIT se fuerza a int()
         try:
             filas = conn.execute(envuelta).fetchall()
         except sqlite3.DatabaseError as e:

@@ -249,7 +249,7 @@ def _sugerir_regla(conn: sqlite3.Connection, session_id: int,
         return
     marcadores = ",".join("?" * len(chasis))
     filas = conn.execute(
-        f"SELECT pais_code AS p, COUNT(*) AS n FROM importaciones"
+        f"SELECT pais_code AS p, COUNT(*) AS n FROM importaciones"  # noqa: S608 — solo interpola '?' — los valores van ligados
         f" WHERE session_id = ? AND chasis IN ({marcadores})"  # noqa: S608
         f" AND pais_code IS NOT NULL GROUP BY pais_code"
         f" ORDER BY n DESC, pais_code",
@@ -377,7 +377,7 @@ def dockear_insight(conn: sqlite3.Connection, session_id: int,
     if nombres:
         marcadores = ",".join("?" * len(nombres))
         ent_ids = [row["id"] for row in conn.execute(
-            f"SELECT id FROM ag_entidades WHERE session_id = ? AND nombre IN"
+            f"SELECT id FROM ag_entidades WHERE session_id = ? AND nombre IN"  # noqa: S608 — solo interpola '?' — los valores van ligados
             f" ({marcadores}) ORDER BY created_at",  # noqa: S608
             (session_id, *sorted(nombres)))]
 

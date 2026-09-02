@@ -12,7 +12,7 @@ from typing import Any, Optional
 def _count(conn: sqlite3.Connection, tabla: str, session_id: int) -> int:
     # tabla always comes from the fixed literals below, never from input
     return conn.execute(
-        f"SELECT COUNT(*) FROM {tabla} WHERE session_id = ?", (session_id,)
+        f"SELECT COUNT(*) FROM {tabla} WHERE session_id = ?", (session_id,)  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
     ).fetchone()[0]
 
 

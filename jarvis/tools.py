@@ -305,7 +305,7 @@ def resumen_sesion(session_id=None):
     for table in ['importaciones', 'extraccion_facturas', 'catalogo_vehiculos',
                    'pedimentos', 'facturas_errores', 'facturas_faltantes']:
         cnt = conn.execute(
-            f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (sid,)
+            f"SELECT COUNT(*) as cnt FROM {table} WHERE session_id = ?", (sid,)  # noqa: S608 — el nombre de tabla sale de un literal fijo, nunca de entrada
         ).fetchone()
         result[f'total_{table}'] = cnt['cnt']
 
@@ -447,7 +447,7 @@ def buscar_en_extraccion(campo, valor, session_id=None):
 
     conn = get_connection()
     rows = conn.execute(
-        f"SELECT * FROM extraccion_facturas WHERE {campo} LIKE ? AND session_id = ? LIMIT 50",
+        f"SELECT * FROM extraccion_facturas WHERE {campo} LIKE ? AND session_id = ? LIMIT 50",  # noqa: S608 — columna validada contra allowlist antes de llegar aquí
         (f"%{valor}%", sid)
     ).fetchall()
     conn.close()

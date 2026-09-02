@@ -22,6 +22,13 @@ exclude = [
     "test.py",
     # ── notebooks de exploración (no son código de producción) ──
     "*.ipynb",
+    # ── script huérfano, pendiente de decisión del operador ──
+    # database/backup_proton.py: nadie lo importa, no tiene prueba, y lleva
+    # codificada la ruta absoluta del escritorio de otra persona. Se excluye
+    # para que su ruido no bloquee la compuerta de TODO el árbol, no para
+    # perdonarlo: o se arregla (configuración por entorno) o se borra.
+    # Ver docs/DIAGNOSTICO_FABLE_v01.md §3 (H16).
+    "database/backup_proton.py",
 ]
 
 [lint]
@@ -34,10 +41,23 @@ exclude = [
 #
 # E4 (imports) · E7 (sentencias) · E9 (sintaxis/IO) · F (pyflakes) — el
 # conjunto que este repo ha linteado desde siempre, ahora explícito.
-select = ["E4", "E7", "E9", "F"]
+select = [
+    "E4", "E7", "E9", "F",
+    # ── SAST (bandit) ──────────────────────────────────────────────────
+    # La auditoría §13 marcaba "SAST en CI" como ❌ teniendo estas reglas a
+    # un renglón de distancia. Encontraron 38 sitios fuera de tests: NINGUNO
+    # era una inyección, pero cada uno tuvo que justificarse con un `noqa` y
+    # su razón — y ESE es el valor de la compuerta. La siguiente construcción
+    # de SQL que alguien escriba sin pensar no pasa en silencio.
+    "S",
+]
 
 [lint.per-file-ignores]
 # app.py llama load_dotenv() ANTES de importar módulos que leen variables
 # de entorno al importarse (.env debe poblarse primero). Ese orden es
 # intencional, así que E402 (import no al inicio) no aplica aquí.
 "app.py" = ["E402"]
+# Las pruebas viven de `assert` (S101) y siembran credenciales de mentira
+# (S105/S106); reportarlo es ruido, no señal. `subprocess` en un test es el
+# test corriendo un subproceso a propósito (doble corrida determinista).
+"tests/*" = ["S101", "S105", "S106", "S603", "S607", "S608"]

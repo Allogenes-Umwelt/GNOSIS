@@ -329,7 +329,7 @@ def construir_grafo(
                        AND ef.session_id = i.session_id) AS pdf
             FROM importaciones i
             LEFT JOIN catalogo_vehiculos c ON i.catalogo_id = c.id
-            WHERE i.session_id = ? ORDER BY i.id{limit_clause}""", (session_id,))
+            WHERE i.session_id = ? ORDER BY i.id{limit_clause}""", (session_id,))  # noqa: S608 — el LIMIT se fuerza a int(); el resto va ligado
 
     # artefactos reales ya ingeridos (F4): un PDF que existe como ag_artefacto
     # NO debe duplicarse como artefacto virtual (dos nodos para un documento,
@@ -403,7 +403,7 @@ def construir_grafo(
             SELECT chasis, auto, pais_code, j_y_n, amount, moneda, filename
             FROM extraccion_facturas
             WHERE session_id = ? AND chasis IS NOT NULL AND chasis != ''
-            ORDER BY chasis LIMIT {lim_fac}""", (session_id,)):
+            ORDER BY chasis LIMIT {lim_fac}""", (session_id,)):  # noqa: S608 — el LIMIT se fuerza a int(); el resto va ligado
         if r["chasis"] in chasis_conciliados or r["chasis"] in vehfac_vistos:
             continue
         vehfac_vistos.add(r["chasis"])

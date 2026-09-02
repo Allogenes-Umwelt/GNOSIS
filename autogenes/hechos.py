@@ -194,7 +194,7 @@ def hechos_medidos(conn: sqlite3.Connection, session_id: int) -> list[dict[str, 
     for extractor in _EXTRACTORES:
         try:
             hechos.extend(extractor(conn, session_id))
-        except Exception:   # noqa: BLE001 — un motor sin tabla/datos no tumba el resto
+        except Exception:   # noqa: BLE001,S112 — un motor sin tabla/datos no tumba el resto; el detalle no aporta (se declara en el propio hallazgo)
             continue
 
     def _monto(h: dict) -> float:

@@ -17,13 +17,13 @@ comando que la produce. Ninguna casilla se marca por impresión.
 |---|---|---|---|
 | Documentación de arquitectura | C4 completo y al día; ADR por decisión | ✅ | 10 vistas en `docs/architecture/`, cabecera completa las 10; corpus de 10 ADR; compuerta de staleness en CI |
 | Modelado de procesos | BPMN válido, sin bloqueos, fiel a la realidad | ⚠️ | 3 vistas de proceso, todas parsean. Son **BPMN-style en Mermaid**, no BPMN 2.0 con XML validable — desviación declarada: no hay motor de procesos que consuma el XML |
-| Calidad de código · ruff | limpio | ✅ | `ruff check .` → *All checks passed* |
+| Calidad de código · ruff | limpio | ✅ | `ruff check .` → *All checks passed*, ahora con E4/E7/E9/F **+ S** |
 | Calidad de código · mypy | strict limpio | ❌ | `mypy --strict` → **827 errores en 51 archivos**; sin `--strict` → **56 en 22**. No hay anotaciones en el árbol legado ni stubs de pandas |
 | Calidad de código · complejidad | ciclomática < 10 | ⚠️ | media **B (5.34)** sobre 538 bloques; **16 bloques ≥ 11**. Los peores son de `app.py`: `procesar_pipeline` **F(45)**, `procesar_fase1` **F(42)**, `dashboard` **E(35)** |
 | Pruebas · cobertura | diff ≥ 80%, CI la exige | ⚠️ | **93%** en `autogenes/` (los motores), **78%** en el árbol vivo completo. CI **no** mide cobertura todavía |
 | Pruebas · pirámide | equilibrada | ✅ | 539 verdes + 1 skip; unidad 1:1 con el motor, integración HTTP en `test_http_rutas.py`, sin mock del dominio (SQLite en memoria con el esquema real) |
 | Seguridad · OWASP | revisado por release | ✅ | `docs/AUDITORIA.md`: 5 olas, 20 hallazgos corregidos con prueba de regresión, 5 diferidos con justificación |
-| Seguridad · SAST/DAST en CI | ambos | ❌ | ninguno. Ruff tiene reglas `S` (bandit) disponibles y **no están activadas** — ver recomendaciones |
+| Seguridad · SAST/DAST en CI | ambos | ⚠️ | **2026-09-02:** SAST activo — `ruff --select S` (bandit) es compuerta HARD; los 38 sitios fuera de tests quedaron justificados uno a uno con su `noqa` y su razón, ninguno era inyección. Verificado que la compuerta atrapa una inyección real. **DAST sigue sin existir** |
 | Seguridad · secretos | rotados | ❌ | **la llave DeepSeek que viajó por chat sigue sin rotar** (`docs/HANDOFF.md`). Acción del operador; ningún cambio de código la sustituye |
 | Diseño de API | Richardson L3 donde aplique; versionada; mutaciones idempotentes | ⚠️ | versionada (`/api/v1/...`) ✅; L2 (verbos + recursos, sin HATEOAS) — **correcto para un cliente único que no descubre enlaces**, desviación declarada; idempotencia no verificada sistemáticamente |
 | Datos · migraciones | hacia adelante | ✅ | `database/migrations.py` idempotente, sin rollback por diseño (la base del operador es producción) |
