@@ -42,7 +42,7 @@ def test_camino_con_citas_por_salto(caso):
     cam = camino_mas_corto(c, 1, d["fianza"].id, d["puerto"].id)
     assert cam["largo"] == 2
     tipos = [s["arista"]["tipo"] for s in cam["saltos"]]
-    assert tipos == ["garantiza a", "opera en"]
+    assert tipos == ["ampara", "ubicado_en"]      # normalizados por la puerta
     # cada salto de relación carga SU evidencia; el camino une todas
     assert cam["saltos"][0]["evidencia"] == [d["frags"][0].id]
     assert cam["saltos"][1]["evidencia"] == [d["frags"][1].id]
@@ -233,7 +233,7 @@ def test_cuerpo_guardado_preserva_direccion_de_relacion_al_reves(caso):
     assert cam["largo"] == 1
     assert cam["saltos"][0]["de"]["etiqueta"] == "Puerto"   # marcha: puerto->agencia
     salto = cuerpo_camino_guardado(cam)["saltos"][0]
-    assert salto["tipo"] == "opera en"
+    assert salto["tipo"] == "ubicado_en"
     assert salto["de"] == "Agencia" and salto["a"] == "Puerto"   # sentido real
 
 

@@ -32,33 +32,15 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     ]),
     # Add ag_relaciones.origen (provenance): who asserted the edge. Without
     # it a relation cannot declare its author — synesis (model) vs operador
-    # (the analyst's own claim from the radar triage, T1). Recreate-and-copy
-    # (house style) so it works whether or not the column already exists:
-    # existing rows default to 'synesis' (the pre-provenance state, declared).
-    (2, "ag_relaciones_add_origen", [
-        """CREATE TABLE ag_relaciones_new (
-            id          TEXT PRIMARY KEY,
-            session_id  INTEGER NOT NULL,
-            desde_id    TEXT NOT NULL,
-            hasta_id    TEXT NOT NULL,
-            tipo        TEXT NOT NULL,
-            peso        REAL NOT NULL DEFAULT 0.5 CHECK (peso >= 0 AND peso <= 1),
-            evidencia   TEXT NOT NULL DEFAULT '[]',
-            origen      TEXT NOT NULL DEFAULT 'synesis',
-            created_at  TEXT DEFAULT (datetime('now')),
-            FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
-            FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
-            FOREIGN KEY (hasta_id) REFERENCES ag_entidades(id)
-        )""",
-        "INSERT INTO ag_relaciones_new (id, session_id, desde_id, hasta_id, tipo,"
-        " peso, evidencia, origen, created_at) SELECT id, session_id, desde_id,"
-        " hasta_id, tipo, peso, evidencia, 'synesis', created_at FROM ag_relaciones",
-        "DROP TABLE ag_relaciones",
-        "ALTER TABLE ag_relaciones_new RENAME TO ag_relaciones",
-        "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_session ON ag_relaciones(session_id)",
-        "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_desde ON ag_relaciones(desde_id)",
-        "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_hasta ON ag_relaciones(hasta_id)",
-    ]),
+    # (the analyst's own claim from the radar triage, T1).
+    #
+    # El trabajo va en Python y no en una lista SQL porque esta migración se
+    # REPRODUCE sobre bases nuevas, y la 6 le cambió la forma a la tabla por
+    # debajo: una copia que nombra `peso` explota contra un esquema que ya
+    # trae `peso_declarado`. `_agregar_origen_relaciones` mira las columnas
+    # que hay y no hace nada si `origen` ya está — que es lo que una
+    # migración idempotente debió ser desde el principio.
+    (2, "ag_relaciones_add_origen", []),
     # Add ag_bitacora.prev_hash/hash (WORM tamper-evidence). Recreate-and-copy
     # (house style) so it works whether or not the columns already exist: the
     # copy names only the pre-seal columns, so legacy rows keep NULL seals
@@ -118,6 +100,11 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     # que la tabla de contenido EXISTA, y una base legada puede no tenerla.
     # Una migración que explota sobre un esquema parcial bloquea el arranque.
     (5, "ag_fragmentos_fts", []),
+    # Vocabulario de predicados + span de cita + `peso` → `peso_declarado`.
+    # Todo el paso va en Python: la copia NORMALIZA cada `tipo` contra el
+    # vocabulario (`autogenes.predicados`), que es trabajo que SQL no puede
+    # hacer, y el resto tolera un esquema parcial como las migraciones 4 y 5.
+    (6, "ag_relaciones_predicado_y_citas", []),
 ]
 
 
@@ -159,6 +146,143 @@ def _reconstruir_fts(conn: sqlite3.Connection) -> None:
             conn.execute(sentencia)
         except sqlite3.OperationalError:
             return
+
+
+def _intentar(conn: sqlite3.Connection, sentencias) -> None:
+    """Ejecuta lo que se pueda y sigue. Sobre un esquema PARCIAL —una base
+    legada puede tener `ag_relaciones` y no `ag_entidades`— una sentencia que
+    no aplica no debe llevarse por delante a las que sí: se salta, no se
+    aborta, y desde luego no tumba el arranque."""
+    for sentencia in sentencias:
+        try:
+            conn.execute(sentencia)
+        except sqlite3.OperationalError:
+            continue
+
+
+def _agregar_origen_relaciones(conn: sqlite3.Connection) -> None:
+    """Añade `ag_relaciones.origen` si falta. No hace nada si ya está."""
+    try:
+        columnas = {c[1] for c in conn.execute("PRAGMA table_info(ag_relaciones)")}
+    except sqlite3.OperationalError:
+        return
+    if not columnas or "origen" in columnas:
+        return                        # esquema parcial, o ya hecho
+    peso = "peso_declarado" if "peso_declarado" in columnas else "peso"
+    conn.execute("DROP TABLE IF EXISTS ag_relaciones_new")
+    conn.execute(f"""CREATE TABLE ag_relaciones_new (
+        id          TEXT PRIMARY KEY,
+        session_id  INTEGER NOT NULL,
+        desde_id    TEXT NOT NULL,
+        hasta_id    TEXT NOT NULL,
+        tipo        TEXT NOT NULL,
+        {peso}      REAL NOT NULL DEFAULT 0.5
+                    CHECK ({peso} >= 0 AND {peso} <= 1),
+        evidencia   TEXT NOT NULL DEFAULT '[]',
+        origen      TEXT NOT NULL DEFAULT 'synesis',
+        created_at  TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
+        FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
+        FOREIGN KEY (hasta_id) REFERENCES ag_entidades(id)
+    )""")  # noqa: S608 — el nombre de columna sale de un literal fijo, nunca de entrada
+    conn.execute(
+        f"INSERT INTO ag_relaciones_new (id, session_id, desde_id, hasta_id, tipo,"  # noqa: S608 — idem
+        f" {peso}, evidencia, origen, created_at) SELECT id, session_id, desde_id,"
+        f" hasta_id, tipo, {peso}, evidencia, 'synesis', created_at FROM ag_relaciones")
+    conn.execute("DROP TABLE ag_relaciones")
+    conn.execute("ALTER TABLE ag_relaciones_new RENAME TO ag_relaciones")
+    for sentencia in _RELACIONES_INDICES[:3]:
+        conn.execute(sentencia)
+
+
+_CITAS_SQL = (
+    """CREATE TABLE IF NOT EXISTS ag_citas (
+        id           TEXT PRIMARY KEY,
+        session_id   INTEGER NOT NULL,
+        sujeto_kind  TEXT NOT NULL CHECK (sujeto_kind IN ('entidad','relacion')),
+        sujeto_id    TEXT NOT NULL,
+        fragmento_id TEXT NOT NULL,
+        inicio       INTEGER NOT NULL CHECK (inicio >= 0),
+        fin          INTEGER NOT NULL CHECK (fin > inicio),
+        created_at   TEXT DEFAULT (datetime('now')),
+        UNIQUE (sujeto_kind, sujeto_id, fragmento_id, inicio, fin),
+        FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
+        FOREIGN KEY (fragmento_id) REFERENCES ag_fragmentos(id) ON DELETE CASCADE
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ag_citas_sujeto ON ag_citas(sujeto_kind, sujeto_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ag_citas_fragmento ON ag_citas(fragmento_id)",
+    # cascada polimórfica: ver el comentario del esquema
+    """CREATE TRIGGER IF NOT EXISTS ag_citas_borrar_con_entidad
+       AFTER DELETE ON ag_entidades BEGIN
+         DELETE FROM ag_citas WHERE sujeto_kind = 'entidad' AND sujeto_id = old.id;
+       END""",
+    """CREATE TRIGGER IF NOT EXISTS ag_citas_borrar_con_relacion
+       AFTER DELETE ON ag_relaciones BEGIN
+         DELETE FROM ag_citas WHERE sujeto_kind = 'relacion' AND sujeto_id = old.id;
+       END""",
+)
+
+_RELACIONES_NUEVA = """CREATE TABLE ag_relaciones_new (
+    id             TEXT PRIMARY KEY,
+    session_id     INTEGER NOT NULL,
+    desde_id       TEXT NOT NULL,
+    hasta_id       TEXT NOT NULL,
+    tipo           TEXT NOT NULL,
+    tipo_crudo     TEXT,
+    peso_declarado REAL NOT NULL DEFAULT 0.5
+                   CHECK (peso_declarado >= 0 AND peso_declarado <= 1),
+    evidencia      TEXT NOT NULL DEFAULT '[]',
+    origen         TEXT NOT NULL DEFAULT 'synesis',
+    created_at     TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
+    FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
+    FOREIGN KEY (hasta_id) REFERENCES ag_entidades(id)
+)"""
+
+_RELACIONES_INDICES = (
+    "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_session ON ag_relaciones(session_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_desde ON ag_relaciones(desde_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_hasta ON ag_relaciones(hasta_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ag_relaciones_tipo ON ag_relaciones(session_id, tipo)",
+)
+
+
+def _normalizar_relaciones(conn: sqlite3.Connection) -> None:
+    """Lleva `ag_relaciones` al vocabulario cerrado y crea `ag_citas`.
+
+    Cada `tipo` de una base anterior pasa por `normalizar`: el que casa con un
+    predicado se queda con él, y el que no cae a `otro` CONSERVANDO lo que
+    decía en `tipo_crudo`. Migrar no puede significar perder lo que el
+    operador ya tenía escrito.
+
+    `peso` se copia a `peso_declarado`: mismo número, nombre honesto — nunca
+    fue una confianza, era lo que el modelo afirmaba."""
+    from autogenes.predicados import normalizar
+
+    try:
+        filas = conn.execute(
+            "SELECT id, session_id, desde_id, hasta_id, tipo, peso, evidencia,"
+            " origen, created_at FROM ag_relaciones").fetchall()
+        conn.execute("DROP TABLE IF EXISTS ag_relaciones_new")
+        conn.execute(_RELACIONES_NUEVA)
+    except sqlite3.OperationalError:
+        # esquema parcial (una base legada puede no tener `ag_relaciones`):
+        # no hay nada que normalizar, pero las citas sí pueden entrar
+        _intentar(conn, _CITAS_SQL)
+        return
+
+    for f in filas:
+        # posicional, no por nombre: `apply_migrations` no exige `row_factory`
+        # (mismo criterio que `_rellenar_alias`)
+        tipo, crudo = normalizar(f[4] if isinstance(f[4], str) else "")
+        conn.execute(
+            "INSERT INTO ag_relaciones_new (id, session_id, desde_id, hasta_id,"
+            " tipo, tipo_crudo, peso_declarado, evidencia, origen, created_at)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (f[0], f[1], f[2], f[3], tipo, crudo, f[5], f[6], f[7], f[8]))
+    conn.execute("DROP TABLE ag_relaciones")
+    conn.execute("ALTER TABLE ag_relaciones_new RENAME TO ag_relaciones")
+    _intentar(conn, (*_RELACIONES_INDICES, *_CITAS_SQL))
 
 
 def _rellenar_alias(conn: sqlite3.Connection) -> None:
@@ -218,7 +342,11 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
             "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
             (version, name),
         )
+        if version == 2:
+            _agregar_origen_relaciones(conn)
         if version == 4:
             _rellenar_alias(conn)
         if version == 5:
             _reconstruir_fts(conn)
+        if version == 6:
+            _normalizar_relaciones(conn)

@@ -159,15 +159,21 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
     e = filas[0]
     evidencia = json.loads(e["evidencia"] or "[]")
 
+    # confianza DERIVADA de fuentes reales (ADR-0017), de una pasada: pedirla
+    # relación a relación sería una consulta por arista
+    from autogenes.confianza import confianza_de_sesion
+    confianzas = confianza_de_sesion(conn, session_id)
+
     relaciones = []
     for r in conn.execute(
-        "SELECT r.tipo, r.peso, r.evidencia, r.desde_id, r.hasta_id,"
+        "SELECT r.id, r.tipo, r.tipo_crudo, r.peso_declarado, r.evidencia,"
+        "       r.desde_id, r.hasta_id,"
         "       ed.nombre AS desde_nombre, eh.nombre AS hasta_nombre"
         " FROM ag_relaciones r"
         " JOIN ag_entidades ed ON r.desde_id = ed.id"
         " JOIN ag_entidades eh ON r.hasta_id = eh.id"
         " WHERE r.session_id = ? AND (r.desde_id = ? OR r.hasta_id = ?)"
-        " ORDER BY r.peso DESC, r.id",
+        " ORDER BY r.peso_declarado DESC, r.id",
         (session_id, e["id"], e["id"]),
     ):
         sale = r["desde_id"] == e["id"]
@@ -175,7 +181,11 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
             "con": r["hasta_nombre"] if sale else r["desde_nombre"],
             "tipo": r["tipo"],
             "direccion": "sale" if sale else "entra",
-            "peso": r["peso"],
+            # lo que AFIRMÓ quien propuso la arista — no es la confianza
+            "peso_declarado": r["peso_declarado"],
+            "tipo_crudo": r["tipo_crudo"],
+            # la confianza, que sí se deriva y viaja con su derivación
+            "confianza": confianzas.get(r["id"]),
             "citas": _citas(conn, session_id,
                             json.loads(r["evidencia"] or "[]"), maximo=3),
         })

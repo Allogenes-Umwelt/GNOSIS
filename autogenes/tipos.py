@@ -10,6 +10,8 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
+from autogenes.predicados import PREDICADOS
+
 KindArtefacto = Literal["pdf", "imagen", "nota", "estructurado"]
 
 TipoEntidad = Literal[
@@ -30,7 +32,26 @@ PrecisionFecha = Literal["dia", "mes", "anio"]
 
 ClaseProducto = Literal["informe", "camino", "investigacion"]
 
+#: El vocabulario cerrado de relaciones (G2). La lista vive en
+#: `autogenes/predicados.py` porque es del dominio, no del tipo: quien
+#: conoce la aduana la edita ahí sin tocar los contratos.
+Predicado = Literal[PREDICADOS]
+
 FECHA_ISO = r"^\d{4}-\d{2}-\d{2}$"
+
+
+class Cita(BaseModel):
+    """Una cita a un TROZO del fragmento, no a la página entera (G4).
+
+    Antes `evidencia` era una lista de ids y una cita señalaba una página de
+    hasta 12 000 caracteres: cierto, pero inútil para resaltar y demasiado
+    ancho para verificar. Con `inicio`/`fin` la cita se puede comprobar
+    contra el texto real —el saneador lo hace— y resaltar en pantalla.
+    """
+    fragmento_id: str = Field(min_length=1)
+    inicio: int = Field(ge=0)
+    fin: int = Field(gt=0)
+    texto: str = Field(default="", max_length=400)
 
 
 class GeoPunto(BaseModel):
@@ -75,8 +96,15 @@ class Relacion(BaseModel):
     id: str = Field(min_length=1)
     desde_id: str = Field(min_length=1)
     hasta_id: str = Field(min_length=1)
-    tipo: str = Field(min_length=1)
-    peso: float = Field(default=0.5, ge=0, le=1)
+    #: Predicado canónico del vocabulario (G2). Lo que dijo el modelo, cuando
+    #: no casó con ninguno, sobrevive en `tipo_crudo`.
+    tipo: Predicado = "otro"
+    tipo_crudo: Optional[str] = None
+    #: Lo que el modelo AFIRMÓ, no lo que se puede sostener (G5). La confianza
+    #: se DERIVA en tiempo de lectura en `autogenes/confianza.py`, contando
+    #: artefactos distintos que citan la relación; este número no es esa
+    #: confianza y por eso ya no se llama `peso`.
+    peso_declarado: float = Field(default=0.5, ge=0, le=1)
     evidencia: list[str] = Field(default_factory=list)
     origen: str = "synesis"
     created_at: str
@@ -111,7 +139,10 @@ class PropuestaEntidad(BaseModel):
     nombre: str = Field(min_length=1)
     tipo: TipoEntidad = "otro"
     resumen: Optional[str] = None
+    #: Ids de fragmento. El id suelto sigue valiendo (G4: el cambio es
+    #: compatible); las citas con span viajan aparte, en `citas`.
     evidencia: list[str] = Field(default_factory=list)
+    citas: list[Cita] = Field(default_factory=list)
 
     @field_validator("nombre", mode="before")
     @classmethod
@@ -129,9 +160,13 @@ class PropuestaEntidad(BaseModel):
 class PropuestaRelacion(BaseModel):
     desde: str = Field(min_length=1)
     hasta: str = Field(min_length=1)
+    #: Lo que el modelo escriba, tal cual. La normalización al vocabulario
+    #: ocurre en la PUERTA (`Sustrato.agregar_relacion`), no aquí: rechazar
+    #: la propuesta por una redacción tiraría la relación entera.
     tipo: str = Field(min_length=1)
     peso: float = 0.5
     evidencia: list[str] = Field(default_factory=list)
+    citas: list[Cita] = Field(default_factory=list)
 
     @field_validator("tipo")
     @classmethod

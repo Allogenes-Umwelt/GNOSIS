@@ -64,8 +64,13 @@ def test_migracion_add_origen_es_aditiva():
     cols = {r[1] for r in c.execute("PRAGMA table_info(ag_relaciones)")}
     assert "origen" in cols
     # la fila vieja se conserva, con origen por defecto declarado
-    fila = c.execute("SELECT origen, tipo FROM ag_relaciones WHERE id = 'r1'").fetchone()
-    assert fila["origen"] == "synesis" and fila["tipo"] == "opera en"
+    fila = c.execute("SELECT origen, tipo, tipo_crudo, peso_declarado"
+                     " FROM ag_relaciones WHERE id = 'r1'").fetchone()
+    assert fila["origen"] == "synesis"
+    # la migración 6 normaliza al vocabulario y conserva la redacción
+    assert fila["tipo"] == "ubicado_en" and fila["tipo_crudo"] is None
+    # y `peso` viajó a `peso_declarado` con su valor intacto
+    assert fila["peso_declarado"] == 0.5
 
 
 # ── rutas HTTP ────────────────────────────────────────────────────────
@@ -108,7 +113,7 @@ def test_post_relacion_crea_con_origen_operador(cliente_sembrado):
                             "tipo": "opera en", "evidencia": [c["frag"]]})
     assert r.status_code == 200
     rel = r.get_json()["relacion"]
-    assert rel["origen"] == "operador" and rel["tipo"] == "opera en"
+    assert rel["origen"] == "operador" and rel["tipo"] == "ubicado_en"
     assert rel["evidencia"] == [c["frag"]]
 
 
@@ -173,4 +178,4 @@ def test_entidades_lista_y_verbos_derivados(cliente_sembrado):
     j = r.get_json()
     nombres = {e["nombre"] for e in j["entidades"]}
     assert {"Origen", "Destino"} <= nombres
-    assert "opera en" in j["verbos"]     # verbo DERIVADO, no inventado
+    assert "ubicado_en" in j["verbos"]   # predicado DERIVADO, no inventado

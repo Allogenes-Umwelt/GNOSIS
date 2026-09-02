@@ -18,6 +18,8 @@ from typing import Any, Optional
 
 from pydantic import ValidationError
 
+from autogenes.citas import verificar_todas
+from autogenes.predicados import PREDICADOS
 from autogenes.tipos import PropuestaEntidad, PropuestaGrafo
 
 MAX_FRAGMENTOS = 24
@@ -27,16 +29,22 @@ PROMPT_SISTEMA = (
     "Eres el extractor ontológico de GNOSIS (comercio exterior automotriz, "
     "México). Recibes fragmentos numerados de un documento aduanal o de "
     "negocio. Extrae las entidades sustantivas (organizaciones, personas, "
-    "lugares, documentos, servicios, conceptos) y las relaciones tipadas "
-    "entre ellas, con verbos en minúsculas ('garantiza a', 'opera en'). "
+    "lugares, documentos, servicios, conceptos) y las relaciones entre "
+    "ellas usando SOLO estos predicados: " + "|".join(PREDICADOS) + ". "
+    "Si ninguno encaja, usa 'otro' y describe el verbo en 'tipo_crudo'. "
     "REGLAS ABSOLUTAS: 1) Responde ÚNICAMENTE un objeto JSON válido, sin "
     "prosa ni markdown. 2) Cada entidad y relación DEBE citar en "
     "'evidencia' los ids EXACTOS de los fragmentos que la sustentan — un "
-    "id no listado invalida la propuesta. 3) No inventes nada que no esté "
-    "en los fragmentos. Formato: {\"entidades\": [{\"nombre\", \"tipo\" "
+    "id no listado invalida la propuesta. 3) En 'citas' copia la frase "
+    "LITERAL del fragmento que sostiene cada afirmación; se comprueba "
+    "contra el texto real y una frase que no exista invalida la cita. "
+    "4) No inventes nada que no esté en los fragmentos. "
+    "Formato: {\"entidades\": [{\"nombre\", \"tipo\" "
     "(concepto|persona|organizacion|lugar|evento|termino|servicio|"
-    "documento|otro), \"resumen\", \"evidencia\": [ids]}], \"relaciones\": "
-    "[{\"desde\", \"hasta\", \"tipo\", \"peso\" (0-1), \"evidencia\": [ids]}]}"
+    "documento|otro), \"resumen\", \"evidencia\": [ids], \"citas\": "
+    "[{\"fragmento_id\", \"inicio\", \"fin\", \"texto\"}]}], "
+    "\"relaciones\": [{\"desde\", \"hasta\", \"tipo\", \"peso\" (0-1), "
+    "\"evidencia\": [ids], \"citas\": [...]}]}"
 )
 
 
@@ -61,10 +69,18 @@ def extraer_json(texto: str) -> Optional[dict]:
     return None
 
 
-def sanear_propuesta(cruda: dict, ids_reales: set[str]) -> PropuestaGrafo:
+def sanear_propuesta(cruda: dict, ids_reales: set[str],
+                     textos: Optional[dict[str, str]] = None) -> PropuestaGrafo:
     """El saneador (port de sanearPropuesta): valida el esquema, filtra
     evidencia contra los ids reales enviados y descarta lo que queda sin
-    cita. Un modelo no puede fabricar procedencia."""
+    cita. Un modelo no puede fabricar procedencia.
+
+    Con `textos` (id → texto del fragmento) también se comprueban las citas
+    con span: la frase citada tiene que EXISTIR en el fragmento (ADR-0017).
+    Citar el id correcto y atribuirle una frase que no está es la forma de
+    fabricación que el id suelto no podía detectar. Sin `textos` los spans
+    no se pueden verificar, así que se descartan — la evidencia por id, que
+    es la ley vieja, sigue intacta."""
     try:
         propuesta = PropuestaGrafo.model_validate({
             "entidades": (cruda or {}).get("entidades", [])[:60],
@@ -75,12 +91,14 @@ def sanear_propuesta(cruda: dict, ids_reales: set[str]) -> PropuestaGrafo:
     entidades = []
     for e in propuesta.entidades:
         e.evidencia = [x for x in e.evidencia if x in ids_reales]
+        e.citas = verificar_todas(e.citas, textos or {})
         if e.evidencia:
             entidades.append(e)
     nombres = {e.nombre.strip().lower() for e in entidades}
     relaciones = []
     for r in propuesta.relaciones:
         r.evidencia = [x for x in r.evidencia if x in ids_reales]
+        r.citas = verificar_todas(r.citas, textos or {})
         if (r.evidencia and r.desde.strip().lower() in nombres
                 and r.hasta.strip().lower() in nombres
                 and r.desde.strip().lower() != r.hasta.strip().lower()):
@@ -168,16 +186,21 @@ def _fusionar(propuestas: list[PropuestaGrafo]) -> PropuestaGrafo:
                 relaciones[triple] = r.model_copy(deep=True)
             else:
                 previa.evidencia = list(dict.fromkeys([*previa.evidencia, *r.evidencia]))
+                vistas = {(c.fragmento_id, c.inicio, c.fin) for c in previa.citas}
+                previa.citas += [c for c in r.citas
+                                 if (c.fragmento_id, c.inicio, c.fin) not in vistas]
     return PropuestaGrafo(entidades=list(entidades.values()),
                           relaciones=list(relaciones.values()))
 
 
-def _una_pasada(proveedor, bloque: str, ids_reales: set[str]) -> PropuestaGrafo:
+def _una_pasada(proveedor, bloque: str, ids_reales: set[str],
+                textos: Optional[dict[str, str]] = None) -> PropuestaGrafo:
     respuesta = proveedor.chat(
         [{"role": "user", "content": "FRAGMENTOS DEL DOCUMENTO:\n\n" + bloque}],
         system=PROMPT_SISTEMA,
     )
-    return sanear_propuesta(extraer_json(respuesta.get("content") or "") or {}, ids_reales)
+    return sanear_propuesta(extraer_json(respuesta.get("content") or "") or {},
+                            ids_reales, textos)
 
 
 def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
@@ -212,12 +235,15 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
     kind = art["kind"] if art else ""
     trozos = _ventanas(fragmentos) if ventanas else [fragmentos[:MAX_FRAGMENTOS]]
     bloque, ids_reales = _bloque_fragmentos(trozos[0])
+    # los TEXTOS del artefacto: sin ellos el saneador no puede comprobar que
+    # una cita con span diga lo que dice que dice (ADR-0017)
+    textos = {f["id"]: f["texto"] for f in fragmentos}
     config = config or {}
 
     if con_quorum:
         pares = proveedores_para_quorum(config)
         resultado = ejecutar_en_quorum(
-            lambda prov: _una_pasada(prov, bloque, ids_reales), pares)
+            lambda prov: _una_pasada(prov, bloque, ids_reales, textos), pares)
         propuestas = list(resultado["respuestas"].values())
         base = propuestas[0]
         if resultado["quorum"] and len(propuestas) > 1:
@@ -252,11 +278,11 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         propuesta, quorum = base, resultado["quorum"]
     else:
         nombre_prov, proveedor = seleccionar_proveedor(config)
-        parciales = [_una_pasada(proveedor, bloque, ids_reales)]
+        parciales = [_una_pasada(proveedor, bloque, ids_reales, textos)]
         for trozo in trozos[1:]:
             b, ids_t = _bloque_fragmentos(trozo)
             ids_reales |= ids_t
-            parciales.append(_una_pasada(proveedor, b, ids_t))
+            parciales.append(_una_pasada(proveedor, b, ids_t, textos))
         propuesta = _fusionar(parciales) if len(parciales) > 1 else parciales[0]
         acuerdo = {e.nombre.strip().lower(): None for e in propuesta.entidades}
         quorum = False

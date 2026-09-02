@@ -527,8 +527,13 @@ def construir_grafo(
     # Relacion edges: only when both endpoints exist.
     for r in relaciones:
         if r["desde_id"] in ids_entidad and r["hasta_id"] in ids_entidad:
+            # `peso` del enlace es el peso ESTRUCTURAL del lienzo (muelle,
+            # grosor, centralidad), y sigue saliendo de lo que declaró quien
+            # afirmó la arista. NO es la confianza: esa se deriva aparte, en
+            # `autogenes/confianza.py`, contando fuentes independientes.
             enlaces.append(_enlace(r["id"], r["desde_id"], r["hasta_id"],
-                                   "relacion", r["peso"], tipo=r["tipo"]))
+                                   "relacion", r["peso_declarado"],
+                                   tipo=r["tipo"]))
 
     # Productos: docked deliverables cite their anchors. Las investigaciones
     # (P1) son META — un snapshot de navegación sobre el propio grafo, no un

@@ -6,7 +6,7 @@ Frontend: JS vanilla + canvas 2D servido por plantillas Jinja (sin build step,
 sin framework SPA — decisión deliberada, ver `docs/EVALUACION_ESTANDAR_A.md`).
 
 ## Comandos
-- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 622 verdes + 1
+- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 651 verdes + 1
   skip (`test_ingesta_ocr` se salta sin Pillow/Tesseract en el contenedor).
 - **Tests (un archivo):** `python3 -m pytest tests/test_X.py -q` — prefiérelo al iterar.
 - **Sin el banco de escala:** `python3 -m pytest -q -m "not slow"` — `tests/test_escala.py`

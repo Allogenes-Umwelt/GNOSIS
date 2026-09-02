@@ -106,16 +106,26 @@ CREATE TABLE IF NOT EXISTS ag_entidad_alias (
 );
 CREATE INDEX IF NOT EXISTS idx_ag_entidad_alias_entidad ON ag_entidad_alias(entidad_id);
 
+-- `tipo` es un PREDICADO del vocabulario cerrado (ADR-0017); el CHECK no se
+-- escribe aquí a propósito: la lista es del dominio y la edita el operador en
+-- `autogenes/predicados.py`, así que la puerta única de escritura la impone
+-- (y pydantic la valida) sin obligar a reconstruir la tabla en cada cambio.
+-- `tipo_crudo` guarda lo que dijo el modelo cuando cayó a `otro`: normalizar
+-- no puede significar perder.
+-- `peso_declarado` se llamaba `peso` y se leía como confianza. NO lo es: es lo
+-- que el modelo AFIRMÓ. La confianza se deriva al leer (autogenes/confianza.py).
 CREATE TABLE IF NOT EXISTS ag_relaciones (
-    id          TEXT PRIMARY KEY,
-    session_id  INTEGER NOT NULL,
-    desde_id    TEXT NOT NULL,
-    hasta_id    TEXT NOT NULL,
-    tipo        TEXT NOT NULL,
-    peso        REAL NOT NULL DEFAULT 0.5 CHECK (peso >= 0 AND peso <= 1),
-    evidencia   TEXT NOT NULL DEFAULT '[]',
-    origen      TEXT NOT NULL DEFAULT 'synesis',
-    created_at  TEXT DEFAULT (datetime('now')),
+    id             TEXT PRIMARY KEY,
+    session_id     INTEGER NOT NULL,
+    desde_id       TEXT NOT NULL,
+    hasta_id       TEXT NOT NULL,
+    tipo           TEXT NOT NULL,
+    tipo_crudo     TEXT,
+    peso_declarado REAL NOT NULL DEFAULT 0.5
+                   CHECK (peso_declarado >= 0 AND peso_declarado <= 1),
+    evidencia      TEXT NOT NULL DEFAULT '[]',
+    origen         TEXT NOT NULL DEFAULT 'synesis',
+    created_at     TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
     FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
     FOREIGN KEY (hasta_id) REFERENCES ag_entidades(id)
@@ -123,6 +133,42 @@ CREATE TABLE IF NOT EXISTS ag_relaciones (
 CREATE INDEX IF NOT EXISTS idx_ag_relaciones_session ON ag_relaciones(session_id);
 CREATE INDEX IF NOT EXISTS idx_ag_relaciones_desde ON ag_relaciones(desde_id);
 CREATE INDEX IF NOT EXISTS idx_ag_relaciones_hasta ON ag_relaciones(hasta_id);
+CREATE INDEX IF NOT EXISTS idx_ag_relaciones_tipo ON ag_relaciones(session_id, tipo);
+
+-- CITAS con span (ADR-0017). `evidencia` sigue siendo la lista de ids —no se
+-- toca, medio sustrato la lee— y el TROZO exacto vive aquí, aparte y aditivo.
+-- Una cita solo entra si su texto EXISTE en el fragmento: el saneador lo
+-- comprueba contra el texto real, así que un span es una afirmación
+-- verificada, no una coordenada que el modelo se inventó.
+CREATE TABLE IF NOT EXISTS ag_citas (
+    id           TEXT PRIMARY KEY,
+    session_id   INTEGER NOT NULL,
+    sujeto_kind  TEXT NOT NULL CHECK (sujeto_kind IN ('entidad','relacion')),
+    sujeto_id    TEXT NOT NULL,
+    fragmento_id TEXT NOT NULL,
+    inicio       INTEGER NOT NULL CHECK (inicio >= 0),
+    fin          INTEGER NOT NULL CHECK (fin > inicio),
+    created_at   TEXT DEFAULT (datetime('now')),
+    UNIQUE (sujeto_kind, sujeto_id, fragmento_id, inicio, fin),
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
+    FOREIGN KEY (fragmento_id) REFERENCES ag_fragmentos(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ag_citas_sujeto ON ag_citas(sujeto_kind, sujeto_id);
+CREATE INDEX IF NOT EXISTS idx_ag_citas_fragmento ON ag_citas(fragmento_id);
+
+-- `ag_citas` apunta a su sujeto por (kind, id): una referencia polimórfica que
+-- una FOREIGN KEY no puede expresar, así que el borrado en cascada lo hacen
+-- estos disparadores. Van aquí y no en los ocho sitios que borran entidades o
+-- relaciones porque un sitio nuevo se olvidaría de llamarlos, y una cita
+-- huérfana es evidencia colgando de algo que ya no existe.
+CREATE TRIGGER IF NOT EXISTS ag_citas_borrar_con_entidad
+AFTER DELETE ON ag_entidades BEGIN
+    DELETE FROM ag_citas WHERE sujeto_kind = 'entidad' AND sujeto_id = old.id;
+END;
+CREATE TRIGGER IF NOT EXISTS ag_citas_borrar_con_relacion
+AFTER DELETE ON ag_relaciones BEGIN
+    DELETE FROM ag_citas WHERE sujeto_kind = 'relacion' AND sujeto_id = old.id;
+END;
 
 CREATE TABLE IF NOT EXISTS ag_eventos (
     id          TEXT PRIMARY KEY,

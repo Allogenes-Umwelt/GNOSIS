@@ -179,7 +179,8 @@ def test_integrar_propuesta_sanea_evidencia_y_resuelve_por_nombre(sustrato: Sust
     resultado = sustrato.integrar_propuesta(propuesta)
     g = sustrato.leer_grafo()
 
-    assert resultado == {"entidades": 1, "relaciones": 0}
+    # `citas` (ADR-0017): 0 aquí porque la propuesta no trae spans
+    assert resultado == {"entidades": 1, "relaciones": 0, "citas": 0}
     assert {e["nombre"] for e in g["entidades"]} == {"Porsche"}   # no real cite -> no entry
     assert g["entidades"][0]["evidencia"] == [frags[0].id]        # fake id filtered
     assert g["relaciones"] == []                                  # dangling + self-loop dropped

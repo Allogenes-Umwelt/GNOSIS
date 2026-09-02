@@ -114,7 +114,7 @@ def _red_en(conn: sqlite3.Connection, session_id: int,
             enlaces.append({"origen": e["id"], "destino": art,
                             "peso": min(1.0, 0.3 + n * 0.2)})
     enlaces += [{"origen": r["desde_id"], "destino": r["hasta_id"],
-                 "peso": r["peso"]}
+                 "peso": r["peso_declarado"]}
                 for r in relaciones
                 if r["desde_id"] in ids_ent and r["hasta_id"] in ids_ent]
     return {"nodos": nodos, "enlaces": enlaces}

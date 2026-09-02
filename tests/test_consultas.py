@@ -62,8 +62,8 @@ def test_expediente_cita_fragmento_pagina_pdf(conn):
     assert cita["fuente"] == "contrato.pdf" and cita["pagina"] == 1
     assert "VW importa" in cita["extracto"]
     tipos = {(r["con"], r["tipo"], r["direccion"]) for r in exp["relaciones"]}
-    assert ("Veracruz", "importa por", "sale") in tipos
-    assert ("SAT", "audita a", "entra") in tipos
+    assert ("Veracruz", "importa_por", "sale") in tipos
+    assert ("SAT", "audita", "entra") in tipos
     assert exp["eventos"][0]["titulo"] == "Auditoría SAT"
 
 
@@ -92,7 +92,7 @@ def test_camino_entre_por_nombre_con_citas(conn):
     assert r["desde"]["etiqueta"] == "SAT" and r["hasta"]["etiqueta"] == "Veracruz"
     assert r["largo"] == 2
     tipos = [s["tipo"] for s in r["saltos"]]
-    assert "audita a" in tipos and "importa por" in tipos
+    assert "audita" in tipos and "importa_por" in tipos
     assert any(c["fuente"] == "contrato.pdf" for c in r["citas"])
 
 

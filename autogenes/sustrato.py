@@ -26,8 +26,11 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Optional, Sequence
 
+from autogenes.citas import verificar_todas
+from autogenes.predicados import normalizar as normalizar_predicado
 from autogenes.tipos import (
     Artefacto,
+    Cita,
     ClaseProducto,
     Entidad,
     Evento,
@@ -52,6 +55,17 @@ def _js(value: Any) -> str:
 
 def _jl(raw: Optional[str]) -> list:
     return json.loads(raw) if raw else []
+
+
+def _triple(desde: str, hasta: str, tipo: str,
+            tipo_crudo: Optional[str]) -> str:
+    """La identidad de una arista, para no duplicarla al reintegrar.
+
+    Con `otro` entra también la redacción cruda: `otro` es un CAJÓN, no un
+    predicado, y colapsar en una sola arista dos verbos distintos que no
+    tienen nombre todavía sería inventar una relación que nadie afirmó."""
+    cola = f"|{_norm(tipo_crudo)}" if tipo == "otro" and tipo_crudo else ""
+    return f"{desde}|{hasta}|{tipo}{cola}"
 
 
 def _norm(nombre: str) -> str:
@@ -344,6 +358,43 @@ class Sustrato:
         )
         return {r["id"] for r in rows}
 
+    def fragmento_textos(self) -> dict[str, str]:
+        """id → texto de los fragmentos de ESTA sesión.
+
+        Lo pide la verificación de spans (ADR-0017): comprobar que una cita
+        existe exige el texto, no solo el id. Al venir acotado a la sesión, una
+        cita a un fragmento ajeno no encuentra texto y muere sola."""
+        return {r["id"]: r["texto"] for r in self.conn.execute(
+            "SELECT id, texto FROM ag_fragmentos WHERE session_id = ?",
+            (self.session_id,))}
+
+    def _anclar_citas(self, sujeto_kind: str, sujeto_id: str,
+                      citas: Sequence[Cita], textos: dict[str, str]) -> int:
+        """Ancla las citas con span que SE SOSTIENEN contra el texto real.
+
+        Cinturón y tirantes: `sanear_propuesta` ya verificó, y aquí se vuelve
+        a verificar, porque esta es la puerta y la puerta no confía en que
+        alguien haya saneado antes."""
+        anclada = 0
+        for c in verificar_todas(citas, textos):
+            self.conn.execute(
+                "INSERT OR IGNORE INTO ag_citas (id, session_id, sujeto_kind,"
+                " sujeto_id, fragmento_id, inicio, fin) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (_uuid(), self.session_id, sujeto_kind, sujeto_id,
+                 c.fragmento_id, c.inicio, c.fin))
+            anclada += 1
+        return anclada
+
+    def citas_de(self, sujeto_kind: str, sujeto_id: str) -> list[dict]:
+        """Las citas ancladas a un sujeto, con su texto — para resaltar."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT c.fragmento_id, c.inicio, c.fin, f.artefacto_id, f.pagina,"
+            " SUBSTR(f.texto, c.inicio + 1, c.fin - c.inicio) AS texto"
+            " FROM ag_citas c JOIN ag_fragmentos f ON f.id = c.fragmento_id"
+            " WHERE c.session_id = ? AND c.sujeto_kind = ? AND c.sujeto_id = ?"
+            " ORDER BY c.fragmento_id, c.inicio",
+            (self.session_id, sujeto_kind, sujeto_id))]
+
     # ── sources ──────────────────────────────────────────────────────
 
     def crear_artefacto(
@@ -522,18 +573,27 @@ class Sustrato:
         desde_id: str,
         hasta_id: str,
         tipo: str,
-        peso: float = 0.5,
+        peso_declarado: float = 0.5,
         evidencia: Optional[list[str]] = None,
         origen: str = "synesis",
     ) -> Relacion:
+        """La PUERTA normaliza el predicado (ADR-0017).
+
+        `tipo` entra como lo escriba quien sea —el modelo, una ruta, el
+        operador— y sale como un predicado del vocabulario. Lo que no casa
+        cae a `otro` conservando su redacción en `tipo_crudo`: normalizar no
+        puede significar perder. Se hace aquí, en el único escritor, porque
+        una regla que se aplica en tres sitios no se aplica en ninguno."""
         rid = _uuid()
+        predicado, crudo = normalizar_predicado(tipo)
         self.conn.execute(
-            "INSERT INTO ag_relaciones (id, session_id, desde_id, hasta_id, tipo, peso,"
-            " evidencia, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (rid, self.session_id, desde_id, hasta_id, tipo, peso,
-             _js(evidencia or []), origen),
+            "INSERT INTO ag_relaciones (id, session_id, desde_id, hasta_id, tipo,"
+            " tipo_crudo, peso_declarado, evidencia, origen)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (rid, self.session_id, desde_id, hasta_id, predicado, crudo,
+             peso_declarado, _js(evidencia or []), origen),
         )
-        self._registrar("relacion", f"Relación: {tipo}")
+        self._registrar("relacion", f"Relación: {predicado}")
         self._commit()
         r = self.conn.execute("SELECT * FROM ag_relaciones WHERE id = ?", (rid,)).fetchone()
         return Relacion(**{**dict(r), "evidencia": _jl(r["evidencia"])})
@@ -927,6 +987,10 @@ class Sustrato:
 
     def _integrar_lote(self, propuesta: PropuestaGrafo, sanear) -> dict[str, int]:
         integradas = 0
+        # los TEXTOS, no solo los ids: sin ellos no se puede comprobar que una
+        # cita con span diga lo que dice que dice (ADR-0017)
+        reales_texto = self.fragmento_textos()
+        citas = 0
         por_nombre: dict[str, str] = {}
         for pe in propuesta.entidades:
             ev = sanear(pe.evidencia)
@@ -942,6 +1006,7 @@ class Sustrato:
             por_nombre[_norm(entidad.nombre)] = entidad.id
             for a in entidad.alias:
                 por_nombre[_norm(a)] = entidad.id
+            citas += self._anclar_citas("entidad", entidad.id, pe.citas, reales_texto)
             integradas += 1
 
         # Existing entities also resolve endpoints (proposals may relate
@@ -955,10 +1020,11 @@ class Sustrato:
         # evidencia de la relación, jamás duplica la arista
         existentes: dict[str, str] = {}
         for row in self.conn.execute(
-            "SELECT id, desde_id, hasta_id, tipo FROM ag_relaciones"
+            "SELECT id, desde_id, hasta_id, tipo, tipo_crudo FROM ag_relaciones"
             " WHERE session_id = ?", (self.session_id,),
         ).fetchall():
-            existentes[f"{row['desde_id']}|{row['hasta_id']}|{row['tipo'].lower()}"] = row["id"]
+            existentes[_triple(row["desde_id"], row["hasta_id"],
+                               row["tipo"], row["tipo_crudo"])] = row["id"]
 
         relaciones = 0
         for pr in propuesta.relaciones:
@@ -967,7 +1033,10 @@ class Sustrato:
             hasta = por_nombre.get(_norm(pr.hasta))
             if not ev or not desde or not hasta or desde == hasta:
                 continue
-            triple = f"{desde}|{hasta}|{pr.tipo.lower()}"
+            # la clave se arma sobre el PREDICADO, no sobre la redacción: si
+            # no, «importa vía» reintegrado como «importa por» duplicaría la
+            # arista que la normalización acababa de unificar
+            triple = _triple(desde, hasta, *normalizar_predicado(pr.tipo))
             previa = existentes.get(triple)
             if previa:
                 r = self.conn.execute(
@@ -978,16 +1047,21 @@ class Sustrato:
                     "UPDATE ag_relaciones SET evidencia = ? WHERE id = ?",
                     (_js(union), previa),
                 )
+                # re-integrar ENRIQUECE: la arista existente también se queda
+                # con las citas nuevas que se sostengan
+                citas += self._anclar_citas("relacion", previa, pr.citas, reales_texto)
                 continue
             nueva = self.agregar_relacion(desde, hasta, pr.tipo, pr.peso, ev)
+            citas += self._anclar_citas("relacion", nueva.id, pr.citas, reales_texto)
             existentes[triple] = nueva.id
             relaciones += 1
 
         self._registrar(
             "integrar",
-            f"Propuesta integrada: {integradas} entidades, {relaciones} relaciones",
+            f"Propuesta integrada: {integradas} entidades, {relaciones} relaciones,"
+            f" {citas} citas",
         )
-        return {"entidades": integradas, "relaciones": relaciones}
+        return {"entidades": integradas, "relaciones": relaciones, "citas": citas}
 
     # ── full graph read (export / projections / tests) ──────────────
 
