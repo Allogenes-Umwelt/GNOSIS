@@ -57,20 +57,27 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
 - `static/` — JS/CSS/assets. `templates/` — Jinja. `tests/` — pytest (1:1 con el motor).
 - `docs/` — planes rectores: `PROPUESTA_GRAFO.md` (v3, el plan del grafo),
   `BENCHMARK_PALANTIR.md`, `EVALUACION_ESTANDAR_A.md`.
+  `docs/architecture/` — las vistas C4 + ADR. `docs/estandares/` — doctrina
+  compartida del ecosistema.
+- `scripts/` — compuertas de arquitectura (validador Mermaid, staleness).
 
 ## Documentación de arquitectura
 - C4 (Contexto → Contenedores → Componentes) + arc42, según
   `docs/estandares/architecture-standards.md` — doctrina común de cualquier
   repo del ecosistema (copia en-repo del master `~/architecture-standards.md`).
-  Ejemplar propio: `docs/ARQUITECTURA.md`.
-- Diagramas como Mermaid; un cambio estructural requiere ADR y actualizar el
-  diagrama en el MISMO commit (regla de staleness).
+- **Las vistas viven en `docs/architecture/`**, una por archivo; el índice es
+  `docs/architecture/README.md` y `docs/ARQUITECTURA.md` es la puerta de
+  entrada. Cada vista declara nivel, notación, pregunta, leyenda y sus ADR.
+- Diagramas como Mermaid; un cambio estructural requiere ADR
+  (`docs/architecture/adr/`) y actualizar la vista en el MISMO commit (regla
+  de staleness) — ambas cosas las verifica CI.
 - Doctrina backend (Python/seguridad/testing/observabilidad):
   `docs/estandares/backend-engineering.md` (copia en-repo del master
   `~/backend-engineering.md`).
 - Documentos de marca: `docs/GUIA_DOCUMENTOS_GESTELL.md` (contrato GESTELL).
-- Playbook: skill `architecture-diagram`; validación headless:
-  `node scripts/validate-mermaid.mjs` (del skill) — C4 parse limpio antes de merge.
+- Compuertas (en `scripts/`, corren en CI):
+  `node scripts/validate-mermaid.mjs docs/architecture` (cabeceras + parseo) y
+  `node scripts/check-diagram-staleness.mjs` (staleness HARD, ADR SOFT).
 
 ## Git & commits
 - **Conventional Commits** en inglés: `feat:`/`fix:`/`refactor:`/`chore:`/`test:`/`docs:`
