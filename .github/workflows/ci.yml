@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # el gate de staleness compara contra el commit anterior
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -25,3 +28,14 @@ jobs:
         run: ruff check .
       - name: Suite
         run: python -m pytest -q
+
+      # Compuertas de arquitectura — docs/estandares/architecture-standards.md §7.
+      # mermaid+jsdom se instalan aqui (no hay package.json en el repo: el
+      # frontend no tiene build step, ADR-0008) para que el validador haga el
+      # parseo real y no solo el pre-vuelo estructural.
+      - name: Dependencias de diagramas
+        run: npm install --no-save --no-fund --no-audit mermaid jsdom
+      - name: Diagramas (cabeceras + parseo Mermaid)
+        run: node scripts/validate-mermaid.mjs docs/architecture
+      - name: Staleness de diagramas
+        run: node scripts/check-diagram-staleness.mjs --base ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
