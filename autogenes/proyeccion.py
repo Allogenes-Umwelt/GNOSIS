@@ -212,12 +212,37 @@ def _anotar_analitica(nodos: list[dict], enlaces: list[dict]) -> int:
     return len(set(comunidad.values()))
 
 
+#: Tope de artefactos proyectados cuando el llamador pide uno. El resto se
+#: declara en UN nodo agregado — el mismo contrato honesto que
+#: `arbol_ontologia` usa con `MAX_HOJAS_POR_RAMA`.
+MAX_ARTEFACTOS_LIENZO = 200
+
+#: Caché de la proyección por (session_id, version_de_sesion). La proyección
+#: es pura y determinista, así que mientras la versión no se mueva el
+#: resultado es el mismo — y lo piden varias superficies en la misma pantalla
+#: (lente, snapshot, tools del chat, metabolismo). Mismo patrón que
+#: `autogenes/red.py`, que ya cacheaba la lente NetworkX.
+_cache: dict[tuple, dict[str, Any]] = {}
+_MAX_CACHE = 8
+
+
+def invalidar_cache(session_id: Optional[int] = None) -> None:
+    """Tira la caché de proyección (toda, o la de una sesión)."""
+    if session_id is None:
+        _cache.clear()
+        return
+    for clave in [k for k in _cache if k[0] == session_id]:
+        del _cache[clave]
+
+
 def construir_grafo(
     conn: sqlite3.Connection,
     session_id: int,
     limite_vehiculos: Optional[int] = None,
     con_analitica: bool = True,
     con_anomalias: bool = True,
+    incluir_documental: bool = True,
+    limite_documentos: Optional[int] = None,
 ) -> dict[str, Any]:
     """One session's whole ontology as {nodos, enlaces}.
 
@@ -229,7 +254,35 @@ def construir_grafo(
     exactly like KARELEN's construirGrafo: real artefactos/fragmentos,
     entidades with evidence-derived cita edges, typed relaciones, and
     productos anchored to what they cite.
+
+    `incluir_documental=False` NO construye la capa de artefactos y
+    fragmentos. La lente de negocio la construía entera para tirarla después:
+    a 8 000 documentos son 16 000 nodos materializados y descartados, y lo
+    paga cada lente, snapshot y tool que toque el grafo
+    (`docs/DIAGNOSTICO_FABLE_v02.md` §1, S2).
+
+    `limite_documentos` acota los artefactos proyectados y **declara** el
+    resto en un nodo agregado: 5 000 PDFs son 20 000 nodos en el JSON y en la
+    simulación de fuerzas del navegador (S3).
+
+    El resultado se cachea por `version_de_sesion`; una mutación lo invalida.
     """
+    from autogenes.red import version_de_sesion
+
+    # Solo se cachean bases en ARCHIVO. `version_de_sesion` incluye la ruta,
+    # y todas las bases en memoria dicen ':memory:': dos bases distintas con
+    # los mismos conteos compartirían clave y una serviría el grafo de la
+    # otra. En producción la base siempre es un archivo, así que la caché
+    # aplica donde importa y no puede mentir donde no aplica.
+    version = version_de_sesion(conn, session_id)
+    cacheable = version and version[0] not in ("", ":memory:")
+    clave_cache = (session_id, limite_vehiculos, con_analitica, con_anomalias,
+                   incluir_documental, limite_documentos, version)
+    if cacheable:
+        en_cache = _cache.get(clave_cache)
+        if en_cache is not None:
+            return en_cache
+
     nodos: list[dict] = []
     enlaces: list[dict] = []
     nucleo_id = f"{NUCLEO_PREFIX}{session_id}"
@@ -426,6 +479,10 @@ def construir_grafo(
     entidades = _q(conn, "SELECT * FROM ag_entidades WHERE session_id = ?", (session_id,))
     relaciones = _q(conn, "SELECT * FROM ag_relaciones WHERE session_id = ?", (session_id,))
     productos = _q(conn, "SELECT * FROM ag_productos WHERE session_id = ?", (session_id,))
+    if not incluir_documental:
+        # la lente de negocio no ve la fontanería documental: no se consulta,
+        # no se materializa y no se descarta después
+        artefactos, fragmentos = [], []
 
     import json as _json
 
@@ -433,6 +490,18 @@ def construir_grafo(
     ids_artefacto = {a["id"] for a in artefactos}
     ids_entidad = {e["id"] for e in entidades}
 
+    if limite_documentos and len(artefactos) > limite_documentos:
+        # se recorta por ORDEN ESTABLE (el que trae la consulta) y el resto se
+        # DECLARA: un lienzo que muestra 200 de 5 000 sin decirlo miente
+        recortados = len(artefactos) - limite_documentos
+        artefactos = artefactos[:limite_documentos]
+        visibles = {a["id"] for a in artefactos}
+        fragmentos = [f for f in fragmentos if f["artefacto_id"] in visibles]
+        agregado_id = f"{nucleo_id}:documentos-resto"
+        nodos.append(_nodo(agregado_id, "agregado", f"+{recortados} documentos",
+                           extra={"total_recortado": recortados}))
+        enlaces.append(_enlace(f"cita-{nucleo_id}-{agregado_id}", nucleo_id,
+                               agregado_id, "cita", 0.2))
     for a in artefactos:
         nodos.append(_nodo(a["id"], "artefacto", a["nombre"], tipo=a["kind"]))
         enlaces.append(_enlace(f"cita-{nucleo_id}-{a['id']}", nucleo_id, a["id"], "cita", 0.4))
@@ -494,7 +563,12 @@ def construir_grafo(
     if con_analitica:
         meta["comunidades"] = _anotar_analitica(nodos, enlaces)
 
-    return {"nodos": nodos, "enlaces": enlaces, "meta": meta}
+    grafo = {"nodos": nodos, "enlaces": enlaces, "meta": meta}
+    if cacheable:
+        if len(_cache) >= _MAX_CACHE:
+            _cache.pop(next(iter(_cache)))
+        _cache[clave_cache] = grafo
+    return grafo
 
 
 # ── The ingestion map: single-parent hierarchy for the dendrogram ────

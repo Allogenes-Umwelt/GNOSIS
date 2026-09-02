@@ -207,3 +207,81 @@ def test_el_enmascarado_sigue_atrapando_las_evasiones_a_escala():
         salida = enmascarar(forma, ids, capa)
         plano = "".join(ch for ch in salida.lower() if ch.isalnum())
         assert secreto.lower() not in plano, f"se escapó en la forma: {forma[:40]}"
+
+
+# ── la proyección del grafo (S2 y S3 del diagnóstico v02) ────────────
+
+def _sembrar_documentos(conn, n: int) -> None:
+    from autogenes.ingesta import ingestar_texto
+    for i in range(n):
+        ingestar_texto(conn, 1, f"d{i}.txt", f"Documento {i}.\n\n" + "texto " * 30)
+
+
+def test_la_lente_de_negocio_no_paga_la_capa_documental(conn):
+    """`red_de_sesion` construía TODO el grafo —cada artefacto y cada
+    fragmento como nodo— y luego tiraba la capa documental. A 8 000
+    documentos son 16 000 nodos materializados para descartarlos, y lo paga
+    cada lente, cada snapshot y cada tool de chat que toque el grafo."""
+    from autogenes.qualia import red_de_sesion
+
+    from autogenes.proyeccion import construir_grafo
+
+    _sembrar_documentos(conn, 600)
+    completo = construir_grafo(conn, 1)          # calienta cualquier caché
+    t0 = time.perf_counter()
+    construir_grafo(conn, 1, con_analitica=False, con_anomalias=False)
+    coste_completo = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    red = red_de_sesion(conn, 1)
+    coste_negocio = time.perf_counter() - t0
+
+    assert not any(n.get("kind") in ("artefacto", "fragmento") for n in red["nodos"])
+    documentales = sum(1 for n in completo["nodos"]
+                       if n.get("kind") in ("artefacto", "fragmento"))
+    assert documentales > 1000, "el sembrado no produjo capa documental que ahorrar"
+    # no puede costar lo mismo devolver 600 nodos que 1 800
+    assert coste_negocio < coste_completo, (
+        f"la lente de negocio ({coste_negocio:.3f}s) cuesta como la completa "
+        f"({coste_completo:.3f}s): sigue construyendo {documentales} nodos para tirarlos")
+
+
+def test_la_proyeccion_se_cachea_mientras_nada_muta(conn):
+    """Un grafo que no ha cambiado no se reconstruye: lo piden varias
+    superficies en la misma pantalla."""
+    from autogenes.proyeccion import construir_grafo
+
+    _sembrar_documentos(conn, 400)
+    t0 = time.perf_counter()
+    construir_grafo(conn, 1)
+    frio = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    construir_grafo(conn, 1)
+    caliente = time.perf_counter() - t0
+    assert caliente < frio / 3, (
+        f"la segunda construcción costó {caliente:.3f}s vs {frio:.3f}s: sin caché")
+
+
+def test_la_cache_no_sirve_un_grafo_viejo(conn):
+    """Y la caché no puede mentir: una mutación la invalida."""
+    from autogenes.ingesta import ingestar_texto
+    from autogenes.proyeccion import construir_grafo
+
+    _sembrar_documentos(conn, 20)
+    antes = len(construir_grafo(conn, 1)["nodos"])
+    ingestar_texto(conn, 1, "nuevo.txt", "Documento nuevo.\n\ncon texto")
+    despues = len(construir_grafo(conn, 1)["nodos"])
+    assert despues > antes, "la caché sirvió un grafo anterior a la mutación"
+
+
+def test_el_lienzo_puede_acotar_los_documentos(conn):
+    """5 000 PDFs de 3 páginas son 20 000 nodos documentales en el JSON y en
+    la simulación de fuerzas del navegador. El servidor tiene que poder
+    acotar, y declarar lo que recorta."""
+    from autogenes.proyeccion import construir_grafo
+
+    _sembrar_documentos(conn, 300)
+    g = construir_grafo(conn, 1, limite_documentos=50)
+    artefactos = [n for n in g["nodos"] if n.get("kind") == "artefacto"]
+    assert len(artefactos) <= 51, f"{len(artefactos)} artefactos pese al tope de 50"
+    assert any(n.get("kind") == "agregado" for n in g["nodos"]), \
+        "el recorte no se declaró con un nodo agregado"

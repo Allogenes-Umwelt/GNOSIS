@@ -1663,13 +1663,19 @@ def api_autogenes_grafo():
 
     Query params: session_id (default: la sesion mas reciente),
     limite_vehiculos (opcional, acota los nodos vehiculo)."""
-    from autogenes.proyeccion import construir_grafo
+    from autogenes.proyeccion import MAX_ARTEFACTOS_LIENZO, construir_grafo
     limite = request.args.get('limite_vehiculos', type=int)
+    # tope de documentos: 5 000 PDFs son 20 000 nodos en el JSON y en la
+    # simulación de fuerzas del navegador. Lo recortado se DECLARA en un nodo
+    # agregado, nunca se esconde (S3 del diagnóstico v02).
+    limite_docs = request.args.get('limite_documentos', type=int,
+                                   default=MAX_ARTEFACTOS_LIENZO)
 
     def handler(conn, session_id):
         # _con_sesion 404ea una sesión inexistente en vez de fabricar un 200
         # "vacío" indistinguible de una sesión real sin datos
-        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
+        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite,
+                                limite_documentos=limite_docs)
         return jsonify({'session_id': session_id, **grafo})
     try:
         return _con_sesion(handler)

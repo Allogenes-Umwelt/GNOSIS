@@ -49,7 +49,10 @@ def red_de_sesion(conn: sqlite3.Connection, session_id: int,
     entidades de negocio; lente="completa" incluye la capa documental."""
     from autogenes.proyeccion import construir_grafo
 
-    g = construir_grafo(conn, session_id, limite_vehiculos=limite_vehiculos)
+    # la lente de negocio pide la proyección SIN capa documental: antes se
+    # construía entera y se descartaba (S2 del diagnóstico v02)
+    g = construir_grafo(conn, session_id, limite_vehiculos=limite_vehiculos,
+                        incluir_documental=(lente != "negocio"))
     nodos, enlaces = g["nodos"], g["enlaces"]
     if lente == "negocio":
         ocultos = {n["id"] for n in nodos
