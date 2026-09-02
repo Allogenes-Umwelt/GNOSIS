@@ -6,8 +6,8 @@ Frontend: JS vanilla + canvas 2D servido por plantillas Jinja (sin build step,
 sin framework SPA — decisión deliberada, ver `docs/EVALUACION_ESTANDAR_A.md`).
 
 ## Comandos
-- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 315 verdes (312 +
-  ~3 gated por OCR/PyPDF2 en contenedores sin Tesseract).
+- **Tests (todo):** `python3 -m pytest tests/ -q`  — baseline 504 verdes + 1
+  skip (`test_ingesta_ocr` se salta sin Pillow/Tesseract en el contenedor).
 - **Tests (un archivo):** `python3 -m pytest tests/test_X.py -q` — prefiérelo al iterar.
 - **Lint Python:** `python3 -m ruff check .`  — debe salir limpio.
 - **Lint JS:** `npx eslint static`  — 0 errores (warnings de vars sin usar toleradas).
