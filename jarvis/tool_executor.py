@@ -4,7 +4,10 @@ aplica ofuscacion cuando es necesario, y retorna resultados.
 """
 
 import json
+
 from . import tools as t
+from .ambito import FueraDeAmbito, sesion_en_ambito
+from .identidades import enmascarar_texto, enmascarar_troceado, identificadores_de_sesion
 from .ofuscation import ObfuscationLayer
 from .tools_grafo import GRAFO_TOOL_FUNCTIONS
 
@@ -50,6 +53,28 @@ class ToolExecutor:
 
     def __init__(self, obfuscation_layer: ObfuscationLayer):
         self.obfuscation = obfuscation_layer
+        self._identificadores: dict[str, str] | None = None
+        self._sesion_cargada: int | None = None
+
+    def _ids_de_sesion(self) -> dict[str, str]:
+        """Los identificadores reales de la sesion en ambito, cacheados por
+        turno. Es el conjunto contra el que se enmascara TODO lo que sale."""
+        try:
+            sid = sesion_en_ambito(None)
+        except FueraDeAmbito:
+            return {}
+        if not sid:
+            return {}
+        if self._sesion_cargada == sid and self._identificadores is not None:
+            return self._identificadores
+        from database import get_connection
+        conn = get_connection()
+        try:
+            self._identificadores = identificadores_de_sesion(conn, sid)
+        finally:
+            conn.close()
+        self._sesion_cargada = sid
+        return self._identificadores
 
     def execute(self, tool_name, tool_input):
         """Ejecuta una tool y retorna el resultado (ofuscado si aplica).
@@ -61,16 +86,29 @@ class ToolExecutor:
 
         try:
             result = func(**tool_input)
+        except FueraDeAmbito as e:
+            # el modelo pidio una sesion que el operador no puso sobre la mesa
+            return json.dumps({'error': str(e)}, ensure_ascii=False), None
         except Exception as e:
             return json.dumps({'error': f'Error ejecutando {tool_name}: {str(e)}'}), None
 
-        # Aplicar ofuscacion a tools de detalle
+        # Ofuscacion por NOMBRE de campo: primera capa, barata y con
+        # semantica (sabe que 'patente' es una patente aunque sea corta).
         if tool_name in DETAIL_TOOLS:
             result = self._obfuscate_result(result)
         elif tool_name in GRAFO_DETAIL_TOOLS:
             result = self._obfuscate_grafo(result)
 
         result_str = json.dumps(result, ensure_ascii=False, default=str)
+
+        # Ofuscacion por CONJUNTO: la que no se evade. Se aplica a TODA tool
+        # (no solo a las de detalle) sobre el texto ya serializado, asi que
+        # cubre alias, expresiones SQL, JSON anidado y prosa libre. Una tool
+        # nueva queda protegida sin tener que acordarse de listarla.
+        ids = self._ids_de_sesion()
+        if ids:
+            result_str = enmascarar_texto(result_str, ids, self.obfuscation)
+            result_str = enmascarar_troceado(result_str, ids, self.obfuscation)
 
         # Truncar si es muy largo (proteccion de contexto)
         if len(result_str) > 15000:

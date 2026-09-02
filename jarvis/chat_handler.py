@@ -6,6 +6,8 @@ Maneja el loop de tool calling y deofuscacion de respuestas.
 import json
 import uuid
 
+from .ambito import ambito_de_sesion
+from .identidades import enmascarar_texto, enmascarar_troceado, identificadores_de_sesion
 from .llm_interface import LLMProvider
 from .ofuscation import ObfuscationLayer
 from .tool_executor import ToolExecutor
@@ -20,8 +22,11 @@ MAX_TOOL_ROUNDS = 5  # Maximo de rondas de tool calling por mensaje
 class ChatHandler:
     """Maneja una conversacion de chat con Gnosis AI."""
 
-    def __init__(self, llm_provider: LLMProvider):
+    def __init__(self, llm_provider: LLMProvider, session_id=None):
         self.llm = llm_provider
+        # El ambito lo fija quien atiende al operador, no el modelo: las
+        # tools solo veran esta sesion (ver jarvis/ambito.py).
+        self.session_id = session_id
         self.obfuscation = ObfuscationLayer()
         self.tool_executor = ToolExecutor(self.obfuscation)
         self.messages = []
@@ -38,14 +43,49 @@ class ChatHandler:
         self.total_tokens_in = 0
         self.total_tokens_out = 0
 
+    def _sesion(self):
+        if self.session_id:
+            return self.session_id
+        from database.persistence import get_latest_session_id
+        return get_latest_session_id()
+
+    def _identificadores(self):
+        """Los identificadores reales de la sesion, para enmascarar lo que
+        escribe el OPERADOR. La ley de ADR-0007 no distingue entre lo que
+        dice el modelo y lo que dice el operador: si pega un VIN en el chat,
+        el VIN saldria en claro al proveedor."""
+        sid = self._sesion()
+        if not sid:
+            return {}
+        conn = get_connection()
+        try:
+            return identificadores_de_sesion(conn, sid)
+        except Exception:
+            return {}
+        finally:
+            conn.close()
+
+    def _enmascarar(self, texto):
+        ids = self._identificadores()
+        if not ids:
+            return texto
+        texto = enmascarar_texto(texto, ids, self.obfuscation)
+        return enmascarar_troceado(texto, ids, self.obfuscation)
+
     def handle_message(self, user_message):
         """Procesa un mensaje del usuario y retorna la respuesta.
         Returns: dict con response, tools_used, tokens
         """
-        # Agregar mensaje del usuario
+        with ambito_de_sesion(self._sesion()):
+            return self._handle_message(user_message)
+
+    def _handle_message(self, user_message):
+        # El texto del OPERADOR se enmascara antes de salir: pegar un VIN
+        # en el chat no debe filtrarlo (hallazgo H6 del diagnostico).
+        mensaje_seguro = self._enmascarar(user_message)
         self.messages.append({
             'role': 'user',
-            'content': user_message
+            'content': mensaje_seguro
         })
 
         tools_used = []
@@ -72,8 +112,13 @@ class ChatHandler:
                     'content': final_text
                 })
 
-                # Persistir conversacion
-                self._save_conversation(user_message, final_text, tools_used)
+                # Se persiste lo ENMASCARADO, nunca el texto revertido: si no,
+                # el turno 2 lee en claro por consulta_sql lo que el turno 1
+                # guardo (hallazgo H2). El operador ve la version revertida en
+                # su pantalla; la base guarda tokens.
+                self._save_conversation(mensaje_seguro,
+                                        self.obfuscation.mask_known(final_text),
+                                        tools_used)
 
                 return {
                     'response': final_text,

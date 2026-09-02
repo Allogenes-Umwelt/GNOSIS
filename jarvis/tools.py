@@ -4,17 +4,16 @@ Cada funcion recibe parametros y retorna lista de dicts.
 TOOL_DEFINITIONS contiene los schemas JSON para Anthropic tool_use.
 """
 
-import re
 from database import get_connection
-from database.persistence import get_latest_session_id
+from .ambito import FueraDeAmbito, sesion_en_ambito
 from .tools_grafo import GRAFO_TOOL_DEFINITIONS
 
 
 def _get_session(session_id=None):
-    """Resuelve session_id: usa el proporcionado o el mas reciente."""
-    if session_id:
-        return int(session_id)
-    return get_latest_session_id()
+    """Resuelve session_id contra el AMBITO declarado por quien atiende al
+    operador. El modelo no elige la sesion: pedir una fuera del ambito es un
+    error explicito, no una respuesta silenciosa con cifras de otro mes."""
+    return sesion_en_ambito(session_id)
 
 
 # ============================================================
@@ -458,44 +457,28 @@ def buscar_en_extraccion(campo, valor, session_id=None):
 # ============================================================
 # 18. consulta_sql
 # ============================================================
-_FORBIDDEN_KEYWORDS = re.compile(
-    r'\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|ATTACH|DETACH|REPLACE|TRUNCATE|GRANT|REVOKE|VACUUM)\b',
-    re.IGNORECASE
-)
-
-_PRAGMA_WRITE = re.compile(r'\bPRAGMA\b', re.IGNORECASE)
-
-
 def consulta_sql(query):
-    """Ejecuta una consulta SELECT personalizada contra la base de datos.
-    Solo permite SELECT. Rechaza cualquier sentencia que modifique datos.
+    """Ejecuta un SELECT del modelo dentro del sandbox de solo lectura.
+
+    La garantia no es lexica sino estructural (ver jarvis/sandbox.py):
+    conexion `mode=ro`, allowlist de tablas por autorizador y vistas
+    acotadas a la sesion del ambito. La lista negra de palabras que habia
+    aqui no acotaba ni la sesion ni las tablas: `SELECT content FROM
+    chat_conversations` la pasaba entera.
     """
-    normalized = query.strip().rstrip(';')
+    import database
+    from .sandbox import ConsultaRechazada, ejecutar_select
 
-    # Validar que empiece con SELECT
-    if not normalized.upper().startswith('SELECT'):
-        return {'error': 'Solo se permiten consultas SELECT.'}
-
-    # Rechazar keywords peligrosas
-    if _FORBIDDEN_KEYWORDS.search(normalized):
-        return {'error': 'Consulta rechazada: contiene sentencias de modificacion de datos.'}
-
-    # Rechazar PRAGMA
-    if _PRAGMA_WRITE.search(normalized):
-        return {'error': 'Consulta rechazada: PRAGMA no permitido.'}
-
-    # Agregar LIMIT 100 si no tiene LIMIT
-    if 'LIMIT' not in normalized.upper():
-        normalized += ' LIMIT 100'
-
-    conn = get_connection()
     try:
-        rows = conn.execute(normalized).fetchall()
-        return [dict(r) for r in rows]
-    except Exception as e:
-        return {'error': f'Error SQL: {str(e)}'}
-    finally:
-        conn.close()
+        sid = _get_session(None)
+    except FueraDeAmbito as e:
+        return {'error': str(e)}
+    if not sid:
+        return {'error': 'No hay sesion activa que consultar.'}
+    try:
+        return ejecutar_select(database.DB_PATH, sid, query)
+    except ConsultaRechazada as e:
+        return {'error': str(e)}
 
 
 # ============================================================

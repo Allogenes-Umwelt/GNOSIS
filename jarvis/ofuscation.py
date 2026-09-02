@@ -73,6 +73,21 @@ class ObfuscationLayer:
         """Ofusca una lista de dicts."""
         return [self.mask_row(r) for r in results]
 
+    def mask_known(self, text):
+        """Inverso de `unmask_text`: vuelve a poner los tokens sobre un texto
+        ya revertido. Se usa al PERSISTIR — la pantalla del operador ve el
+        valor real, pero la base guarda tokens: si no, el turno siguiente lee
+        el identificador en claro desde `chat_conversations`.
+
+        Los valores mas largos primero: si uno contiene a otro, sustituir el
+        corto antes romperia al largo."""
+        if not text:
+            return text
+        for real, token in sorted(self._real_to_token.items(),
+                                  key=lambda kv: len(kv[0]), reverse=True):
+            text = text.replace(real, token)
+        return text
+
     def unmask_text(self, text):
         """Reemplaza todos los tokens en un texto con sus valores reales."""
         if not text:
