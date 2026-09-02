@@ -976,6 +976,60 @@ def api_autogenes_exportar():
         return error_api(e)
 
 
+@bp.route('/api/v1/autogenes/importar', methods=['POST'])
+def api_autogenes_importar():
+    """La otra mitad de `/exportar`: mete un bundle en la sesión activa.
+
+    Puerta única: escribe por `Sustrato`, con bitácora. Los ids del bundle NO
+    se reutilizan — se remapea la procedencia a los fragmentos que de verdad
+    entraron—, así que un bundle no puede colgar una afirmación de una
+    evidencia de ESTA base que dice otra cosa. Es aditivo: no borra nada."""
+    from autogenes.importacion import BundleInvalido, importar_bundle
+
+    bundle = request.get_json(silent=True)
+    if not isinstance(bundle, dict):
+        return jsonify({'error': 'Envía el bundle JSON de /exportar'}), 400
+
+    def handler(conn, session_id):
+        try:
+            return jsonify(importar_bundle(conn, session_id, bundle))
+        except BundleInvalido as e:
+            return jsonify({'error': str(e)}), 422
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return error_api(e)
+
+
+@bp.route('/api/v1/autogenes/identidades', methods=['GET'])
+def api_autogenes_identidades():
+    """Quién es quién POR ENCIMA de la sesión, y qué fusiones se PROPONEN.
+
+    Las identidades son la parte determinista (mismo nombre canónico = misma
+    identidad, sin decidir nada). Las candidatas son hipótesis con su número
+    y su umbral declarado: las ordena el operador, nunca la máquina."""
+    from autogenes.similitud import candidatas
+
+    def handler(conn, session_id):
+        filas = [dict(r) for r in conn.execute(
+            "SELECT i.id, i.nombre_display, i.nombre_canon, i.tipo,"
+            " COUNT(e.id) AS entidades,"
+            " COUNT(DISTINCT e.session_id) AS sesiones"
+            " FROM ag_identidades i JOIN ag_entidades e ON e.identidad_id = i.id"
+            " GROUP BY i.id HAVING sesiones > 1"
+            " ORDER BY sesiones DESC, i.nombre_canon")]
+        return jsonify({
+            'session_id': session_id,
+            # las que cruzan meses: la pregunta que G1 declaraba imposible
+            'entre_sesiones': filas,
+            'candidatas': candidatas(conn, session_id),
+        })
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return error_api(e)
+
+
 @bp.route('/api/v1/autogenes/bitacora', methods=['GET'])
 def api_autogenes_bitacora():
     """La bitácora WORM de la sesión: cada mutación del sustrato, en

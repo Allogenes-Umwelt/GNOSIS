@@ -105,6 +105,10 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     # vocabulario (`autogenes.predicados`), que es trabajo que SQL no puede
     # hacer, y el resto tolera un esquema parcial como las migraciones 4 y 5.
     (6, "ag_relaciones_predicado_y_citas", []),
+    # Identidad entre sesiones: `ag_identidades` + `ag_entidades.identidad_id`,
+    # resuelta desde el nombre canónico. En Python porque canonizar es código
+    # (`autogenes.canon`), no SQL, y porque tolera un esquema parcial.
+    (7, "ag_identidades", []),
 ]
 
 
@@ -285,6 +289,66 @@ def _normalizar_relaciones(conn: sqlite3.Connection) -> None:
     _intentar(conn, (*_RELACIONES_INDICES, *_CITAS_SQL))
 
 
+_IDENTIDADES_SQL = (
+    """CREATE TABLE IF NOT EXISTS ag_identidades (
+        id             TEXT PRIMARY KEY,
+        nombre_canon   TEXT NOT NULL UNIQUE,
+        nombre_display TEXT NOT NULL,
+        tipo           TEXT NOT NULL,
+        created_at     TEXT DEFAULT (datetime('now'))
+    )""",
+    "ALTER TABLE ag_entidades ADD COLUMN identidad_id TEXT",
+    "CREATE INDEX IF NOT EXISTS idx_ag_entidades_identidad"
+    " ON ag_entidades(identidad_id)",
+)
+
+
+def _resolver_identidades(conn: sqlite3.Connection) -> None:
+    """Crea `ag_identidades` y ata cada entidad ya existente a la suya.
+
+    El `ALTER TABLE ... ADD COLUMN` falla si la columna ya está (base nueva:
+    el esquema la trae), así que cada sentencia va suelta — `_intentar` sigue
+    con la siguiente en vez de abortar.
+
+    El relleno agrupa por nombre CANÓNICO, que es determinista: dos
+    escrituras del mismo nombre caen en la misma identidad sin que nadie
+    decida nada. Lo que no es igualdad no se toca aquí — lo propone
+    `autogenes/similitud.py` y lo ordena una persona."""
+    import uuid as _uuid
+
+    from autogenes.canon import canonizar
+
+    _intentar(conn, _IDENTIDADES_SQL)
+    try:
+        filas = conn.execute(
+            "SELECT id, nombre, tipo FROM ag_entidades"
+            " WHERE identidad_id IS NULL ORDER BY id").fetchall()
+    except sqlite3.OperationalError:
+        return                        # esquema parcial: nada que atar
+    conocidas: dict[tuple[str, str], str] = {}
+    for fila in filas:
+        canon = canonizar(fila[1] or "")
+        if not canon:
+            continue
+        clave = (canon, fila[2] or "")
+        ident = conocidas.get(clave)
+        if ident is None:
+            existente = conn.execute(
+                "SELECT id FROM ag_identidades WHERE nombre_canon = ?",
+                (canon,)).fetchone()
+            if existente:
+                ident = existente[0]
+            else:
+                ident = str(_uuid.uuid4())
+                conn.execute(
+                    "INSERT INTO ag_identidades (id, nombre_canon,"
+                    " nombre_display, tipo) VALUES (?, ?, ?, ?)",
+                    (ident, canon, fila[1], fila[2]))
+            conocidas[clave] = ident
+        conn.execute("UPDATE ag_entidades SET identidad_id = ? WHERE id = ?",
+                     (ident, fila[0]))
+
+
 def _rellenar_alias(conn: sqlite3.Connection) -> None:
     """Rellena el índice de resolución desde las entidades ya existentes.
 
@@ -350,3 +414,5 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
             _reconstruir_fts(conn)
         if version == 6:
             _normalizar_relaciones(conn)
+        if version == 7:
+            _resolver_identidades(conn)

@@ -3,10 +3,10 @@
 > **Nivel:** Suplementario · datos — **Notación:** Mermaid `erDiagram`
 > **Pregunta que responde:** ¿Qué tablas existen, cuáles son aduanales y cuáles del sustrato, y cómo se relacionan?
 > **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal. `ag_entidad_alias` y `ag_fragmentos_fts` son ÍNDICES, no evidencia: se derivan de `ag_entidades` y `ag_fragmentos` y se reconstruyen desde ellas. `ag_citas` SÍ es evidencia: el trozo verificado que sostiene una afirmación.
-> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md) · [ADR-0016](adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](adr/0017-vocabulario-span-y-confianza-derivada.md)
+> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md) · [ADR-0016](adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](adr/0018-identidad-entre-sesiones.md)
 > **Índice de vistas:** [docs/architecture/README.md](README.md)
 
-**Nota de la vista.** 28 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
+**Nota de la vista.** 29 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
 
 Dos mundos en la misma base: el **aduanal** (alimentado por el pipeline) y
 el **sustrato AUTOGENES** (`ag_*`, el grafo de evidencia + el flujo de
@@ -32,6 +32,7 @@ erDiagram
     ag_fragmentos ||--o{ ag_citas : "cita al TROZO (span verificado)"
     ag_fragmentos ||--o{ ag_entidades : "cita (procedencia)"
     ag_entidades ||--o{ ag_entidad_alias : "se resuelve por (nombre+alias)"
+    ag_identidades ||--o{ ag_entidades : "es quién (cruza sesiones)"
     ag_entidades ||--o{ ag_relaciones : conecta
     ag_relaciones ||--o{ ag_citas : "sostiene (sujeto_kind=relacion)"
     ag_entidades ||--o{ ag_eventos : "participa (por nombre)"
@@ -63,6 +64,11 @@ erDiagram
         float peso_declarado "lo AFIRMADO — NO es la confianza"
         string evidencia "ids de fragmento (la cita por página)"
     }
+    ag_identidades {
+        string nombre_canon "UNIQUE — determinista (canon.py)"
+        string nombre_display
+        string tipo
+    }
     ag_citas {
         string sujeto_kind "entidad|relacion"
         string sujeto_id
@@ -86,6 +92,14 @@ erDiagram
         string evidencia "JAMÁS fabricada"
     }
 ```
+
+**La identidad cruza sesiones; la evidencia no.** `ag_identidades` dice
+quién es quién por encima del mes: dos escrituras del mismo nombre canónico
+son la misma identidad, sin que nadie decida nada. Las filas de
+`ag_entidades` siguen siendo de SU sesión y citan SUS documentos —compartir
+identidad no es compartir expediente—. Lo que no es igualdad («VW» y
+«Volkswagen») no entra solo: lo propone `autogenes/similitud.py` con su
+umbral declarado y lo ordena el operador.
 
 **Los dos índices derivados.** `ag_entidad_alias` (una fila por nombre y
 por alias, `PRIMARY KEY (session_id, alias_norm)`) resuelve la identidad sin

@@ -3,14 +3,14 @@
 > **Nivel:** C4 L3 · Componentes — **Notación:** C4 (Mermaid `C4Component`)
 > **Pregunta que responde:** ¿Qué hay dentro del sustrato: qué motores lo componen y cómo se encadenan en el flujo de investigación?
 > **Leyenda:** `Person` actor humano · `System`/`Container`/`Component` caja del sistema · `System_Ext` sistema externo (fuera de nuestro control) · `ContainerDb` almacén · `Rel` arista dirigida y etiquetada con protocolo.
-> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](../adr/0017-vocabulario-span-y-confianza-derivada.md)
+> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](../adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](../adr/0018-identidad-entre-sesiones.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 **Nota de la vista.** Caja blanca de `Container(motores)` del L2. Excede las ~6 cajas que pide la doctrina: el sustrato ES el diferenciador del sistema y partirlo escondería el encadenamiento. Desviación declarada, no descuido.
 
 El diferenciador: un grafo de evidencia con procedencia **más el flujo de
 investigación**. `sustrato.py` es el **único escritor** de las tablas
-`ag_*`; todo lo demás lee o propone. Los 35 módulos se organizan en seis
+`ag_*`; todo lo demás lee o propone. Los 39 módulos se organizan en seis
 familias:
 
 ```mermaid
@@ -18,13 +18,13 @@ C4Component
     title AUTOGENES · Componentes del sustrato (por familia)
 
     Container_Boundary(ley, "Puerta y ley") {
-        Component(sustrato, "Sustrato", "sustrato.py", "ÚNICO escritor de ag_*. Artefacto→Fragmento→Entidad→Relación, Evento, Producto, Regla, Disposición. Ley aditiva, bitácora WORM.")
+        Component(sustrato, "Sustrato", "sustrato.py, canon.py, similitud.py", "ÚNICO escritor de ag_*. Identidad entre sesiones por nombre canónico; el parecido se PROPONE, nunca se funde solo. Artefacto→Fragmento→Entidad→Relación, Evento, Producto, Regla, Disposición. Ley aditiva, bitácora WORM.")
         Component(tipos, "Tipos", "tipos.py", "Contratos pydantic del dominio.")
         Component(dispo, "Disposiciones", "disposiciones.py", "Ciclo de vida O1: anota lo declarado y lo CONTRASTA contra lo medido (contradice / resoluciones_verificadas).")
         Component(sello, "Sello", "sello.py", "Integridad C1-lite: sha256 re-derivable del producto; verificar() = guardado vs re-derivado.")
     }
     Container_Boundary(ing, "Ingesta") {
-        Component(ingesta, "Ingesta", "ingesta.py, lotes.py, extraccion.py, citas.py, predicados.py", "PDF/JPG → fragmentos → entidades citadas con span VERIFICADO y predicados del vocabulario cerrado; ZIP por goteo con manifiesto.")
+        Component(ingesta, "Ingesta", "ingesta.py, lotes.py, extraccion.py, citas.py, predicados.py, importacion.py", "PDF/JPG → fragmentos → entidades citadas con span VERIFICADO y predicados del vocabulario cerrado; ZIP por goteo; bundles reimportables con procedencia REMAPEADA.")
     }
     Container_Boundary(grafo, "Proyección y grafo") {
         Component(proyeccion, "Proyección", "proyeccion.py, red.py", "Proyecta el dato aduanal al grafo en tiempo de lectura (sin dual-write). NetworkX solo como lente.")

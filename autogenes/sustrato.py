@@ -26,6 +26,7 @@ import uuid
 from contextlib import contextmanager
 from typing import Any, Optional, Sequence
 
+from autogenes.canon import canonizar
 from autogenes.citas import verificar_todas
 from autogenes.predicados import normalizar as normalizar_predicado
 from autogenes.tipos import (
@@ -483,14 +484,52 @@ class Sustrato:
         # frag_id repetido inflaría el peso de la cinta en el chord de ingesta
         self.conn.execute(
             "INSERT INTO ag_entidades (id, session_id, nombre, tipo, resumen, campo,"
-            " origen, evidencia) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            " origen, evidencia, identidad_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (eid, self.session_id, nombre.strip(), tipo, resumen, campo, origen,
-             _js(list(dict.fromkeys(evidencia)))),
+             _js(list(dict.fromkeys(evidencia))),
+             self._identidad_de(nombre, tipo)),
         )
         self._indexar_claves(eid, nombre)
         self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})")
         self._commit()
         return self.entidad_por_id(eid)  # type: ignore[return-value]
+
+    def _identidad_de(self, nombre: str, tipo: str) -> Optional[str]:
+        """La identidad —POR ENCIMA de la sesión— a la que pertenece un nombre.
+
+        Se resuelve por el nombre CANÓNICO (ADR-0018), que es determinista: dos
+        escrituras del mismo nombre caen en la misma identidad sin que nadie
+        decida nada, y sin cruzar una sola evidencia entre meses. Lo que no es
+        igualdad —«VW» y «Volkswagen»— NO se resuelve aquí: lo propone
+        `autogenes/similitud.py` y lo ordena una persona."""
+        canon = canonizar(nombre)
+        if not canon:
+            return None
+        try:
+            fila = self.conn.execute(
+                "SELECT id FROM ag_identidades WHERE nombre_canon = ?",
+                (canon,)).fetchone()
+            if fila:
+                return fila["id"]
+            iid = _uuid()
+            self.conn.execute(
+                "INSERT INTO ag_identidades (id, nombre_canon, nombre_display, tipo)"
+                " VALUES (?, ?, ?, ?)", (iid, canon, nombre.strip(), tipo))
+            return iid
+        except sqlite3.OperationalError:
+            return None               # base a medio migrar: sin identidad, no falla
+
+    def entidades_de_identidad(self, identidad_id: str) -> list[dict]:
+        """Todo lo que se sabe de alguien A TRAVÉS de los meses.
+
+        Es la pregunta que el hallazgo G1 declaraba imposible: cada sesión era
+        un espacio de nombres y el mismo proveedor en doce meses eran doce
+        nodos sin arista entre ellos. Las filas siguen siendo de su sesión —la
+        evidencia no cruza— pero ahora se sabe que son la misma."""
+        return [dict(r) for r in self.conn.execute(
+            "SELECT e.id, e.session_id, e.nombre, e.tipo, e.origen, e.evidencia"
+            " FROM ag_entidades e WHERE e.identidad_id = ?"
+            " ORDER BY e.session_id, e.id", (identidad_id,))]
 
     def editar_entidad(self, entidad_id: str, cambios: dict[str, Any]) -> None:
         """Operator edit of nombre/tipo/resumen/campo/alias/subtipo/propiedades."""

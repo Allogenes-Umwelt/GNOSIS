@@ -344,3 +344,49 @@ def test_el_total_no_recorre_todos_los_aciertos(conn):
     assert exacto_2 > exacto_1, (
         "el conteo exacto no creció: el corpus no llegó a ser mayor, "
         f"la prueba no está midiendo nada ({exacto_1} → {exacto_2} pasos)")
+
+
+# ── la identidad entre sesiones (G1 del diagnóstico v02) ─────────────
+
+def test_las_candidatas_de_fusion_no_comparan_todos_contra_todos(conn):
+    """Proponer fusiones es, en su forma ingenua, O(E²) — el mismo patrón que
+    la ola 1 quitó de `upsert_entidad`. El bloqueo por tokens lo impide, y
+    esta prueba fija la FORMA: doblar las entidades no puede cuadruplicar el
+    coste."""
+    from autogenes.similitud import candidatas
+
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("nota", "semilla.txt")
+    frag = s.agregar_fragmentos(art.id, [(1, "texto")])[0].id
+
+    def sembrar(desde, hasta):
+        for i in range(desde, hasta):
+            s.upsert_entidad(f"Proveedor Numero {i} del Golfo", "organizacion",
+                             "synesis", evidencia=[frag])
+
+    sembrar(0, 400)
+    t1 = _cronometrar(lambda i: candidatas(conn, 1), 3)
+    sembrar(400, 800)
+    t2 = _cronometrar(lambda i: candidatas(conn, 1), 3)
+    assert t2 < t1 * 3, (
+        f"proponer fusiones se degrada cuadráticamente: {t1:.2f}s → {t2:.2f}s "
+        "al doblar las entidades")
+
+
+def test_la_identidad_no_encarece_el_alta_de_entidades(conn):
+    """Resolver la identidad es una lectura indexada por `nombre_canon`; si
+    se volviera un escaneo, el alta de entidades se degradaría otra vez."""
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("nota", "semilla.txt")
+    frag = s.agregar_fragmentos(art.id, [(1, "texto")])[0].id
+
+    BLOQUE = 400
+    t1 = _cronometrar(lambda i: s.upsert_entidad(
+        f"Ent I{i}", "organizacion", "synesis", evidencia=[frag]), BLOQUE)
+    t2 = _cronometrar(lambda i: s.upsert_entidad(
+        f"Ent J{i}", "organizacion", "synesis", evidencia=[frag]), BLOQUE)
+    t3 = _cronometrar(lambda i: s.upsert_entidad(
+        f"Ent K{i}", "organizacion", "synesis", evidencia=[frag]), BLOQUE)
+    assert t3 < t1 * 2.5, (
+        f"el alta se degrada con el número de identidades: {t1:.2f}s → "
+        f"{t2:.2f}s → {t3:.2f}s")

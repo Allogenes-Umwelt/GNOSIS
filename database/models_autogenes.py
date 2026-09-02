@@ -67,6 +67,19 @@ CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_au AFTER UPDATE ON ag_fragmentos 
     INSERT INTO ag_fragmentos_fts(rowid, texto) VALUES (new.rowid, new.texto);
 END;
 
+-- IDENTIDADES: quién es cada quien, POR ENCIMA de la sesión. `nombre_canon` es
+-- determinista (autogenes/canon.py) y es la clave: dos escrituras del mismo
+-- nombre caen en la misma identidad sin que nadie decida nada. Lo que NO es
+-- igualdad —«VW» y «Volkswagen»— no entra aquí solo; lo propone
+-- `autogenes/similitud.py` y lo ordena el operador.
+CREATE TABLE IF NOT EXISTS ag_identidades (
+    id            TEXT PRIMARY KEY,
+    nombre_canon  TEXT NOT NULL UNIQUE,
+    nombre_display TEXT NOT NULL,
+    tipo          TEXT NOT NULL,
+    created_at    TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS ag_entidades (
     id          TEXT PRIMARY KEY,
     session_id  INTEGER NOT NULL,
@@ -83,11 +96,17 @@ CREATE TABLE IF NOT EXISTS ag_entidades (
     propiedades TEXT,
     origen      TEXT NOT NULL CHECK (origen IN ('operador','synesis')),
     evidencia   TEXT NOT NULL DEFAULT '[]',
+    -- IDENTIDAD entre sesiones (ADR-0018): la fila sigue siendo de SU sesión
+    -- —la evidencia no cruza meses— pero apunta a quién es. Sin esto, el mismo
+    -- proveedor en doce meses eran doce nodos sin arista entre ellos.
+    identidad_id TEXT,
     created_at  TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
+    FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
+    FOREIGN KEY (identidad_id) REFERENCES ag_identidades(id)
 );
 CREATE INDEX IF NOT EXISTS idx_ag_entidades_session ON ag_entidades(session_id);
 CREATE INDEX IF NOT EXISTS idx_ag_entidades_nombre ON ag_entidades(session_id, nombre);
+CREATE INDEX IF NOT EXISTS idx_ag_entidades_identidad ON ag_entidades(identidad_id);
 
 -- Índice de RESOLUCIÓN de entidad: cada nombre y cada alias es una fila con
 -- su forma normalizada (TRIM+LOWER, el `_norm` de autogenes/sustrato.py).

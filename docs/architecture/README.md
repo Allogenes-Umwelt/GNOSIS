@@ -53,7 +53,7 @@ cruzan una frontera coinciden con las de la vista padre (§4).
 
 ## Decisiones
 
-- **[ADR](adr/)** — corpus de decisiones (16 y subiendo). Toda decisión estructural nueva nace
+- **[ADR](adr/)** — corpus de decisiones (18 y subiendo). Toda decisión estructural nueva nace
   aquí, en el MISMO commit que el código ([ADR-0001](adr/0001-registrar-decisiones-de-arquitectura.md)).
 - **[Decisiones históricas](decisiones-historicas.md)** — la tabla-resumen
   previa al corpus, conservada verbatim.
