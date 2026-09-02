@@ -512,3 +512,95 @@ El script es el bloque `python3 - <<'PY'` de la sesión que produjo este
 documento; Opus debe convertirlo en `tests/test_escala.py` (marcado `slow`,
 afirmando ratios) como primera tarea de la ola 1, para que estas cifras no
 vuelvan a ser una lectura de una tarde sino una compuerta.
+
+---
+
+## 8. Registro de ejecución — Opus 5, 2026-09-02
+
+Las **nueve olas** y los remates que dependían del ejecutor, cerrados. Este
+apartado lo escribe quien ejecutó, incluidas las veces que el plan estaba
+equivocado y las que lo estuvo la ejecución: un diagnóstico que solo recoge
+los aciertos deja de servir para el siguiente.
+
+**Estado del árbol:** 726 verdes + 1 skip (eran 593). `ruff`, `eslint`,
+`pip-audit`, validador Mermaid, staleness y la compuerta nueva de
+`innerHTML`, en verde. Cinco ADR nuevas: 0016 a 0020.
+
+### Lo medido al cerrar (banco de §7, misma máquina, corridas seguidas)
+
+Para no repetir el error de comparar contra una máquina distinta, la
+comparación se hizo con un *worktree* del árbol de partida (`1a89071`) y el
+actual, medidos uno detrás de otro:
+
+| | Antes (`1a89071`) | Ahora | |
+|---|---|---|---|
+| `upsert_entidad`, 3.º tramo de 500 | 9,8-10,1 s | **0,44-0,48 s** | **~22×**, y la curva pasa de crecer a plana |
+| `upsert_entidad`, forma de la curva | 2,0 → 5,5 → 10,1 | **0,39 → 0,40 → 0,44** | el bloque N+1 cuesta como el N |
+| Ingesta, 1 000 docs | 0,79-1,08 s | 0,85-0,89 s | **sin regresión** (ver la corrección de abajo) |
+| Enmascarado, 15 000 ids | 2,33 s | **0,101 s** | 23× |
+| Proyección, 8 000 docs | 1,16 s, sin caché | 1,67 s en frío, **1,1 ms** cacheada | |
+| Lienzo, 8 000 docs | 20 001 nodos | **402** con el recorte declarado | |
+| Búsqueda de texto | no existía | 16-20 ms | |
+| Confianza derivada / regla de patrón | no existían | 11,5 ms / 0,2 ms | |
+
+### Correcciones AL PLAN
+
+- **La ingesta no se degradó.** El primer banco de cierre dio 0,98-1,20 s por
+  1 000 contra los 0,40-0,52 s del §7, y parecía una regresión del 2×. No lo
+  era: midiendo los dos árboles en la misma máquina y seguidos, el árbol de
+  PARTIDA daba 0,79-1,08 s. La cifra del §7 se tomó con el contenedor más
+  descargado. Atribuido con el banco: los disparadores FTS5 cuestan **+0,12 s
+  por 1 000 documentos** (~13 %) y el evento estructurado de la bitácora, cero
+  medible. La lección es del método: una comparación entre dos máquinas —o la
+  misma en dos momentos— no es una medición.
+
+- **La exención de una regla de patrón (G8) mira al OBJETO, no al par.**
+  «Facturas sin pedimento que las ampare» quiere decir que la factura no tiene
+  amparo *de nadie*, no que no lo tenga de su proveedor: el amparo lo emite un
+  tercero. Implementada por par, la regla no encontraba nada y parecía
+  correcta.
+
+- **`otro` no puede colapsar (G2).** El plan pedía `otro` con `tipo_crudo`
+  conservado, y eso deja una pregunta abierta: dos verbos distintos sin nombre
+  todavía caerían en la misma arista al reintegrar. Se resolvió metiendo el
+  `tipo_crudo` en la clave de identidad de la arista.
+
+- **`/procesar/historico` no dependía de nada (R4).** No llama a
+  `create_session` en absoluto: lee a través de todas las sesiones. No hacía
+  falta `reutilizar_vacia=False`. Lo que sí había era un comentario en la ruta
+  del pipeline que afirmaba lo contrario de lo que hace su propio código.
+
+### Correcciones A LA EJECUCIÓN (defectos que la ejecución se encontró a sí misma)
+
+- **El conteo de aciertos de la búsqueda costaba más que la búsqueda.** 400-1
+  050 ms de conteo exacto contra 17-24 ms de búsqueda a 24 000 fragmentos. Se
+  acotó a 500 con cota declarada (`total_minimo`).
+- **Un `JOIN` llano dejaba a la búsqueda en el peor plan** justo para la
+  palabra poco frecuente: 324 ms contra 0,2 ms. El `CROSS JOIN` fija el orden
+  de anidamiento, y la prueba afirma sobre el **plan**.
+- **La clave de bloqueo única era inestable (G1).** El token más largo cambia
+  al añadir una palabra, así que «Agencia Aduanal Perez» y «…y Asociados»
+  dejaban de compararse — el par que el bloqueo existe para encontrar.
+- **La migración 2 no era idempotente**, y se reproduce sobre bases nuevas:
+  nombraba `peso` en su copia y el esquema ya traía `peso_declarado`.
+- **Una prueba de escala propia era flaky** (fallaba 1 de cada 3): un umbral
+  de reloj sobre milisegundos. Ahora cuenta comparaciones, no tiempo.
+- **La primera prueba de carrera del navegador no probaba nada:** un `sleep`
+  dentro del manejador de rutas serializa las dos peticiones y la carrera no
+  llega a ocurrir.
+
+### Lo que sigue abierto, y de quién es
+
+**Del operador** (§6, sin cambios): la llave DeepSeek sin rotar, `synchronous
+= NORMAL` (S4), la política de HITL por documento a escala (S6.3), el
+contenido del vocabulario de predicados, el umbral de fusión de entidades
+(hoy 0,6 declarado), el id del modelo de reserva de Anthropic (D4), PyPDF2 y
+`database/backup_proton.py`.
+
+**Detectado durante la ola 9, no tocado:** `templates/base.html` y `main.html`
+cargan Bootstrap y pdf.js desde CDN, contra la ley local-first de
+`CLAUDE.md`. Vendorizarlas tiene peso propio y es decisión del operador.
+
+**Del ejecutor, pendiente:** las mutaciones que aún registran solo prosa en la
+bitácora (geo, productos, eventos, reglas de fila) — aditivo, sin re-sellar;
+y las doce copias de `esc()` en superficies que la ola 9 no tocó.
