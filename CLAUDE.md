@@ -58,8 +58,9 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
 - `docs/` — planes rectores: `PROPUESTA_GRAFO.md` (v3, el plan del grafo),
   `BENCHMARK_PALANTIR.md`, `EVALUACION_ESTANDAR_A.md`.
   `docs/architecture/` — las vistas C4 + ADR. `docs/estandares/` — doctrina
-  compartida del ecosistema. `docs/DIAGNOSTICO_FABLE_v01.md` — diagnóstico
-  vigente (bugs + plan por olas para el siguiente ejecutor).
+  compartida del ecosistema. `docs/DIAGNOSTICO_FABLE_v02.md` — diagnóstico
+  vigente (escala, revisión de la ejecución, uplift del grafo; el v01 queda
+  como registro de lo cerrado).
 - `scripts/` — compuertas de arquitectura (validador Mermaid, staleness).
 
 ## Documentación de arquitectura
