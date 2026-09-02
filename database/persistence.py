@@ -16,17 +16,42 @@ _log = log("persistencia")
 # SESSION MANAGEMENT
 # ============================================================
 
-def create_session(month, year):
-    """Creates a new processing session. Returns the session_id."""
+def create_session(month, year, reutilizar_vacia=True):
+    """Creates a processing session for (month, year). Returns the session_id.
+
+    Reutiliza una sesión VACÍA del mismo mes en vez de duplicarla. El caso que
+    rompía: `rutas.comun._asegurar_sesion` abre una sesión de trabajo con el
+    mes del reloj para poder dockear evidencia sin haber procesado nada; si
+    luego el pipeline procesaba ESE mismo mes, aquí se insertaba una segunda.
+    La evidencia quedaba en una sesión y el dato aduanal en otra, y CONCILIA
+    —que filtra por session_id— no podía cruzarlas nunca.
+
+    Vacía = sin filas aduanales. Una sesión YA procesada no se toca: reprocesar
+    un mes es una corrida nueva y merece su propia sesión (el esquema lo asume:
+    `numero_pedimento` es UNIQUE *por sesión*).
+    """
     conn = get_connection()
-    cursor = conn.execute(
-        "INSERT INTO processing_sessions (session_date, month_processed, year_processed) VALUES (?, ?, ?)",
-        (datetime.now().isoformat(), month, year)
-    )
-    session_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-    return session_id
+    try:
+        if reutilizar_vacia:
+            fila = conn.execute(
+                "SELECT s.id FROM processing_sessions s"
+                " WHERE s.month_processed = ? AND s.year_processed = ?"
+                "   AND NOT EXISTS (SELECT 1 FROM importaciones i WHERE i.session_id = s.id)"
+                "   AND NOT EXISTS (SELECT 1 FROM extraccion_facturas e WHERE e.session_id = s.id)"
+                " ORDER BY s.id LIMIT 1",
+                (month, year),
+            ).fetchone()
+            if fila:
+                return fila[0]
+        cursor = conn.execute(
+            "INSERT INTO processing_sessions (session_date, month_processed, year_processed) VALUES (?, ?, ?)",
+            (datetime.now().isoformat(), month, year)
+        )
+        session_id = cursor.lastrowid
+        conn.commit()
+        return session_id
+    finally:
+        conn.close()
 
 
 # Columnas que update_session_stats puede tocar. El nombre de columna se

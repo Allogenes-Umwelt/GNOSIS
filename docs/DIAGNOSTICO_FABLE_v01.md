@@ -307,3 +307,44 @@ diagnóstico que no se corrige a sí mismo envejece igual que un diagrama.
 
 Mantiene su veredicto todo lo demás que se ejecutó: H1, H2, H6, H7 (ola 1),
 H3 (ola 2), H4 y H12 (ola 3), H5-parcial y H10 (ola 4).
+
+---
+
+## 9. Estado de ejecución (Opus 5 · 2026-09-02)
+
+| Hallazgo | Estado | Dónde |
+|---|---|---|
+| H1 · evasión de la ofuscación | **cerrado** | ADR-0011 · `jarvis/identidades.py`, `sandbox.py` |
+| H2 · conversación persistida en claro | **cerrado** | `chat_handler` guarda enmascarado |
+| H3 · estado del chat en el proceso | **cerrado** | ADR-0012 · hilo en cookie firmada, historia en SQLite |
+| H4 · descargas sin candado | **cerrado** | candado sobre lectura sensible; tickets fuera del árbol servible |
+| H5 · cadena de la bitácora | **cerrado (corregido)** | carrera latente, no activa — §8; ADR-0013 |
+| H6 · entrada del operador sin enmascarar | **cerrado** | `ChatHandler._enmascarar` |
+| H7 · sesión elegida por el modelo | **cerrado** | `jarvis/ambito.py` |
+| H8 · sin logging | **cerrado** | `registro.py`, cero `print` (con prueba) |
+| H9 · tablero mudo | **cerrado** | declara el fallo y su referencia |
+| H10 · atomicidad implícita | **cerrado** | `BEGIN IMMEDIATE` explícito |
+| H11 · excepciones tragadas | **cerrado** | telemetría e ingesta registran su razón |
+| H12 · admin sin candado | **cerrado** | `/api/v1/admin/*` bajo candado |
+| H13 · carreras de fetch | **abierto** | requiere verificación en navegador; ver abajo |
+| H14 · `esc()` ×19 | **abierto** | hygiene; el gate de `innerHTML` queda propuesto |
+| H15 · reduced-motion | **descartado** | falso positivo: los dos rAF señalados son planificación de redibujo, no animación; los dos bucles reales (`grafo.js`, `qualia_cascada.js`) YA lo respetan |
+| H16 · respaldo | **cerrado** | API en línea + `integrity_check` + prueba de restauración |
+| H17 · sesión fantasma | **cerrado** | `create_session` reutiliza una sesión vacía del mismo mes |
+| H18 · rutas sin prueba | **cerrado** | `admin/llm` y contrato de `/procesar/*` |
+| H19 · proveedores | **cerrado** | reintentos acotados; `ANTHROPIC_MODEL` por entorno |
+| H20 · suma sobre `set` | **cerrado** | `sorted()` |
+| H21 · comentario obsoleto | **cerrado** | — |
+| H22 · `str(e)` sin rastro | **cerrado (adaptado)** | se conserva el texto; se añade log + referencia |
+| H23 · SAST | **cerrado** | `ruff --select S` como compuerta HARD |
+
+**Lo que queda, y por qué queda.** H13 y H14 son frontend sin pruebas
+automatizadas: tocar diez superficies de lienzo a ciegas cambia un riesgo
+medido por uno no medido. El patrón está descrito (`fetchUltimo` con
+`AbortController` + token de secuencia, un `gestell_comun.js` con `esc`) y la
+verificación correcta es con la app levantada y Playwright, no con `sed`.
+
+**Decisiones que siguen siendo del operador:** rotar la llave DeepSeek
+(sigue siendo el ítem número uno de todo este documento), subir PyPDF2 con
+PDFs reales delante, qué id de modelo debe ser el default de Anthropic, y
+qué hacer con `database/backup_proton.py`.

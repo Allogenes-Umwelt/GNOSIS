@@ -6,6 +6,7 @@ __pycache__/
 *.db
 downloads/
 uploads/
+tickets/
 
 # Salida de herramientas de medicion (se regenera; nunca se commitea)
 .coverage

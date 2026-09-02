@@ -104,3 +104,51 @@ def test_el_ticket_de_error_no_cae_en_el_arbol_servible(tmp_path, monkeypatch):
     assert not os.path.exists(os.path.join(str(descargas), str(nombre or ""))), \
         "el ticket quedó dentro del directorio servible"
     assert os.listdir(tmp_path / "tickets"), "el ticket no se escribió en su sitio"
+
+
+# ── H17: la sesión fantasma ──────────────────────────────────────────
+
+def test_dockear_evidencia_no_crea_una_sesion_paralela(tmp_path, monkeypatch):
+    """`_asegurar_sesion` creaba una sesión de trabajo con el mes del reloj.
+    Si luego el pipeline procesa ESE MISMO mes, `create_session` inserta otra
+    (no hay unicidad por mes/año): la evidencia dockeada queda en una sesión
+    sin dato aduanal y CONCILIA —que filtra por session_id— nunca las cruza.
+    """
+    import sqlite3 as sq
+
+    import database
+    from database import models, models_autogenes
+
+    ruta = tmp_path / "h17.db"
+    c = sq.connect(ruta)
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.commit()
+    c.close()
+    monkeypatch.setattr(database, "DB_PATH", str(ruta))
+
+    import app as gnosis
+    from rutas.comun import _asegurar_sesion
+
+    with gnosis.app.test_request_context("/"):
+        primera = _asegurar_sesion()
+        segunda = _asegurar_sesion()
+    assert primera == segunda, "dos llamadas seguidas fabricaron dos sesiones"
+
+    # El camino que sí rompía: dockear evidencia y DESPUÉS procesar ese mismo
+    # mes con el pipeline. `create_session` no tiene unicidad por (mes, año).
+    import datetime
+
+    from database.persistence import create_session
+    ahora = datetime.datetime.now()
+    del_pipeline = create_session(ahora.month, ahora.year)
+
+    conn = database.get_connection()
+    del_mes = conn.execute(
+        "SELECT COUNT(*) FROM processing_sessions WHERE month_processed = ?"
+        " AND year_processed = ?", (ahora.month, ahora.year)).fetchone()[0]
+    conn.close()
+    assert del_mes == 1, (
+        f"hay {del_mes} sesiones para {ahora.month}/{ahora.year}: la evidencia "
+        f"dockeada quedó en {primera} y el dato aduanal en {del_pipeline}, y "
+        f"CONCILIA no puede cruzarlas")

@@ -20,7 +20,7 @@ comando que la produce. Ninguna casilla se marca por impresión.
 | Calidad de código · ruff | limpio | ✅ | `ruff check .` → *All checks passed*, ahora con E4/E7/E9/F **+ S** |
 | Calidad de código · mypy | strict limpio | ❌ | `mypy --strict` → **827 errores en 51 archivos**; sin `--strict` → **56 en 22**. No hay anotaciones en el árbol legado ni stubs de pandas |
 | Calidad de código · complejidad | ciclomática < 10 | ⚠️ | media **B (5.34)** sobre 538 bloques; **16 bloques ≥ 11**. Los peores son de `app.py`: `procesar_pipeline` **F(45)**, `procesar_fase1` **F(42)**, `dashboard` **E(35)** |
-| Pruebas · cobertura | diff ≥ 80%, CI la exige | ⚠️ | **93%** en `autogenes/` (los motores), **78%** en el árbol vivo completo. CI **no** mide cobertura todavía |
+| Pruebas · cobertura | diff ≥ 80%, CI la exige | ⚠️ | **80%** en el árbol vivo tras las olas de corrección (era 78% con 539 pruebas; hoy 593). CI **sigue sin** medir cobertura, así que el número no es compuerta |
 | Pruebas · pirámide | equilibrada | ✅ | 539 verdes + 1 skip; unidad 1:1 con el motor, integración HTTP en `test_http_rutas.py`, sin mock del dominio (SQLite en memoria con el esquema real) |
 | Seguridad · OWASP | revisado por release | ✅ | `docs/AUDITORIA.md`: 5 olas, 20 hallazgos corregidos con prueba de regresión, 5 diferidos con justificación |
 | Seguridad · SAST/DAST en CI | ambos | ⚠️ | **2026-09-02:** SAST activo — `ruff --select S` (bandit) es compuerta HARD; los 38 sitios fuera de tests quedaron justificados uno a uno con su `noqa` y su razón, ninguno era inyección. Verificado que la compuerta atrapa una inyección real. **DAST sigue sin existir** |
