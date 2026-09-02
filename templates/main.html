@@ -410,6 +410,14 @@
 {% block content %}
 <script type="application/json" id="viz-data">{{ viz_data | tojson }}</script>
 
+{% if aviso_error %}
+{# Un tablero vacío por un fallo de consulta AFIRMA que no hay datos, y eso
+   es falso. Se declara qué pasó y con qué referencia buscarlo. #}
+<div class="sp-status" role="alert" style="margin:var(--sp-3) 0;border-left:3px solid var(--danger);padding:var(--sp-2) var(--sp-3)">
+  {{ aviso_error }}
+</div>
+{% endif %}
+
 <!-- ═══════════ INICIO · la celda (landing, vista por defecto) ═══════════ -->
 <div id="gnosis-inicio">
   <div class="cel-stage">

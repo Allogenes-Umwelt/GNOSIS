@@ -16,6 +16,11 @@ from flask import (  # type: ignore
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import HTTPException
 
+from registro import id_peticion, log, nuevo_id_peticion
+from rutas.comun import error_api
+
+_log = log("app")
+
 # Nota: las herramientas del pipeline legado (PDFs_to_excel, Concentrado,
 # Concentrado2, estadistico_v4) arrastran el stack de data-science
 # (tabula/bokeh/matplotlib) y se importan PEREZOSAMENTE dentro de los
@@ -136,6 +141,23 @@ _LECTURA_PROTEGIDA = (
 
 
 @app.before_request
+def _marcar_peticion():
+    """Cada petición lleva un id, y ese id sale en la respuesta.
+
+    Sin él, dos operaciones concurrentes entrelazan sus líneas en el log y
+    ninguna se puede seguir; y un ticket de error no se puede casar con lo
+    que el log dice que pasó."""
+    nuevo_id_peticion()
+    return None
+
+
+@app.after_request
+def _sellar_peticion(respuesta):
+    respuesta.headers['X-Peticion-Id'] = id_peticion()
+    return respuesta
+
+
+@app.before_request
 def _candado_operador():
     esperado = os.environ.get('GNOSIS_TOKEN')
     if not esperado:
@@ -190,7 +212,7 @@ def clean_directory(directory_path):
                 shutil.rmtree(file_path)
 
         except Exception as e:
-            print(f"Failed to delete {file_path}. Reason: {e}")
+            _log.error(f"Failed to delete {file_path}. Reason: {e}", exc_info=True)
             raise  # let the caller decide what to do
 
 #Custom Exception Classes
@@ -337,12 +359,17 @@ def handle_http_exception(e):
 @app.errorhandler(Exception)
 def handle_generic_error(e):
     error_traceback = traceback.format_exc()
+    _log.error("error no controlado en %s: %s", request.path, e, exc_info=True)
     log_filename = log_error_to_file(type(e), str(e), error_traceback)
     if request.path.startswith('/api/'):
-        return jsonify({'error': 'Error inesperado', 'status': 500}), 500
+        # La referencia permite casar este 500 con la línea del log y con el
+        # ticket, sin exponer el texto interno de la excepción.
+        return jsonify({'error': 'Error inesperado', 'status': 500,
+                        'referencia': id_peticion()}), 500
     return render_template('error.html',
                          error_message="Error inesperado: " + str(e),
-                         log_file=log_filename), 500
+                         log_file=log_filename,
+                         referencia=id_peticion()), 500
 
 # Tableros de análisis disponibles (rechazos, cupo, rutas, dominio, maduración):
 # es el conteo real de vistas, no una métrica de sesión inventada.
@@ -554,7 +581,7 @@ def dashboard():
             viz_data['agotamientos'] = (session.get('data', {}).get('TRANSICIONES_PRODUCCION', []) or []) \
                 + (session.get('data', {}).get('TRANSICIONES_INVERSION', []) or [])
         except Exception as _e:
-            print(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
+            _log.warning(f"[Dashboard] viz_data build failed (non-fatal): {_e}")
             viz_data = {}
 
         # ── Celda INICIO: métricas vivas de la sesión (mismo conn, sin
@@ -616,12 +643,19 @@ def dashboard():
             celda_kpis=celda_kpis,
         )
     except Exception as e:
-        print(f"[Dashboard] Error: {e}")
+        # Degradar NO es callar: un fallo de consulta se presentaba como
+        # "no hay datos", que es una afirmación falsa sobre el expediente.
+        # El operador ve qué falló y con qué id buscarlo en el log.
+        _log.error("el tablero no pudo construirse: %s", e, exc_info=True)
         try:
             conn.close()   # no dejar la conexión abierta al degradar (fuga fd/lock WAL)
         except Exception:
-            pass
-        return render_template('main.html', **_empty)
+            _log.warning("además, la conexión quedó sin cerrar", exc_info=True)
+        return render_template(
+            'main.html',
+            aviso_error=('El tablero no pudo cargarse. Los datos siguen en la '
+                         f'base; es un fallo al construir la vista. Referencia: {id_peticion()}'),
+            **_empty)
 
 
 @app.route('/api/admin/reset', methods=['POST'])
@@ -677,9 +711,9 @@ def combine_txt_files(file_paths, output_file):
                     # Read the contents of each file and write them into the output file
                     contents = infile.read()
                     outfile.write(contents + "\n")  # Add a newline between files' content
-                print(f"Combined content from {file_path}")
+                _log.info(f"Combined content from {file_path}")
             except Exception as e:
-                print(f"Error reading {file_path}: {e}")
+                _log.error(f"Error reading {file_path}: {e}", exc_info=True)
 """
 
 def combine_txt_files(file_paths, output_file):
@@ -689,7 +723,7 @@ def combine_txt_files(file_paths, output_file):
                 with open(file_path, 'r', errors='replace') as infile:
                     outfile.write(infile.read() + "\n")
             except Exception as e:
-                print(f"Error reading {file_path}: {e}")
+                _log.error(f"Error reading {file_path}: {e}", exc_info=True)
 
 
 @app.route('/procesar', methods=['GET'])
@@ -859,7 +893,7 @@ def procesar_fase1():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
     finally:
         shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -940,7 +974,7 @@ def procesar_pipeline():
         }
         copy_insumos_to_persistent(db_session_id, upload_dirs, DATA_DIR)
     except Exception as e_db:
-        print(f"[DB] Error copiando insumos: {e_db}")
+        _log.error(f"[DB] Error copiando insumos: {e_db}", exc_info=True)
 
     # Fase 2: Concentrado 1
     try:
@@ -965,7 +999,7 @@ def procesar_pipeline():
                 df_divisiones = _read_excel(incrementales_files[0])
                 save_catalogo_vehiculos(db_session_id, df_divisiones)
         except Exception as e_db:
-            print(f"[DB] Error guardando catalogo: {e_db}")
+            _log.error(f"[DB] Error guardando catalogo: {e_db}", exc_info=True)
 
     except Exception as e:
         raise ConcentradoError(f"{e}")
@@ -990,7 +1024,7 @@ def procesar_pipeline():
             if db_session_id and facturasFaltantes_array:
                 save_facturas_faltantes(db_session_id, facturasFaltantes_array)
         except Exception as e_db:
-            print(f"[DB] Error guardando concentrado2: {e_db}")
+            _log.error(f"[DB] Error guardando concentrado2: {e_db}", exc_info=True)
 
     except Exception as e:
         raise ConcentradoError(f"{e}")
@@ -1020,7 +1054,7 @@ def procesar_pipeline():
                     status='completed'
                 )
         except Exception as e_db:
-            print(f"[DB] Error guardando estadistico: {e_db}")
+            _log.error(f"[DB] Error guardando estadistico: {e_db}", exc_info=True)
 
         # Create ZIP
         errores_txt_path = os.path.join(downloads_dir, 'ListaErrores.txt')
@@ -1089,7 +1123,7 @@ def api_status():
             conn.close()
         except Exception:
             pass
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        return error_api(e, codigo=500)
 
 
 # ── AUTOGENES: registrado desde rutas/autogenes.py (blueprint) ──
@@ -1103,7 +1137,7 @@ def api_sessions():
         sessions = get_all_sessions()
         return jsonify({'sessions': sessions})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/sessions/<int:session_id>', methods=['GET'])
@@ -1136,7 +1170,7 @@ def api_session_detail(session_id):
             conn.close()
         except Exception:
             pass
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/insumos/<int:session_id>', methods=['GET'])
@@ -1153,7 +1187,7 @@ def api_insumos_list(session_id):
         conn.close()
         return jsonify({'session_id': session_id, 'insumos': [dict(r) for r in rows]})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/insumos/<int:session_id>/<tipo>/<filename>', methods=['GET'])
@@ -1197,7 +1231,7 @@ def procesar_historico():
             return jsonify({'error': 'No hay datos procesados en la base de datos. Ejecute primero el pipeline normal.'}), 400
 
         # 2. Generar Concentrado2 historico via SQL (sin re-correr scripts Python)
-        print(f"[Historico] Generando Concentrado2 historico desde BD ({total} registros)...")
+        _log.info("histórico: generando Concentrado2 desde BD (%s registros)", total)
         df_c2 = get_historico_concentrado2()
 
         if df_c2.empty:
@@ -1205,7 +1239,7 @@ def procesar_historico():
 
         c2_path = os.path.join(downloads_dir, 'Historico_Concentrado2.xlsx')
         df_c2.to_excel(c2_path, sheet_name='final')
-        print(f"[Historico] Concentrado2 historico: {len(df_c2)} filas.")
+        _log.info(f"[Historico] Concentrado2 historico: {len(df_c2)} filas.")
 
         # 3. Facturas faltantes historico
         faltantes = get_facturas_faltantes_historico()
@@ -1233,9 +1267,9 @@ def procesar_historico():
 
         # 5. Estadistico historico
         est_path = os.path.join(downloads_dir, 'Historico_Estadistico.xlsx')
-        print(f"[Historico] Ejecutando estadistico con {len(pdf_produccion)} PDFs produccion y {len(pdf_inversion)} PDFs inversion...")
+        _log.info(f"[Historico] Ejecutando estadistico con {len(pdf_produccion)} PDFs produccion y {len(pdf_inversion)} PDFs inversion...")
         estadistico_v4(c2_path, pdf_produccion, est_path, pdf_inversion)
-        print("[Historico] Estadistico generado.")
+        _log.info("[Historico] Estadistico generado.")
 
         # 6. Empaquetar ZIP
         zip_path = os.path.join(downloads_dir, 'Historico_ZipGeneral.zip')
@@ -1334,7 +1368,7 @@ def api_admin_llm_estado():
             'activo': _proveedor_activo(config),
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/admin/llm', methods=['POST'])
@@ -1365,7 +1399,7 @@ def api_admin_llm_configurar():
         # inmediato — antes solo en el que atendió el POST.
         return jsonify({'status': 'ok', 'aplicado': cambios})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/gnosisia', methods=['GET'])
@@ -1385,7 +1419,7 @@ def api_chat():
         result = handler.handle_message(data['message'])
         return jsonify(result)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/chat/reset', methods=['POST'])
@@ -1400,7 +1434,7 @@ def api_chat_reset():
             sesion_flask.pop(COOKIE_HILO, None)
         return jsonify({'status': 'ok'})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @app.route('/api/v1/errores')

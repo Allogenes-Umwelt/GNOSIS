@@ -5,7 +5,7 @@ sobre motores puros del paquete `tableros/`. Cada API pasa por
 `_con_sesion` (estado vacío honesto) y jamás estima ni proyecta."""
 from flask import Blueprint, render_template, request, jsonify
 
-from rutas.comun import _etiqueta_sesion, _con_sesion
+from rutas.comun import _etiqueta_sesion, _con_sesion, error_api
 
 bp = Blueprint('tableros', __name__)
 
@@ -42,7 +42,7 @@ def api_tableros_maduracion():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/tableros/rechazos')
@@ -61,7 +61,7 @@ def api_tableros_rechazos():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/tableros/cupo')
@@ -80,7 +80,7 @@ def api_tableros_cupo():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/tableros/rutas')
@@ -100,7 +100,7 @@ def api_tableros_rutas():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/tableros/dominio', methods=['GET'])
@@ -114,4 +114,4 @@ def api_tableros_dominio():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)

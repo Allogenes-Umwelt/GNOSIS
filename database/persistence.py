@@ -7,6 +7,10 @@ import pandas as pd
 
 from . import get_connection
 
+from registro import log
+
+_log = log("persistencia")
+
 
 # ============================================================
 # SESSION MANAGEMENT
@@ -140,12 +144,12 @@ def save_catalogo_vehiculos(session_id, df_divisiones):
                 count += 1
         except Exception as e:
             saltadas += 1
-            print(f"[catalogo] fila saltada (CLAVES={row.get('CLAVES')!r}): {e}")
+            _log.info(f"[catalogo] fila saltada (CLAVES={row.get('CLAVES')!r}): {e}")
 
     conn.commit()
     conn.close()
     if saltadas:
-        print(f"[catalogo] {count} insertadas, {saltadas} filas saltadas por celdas inválidas")
+        _log.info(f"[catalogo] {count} insertadas, {saltadas} filas saltadas por celdas inválidas")
     return count
 
 

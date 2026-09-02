@@ -6,8 +6,10 @@ ruta fabrica evidencia ni estima montos."""
 from flask import Blueprint, render_template, request, jsonify
 from werkzeug.utils import secure_filename
 
-from rutas.comun import _sesion_activa, _etiqueta_sesion, _con_sesion, _asegurar_sesion
+from registro import log
+from rutas.comun import _sesion_activa, _etiqueta_sesion, _con_sesion, _asegurar_sesion, error_api
 
+_log = log("rutas.autogenes")
 bp = Blueprint('autogenes', __name__)
 
 
@@ -178,7 +180,7 @@ def api_autogenes_estado():
     except ValueError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/autogenes/ingesta')
@@ -305,7 +307,7 @@ def api_autogenes_artefactos():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/ingestar', methods=['POST'])
@@ -378,7 +380,7 @@ def api_autogenes_ingestar():
         _asegurar_sesion()   # dockear evidencia no exige un mes ya procesado
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/telemetria/snapshot', methods=['POST'])
@@ -392,7 +394,7 @@ def api_autogenes_telemetria_snapshot():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 # ── ZIP grande por goteo: expandir a staging + procesar en tandas ────
@@ -435,7 +437,7 @@ def api_autogenes_ingestar_zip():
         _asegurar_sesion()   # dockear evidencia no exige un mes ya procesado
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/ingestar/lote/<lote_id>', methods=['POST'])
@@ -458,7 +460,7 @@ def api_autogenes_ingestar_lote(lote_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/ingestar/lote/<lote_id>', methods=['DELETE'])
@@ -479,7 +481,7 @@ def api_autogenes_descartar_lote(lote_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/extraer', methods=['POST'])
@@ -502,7 +504,7 @@ def api_autogenes_extraer():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/integrar', methods=['POST'])
@@ -530,7 +532,7 @@ def api_autogenes_integrar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/sintetizar', methods=['POST'])
@@ -549,7 +551,7 @@ def api_autogenes_sintetizar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/sintesis/dockear', methods=['POST'])
@@ -571,7 +573,7 @@ def api_autogenes_sintesis_dockear():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/estado', methods=['GET'])
@@ -585,7 +587,7 @@ def api_qualia_estado():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/base', methods=['POST'])
@@ -599,7 +601,7 @@ def api_qualia_base():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/drift', methods=['GET'])
@@ -633,7 +635,7 @@ def api_qualia_drift():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/cascada', methods=['GET'])
@@ -676,7 +678,7 @@ def api_qualia_cascada():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/anomalia', methods=['POST'])
@@ -702,7 +704,7 @@ def api_qualia_anomalia():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/dossier', methods=['GET'])
@@ -722,7 +724,7 @@ def api_qualia_dossier():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/horizonte', methods=['GET'])
@@ -741,7 +743,7 @@ def api_qualia_horizonte():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/narrativa', methods=['POST'])
@@ -759,7 +761,7 @@ def api_qualia_narrativa():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/parte/dockear', methods=['POST'])
@@ -782,7 +784,7 @@ def api_qualia_parte_dockear():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/concilia', methods=['GET'])
@@ -811,7 +813,7 @@ def api_concilia():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/validacion', methods=['GET'])
@@ -840,7 +842,7 @@ def api_validacion():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 def _disponer_hallazgo(motor: str):
@@ -865,7 +867,7 @@ def _disponer_hallazgo(motor: str):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/concilia/disponer', methods=['POST'])
@@ -891,7 +893,7 @@ def api_control():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/sinapsis', methods=['GET'])
@@ -905,7 +907,7 @@ def api_sinapsis():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 # ── TABLEROS VW (TBV): registrados desde rutas/tableros.py (blueprint) ──
@@ -929,7 +931,7 @@ def api_cronos():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/cronos/estado', methods=['GET'])
@@ -944,7 +946,7 @@ def api_cronos_estado():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/exportar', methods=['GET'])
@@ -968,7 +970,7 @@ def api_autogenes_exportar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/bitacora', methods=['GET'])
@@ -986,7 +988,7 @@ def api_autogenes_bitacora():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/nomos', methods=['GET'])
@@ -1008,7 +1010,7 @@ def api_nomos():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/nomos/disponer', methods=['POST'])
@@ -1042,7 +1044,7 @@ def api_nomos_regla():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/nomos/backtest', methods=['GET'])
@@ -1060,7 +1062,7 @@ def api_nomos_backtest():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/autogenes/nomos')
@@ -1090,7 +1092,7 @@ def api_sinapsis_dockear():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/validacion/certificado', methods=['POST'])
@@ -1107,7 +1109,7 @@ def api_validacion_certificado():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/autogenes/expediente/<producto_id>')
@@ -1166,7 +1168,7 @@ def api_producto_verificar(producto_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/concilia/vin', methods=['GET'])
@@ -1182,7 +1184,7 @@ def api_concilia_vin():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/concilia/cupos', methods=['GET'])
@@ -1196,7 +1198,7 @@ def api_concilia_cupos():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/concilia/dossier', methods=['POST'])
@@ -1218,7 +1220,7 @@ def api_concilia_dossier():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/qualia/red', methods=['GET'])
@@ -1257,7 +1259,7 @@ def api_qualia_red():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/radar', methods=['GET'])
@@ -1269,7 +1271,7 @@ def api_autogenes_radar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/metabolismo', methods=['GET'])
@@ -1283,7 +1285,7 @@ def api_autogenes_metabolismo():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/relacion', methods=['POST'])
@@ -1321,7 +1323,7 @@ def api_autogenes_relacion():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/relacion/<relacion_id>', methods=['DELETE'])
@@ -1337,7 +1339,7 @@ def api_autogenes_relacion_delete(relacion_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/entidades', methods=['GET'])
@@ -1359,7 +1361,7 @@ def api_autogenes_entidades():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/evento/<evento_id>', methods=['DELETE'])
@@ -1375,7 +1377,7 @@ def api_autogenes_evento_delete(evento_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/autogenes/vinculos')
@@ -1397,12 +1399,16 @@ def autogenes_vinculos():
 
 def _snapshot_telemetria(conn, session_id):
     """Telemetría QUALIA tras una mutación del grafo — best-effort: un
-    fallo de muestreo jamás debe tumbar la mutación que lo disparó."""
+    fallo de muestreo jamás debe tumbar la mutación que lo disparó.
+
+    Best-effort no es silencioso: un `TypeError` de programación moría igual
+    que un fallo de muestreo legítimo, así que un bug aquí era invisible."""
     try:
         from autogenes.qualia import registrar_snapshot
         registrar_snapshot(conn, session_id)
     except Exception:
-        pass
+        _log.warning("telemetría QUALIA no pudo muestrear la sesión %s",
+                     session_id, exc_info=True)
 
 
 
@@ -1427,7 +1433,7 @@ def api_bitacora_verificar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/camino', methods=['GET'])
@@ -1475,7 +1481,7 @@ def api_autogenes_camino():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/vecindario', methods=['GET'])
@@ -1494,7 +1500,7 @@ def api_autogenes_vecindario():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/hubs', methods=['GET'])
@@ -1508,7 +1514,7 @@ def api_autogenes_hubs():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/camino/dockear', methods=['POST'])
@@ -1537,7 +1543,7 @@ def api_autogenes_camino_dockear():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/sesiones', methods=['GET'])
@@ -1555,7 +1561,7 @@ def api_autogenes_sesiones():
         return jsonify({'sesiones': [
             {'id': f['id'], 'etiqueta': f"{f['m']:02d}/{f['y']}"} for f in filas]})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 # ── P1 · Investigaciones guardadas ──────────────────────────────────
@@ -1586,7 +1592,7 @@ def api_autogenes_investigacion_guardar():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/investigaciones', methods=['GET'])
@@ -1610,7 +1616,7 @@ def api_autogenes_investigaciones():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/investigacion/<producto_id>', methods=['DELETE'])
@@ -1628,7 +1634,7 @@ def api_autogenes_investigacion_borrar(producto_id):
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/analisis', methods=['GET'])
@@ -1648,7 +1654,7 @@ def api_autogenes_analisis():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/grafo', methods=['GET'])
@@ -1668,7 +1674,7 @@ def api_autogenes_grafo():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/arbol', methods=['GET'])
@@ -1682,7 +1688,7 @@ def api_autogenes_arbol():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/chord_ingesta', methods=['GET'])
@@ -1696,7 +1702,7 @@ def api_autogenes_chord_ingesta():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)
 
 
 @bp.route('/api/v1/autogenes/detalle_ingesta', methods=['GET'])
@@ -1716,4 +1722,4 @@ def api_autogenes_detalle_ingesta():
     try:
         return _con_sesion(handler)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return error_api(e)

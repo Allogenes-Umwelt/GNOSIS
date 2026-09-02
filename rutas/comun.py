@@ -5,6 +5,28 @@ SQLite. `_con_sesion` centraliza el contrato de estado vacío honesto —
 una sesión inexistente es 404 declarado, no un 500 críptico."""
 from flask import request, jsonify
 
+from registro import id_peticion, log
+
+_log = log("rutas")
+
+
+def error_api(e, mensaje=None, codigo=500):
+    """Respuesta de error de API: registrada y rastreable.
+
+    Antes, 93 sitios hacían `jsonify({'error': str(e)}), 500` y nada más: el
+    fallo no dejaba una línea en ningún log, así que el operador veía el
+    mensaje una vez y no había forma de reconstruir qué pasó.
+
+    El texto de la excepción SE MANTIENE — en una herramienta de un solo
+    operador, sobre su propia máquina y sus propios datos, ese detalle es la
+    parte honesta del error ("qué falló y por qué", como pide CLAUDE.md);
+    ocultarlo tras un "error inesperado" empeoraría el diagnóstico sin
+    proteger de nadie. Lo que faltaba es lo que se añade: la traza en el log
+    y una referencia para casarlas.
+    """
+    _log.error("fallo en %s: %s", request.path, e, exc_info=True)
+    return jsonify({'error': mensaje or str(e), 'referencia': id_peticion()}), codigo
+
 
 def _sesion_activa():
     from database.persistence import get_latest_session_id

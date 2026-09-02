@@ -47,3 +47,19 @@
 No se impone formateador automático. `ruff format` reformatearía ~46 archivos
 y destruiría el alineado y los comentarios densos PANOPTES, que son
 deliberados. El linter de correctitud sí es compuerta; el formateo es manual.
+
+## Observabilidad — el mínimo, declarado
+
+No hay métricas RED/USE ni trazas: para un despliegue mono-operador local es
+una brecha consciente, no un descuido (ver
+[auditoría §13](auditoria-backend.md)). Lo que sí existe desde el 2026-09-02:
+
+- **Registro estructurado** (`registro.py`) a stderr — logs a stream,
+  12-factor. Nivel por `GNOSIS_LOG_NIVEL`. El árbol mantenido no usa `print`:
+  hay una prueba que lo fija (`tests/test_observabilidad.py`).
+- **Id de petición** en cada request, devuelto en `X-Peticion-Id` y en el
+  campo `referencia` de todo error de API. Sin él, dos operaciones
+  concurrentes entrelazan sus líneas y ninguna se puede seguir.
+- **Degradar no es callar.** El tablero declaraba "sin datos" ante cualquier
+  excepción, que es una afirmación falsa sobre el expediente; ahora dice qué
+  falló y con qué referencia buscarlo.

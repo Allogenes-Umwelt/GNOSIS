@@ -15,6 +15,10 @@ from .tools import TOOL_DEFINITIONS
 from .prompts import SYSTEM_PROMPT
 from database import get_connection
 
+from registro import log
+
+_log = log("jarvis.chat")
+
 
 MAX_TOOL_ROUNDS = 5      # Maximo de rondas de tool calling por mensaje
 MAX_TURNOS_HISTORIA = 12  # Turnos (usuario+asistente) que se reenvian al modelo
@@ -264,4 +268,4 @@ class ChatHandler:
             conn.commit()
             conn.close()
         except Exception as e:
-            print(f"[DB] Error guardando conversacion: {e}")
+            _log.error(f"[DB] Error guardando conversacion: {e}", exc_info=True)

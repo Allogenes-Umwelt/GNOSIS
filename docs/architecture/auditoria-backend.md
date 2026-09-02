@@ -29,7 +29,7 @@ comando que la produce. Ninguna casilla se marca por impresión.
 | Datos · migraciones | hacia adelante | ✅ | `database/migrations.py` idempotente, sin rollback por diseño (la base del operador es producción) |
 | Datos · EXPLAIN en consultas calientes | sí | ❌ | no se ha hecho. Con el volumen de una sesión aduanal no ha dolido, pero es una medición que falta |
 | Datos · restauraciones probadas | sí | ⚠️ | `database/backup.py` hace `wal_checkpoint(TRUNCATE)` antes de copiar (corrige el hallazgo D3); **no existe una prueba que restaure y verifique** |
-| Observabilidad · RED/USE, trazas, SLO | vivo | ❌ | no hay métricas ni trazas. Para un despliegue mono-operador local es defendible; se declara como brecha consciente, no como cumplimiento |
+| Observabilidad · RED/USE, trazas, SLO | vivo | ⚠️ | **2026-09-02:** registro estructurado con nivel + id de petición (`registro.py`), `X-Peticion-Id` en toda respuesta, cero `print` en el árbol mantenido (con prueba). Sigue sin métricas RED/USE, trazas ni SLO — brecha consciente para un despliegue mono-operador |
 | Entrega · DORA | despliegue semanal, restauración < 1h | N/A | no hay despliegue continuo: el operador reconstruye su contenedor. DORA no mide este perfil |
 | Dependencias · lockfile | sí | ⚠️ | `requirements.txt` pinea, `requirements2.txt` es un pin congelado alterno; **no hay lockfile con hashes**. CI y la imagen ya no divergen (pins de Flask/Werkzeug sincronizados) |
 | Dependencias · pip-audit limpio | sí | ✅ | limpio con 2 ignoradas y declaradas (PyPDF2, ver abajo). Compuerta HARD en CI |
