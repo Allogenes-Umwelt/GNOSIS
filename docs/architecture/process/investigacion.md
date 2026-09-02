@@ -3,7 +3,7 @@
 > **Nivel:** Proceso (BPMN-style) — **Notación:** Mermaid `flowchart TB`
 > **Pregunta que responde:** ¿Cómo pasa un descuadre de detectado a defendido, y cómo realimenta al sistema?
 > **Leyenda:** **Magenta = compuerta de decisión** (hallazgo / contradicción) · rectángulo = actividad · el ciclo cierra sobre sí mismo: lo dispuesto vuelve como contraste.
-> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md)
+> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0019](../adr/0019-tiempo-event-log-y-reglas-de-grafo.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 El hueco que `docs/BENCHMARK_PALANTIR.md` declaraba como el valor central de
@@ -17,7 +17,7 @@ flowchart TB
     subgraph MOT["Carril · Motores (lectura pura — re-derivan en cada corrida)"]
         M1["CONCILIA · 10 clases<br/>de hallazgo tri-fuente"] --> H{¿hallazgos<br/>vivos?}
         M2["VALIDACIÓN · 22 tamices<br/>veredicto en capas"] --> H
-        M3["NOMOS · reglas M-P<br/>del operador"] --> H
+        M3["NOMOS · reglas M-P sobre filas<br/>+ patrones sobre el GRAFO"] --> H
         M4["SINAPSIS · conjunciones<br/>entre motores"] --> H
     end
     subgraph OP["Carril · Operador (HITL)"]

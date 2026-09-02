@@ -58,6 +58,22 @@ def _jl(raw: Optional[str]) -> list:
     return json.loads(raw) if raw else []
 
 
+def _fecha_o_none(valor: Optional[str]) -> Optional[str]:
+    """Una fecha ISO, o nada. Una fecha mal formada NO se guarda: envenenaría
+    toda lectura temporal de la sesión, y «no consta» es una respuesta honesta
+    mientras que «2026-13-45» no es ninguna respuesta."""
+    from datetime import date as _date
+
+    if not valor:
+        return None
+    texto = str(valor).strip()
+    try:
+        _date.fromisoformat(texto)
+    except ValueError:
+        return None
+    return texto
+
+
 def _triple(desde: str, hasta: str, tipo: str,
             tipo_crudo: Optional[str]) -> str:
     """La identidad de una arista, para no duplicarla al reintegrar.
@@ -74,12 +90,27 @@ def _norm(nombre: str) -> str:
 
 
 def _sello_bitacora(prev_hash: str, rid: int, session_id: int, ts: str,
-                    accion: str, detalle: str) -> str:
+                    accion: str, detalle: str,
+                    datos: Optional[str] = None) -> str:
     """sha256 encadenado de una fila de bitácora: incluye el sello previo y el
     id (posición), de modo que reescribir o reordenar una fila invalida el
-    resto de la cadena. Puro y determinista (mismo contenido ⇒ mismo sello)."""
-    base = json.dumps([prev_hash, rid, session_id, ts, accion, detalle],
-                      ensure_ascii=False, separators=(",", ":"))
+    resto de la cadena. Puro y determinista (mismo contenido ⇒ mismo sello).
+
+    `datos` (el evento estructurado, ADR-0019) entra en el sello, porque dato
+    fuera del sello es dato editable. Y entra SOLO cuando existe: las filas
+    anteriores al evento estructurado se siguen sellando con la fórmula que
+    las selló, así que no hay que re-sellar la historia — cosa que además una
+    bitácora WORM no debería permitir.
+
+    La regla es total y por eso no necesita un número de versión: una fila con
+    `datos` se sella con `datos`, una sin él, sin él. Quitarle el `datos` a una
+    fila la haría verificar con la fórmula corta contra un sello calculado con
+    la larga, y añadírselo a una fila vieja, al revés: los dos fraudes se ven.
+    """
+    campos = [prev_hash, rid, session_id, ts, accion, detalle]
+    if datos is not None:
+        campos.append(datos)
+    base = json.dumps(campos, ensure_ascii=False, separators=(",", ":"))
     return hashlib.sha256(base.encode("utf-8")).hexdigest()
 
 
@@ -123,7 +154,8 @@ class Sustrato:
 
     # ── bitácora (append-only; never rewritten) ──────────────────────
 
-    def _registrar(self, accion: str, detalle: str) -> None:
+    def _registrar(self, accion: str, detalle: str,
+                   datos: Optional[dict[str, Any]] = None) -> None:
         # bitácora WORM con sello encadenado: cada fila hashea el sello previo
         # (cadena global, no por sesión) + su propio contenido. Una edición o un
         # borrado fuera de esta puerta rompe la cadena y verificar_bitacora lo
@@ -142,15 +174,33 @@ class Sustrato:
         prev = self.conn.execute(
             "SELECT hash FROM ag_bitacora ORDER BY id DESC LIMIT 1").fetchone()
         prev_hash = (prev[0] if prev else None) or ""
-        cur = self.conn.execute(
-            "INSERT INTO ag_bitacora (session_id, accion, detalle, prev_hash)"
-            " VALUES (?, ?, ?, ?)",
-            (self.session_id, accion, detalle, prev_hash or None),
-        )
+        # el EVENTO estructurado (ADR-0019) viaja aparte de la prosa: `detalle`
+        # es la frase que el operador lee, `datos` es lo que una auditoría
+        # consulta. Serializado con claves ordenadas para que el sello no
+        # dependa del orden en que se escribió el dict.
+        serializado = (json.dumps(datos, ensure_ascii=False, sort_keys=True,
+                                  separators=(",", ":"))
+                       if datos is not None else None)
+        try:
+            cur = self.conn.execute(
+                "INSERT INTO ag_bitacora (session_id, accion, detalle, datos,"
+                " prev_hash) VALUES (?, ?, ?, ?, ?)",
+                (self.session_id, accion, detalle, serializado, prev_hash or None),
+            )
+        except sqlite3.OperationalError:
+            # base a medio migrar, sin la columna: la bitácora no puede dejar
+            # de escribirse porque falte el evento estructurado
+            serializado = None
+            cur = self.conn.execute(
+                "INSERT INTO ag_bitacora (session_id, accion, detalle, prev_hash)"
+                " VALUES (?, ?, ?, ?)",
+                (self.session_id, accion, detalle, prev_hash or None),
+            )
         rid = cur.lastrowid
         ts = self.conn.execute(
             "SELECT ts FROM ag_bitacora WHERE id = ?", (rid,)).fetchone()[0]
-        sello = _sello_bitacora(prev_hash, rid, self.session_id, ts, accion, detalle)
+        sello = _sello_bitacora(prev_hash, rid, self.session_id, ts, accion,
+                                detalle, serializado)
         self.conn.execute(
             "UPDATE ag_bitacora SET hash = ? WHERE id = ?", (sello, rid))
 
@@ -159,9 +209,14 @@ class Sustrato:
         compara fila por fila. Devuelve {valido, filas, roto_en, motivo}. Solo
         se sellan las filas escritas por _registrar; una historia previa al
         sello (prev_hash/hash NULL) se declara `sin_sellar`, no rota."""
-        filas = self.conn.execute(
-            "SELECT id, session_id, ts, accion, detalle, prev_hash, hash"
-            " FROM ag_bitacora ORDER BY id").fetchall()
+        try:
+            filas = self.conn.execute(
+                "SELECT id, session_id, ts, accion, detalle, datos, prev_hash,"
+                " hash FROM ag_bitacora ORDER BY id").fetchall()
+        except sqlite3.OperationalError:
+            filas = [{**dict(r), "datos": None} for r in self.conn.execute(
+                "SELECT id, session_id, ts, accion, detalle, prev_hash, hash"
+                " FROM ag_bitacora ORDER BY id")]
         prev = ""
         sellados = 0
         sin_sellar = 0
@@ -180,7 +235,7 @@ class Sustrato:
                         "sellados": sellados, "sin_sellar": sin_sellar,
                         "roto_en": r["id"], "motivo": "hueco"}
             esperado = _sello_bitacora(prev, r["id"], r["session_id"], r["ts"],
-                                       r["accion"], r["detalle"])
+                                       r["accion"], r["detalle"], r["datos"])
             if (r["prev_hash"] or "") != prev or r["hash"] != esperado:
                 return {"valido": False, "filas": len(filas),
                         "sellados": sellados, "sin_sellar": sin_sellar,
@@ -412,7 +467,9 @@ class Sustrato:
             " blob_ref, hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (aid, self.session_id, kind, nombre, paginas, blob_ref, hash),
         )
-        self._registrar("dockear-fuente", f"Fuente dockeada: {nombre}")
+        self._registrar("dockear-fuente", f"Fuente dockeada: {nombre}",
+                        {"op": "crear", "tabla": "ag_artefactos", "id": aid,
+                         "kind": kind, "nombre": nombre})
         self._commit()
         r = self.conn.execute("SELECT * FROM ag_artefactos WHERE id = ?", (aid,)).fetchone()
         return Artefacto(**dict(r))
@@ -432,7 +489,10 @@ class Sustrato:
                 "SELECT * FROM ag_fragmentos WHERE id = ?", (fid,)
             ).fetchone()
             nuevos.append(Fragmento(**dict(r)))
-        self._registrar("fragmentos", f"{len(nuevos)} fragmentos anclados")
+        self._registrar("fragmentos", f"{len(nuevos)} fragmentos anclados",
+                        {"op": "crear", "tabla": "ag_fragmentos",
+                         "artefacto_id": artefacto_id,
+                         "ids": [f.id for f in nuevos]})
         self._commit()
         return nuevos
 
@@ -475,7 +535,14 @@ class Sustrato:
                 " WHERE id = ?",
                 (tipo_final, resumen_final, campo_final, _js(evidencia_final), existente.id),
             )
-            self._registrar("entidad", f"Entidad actualizada: {existente.nombre}")
+            self._registrar(
+                "entidad", f"Entidad actualizada: {existente.nombre}",
+                {"op": "actualizar", "tabla": "ag_entidades",
+                 "id": existente.id, "nombre": existente.nombre,
+                 "antes": {"tipo": existente.tipo,
+                           "evidencia": len(existente.evidencia)},
+                 "despues": {"tipo": tipo_final,
+                             "evidencia": len(evidencia_final)}})
             self._commit()
             return self.entidad_por_id(existente.id)  # type: ignore[return-value]
 
@@ -490,7 +557,10 @@ class Sustrato:
              self._identidad_de(nombre, tipo)),
         )
         self._indexar_claves(eid, nombre)
-        self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})")
+        self._registrar("entidad", f"Entidad {nombre.strip()} ({origen})",
+                        {"op": "crear", "tabla": "ag_entidades", "id": eid,
+                         "nombre": nombre.strip(), "tipo": tipo,
+                         "origen": origen, "evidencia": len(evidencia)})
         self._commit()
         return self.entidad_por_id(eid)  # type: ignore[return-value]
 
@@ -602,7 +672,9 @@ class Sustrato:
                 "UPDATE ag_productos SET entidades = ? WHERE id = ?", (_js(depurados), r["id"])
             )
         self.conn.execute("DELETE FROM ag_entidades WHERE id = ?", (entidad_id,))
-        self._registrar("quitar-entidad", f"Entidad eliminada: {entidad.nombre}")
+        self._registrar("quitar-entidad", f"Entidad eliminada: {entidad.nombre}",
+                        {"op": "borrar", "tabla": "ag_entidades",
+                         "id": entidad_id, "nombre": entidad.nombre})
         self._commit()
 
     # ── relations ────────────────────────────────────────────────────
@@ -615,6 +687,8 @@ class Sustrato:
         peso_declarado: float = 0.5,
         evidencia: Optional[list[str]] = None,
         origen: str = "synesis",
+        valido_desde: Optional[str] = None,
+        valido_hasta: Optional[str] = None,
     ) -> Relacion:
         """La PUERTA normaliza el predicado (ADR-0017).
 
@@ -627,12 +701,17 @@ class Sustrato:
         predicado, crudo = normalizar_predicado(tipo)
         self.conn.execute(
             "INSERT INTO ag_relaciones (id, session_id, desde_id, hasta_id, tipo,"
-            " tipo_crudo, peso_declarado, evidencia, origen)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " tipo_crudo, peso_declarado, evidencia, origen, valido_desde,"
+            " valido_hasta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (rid, self.session_id, desde_id, hasta_id, predicado, crudo,
-             peso_declarado, _js(evidencia or []), origen),
+             peso_declarado, _js(evidencia or []), origen,
+             _fecha_o_none(valido_desde), _fecha_o_none(valido_hasta)),
         )
-        self._registrar("relacion", f"Relación: {predicado}")
+        self._registrar("relacion", f"Relación: {predicado}",
+                        {"op": "crear", "tabla": "ag_relaciones", "id": rid,
+                         "tipo": predicado, "tipo_crudo": crudo,
+                         "desde_id": desde_id, "hasta_id": hasta_id,
+                         "origen": origen})
         self._commit()
         r = self.conn.execute("SELECT * FROM ag_relaciones WHERE id = ?", (rid,)).fetchone()
         return Relacion(**{**dict(r), "evidencia": _jl(r["evidencia"])})
@@ -648,10 +727,35 @@ class Sustrato:
             "DELETE FROM ag_relaciones WHERE id = ? AND session_id = ?",
             (relacion_id, self.session_id),
         )
-        self._registrar("cortar-relacion", f"Relación cortada: {r['tipo']}")
+        self._registrar("cortar-relacion", f"Relación cortada: {r['tipo']}",
+                        {"op": "borrar", "tabla": "ag_relaciones",
+                         "id": relacion_id, "tipo": r["tipo"]})
         self._commit()
 
     # ── events ───────────────────────────────────────────────────────
+
+    def _ligar_evento(self, evento_id: str, nombres: Sequence[str]) -> None:
+        """Ata un evento a sus entidades POR ID.
+
+        `ag_eventos.entidades` guarda nombres en JSON y `consultas` los buscaba
+        con `LIKE '%"nombre"%'` (hallazgo D1): renombrar una entidad desligaba
+        sus eventos, y un nombre contenido en otro casaba de más. El nombre se
+        resuelve una vez —aquí— y lo que queda guardado es el id."""
+        for nombre in nombres or []:
+            clave = _norm(str(nombre or ""))
+            if not clave:
+                continue
+            try:
+                fila = self.conn.execute(
+                    "SELECT entidad_id FROM ag_entidad_alias"
+                    " WHERE session_id = ? AND alias_norm = ?",
+                    (self.session_id, clave)).fetchone()
+                if fila:
+                    self.conn.execute(
+                        "INSERT OR IGNORE INTO ag_evento_entidad (evento_id,"
+                        " entidad_id) VALUES (?, ?)", (evento_id, fila["entidad_id"]))
+            except sqlite3.OperationalError:
+                return                # base a medio migrar: sin vínculo, no falla
 
     def agregar_eventos(self, items: Sequence[dict]) -> list[Evento]:
         from datetime import date as _date
@@ -686,6 +790,11 @@ class Sustrato:
                     it["origen"],
                 ),
             )
+            # ADR-0019: además del JSON de nombres (que la extracción escribe
+            # y `quitar_entidad` poda), el vínculo POR ID. El nombre se resuelve
+            # UNA vez, aquí, con el mismo índice que usa la puerta — así
+            # renombrar la entidad después no desliga el evento.
+            self._ligar_evento(eid, it.get("entidades", []))
             r = self.conn.execute("SELECT * FROM ag_eventos WHERE id = ?", (eid,)).fetchone()
             nuevos.append(
                 Evento(
@@ -789,6 +898,33 @@ class Sustrato:
         self._commit()
         return self.regla_por_id(rid)  # type: ignore[return-value]
 
+    def crear_regla_patron(self, nombre: str, patron: dict,
+                           origen: str = "operador") -> dict:
+        """Una regla que ve el GRAFO (ADR-0019), no las filas.
+
+        NOMOS sigue siendo el motor de reglas aduanal sobre `importaciones`;
+        esto es su gemelo sobre la otra superficie. El patrón se valida contra
+        el vocabulario cerrado y los tipos reales, así que una regla no puede
+        referirse a un predicado que nadie escribe — sería una regla que jamás
+        dispara y que nadie sabe por qué."""
+        from autogenes.patrones import validar_patron
+
+        limpio = validar_patron(patron)
+        if origen not in ("operador", "insight"):
+            raise ValueError(f"Origen inválido: {origen!r}")
+        rid = _uuid()
+        self.conn.execute(
+            "INSERT INTO ag_reglas (id, session_id, nombre, condiciones,"
+            " entonces, origen, clase) VALUES (?, ?, ?, ?, ?, ?, 'patron')",
+            (rid, self.session_id, nombre.strip(), _js(limpio), _js({}), origen),
+        )
+        self._registrar("regla", f"Regla de patrón creada: {nombre.strip()} ({origen})",
+                        {"op": "crear", "tabla": "ag_reglas", "id": rid,
+                         "clase": "patron", "patron": limpio, "origen": origen})
+        self._commit()
+        return {"id": rid, "nombre": nombre.strip(), "clase": "patron",
+                "patron": limpio, "origen": origen, "activa": True}
+
     def alternar_regla(self, regla_id: str, activa: bool) -> None:
         cambiado = self.conn.execute(
             "UPDATE ag_reglas SET activa = ? WHERE id = ? AND session_id = ?",
@@ -811,13 +947,19 @@ class Sustrato:
                 "entonces": json.loads(r["entonces"]),
                 "activa": bool(r["activa"])}
 
-    def leer_reglas(self) -> list[dict]:
+    def leer_reglas(self, clase: Optional[str] = None) -> list[dict]:
+        """Las reglas de la sesión. `clase='fila'` son las neuronas M-P de
+        NOMOS sobre `importaciones`; `clase='patron'`, las que ven el grafo
+        (ADR-0019). Sin filtro salen las dos, que es lo que el export quiere."""
+        sql = "SELECT * FROM ag_reglas WHERE session_id = ?"
+        params: list[Any] = [self.session_id]
+        if clase:
+            sql += " AND clase = ?"
+            params.append(clase)
         return [
             {**dict(r), "condiciones": json.loads(r["condiciones"]),
              "entonces": json.loads(r["entonces"]), "activa": bool(r["activa"])}
-            for r in self.conn.execute(
-                "SELECT * FROM ag_reglas WHERE session_id = ?"
-                " ORDER BY created_at, id", (self.session_id,))
+            for r in self.conn.execute(sql + " ORDER BY created_at, id", params)
         ]
 
     # ── the provenance cascade ───────────────────────────────────────
@@ -907,7 +1049,9 @@ class Sustrato:
 
         self.conn.execute("DELETE FROM ag_fragmentos WHERE artefacto_id = ?", (artefacto_id,))
         self.conn.execute("DELETE FROM ag_artefactos WHERE id = ?", (artefacto_id,))
-        self._registrar("quitar-fuente", f"Fuente eliminada con cascada: {nombre}")
+        self._registrar("quitar-fuente", f"Fuente eliminada con cascada: {nombre}",
+                        {"op": "borrar", "tabla": "ag_artefactos",
+                         "id": artefacto_id, "nombre": nombre})
         self._commit()
 
     # ── fusion ───────────────────────────────────────────────────────
@@ -990,7 +1134,11 @@ class Sustrato:
         # incluye el nombre del perdedor.
         self.conn.execute("DELETE FROM ag_entidades WHERE id = ?", (perdedor_id,))
         self._indexar_claves(ganador_id, ganador.nombre, alias)
-        self._registrar("fusion", f"Fusión: {ganador.nombre} absorbe a {perdedor.nombre}")
+        self._registrar(
+            "fusion", f"Fusión: {ganador.nombre} absorbe a {perdedor.nombre}",
+            {"op": "fusionar", "tabla": "ag_entidades", "id": ganador_id,
+             "absorbido": perdedor_id, "nombre": ganador.nombre,
+             "nombre_absorbido": perdedor.nombre})
         self._commit()
         return self.entidad_por_id(ganador_id)
 

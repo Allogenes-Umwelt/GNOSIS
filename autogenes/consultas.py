@@ -167,7 +167,7 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
     relaciones = []
     for r in conn.execute(
         "SELECT r.id, r.tipo, r.tipo_crudo, r.peso_declarado, r.evidencia,"
-        "       r.desde_id, r.hasta_id,"
+        "       r.desde_id, r.hasta_id, r.valido_desde, r.valido_hasta,"
         "       ed.nombre AS desde_nombre, eh.nombre AS hasta_nombre"
         " FROM ag_relaciones r"
         " JOIN ag_entidades ed ON r.desde_id = ed.id"
@@ -186,22 +186,25 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
             "tipo_crudo": r["tipo_crudo"],
             # la confianza, que sí se deriva y viaja con su derivación
             "confianza": confianzas.get(r["id"]),
+            # NULL no es «siempre», es «no consta»: se dice cuál de las dos
+            "vigencia": {"desde": r["valido_desde"], "hasta": r["valido_hasta"]}
+            if (r["valido_desde"] or r["valido_hasta"]) else None,
             "citas": _citas(conn, session_id,
                             json.loads(r["evidencia"] or "[]"), maximo=3),
         })
 
-    # ag_eventos.entidades guarda NOMBRES (así los poda sustrato.quitar_entidad
-    # y los cita la extracción), no ids: emparejar por id dejaba la sección de
-    # eventos SIEMPRE vacía en producción. Se busca por nombre + alias.
-    nombres_ent = [e["nombre"], *json.loads(e["alias"] or "[]")]
-    cond_ev = " OR ".join("entidades LIKE ?" for _ in nombres_ent)
-    params_ev = [f'%"{n}"%' for n in nombres_ent]
+    # Los eventos se ligan POR ID (ADR-0019). Antes se buscaban con
+    # `entidades LIKE '%"nombre"%'` sobre el JSON de nombres (hallazgo D1):
+    # renombrar una entidad desligaba sus eventos, «VW» casaba con «VW
+    # Servicios», y el comodín inicial impedía usar índice alguno.
     eventos = [
         {"titulo": r["titulo"], "fecha": r["fecha"], "precision": r["precision"]}
         for r in conn.execute(
-            "SELECT titulo, fecha, precision FROM ag_eventos"  # noqa: S608 — SQL estático: la f-string no interpola entrada
-            f" WHERE session_id = ? AND ({cond_ev}) ORDER BY fecha",
-            (session_id, *params_ev),
+            "SELECT ev.titulo, ev.fecha, ev.precision FROM ag_eventos ev"
+            " JOIN ag_evento_entidad x ON x.evento_id = ev.id"
+            " WHERE ev.session_id = ? AND x.entidad_id = ?"
+            " ORDER BY ev.fecha, ev.id",
+            (session_id, e["id"]),
         )
     ]
     # ag_productos.entidades guarda IDS (así los poda quitar_entidad): id correcto.

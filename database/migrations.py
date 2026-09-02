@@ -109,6 +109,10 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
     # resuelta desde el nombre canónico. En Python porque canonizar es código
     # (`autogenes.canon`), no SQL, y porque tolera un esquema parcial.
     (7, "ag_identidades", []),
+    # Bitácora como EVENT LOG: `datos` estructurado junto a la prosa, dentro
+    # del sello. Más `ag_evento_entidad` (por id, no por nombre) y la validez
+    # temporal de las relaciones. En Python: hay que resolver nombres.
+    (8, "ag_bitacora_datos_y_evento_entidad", []),
 ]
 
 
@@ -349,6 +353,64 @@ def _resolver_identidades(conn: sqlite3.Connection) -> None:
                      (ident, fila[0]))
 
 
+_OLA8_SQL = (
+    "ALTER TABLE ag_bitacora ADD COLUMN datos TEXT",
+    "ALTER TABLE ag_relaciones ADD COLUMN valido_desde TEXT",
+    "ALTER TABLE ag_relaciones ADD COLUMN valido_hasta TEXT",
+    """CREATE TABLE IF NOT EXISTS ag_evento_entidad (
+        evento_id  TEXT NOT NULL,
+        entidad_id TEXT NOT NULL,
+        PRIMARY KEY (evento_id, entidad_id),
+        FOREIGN KEY (evento_id) REFERENCES ag_eventos(id) ON DELETE CASCADE,
+        FOREIGN KEY (entidad_id) REFERENCES ag_entidades(id) ON DELETE CASCADE
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ag_evento_entidad_entidad"
+    " ON ag_evento_entidad(entidad_id)",
+    "ALTER TABLE ag_reglas ADD COLUMN clase TEXT NOT NULL DEFAULT 'fila'",
+)
+
+
+def _ligar_eventos_por_id(conn: sqlite3.Connection) -> None:
+    """Resuelve UNA vez los nombres de `ag_eventos.entidades` a ids.
+
+    `ag_eventos.entidades` guarda NOMBRES en JSON y `consultas` los buscaba con
+    `entidades LIKE '%"nombre"%'` (hallazgo D1): renombrar una entidad
+    desligaba sus eventos, y un nombre contenido en otro casaba de más. La
+    tabla por id acaba con las dos cosas.
+
+    Se resuelve por nombre Y por alias, con el mismo índice de resolución que
+    usa la puerta (ADR-0014), para que la migración no invente emparejamientos
+    que la ingesta no habría hecho."""
+    import json as _json
+
+    _intentar(conn, _OLA8_SQL)
+    try:
+        eventos = conn.execute(
+            "SELECT id, session_id, entidades FROM ag_eventos").fetchall()
+    except sqlite3.OperationalError:
+        return
+    for ev in eventos:
+        try:
+            nombres = _json.loads(ev[2] or "[]")
+        except ValueError:
+            continue
+        for nombre in nombres:
+            clave = (nombre or "").strip().lower()
+            if not clave:
+                continue
+            try:
+                fila = conn.execute(
+                    "SELECT entidad_id FROM ag_entidad_alias"
+                    " WHERE session_id = ? AND alias_norm = ?",
+                    (ev[1], clave)).fetchone()
+                if fila:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO ag_evento_entidad (evento_id,"
+                        " entidad_id) VALUES (?, ?)", (ev[0], fila[0]))
+            except sqlite3.OperationalError:
+                return
+
+
 def _rellenar_alias(conn: sqlite3.Connection) -> None:
     """Rellena el índice de resolución desde las entidades ya existentes.
 
@@ -416,3 +478,5 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
             _normalizar_relaciones(conn)
         if version == 7:
             _resolver_identidades(conn)
+        if version == 8:
+            _ligar_eventos_por_id(conn)

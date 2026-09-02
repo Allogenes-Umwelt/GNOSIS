@@ -76,7 +76,10 @@ def evaluar_reglas(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
         {**dict(r), "condiciones": json.loads(r["condiciones"]),
          "entonces": json.loads(r["entonces"]), "activa": bool(r["activa"])}
         for r in conn.execute(
-            "SELECT * FROM ag_reglas WHERE session_id = ?"
+            # SOLO las de fila: una regla de patrón (ADR-0019) ve el grafo y la
+            # evalúa `autogenes/patrones.py`. Mezclarlas aquí haría que este
+            # motor recorriera un objeto como si fuera su lista de condiciones.
+            "SELECT * FROM ag_reglas WHERE session_id = ? AND clase = 'fila'"
             " ORDER BY created_at, id", (session_id,))
     ]
     evaluadas = [evaluar_regla(filas, rg) for rg in reglas]
@@ -128,10 +131,10 @@ def backtest_regla(conn: sqlite3.Connection, session_id: int,
     encontrado en cada una. Mismo evaluador, otras filas — nada nuevo que
     inventar. La regla vive en su sesión; el backtest solo LEE historia."""
     regla_fila = conn.execute(
-        "SELECT * FROM ag_reglas WHERE id = ? AND session_id = ?",
+        "SELECT * FROM ag_reglas WHERE id = ? AND session_id = ? AND clase = 'fila'",
         (regla_id, session_id)).fetchone()
     if regla_fila is None:
-        return {"error": "Regla inexistente en esta sesión"}
+        return {"error": "Regla de fila inexistente en esta sesión"}
     regla = {**dict(regla_fila),
              "condiciones": json.loads(regla_fila["condiciones"]),
              "entonces": json.loads(regla_fila["entonces"]),

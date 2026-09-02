@@ -1001,6 +1001,44 @@ def api_autogenes_importar():
         return error_api(e)
 
 
+@bp.route('/api/v1/autogenes/patrones', methods=['GET', 'POST'])
+def api_autogenes_patrones():
+    """Reglas que ven el GRAFO (ADR-0019), no las filas de importaciones.
+
+    GET evalúa las activas de la sesión; POST crea una. NOMOS sigue siendo el
+    motor sobre `importaciones`: esto es su gemelo sobre la otra superficie, y
+    lo hace posible el vocabulario cerrado de predicados — sin él una regla no
+    podía referirse a la relación, solo a una redacción de ella."""
+    from autogenes.patrones import PatronInvalido, evaluar_reglas_patron
+    from autogenes.sustrato import Sustrato
+
+    if request.method == 'GET':
+        def leer(conn, session_id):
+            return jsonify({'session_id': session_id,
+                            'reglas': evaluar_reglas_patron(conn, session_id)})
+        try:
+            return _con_sesion(leer)
+        except Exception as e:
+            return error_api(e)
+
+    data = request.get_json(silent=True) or {}
+    nombre = (data.get('nombre') or '').strip()
+    if not nombre:
+        return jsonify({'error': 'Falta el nombre de la regla'}), 400
+
+    def crear(conn, session_id):
+        try:
+            regla = Sustrato(conn, session_id).crear_regla_patron(
+                nombre, data.get('patron') or {})
+        except PatronInvalido as e:
+            return jsonify({'error': str(e)}), 422
+        return jsonify({'regla': regla})
+    try:
+        return _con_sesion(crear)
+    except Exception as e:
+        return error_api(e)
+
+
 @bp.route('/api/v1/autogenes/identidades', methods=['GET'])
 def api_autogenes_identidades():
     """Quién es quién POR ENCIMA de la sesión, y qué fusiones se PROPONEN.

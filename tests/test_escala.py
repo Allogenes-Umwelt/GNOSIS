@@ -348,29 +348,50 @@ def test_el_total_no_recorre_todos_los_aciertos(conn):
 
 # ── la identidad entre sesiones (G1 del diagnóstico v02) ─────────────
 
-def test_las_candidatas_de_fusion_no_comparan_todos_contra_todos(conn):
+def test_las_candidatas_de_fusion_no_comparan_todos_contra_todos(conn, monkeypatch):
     """Proponer fusiones es, en su forma ingenua, O(E²) — el mismo patrón que
-    la ola 1 quitó de `upsert_entidad`. El bloqueo por tokens lo impide, y
-    esta prueba fija la FORMA: doblar las entidades no puede cuadruplicar el
-    coste."""
-    from autogenes.similitud import candidatas
+    la ola 1 quitó de `upsert_entidad`. El bloqueo por tokens lo impide.
+
+    Se cuentan las COMPARACIONES, no los segundos. Un umbral de reloj sobre
+    unos milisegundos es ruido: la primera versión de esta prueba fallaba una
+    de cada tres corridas, que es peor que no tenerla. El número de pares
+    examinados, en cambio, es el mismo en cualquier máquina."""
+    import autogenes.similitud as sim
 
     s = Sustrato(conn, 1)
     art = s.crear_artefacto("nota", "semilla.txt")
     frag = s.agregar_fragmentos(art.id, [(1, "texto")])[0].id
 
     def sembrar(desde, hasta):
+        # cada par comparte un token propio («alfa7») y por tanto un bloque de
+        # dos; los tokens comunes («corporativo») caen en bloques enormes que
+        # el tope descarta, que es justo lo que deben hacer
         for i in range(desde, hasta):
-            s.upsert_entidad(f"Proveedor Numero {i} del Golfo", "organizacion",
-                             "synesis", evidencia=[frag])
+            for cola in ("", " Servicios"):
+                s.upsert_entidad(f"Alfa{i} Corporativo{cola}", "organizacion",
+                                 "synesis", evidencia=[frag])
 
-    sembrar(0, 400)
-    t1 = _cronometrar(lambda i: candidatas(conn, 1), 3)
-    sembrar(400, 800)
-    t2 = _cronometrar(lambda i: candidatas(conn, 1), 3)
-    assert t2 < t1 * 3, (
-        f"proponer fusiones se degrada cuadráticamente: {t1:.2f}s → {t2:.2f}s "
+    def comparaciones() -> int:
+        n = [0]
+        original = sim._juzgar
+        monkeypatch.setattr(sim, "_juzgar",
+                            lambda *a, **k: (n.__setitem__(0, n[0] + 1),
+                                             original(*a, **k))[1])
+        sim.candidatas(conn, 1)
+        monkeypatch.undo()
+        return n[0]
+
+    sembrar(0, 150)                   # 300 entidades
+    con_300 = comparaciones()
+    sembrar(150, 300)                 # 600 entidades
+    con_600 = comparaciones()
+
+    assert con_300 > 0, "no se comparó nada: la prueba no está midiendo"
+    # cuadrático sería ×4 al doblar; el bloqueo lo deja en ×2
+    assert con_600 < con_300 * 3, (
+        f"las comparaciones crecen como el cuadrado: {con_300} → {con_600} "
         "al doblar las entidades")
+    assert con_600 < 600 * 599 / 2, "se comparó todo contra todo"
 
 
 def test_la_identidad_no_encarece_el_alta_de_entidades(conn):

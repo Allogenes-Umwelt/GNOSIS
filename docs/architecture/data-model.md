@@ -3,10 +3,10 @@
 > **Nivel:** Suplementario · datos — **Notación:** Mermaid `erDiagram`
 > **Pregunta que responde:** ¿Qué tablas existen, cuáles son aduanales y cuáles del sustrato, y cómo se relacionan?
 > **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal. `ag_entidad_alias` y `ag_fragmentos_fts` son ÍNDICES, no evidencia: se derivan de `ag_entidades` y `ag_fragmentos` y se reconstruyen desde ellas. `ag_citas` SÍ es evidencia: el trozo verificado que sostiene una afirmación.
-> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md) · [ADR-0016](adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](adr/0018-identidad-entre-sesiones.md)
+> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md) · [ADR-0016](adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](adr/0018-identidad-entre-sesiones.md) · [ADR-0019](adr/0019-tiempo-event-log-y-reglas-de-grafo.md)
 > **Índice de vistas:** [docs/architecture/README.md](README.md)
 
-**Nota de la vista.** 29 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
+**Nota de la vista.** 30 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
 
 Dos mundos en la misma base: el **aduanal** (alimentado por el pipeline) y
 el **sustrato AUTOGENES** (`ag_*`, el grafo de evidencia + el flujo de
@@ -35,7 +35,8 @@ erDiagram
     ag_identidades ||--o{ ag_entidades : "es quién (cruza sesiones)"
     ag_entidades ||--o{ ag_relaciones : conecta
     ag_relaciones ||--o{ ag_citas : "sostiene (sujeto_kind=relacion)"
-    ag_entidades ||--o{ ag_eventos : "participa (por nombre)"
+    ag_eventos ||--o{ ag_evento_entidad : "participa POR ID"
+    ag_entidades ||--o{ ag_evento_entidad : "participa POR ID"
     ag_entidades ||--o{ ag_productos : "ancla (por id)"
     ag_bitacora }o--|| processing_sessions : "WORM append-only"
     ag_disposiciones }o--|| processing_sessions : "ciclo de vida O1"
@@ -63,6 +64,13 @@ erDiagram
         string tipo_crudo "lo que dijo el modelo, si cayó a 'otro'"
         float peso_declarado "lo AFIRMADO — NO es la confianza"
         string evidencia "ids de fragmento (la cita por página)"
+        string valido_desde "NULL = no consta, NO 'siempre'"
+        string valido_hasta
+    }
+    ag_bitacora {
+        string detalle "la frase que el operador lee"
+        string datos "el EVENTO estructurado — dentro del sello"
+        string hash "sha256 encadenado"
     }
     ag_identidades {
         string nombre_canon "UNIQUE — determinista (canon.py)"
@@ -82,6 +90,7 @@ erDiagram
         string condiciones "JSON campo=valor (AND)"
         string entonces "JSON esperado"
         string origen "operador|insight"
+        string clase "fila (NOMOS) | patron (grafo)"
         bool activa
     }
     ag_productos {
@@ -113,6 +122,10 @@ procedencia y su relleno corre en migración, sin bitácora.
 DERIVA al leer (`autogenes/confianza.py`) contando artefactos distintos que
 la citan, con su derivación al lado. Misma doctrina que la proyección
 (ADR-0006): lo derivable no se almacena.
+
+**Ley del tiempo:** `valido_desde`/`valido_hasta` son opcionales y una fecha
+mal formada NO se guarda. `NULL` se lee como «no consta», nunca como
+«siempre»: la diferencia entre no saber y afirmar.
 
 **Ley de procedencia:** una `ag_entidad` extraída de un documento **debe**
 citar fragmentos (`evidencia`); las entidades de operador/conversación

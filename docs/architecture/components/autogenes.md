@@ -3,14 +3,14 @@
 > **Nivel:** C4 L3 · Componentes — **Notación:** C4 (Mermaid `C4Component`)
 > **Pregunta que responde:** ¿Qué hay dentro del sustrato: qué motores lo componen y cómo se encadenan en el flujo de investigación?
 > **Leyenda:** `Person` actor humano · `System`/`Container`/`Component` caja del sistema · `System_Ext` sistema externo (fuera de nuestro control) · `ContainerDb` almacén · `Rel` arista dirigida y etiquetada con protocolo.
-> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](../adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](../adr/0018-identidad-entre-sesiones.md)
+> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md) · [ADR-0017](../adr/0017-vocabulario-span-y-confianza-derivada.md) · [ADR-0018](../adr/0018-identidad-entre-sesiones.md) · [ADR-0019](../adr/0019-tiempo-event-log-y-reglas-de-grafo.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 **Nota de la vista.** Caja blanca de `Container(motores)` del L2. Excede las ~6 cajas que pide la doctrina: el sustrato ES el diferenciador del sistema y partirlo escondería el encadenamiento. Desviación declarada, no descuido.
 
 El diferenciador: un grafo de evidencia con procedencia **más el flujo de
 investigación**. `sustrato.py` es el **único escritor** de las tablas
-`ag_*`; todo lo demás lee o propone. Los 39 módulos se organizan en seis
+`ag_*`; todo lo demás lee o propone. Los 40 módulos se organizan en seis
 familias:
 
 ```mermaid
@@ -37,7 +37,7 @@ C4Component
     Container_Boundary(desc, "Descuadre (flujo de investigación)") {
         Component(concilia, "CONCILIA F9", "concilia.py", "10 clases de hallazgo tri-fuente monetizados por moneda real; cobertura; dossier sellado.")
         Component(valida, "VALIDACIÓN F10", "validacion.py", "22 tamices deterministas + veredicto en capas (rechazado/observado/pasa) + retícula + certificado sellado.")
-        Component(nomos, "NOMOS F12", "nomos.py", "Reglas McCulloch-Pitts del operador (AND, θ=n) + P&L + backtest histórico.")
+        Component(nomos, "NOMOS F12", "nomos.py, patrones.py", "Reglas M-P del operador sobre FILAS (AND, θ=n) + P&L + backtest; y su gemelo sobre el GRAFO: patrones tipo+predicado+umbral que disparan con citas.")
         Component(sinapsis, "SINAPSIS F11", "sinapsis.py", "Insights por recombinación verificada + lattice de particiones + volante insight→regla.")
         Component(control, "CONTROL A3", "control.py", "SPC transversal: cada métrica citada vs su historia (mediana ± 3·MAD), señal de régimen.")
     }

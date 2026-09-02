@@ -144,6 +144,11 @@ CREATE TABLE IF NOT EXISTS ag_relaciones (
                    CHECK (peso_declarado >= 0 AND peso_declarado <= 1),
     evidencia      TEXT NOT NULL DEFAULT '[]',
     origen         TEXT NOT NULL DEFAULT 'synesis',
+    -- VALIDEZ TEMPORAL (ADR-0019), opcional: «¿quién era el agente aduanal en
+    -- julio?» era una lectura de la bitácora y ahora es una consulta. NULL =
+    -- «no consta», que no es lo mismo que «siempre»: se declara al leer.
+    valido_desde   TEXT,
+    valido_hasta   TEXT,
     created_at     TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id),
     FOREIGN KEY (desde_id) REFERENCES ag_entidades(id),
@@ -202,6 +207,20 @@ CREATE TABLE IF NOT EXISTS ag_eventos (
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );
 CREATE INDEX IF NOT EXISTS idx_ag_eventos_session ON ag_eventos(session_id);
+
+-- Un evento liga entidades POR ID (ADR-0019). `ag_eventos.entidades` guardaba
+-- NOMBRES en JSON y se buscaban con `LIKE '%"nombre"%'` (hallazgo D1):
+-- renombrar una entidad desligaba sus eventos, y un nombre contenido en otro
+-- casaba de más. La columna JSON sigue ahí —la escribe la extracción y la
+-- poda `quitar_entidad`— pero quien pregunta usa esta tabla.
+CREATE TABLE IF NOT EXISTS ag_evento_entidad (
+    evento_id  TEXT NOT NULL,
+    entidad_id TEXT NOT NULL,
+    PRIMARY KEY (evento_id, entidad_id),
+    FOREIGN KEY (evento_id) REFERENCES ag_eventos(id) ON DELETE CASCADE,
+    FOREIGN KEY (entidad_id) REFERENCES ag_entidades(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ag_evento_entidad_entidad ON ag_evento_entidad(entidad_id);
 CREATE INDEX IF NOT EXISTS idx_ag_eventos_fecha ON ag_eventos(session_id, fecha);
 
 CREATE TABLE IF NOT EXISTS ag_productos (
@@ -227,12 +246,16 @@ CREATE INDEX IF NOT EXISTS idx_ag_productos_session ON ag_productos(session_id);
 -- de cronos/qualia, pero sí lo vuelve manipulable-con-evidencia-cero).
 -- prev_hash/hash existen aquí para bases nuevas y en la migración 3 para las ya
 -- creadas; son NULL en filas previas al sello (historia sin sellar, declarada).
+-- `detalle` es la frase que el operador lee; `datos` es el EVENTO estructurado
+-- que una auditoría consulta (ADR-0019): {op, tabla, id, …}. Los dos entran en
+-- el sello — dato fuera del sello es dato editable.
 CREATE TABLE IF NOT EXISTS ag_bitacora (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id  INTEGER NOT NULL,
     ts          TEXT DEFAULT (datetime('now')),
     accion      TEXT NOT NULL,
     detalle     TEXT NOT NULL,
+    datos       TEXT,
     prev_hash   TEXT,
     hash        TEXT,
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
@@ -313,6 +336,9 @@ CREATE TABLE IF NOT EXISTS ag_reglas (
     condiciones TEXT NOT NULL,          -- JSON [{campo, valor}]
     entonces    TEXT NOT NULL,          -- JSON {campo, valor}
     origen      TEXT NOT NULL CHECK (origen IN ('operador', 'insight')),
+    -- 'fila' = neurona M-P de NOMOS sobre importaciones; 'patron' = regla que
+    -- ve el GRAFO (ADR-0019). Dos superficies, un mismo sitio donde viven.
+    clase       TEXT NOT NULL DEFAULT 'fila' CHECK (clase IN ('fila','patron')),
     activa      INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
