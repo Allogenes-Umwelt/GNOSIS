@@ -260,11 +260,17 @@ def _sugerir_regla(conn: sqlite3.Connection, session_id: int,
         return
     pais = cand[0]["p"].upper()
     esperado = _JN_POR_PAIS[pais]
+    # el marcador de origen depende del país (norma documentada: "C.O + BRA = N
+    # y CUPO + IND = N"); usar "C.O" para IND mal-etiquetaría la regla
+    marcador = {"BRA": "C.O", "IND": "CUPO"}.get(pais, pais)
     err["regla_sugerida"] = {
-        "nombre": f"C.O + {pais} = {esperado}",
+        "nombre": f"{marcador} + {pais} = {esperado}",
         "condiciones": [{"campo": "pais_code", "valor": pais}],
         "entonces": {"campo": "j_y_n", "valor": esperado},
-        "cobertura": sum(f["n"] for f in cand),
+        # la cobertura es la del país que la regla realmente ataca (dominante),
+        # no la suma de todos los países de la norma: un número no derivable de
+        # la propia regla
+        "cobertura": cand[0]["n"],
     }
 
 

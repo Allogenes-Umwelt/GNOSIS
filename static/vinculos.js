@@ -112,11 +112,17 @@
         det.appendChild(v);
       });
       cam.saltos.forEach(function (s) {
+        // una relación tipada recorrida al revés se lee en su sentido real
+        // (arista.desde→hasta), no en el de la marcha, o el verbo se invierte
+        var de = s.de, a = s.a, ar = s.arista;
+        if (ar && ar.kind === 'relacion' && ar.desde && ar.desde !== s.de.id) {
+          de = s.a; a = s.de;
+        }
         var fila = document.createElement('div');
         fila.className = 'gr-fila';
-        fila.innerHTML = '<span>' + esc((s.de.etiqueta || '').slice(0, 16)) + ' → ' +
-          esc((s.a.etiqueta || '').slice(0, 16)) + '</span><b>' +
-          esc(s.arista.tipo || s.arista.kind || '—') +
+        fila.innerHTML = '<span>' + esc((de.etiqueta || '').slice(0, 16)) + ' → ' +
+          esc((a.etiqueta || '').slice(0, 16)) + '</span><b>' +
+          esc(ar.tipo || ar.kind || '—') +
           (s.evidencia.length ? ' · ' + s.evidencia.length + ' citas' : '') + '</b>';
         det.appendChild(fila);
       });
@@ -292,18 +298,6 @@
           nw: m.redundancia_rutas <= 1 ? 'Punto único de falla: toda la vía comparte un cuello.'
             : 'Cada vía es independiente de las demás.',
           fte: 'corte mínimo unitario sobre la subred de la marca'
-        }));
-      }
-      var cc = m.corte_critico;
-      if (cc) {
-        cards.push(tarjeta({
-          tit: 'Corte crítico de suministro',
-          cifra: pct(cc.pct_suministro), unidad: 'del suministro',
-          bench: 'en ' + cc.n_rutas + (cc.n_rutas === 1 ? ' ruta · ' : ' rutas · ') + cc.volumen + ' unidades',
-          sw: 'Si caen estas rutas, se interrumpe ese flujo.',
-          nw: 'Vigilar: ' + (cc.rutas || []).map(function (r) {
-            return r.de + '→' + r.a + ' (' + r.unidades + ')'; }).join(', '),
-          fte: 'max-flow / min-cut sobre volumen medido'
         }));
       }
       if (a.brokers && a.brokers.length) {

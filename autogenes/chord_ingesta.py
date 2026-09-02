@@ -5,11 +5,16 @@ aduanal VIN leaves: *what did I bring in, what is still cold, and what did
 each source produce?* This projects exactly that and nothing else — no
 vehiculo/marca/pais nodes — as a chord:
 
-    left hemisphere  = artefactos (documentary sources), grouped by kind
-    right hemisphere = entidades (produced knowledge), grouped by tipo
+    left hemisphere  = artefactos (documentary sources), coldest and most
+                       fragment-rich first (the actionable signal leads)
+    right hemisphere = entidades (produced knowledge), most cited first
     ribbons          = artefacto -> entidad, weight = that artefacto's
                        fragments cited by that entidad
     cold source      = an artefacto no entity cites (ribbonless arc)
+
+Arcs are ordered by SIGNAL, not clustered by kind/tipo: the ring reads as a
+smooth continuum led by what matters, and repartir keeps a hairline gap between
+consecutive same-group runs without fragmenting it.
 
 The law of `proyeccion.py` holds here: NEVER writes; every number derives
 from ag_artefactos/ag_fragmentos/ag_entidades and is citable. Deterministic:
@@ -62,7 +67,10 @@ def chord_ingesta(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     }
     for e in entidades:
         arts_de_ent[e["id"]] = set()
-        for frag_id in evidencia.get(e["id"], []):
+        # dict.fromkeys dedupe (orden estable): un frag_id repetido en evidencia
+        # NO debe pesar la cinta 2 veces (peso derivable de fragmentos DISTINTOS
+        # citados; si no, la cinta miente y contradice detalle/resumen)
+        for frag_id in dict.fromkeys(evidencia.get(e["id"], [])):
             art_id = frag_a_art.get(frag_id)
             if art_id and art_id in ids_art:
                 key = (art_id, e["id"])
@@ -114,8 +122,10 @@ def chord_ingesta(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
               for (a, e), w in sorted(cintas_acc.items())]
 
     n_frag = len(fragmentos)
+    # mismo guard que las cintas (art_id in ids_art): contar un fragmento cuyo
+    # artefacto NO se proyecta sería una cita invisible (cobertura sin fuente)
     n_citados = len({fid for ev in evidencia.values() for fid in ev
-                     if fid in frag_a_art})
+                     if frag_a_art.get(fid) in ids_art})
     n_frias = sum(1 for a in arcos_art_full if a["fria"])
 
     ses = conn.execute(
@@ -124,11 +134,19 @@ def chord_ingesta(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     etiqueta = (f"Sesión {ses['month_processed']:02d}/{ses['year_processed']}"
                 if ses else "Sesión")
 
+    # _peso (peso interno de rollup) NO viaja al payload: el frontend calcula el
+    # ancho del arco desde el flujo de sus cintas, y dejar el _peso del backend
+    # lo pisaba (Object.assign con el payload al final), desbordando las anclas
+    # de cinta al arco vecino. _miembros SÍ viaja (ids del sustrato, para el
+    # dossier del agregado).
+    def _sin_peso(arcos: list[dict]) -> list[dict]:
+        return [{k: v for k, v in a.items() if k != "_peso"} for a in arcos]
+
     return {
         "session_id": session_id,
         "etiqueta": etiqueta,
-        "artefactos": arcos_art,
-        "entidades": arcos_ent,
+        "artefactos": _sin_peso(arcos_art),
+        "entidades": _sin_peso(arcos_ent),
         "cintas": cintas,
         "resumen": {
             "fuentes": len(artefactos),
@@ -147,6 +165,28 @@ def detalle_ingesta(conn: sqlite3.Connection, session_id: int,
     """The dossier behind one chord arc — read-only. For an artefacto: its
     fragments (citable text) and the entities that cite it. For an entidad:
     its source artefactos. For an aggregate arc: the members it rolled up."""
+    # arco agregado ("+N más"): su dossier son los miembros que colapsó — el
+    # docstring lo prometía y no existía (devolvía error). _miembros viaja en el
+    # payload del chord; se resuelven a una ficha ligera por miembro.
+    if node_id.startswith("agg:"):
+        chord = chord_ingesta(conn, session_id)
+        arco = next((a for a in chord["artefactos"] + chord["entidades"]
+                     if a["id"] == node_id), None)
+        if not arco:
+            return {"error": "Nodo no encontrado en el sustrato de la sesión"}
+        ids = arco.get("_miembros", [])
+        marc = ",".join("?" * len(ids))
+        es_art = node_id.startswith("agg:art:")
+        tabla, campos = (("ag_artefactos", "id, nombre, kind")
+                         if es_art else ("ag_entidades", "id, nombre, tipo"))
+        filas = conn.execute(
+            f"SELECT {campos} FROM {tabla}"  # noqa: S608 — tabla/campos de literal fijo
+            f" WHERE session_id = ? AND id IN ({marc}) ORDER BY nombre, id",
+            (session_id, *ids)).fetchall() if ids else []
+        return {"tipo": "agregado", "id": node_id, "nombre": arco["nombre"],
+                "grupo": arco["grupo"], "n": arco["n"],
+                "miembros": [dict(r) for r in filas]}
+
     art = conn.execute(
         "SELECT id, kind, nombre, paginas FROM ag_artefactos"
         " WHERE id = ? AND session_id = ?", (node_id, session_id)).fetchone()
@@ -155,14 +195,15 @@ def detalle_ingesta(conn: sqlite3.Connection, session_id: int,
             {"id": f["id"], "pagina": f["pagina"], "texto": f["texto"]}
             for f in conn.execute(
                 "SELECT id, pagina, texto FROM ag_fragmentos"
-                " WHERE artefacto_id = ? AND session_id = ? ORDER BY pagina, created_at",
+                " WHERE artefacto_id = ? AND session_id = ?"
+                " ORDER BY pagina, created_at, id",
                 (node_id, session_id))
         ]
         frag_ids = {f["id"] for f in fragmentos}
         citantes = []
         for e in conn.execute(
                 "SELECT id, nombre, tipo, evidencia FROM ag_entidades"
-                " WHERE session_id = ? ORDER BY created_at", (session_id,)):
+                " WHERE session_id = ? ORDER BY created_at, id", (session_id,)):
             if frag_ids & set(json.loads(e["evidencia"] or "[]")):
                 citantes.append({"id": e["id"], "nombre": e["nombre"], "tipo": e["tipo"]})
         return {"tipo": "artefacto", "id": node_id, "nombre": art["nombre"],
@@ -185,8 +226,8 @@ def detalle_ingesta(conn: sqlite3.Connection, session_id: int,
         fuentes = [
             {"id": a["id"], "nombre": a["nombre"], "kind": a["kind"]}
             for a in conn.execute(
-                "SELECT id, nombre, kind FROM ag_artefactos WHERE session_id = ?",
-                (session_id,)) if a["id"] in art_ids
+                "SELECT id, nombre, kind FROM ag_artefactos"
+                " WHERE session_id = ? ORDER BY id", (session_id,)) if a["id"] in art_ids
         ]
         return {"tipo": "entidad", "id": node_id, "nombre": ent["nombre"],
                 "tipo_ent": ent["tipo"], "resumen": ent["resumen"],
@@ -215,6 +256,9 @@ def _rollup(arcos: list[dict], maximo: int, prefijo: str,
             "grupo": grupo,
             "agregado": True,
             "n": len(miembros),
+            # cuántas fuentes frías se colapsaron aquí: sin esto el rollup perdía
+            # la señal 'fría' por-arco (el docstring promete que siempre sobrevive)
+            "frias": sum(1 for m in miembros if m.get("fria")),
             "_peso": sum(peso(m) for m in miembros),
             "_miembros": [m["id"] for m in miembros],
         })

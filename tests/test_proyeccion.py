@@ -306,3 +306,132 @@ def test_anomalias_no_escriben_nada(conn):
     antes = _conteos(conn)
     construir_grafo(conn, SID)  # CONCILIA corre dentro: debe ser lectura pura
     assert _conteos(conn) == antes
+
+
+def test_anomalia_vin_duplicado_cita_todos_los_duplicados(conn):
+    # dos filas DWH con el MISMO chasis: el hallazgo de VIN duplicado debe
+    # implicar AMBOS nodos vehículo, no solo el último (last-wins los perdía)
+    conn.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                 " chasis, factura, pais_code, precio, auto_code) VALUES"
+                 " (1, 1, 1, 'VIN00000000000001', 'FACDUP-Z', 'DEU', 500000, 'AAA111')")
+    conn.commit()
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    anom = next(n for n in g["nodos"] if n["id"] == "anom:conc-vin-dup-dwh")
+    objetivos = {e["target"] for e in g["enlaces"] if e["source"] == anom["id"]}
+    dup = {n["id"] for n in g["nodos"]
+           if n["kind"] == "vehiculo" and n["etiqueta"] == "VIN00000000000001"}
+    assert len(dup) == 2
+    assert dup <= objetivos                       # AMBOS duplicados citados
+
+
+def test_vehiculo_con_pedimento_cross_sesion_se_ancla_al_nucleo(conn):
+    # un pedimento de OTRA sesión (deriva referencial: la FK no obliga misma
+    # sesión) no se proyecta aquí; el vehículo cuelga del núcleo, sin arista a
+    # un nodo pedimento ausente (que rompería el invariante de conteo y crashea)
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-06-10', 6, 2026)")
+    conn.execute("INSERT INTO pedimentos (session_id, numero_pedimento)"
+                 " VALUES (2, 'PED-OTRA')")
+    ped_otra = conn.execute("SELECT MAX(id) FROM pedimentos").fetchone()[0]
+    conn.execute("INSERT INTO importaciones (session_id, pedimento_id, catalogo_id,"
+                 " chasis, factura, pais_code, precio, auto_code) VALUES"
+                 " (1, ?, 1, 'VINCROSS000000001', 'FACX-1', 'DEU', 100000, 'AAA111')",
+                 (ped_otra,))
+    conn.commit()
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    ids = {n["id"] for n in g["nodos"]}
+    for e in g["enlaces"]:                         # ninguna arista a un nodo ausente
+        assert e["source"] in ids and e["target"] in ids
+    assert f"ped:{ped_otra}" not in ids
+    veh = next(n["id"] for n in g["nodos"]
+               if n["kind"] == "vehiculo" and n["etiqueta"] == "VINCROSS000000001")
+    pares = {(e["source"], e["target"]) for e in g["enlaces"]}
+    assert ("nucleo-sesion-1", veh) in pares       # anclado al núcleo
+
+
+def test_cap_no_reproyecta_conciliado_como_sin_conciliar():
+    # un chasis conciliado (en importaciones) fuera del cap NO debe reaparecer
+    # como vehfac (sin conciliar): la misma unidad con tipo contradictorio
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA foreign_keys = ON")
+    c.executescript(models.SCHEMA_SQL)
+    c.executescript(models_autogenes.AG_SCHEMA_SQL)
+    c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+              " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    # 3 filas conciliadas; la 3ª (fuera del cap=2 por id) ordena 1ª por chasis
+    # en extraccion — el escenario exacto que doble-proyectaba
+    vins = ["MMM00000000000001", "MMM00000000000002", "AAA00000000000003"]
+    for i, vin in enumerate(vins):
+        c.execute("INSERT INTO importaciones (session_id, chasis, factura, pais_code,"
+                  " precio) VALUES (1, ?, ?, 'DEU', 100000)", (vin, f"F{i}0000-X"))
+        c.execute("INSERT INTO extraccion_facturas (session_id, factura, chasis,"
+                  " filename, pais_code) VALUES (1, ?, ?, ?, 'DEU')",
+                  (f"F{i}0000", vin, f"c{i}.pdf"))
+    c.commit()
+    red_mod.invalidar()
+    g = construir_grafo(c, 1, limite_vehiculos=2, con_analitica=False,
+                        con_anomalias=False)
+    conciliados = set(vins)
+    vehfac = {n["etiqueta"] for n in g["nodos"] if n["id"].startswith("vehfac:")}
+    assert not (vehfac & conciliados)             # ningún conciliado como vehfac
+
+
+def test_pdf_ingerido_no_se_duplica_como_virtual(conn):
+    # tras F4, un PDF que existe como ag_artefacto NO debe aparecer también
+    # como artefacto virtual: un documento, un nodo, evidencia no partida
+    art = Sustrato(conn, SID).crear_artefacto("pdf", "lote_alemania.pdf")
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    homonimos = [n for n in g["nodos"] if n["etiqueta"] == "lote_alemania.pdf"]
+    assert len(homonimos) == 1                    # un solo nodo para el documento
+    assert homonimos[0]["id"] == art.id           # el real, no el virtual
+    assert "art:pdf:lote_alemania.pdf" not in {n["id"] for n in g["nodos"]}
+    pares = {(e["source"], e["target"]) for e in g["enlaces"]}
+    assert ("veh:1", art.id) in pares             # el vehículo cita el nodo REAL
+
+
+def test_version_distingue_bases_sin_relaciones_por_entidades():
+    # dos bases DISTINTAS con iguales conteos y CERO relaciones no deben
+    # compartir versión (ni, por tanto, caché de lente): la huella de
+    # relaciones sola es '' para ambas y colisionaban
+    from autogenes.red import version_de_sesion
+
+    def _db(nombre):
+        c = sqlite3.connect(":memory:")
+        c.row_factory = sqlite3.Row
+        c.executescript(models.SCHEMA_SQL)
+        c.executescript(models_autogenes.AG_SCHEMA_SQL)
+        c.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                  " year_processed) VALUES ('2026-07-10', 7, 2026)")
+        Sustrato(c, 1).upsert_entidad(nombre, "organizacion", "operador")
+        return c
+
+    a, b = _db("Empresa Alfa"), _db("Empresa Beta")
+    assert version_de_sesion(a, 1) != version_de_sesion(b, 1)
+
+
+def test_hubs_excluyen_nodos_de_anomalia(conn):
+    # un hallazgo Δ es derivado, no una entidad: no debe salir como "el más
+    # conectado" (KINDS_RUIDO lo excluye del ranking de hubs)
+    from autogenes.caminos import mas_conectadas
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    assert any(n["kind"] == "anomalia" for n in g["nodos"])   # hay Δ en el grafo
+    hubs = mas_conectadas(conn, SID)
+    assert all(h["kind"] != "anomalia" for h in hubs)
+
+
+def test_delta_nomos_carga_su_disposicion_ghost_ink(conn):
+    # el Δ de NOMOS debe leer su disposición O1 (como concilia/validación) para
+    # que el lienzo apague con tinta fantasma lo ya resuelto, no gritar 'nuevo'
+    s = Sustrato(conn, SID)
+    rg = s.crear_regla("DEU debe ser N", [{"campo": "pais_code", "valor": "DEU"}],
+                       {"campo": "j_y_n", "valor": "N"})   # filas DEU la incumplen
+    s.disponer_hallazgo("nomos", rg["id"], "resuelto", "corregido")
+    red_mod.invalidar()
+    g = construir_grafo(conn, SID)
+    delta = next(n for n in g["nodos"] if n["id"] == "anom:nomos:" + rg["id"])
+    assert delta["extra"]["estado"] == "resuelto"

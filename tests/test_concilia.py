@@ -381,3 +381,53 @@ def test_ola2_lectura_pura_doble_corrida(conn):
     conn.execute("INSERT INTO pedimentos (session_id, numero_pedimento)"
                  " VALUES (?, '26-777')", (SID,))
     assert conciliar(conn, SID) == conciliar(conn, SID)   # misma base, misma salida
+
+
+def test_disputa_en_factura_no_primera_no_se_pierde(conn):
+    # una importación casa con DOS facturas del mismo prefijo (8): la 1ª
+    # concuerda, la 2ª disputa J/N y país. Mirar solo la 1ª subcontaba la
+    # disputa y omitía su valor del riesgo — y contradecía veredicto_por_fila.
+    from autogenes.concilia import veredicto_por_fila
+    ped = _pedimento(conn)
+    _vender(conn, "VIN00000000000000001", "F2601001-A", precio=500000,
+            jn="J", pais="DEU", pedimento_id=ped)
+    _llegar(conn, "VIN00000000000000001", "F2601001-X", jn="J", pais="DEU",
+            filename="ok.pdf")                      # concuerda (insertada 1ª)
+    _llegar(conn, "VIN00000000000000001", "F2601001-Y", jn="N", pais="BRA",
+            filename="mal.pdf")                     # disputa (2ª factura)
+    r = conciliar(conn, SID)
+    clases = {h["clase"]: h for h in r["hallazgos"]}
+    assert clases["jn_en_disputa"]["n_unidades"] == 1
+    assert clases["jn_en_disputa"]["refs"][0]["pdf"] == "N"
+    assert "pais_en_disputa" in clases
+    # el valor en riesgo de la unidad realmente disputada no se omite
+    assert r["valor_en_riesgo_mxn"] == 500000
+    assert r["flujo"]["conciliados"] == 1
+    # los dos motores nunca se contradicen sobre la misma unidad
+    fid = conn.execute("SELECT id FROM importaciones").fetchone()[0]
+    assert fid in veredicto_por_fila(conn, SID)["en_disputa"]
+
+
+def test_llegado_sin_moneda_no_suma_importe_sin_unidad(conn):
+    # dos llegadas sin moneda declarada: sus importes NO se suman (podrían
+    # ser divisas distintas) — se reporta el conteo, jamás un total sin unidad
+    _llegar(conn, "VIN00000000000000001", "SUELTA-1", amount="1000",
+            moneda=None, filename="a.pdf")
+    _llegar(conn, "VIN00000000000000002", "SUELTA-2", amount="2000",
+            moneda="", filename="b.pdf")
+    r = conciliar(conn, SID)
+    h = next(x for x in r["hallazgos"] if x["clase"] == "llegado_sin_venta")
+    assert h["n_unidades"] == 2
+    assert h["monto"] is None and h["moneda"] is None     # sin unidad, no se suma
+    assert "no se suman" in h["detalle"]
+
+
+def test_flujo_sin_precios_legibles_no_fabrica_cero(conn):
+    # todo lo vendido/conciliado sin precio legible ⇒ valores None (ausente),
+    # nunca $0 fabricado indistinguible de un cero real
+    _vender(conn, "VIN00000000000000001", "F2601-8Y3", precio=0.0)
+    _llegar(conn, "VIN00000000000000001", "F2601-8Y")
+    r = conciliar(conn, SID)
+    assert r["flujo"]["conciliados"] == 1
+    assert r["flujo"]["valor_vendido_mxn"] is None
+    assert r["flujo"]["valor_conciliado_mxn"] is None

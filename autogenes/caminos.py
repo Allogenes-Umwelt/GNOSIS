@@ -48,7 +48,11 @@ def _mejor_arista(red: nx.MultiDiGraph, a: str, b: str) -> Optional[dict[str, An
             })
     if not candidatas:
         return None
-    candidatas.sort(key=lambda c: (c["kind"] == "relacion", c["peso"]), reverse=True)
+    # desempate por tipo: sin él, entre aristas paralelas de igual kind/peso
+    # ganaría el orden de iteración de networkx (dependiente de inserción)
+    candidatas.sort(
+        key=lambda c: (c["kind"] == "relacion", c["peso"], str(c.get("tipo") or "")),
+        reverse=True)
     return candidatas[0]
 
 
@@ -133,7 +137,11 @@ def caminos(conn: sqlite3.Connection, session_id: int, desde_id: str,
             simple[u][v]["w"] = min(simple[u][v]["w"], w)
         else:
             simple.add_edge(u, v, w=w)
-    if evitar and evitar in simple and evitar not in (desde_id, hasta_id):
+    # el método declarado debe reflejar lo que REALMENTE pasó: un evitar que no
+    # está en el grafo (o que es un extremo) no quita nada, y etiquetarlo
+    # "evitando un nodo" sería mentir sobre el cómputo
+    quito_nodo = bool(evitar) and evitar in simple and evitar not in (desde_id, hasta_id)
+    if quito_nodo:
         simple = simple.subgraph([n for n in simple if n != evitar])
 
     if via and via in simple and via not in (desde_id, hasta_id):
@@ -150,7 +158,7 @@ def caminos(conn: sqlite3.Connection, session_id: int, desde_id: str,
         rutas = list(itertools.islice(gen, max(1, k)))
     except (nx.NetworkXNoPath, nx.NodeNotFound):
         return []
-    base = "evitando un nodo" if evitar else "topológico"
+    base = "evitando un nodo" if quito_nodo else "topológico"
     salida = []
     for i, ruta in enumerate(rutas):
         metodo = (f"más corto ({base})" if i == 0
@@ -181,7 +189,9 @@ def vecindario(conn: sqlite3.Connection, session_id: int,
     }
 
 
-KINDS_RUIDO = {"vehiculo", "fragmento"}
+# las anomalías Δ son hallazgos DERIVADOS, no entidades del sustrato: no compiten
+# como "los más conectados" ni como extremos de camino (serían ruido semántico)
+KINDS_RUIDO = {"vehiculo", "fragmento", "anomalia"}
 
 
 def mas_conectadas(conn: sqlite3.Connection, session_id: int, top: int = 10,
@@ -194,7 +204,9 @@ def mas_conectadas(conn: sqlite3.Connection, session_id: int, top: int = 10,
         if not incluir_ruido and n.get("kind") in KINDS_RUIDO:
             continue
         hubs.append({**_nodo(red, nid), "grado": grado})
-    hubs.sort(key=lambda h: h["grado"], reverse=True)
+    # -grado, luego id: sin el desempate por id, hubs de igual grado dependían
+    # del orden de inserción de nodos en networkx para sobrevivir el [:top]
+    hubs.sort(key=lambda h: (-h["grado"], h["id"]))
     return hubs[:top]
 
 
@@ -252,13 +264,24 @@ def cuerpo_camino_guardado(camino: dict[str, Any]) -> dict[str, Any]:
         "desde": camino["desde"]["etiqueta"],
         "hasta": camino["hasta"]["etiqueta"],
         "largo": camino["largo"],
-        "saltos": [
-            {
-                "de": s["de"]["etiqueta"],
-                "a": s["a"]["etiqueta"],
-                "tipo": s["arista"].get("tipo") or s["arista"].get("kind"),
-                "evidencia": s["evidencia"],
-            }
-            for s in camino["saltos"]
-        ],
+        "saltos": [_salto_orientado(s) for s in camino["saltos"]],
+    }
+
+
+def _salto_orientado(s: dict[str, Any]) -> dict[str, Any]:
+    """Aplana un salto respetando la orientación REAL de una relación tipada.
+    El recorrido es no-dirigido (alcanzabilidad), pero un verbo dirigido
+    ('opera en') debe leerse en el sentido de la arista (desde→hasta), no en
+    el de la marcha: aplanarlo al orden de marcha afirmaría la relación
+    invertida en un Producto citado y bitacorado (WORM)."""
+    de, a = s["de"], s["a"]
+    arista = s["arista"]
+    if (arista.get("kind") == "relacion" and arista.get("desde")
+            and arista["desde"] != de["id"]):
+        de, a = a, de
+    return {
+        "de": de["etiqueta"],
+        "a": a["etiqueta"],
+        "tipo": arista.get("tipo") or arista.get("kind"),
+        "evidencia": s["evidencia"],
     }

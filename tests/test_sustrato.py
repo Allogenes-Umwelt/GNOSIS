@@ -307,3 +307,79 @@ def test_fusion_une_evidencia_de_triples_duplicados(sustrato: Sustrato):
     assert len(filas) == 1
     import json as _json
     assert set(_json.loads(filas[0]["evidencia"])) == {frags[0].id, frags[1].id}
+
+
+def test_bitacora_sello_encadenado_verifica(sustrato: Sustrato):
+    # cada mutación sella su fila de bitácora encadenando el sello previo;
+    # verificar_bitacora re-deriva la cadena completa
+    _fuente_con_fragmentos(sustrato)
+    sustrato.upsert_entidad("VW", "organizacion", "operador")
+    v = sustrato.verificar_bitacora()
+    assert v["valido"] is True and v["roto_en"] is None
+    assert v["sellados"] == v["filas"] >= 3          # todas selladas
+
+
+def test_bitacora_edicion_fuera_de_la_puerta_se_detecta(sustrato: Sustrato):
+    _fuente_con_fragmentos(sustrato)
+    sustrato.upsert_entidad("VW", "organizacion", "operador")
+    # reescribir el detalle de una fila SIN pasar por Sustrato rompe el sello
+    fid = sustrato.conn.execute(
+        "SELECT id FROM ag_bitacora ORDER BY id LIMIT 1").fetchone()[0]
+    sustrato.conn.execute(
+        "UPDATE ag_bitacora SET detalle = 'HISTORIA REESCRITA' WHERE id = ?",
+        (fid,))
+    v = sustrato.verificar_bitacora()
+    assert v["valido"] is False and v["roto_en"] == fid and v["motivo"] == "hash"
+
+
+def test_bitacora_borrado_fuera_de_la_puerta_se_detecta(sustrato: Sustrato):
+    _fuente_con_fragmentos(sustrato)
+    sustrato.upsert_entidad("VW", "organizacion", "operador")
+    # borrar una fila intermedia rompe el enlace prev_hash de la siguiente
+    ids = [r[0] for r in sustrato.conn.execute(
+        "SELECT id FROM ag_bitacora ORDER BY id")]
+    sustrato.conn.execute("DELETE FROM ag_bitacora WHERE id = ?", (ids[1],))
+    v = sustrato.verificar_bitacora()
+    assert v["valido"] is False and v["motivo"] == "cadena"
+
+
+def test_bitacora_migracion_desde_esquema_sin_sello():
+    # una base ya creada SIN las columnas de sello recibe la migración 3 y
+    # queda operable; las filas previas al sello se declaran sin sellar, no rotas
+    from database.migrations import apply_migrations
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript(models.SCHEMA_SQL)             # processing_sessions
+    # esquema VIEJO de ag_bitacora (sin prev_hash/hash)
+    conn.execute("""CREATE TABLE ag_bitacora (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL,
+        ts TEXT DEFAULT (datetime('now')),
+        accion TEXT NOT NULL,
+        detalle TEXT NOT NULL,
+        FOREIGN KEY (session_id) REFERENCES processing_sessions(id))""")
+    conn.execute("INSERT INTO processing_sessions (session_date, month_processed,"
+                 " year_processed) VALUES ('2026-07-10', 7, 2026)")
+    conn.execute("INSERT INTO ag_bitacora (session_id, accion, detalle)"
+                 " VALUES (1, 'op', 'previo al sello')")
+    # migraciones 1 y 2 tocan otras tablas ausentes en este mínimo: márcalas
+    # aplicadas para aislar la 3 (el add-column real que probamos)
+    conn.execute("CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY,"
+                 " name TEXT NOT NULL, applied_at TEXT DEFAULT (datetime('now')))")
+    conn.executemany("INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
+                     [(1, "n1"), (2, "n2")])
+    apply_migrations(conn)                            # corre solo la migración 3
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(ag_bitacora)")}
+    assert {"prev_hash", "hash"} <= cols
+    Sustrato(conn, 1)._registrar("op", "ya sellada")  # ya puede sellar
+    v = Sustrato(conn, 1).verificar_bitacora()
+    assert v["valido"] is True                        # legado sin sellar no rompe
+    assert v["sellados"] >= 1 and v["filas"] == 2
+
+
+def test_propuesta_relacion_nan_cae_al_default_no_a_nan():
+    # NaN atraviesa min/max y sqlite lo liga NULL -> 500 opaco; el validador
+    # debe caer al default honesto 0.5, no propagar NaN a la puerta
+    r = PropuestaRelacion(desde="a", hasta="b", tipo="x", peso=float("nan"))
+    assert r.peso == 0.5
+    assert PropuestaRelacion(desde="a", hasta="b", tipo="x", peso=5.0).peso == 1.0

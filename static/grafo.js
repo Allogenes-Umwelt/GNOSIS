@@ -64,7 +64,7 @@
     var expandidos = {};                  // pedimento ids con su racimo de vehículos abierto
     var UMBRAL_COLAPSO = 24;              // racimo de vehículos que se colapsa en meta-nodo
     var sesionId = null;
-    var sim = null, animando = false, latiendo = false, t0 = 0;
+    var sim = null, animando = false, latiendo = false;
     var vista = { x: 0, y: 0, k: 1 };
     var sel = null, hover = null;
     var resalte = null;          // {nodos:{}, enlaces:{}} — camino/vecindario
@@ -88,26 +88,33 @@
     // Ley de marca: el canvas es "gráfico fino" — usa la variante AAA
     // por modo (--acc-text), nunca el cyan real fijo.
     function conAlfa(hex, a) {
-      var h = hex.replace('#', '');
+      var h = String(hex || '').replace('#', '');
       if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+      if (h.length < 6) return 'rgba(0,0,0,' + a + ')';   // token no-hex ⇒ no NaN
       return 'rgba(' + parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) +
              ',' + parseInt(h.slice(4, 6), 16) + ',' + a + ')';
     }
     function leerColores() {
       var cs = getComputedStyle(document.documentElement);
+      esLight = document.documentElement.getAttribute('data-theme') === 'light';
+      // fallbacks POR TEMA (patrón QualiaComun): un token no resuelto ya no
+      // pinta la paleta Nocturne sobre Daylight (invisible claro-sobre-claro)
+      function tok(nombre, oscuro, luz) {
+        return cs.getPropertyValue(nombre).trim() || (esLight ? luz : oscuro);
+      }
       colores = {
-        acc: cs.getPropertyValue('--acc-text').trim() || '#00D4FF',
-        cobalt: cs.getPropertyValue('--cobalt-on').trim() || '#8C9EFF',
-        warn: cs.getPropertyValue('--warn').trim() || '#FF80AA',
-        danger: cs.getPropertyValue('--danger').trim() || '#F57F9C',
-        linea: cs.getPropertyValue('--line').trim() || '#5B5B5B',
-        linea2: cs.getPropertyValue('--line-2').trim() || '#777',
-        t1: cs.getPropertyValue('--t1').trim() || '#FAFAF8',
-        t3: cs.getPropertyValue('--t3').trim() || '#AAA',
-        bg: cs.getPropertyValue('--bg').trim() || '#050505',
+        acc: tok('--acc-text', '#00D4FF', '#005A6E'),
+        cobalt: tok('--cobalt-on', '#8C9EFF', '#2A3EB1'),
+        warn: tok('--warn', '#FF80AA', '#8C0038'),
+        danger: tok('--danger', '#F57F9C', '#A4133C'),
+        linea: tok('--line', '#5B5B5B', '#919191'),
+        linea2: tok('--line-2', '#777777', '#737373'),
+        t1: tok('--t1', '#FAFAF8', '#030303'),
+        t3: tok('--t3', '#AAAAAA', '#474747'),
+        bg: tok('--bg', '#050505', '#FAFAF8'),
+        surface: tok('--surface', '#0A0A0A', '#F8F8F6'),
         fondo: 'transparent'
       };
-      esLight = document.documentElement.getAttribute('data-theme') === 'light';
     }
 
     // ── paleta y formas por nodo (PANOPTES §1.1, §5) ──────────────────
@@ -171,7 +178,7 @@
       var L = largoDardo(r), ang = anguloDardo(n);
       ctx.save(); ctx.translate(n.x, n.y); ctx.rotate(ang);
       ctx.beginPath(); trazarHoja(L, DARDO_SK);
-      ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+      ctx.fillStyle = conAlfa(colores.bg, esLight ? 0.94 : 0.96);
       ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = esFoco ? 2.0 : Math.max(1, L * 0.014);
       ctx.stroke();
@@ -238,7 +245,7 @@
         ctx.rotate(ab + Math.PI / 2);
         var L = S * 0.88;
         ctx.beginPath(); trazarHoja(L, 0);
-        ctx.fillStyle = esLight ? 'rgba(250,250,248,.94)' : 'rgba(9,14,20,.96)';
+        ctx.fillStyle = conAlfa(colores.bg, esLight ? 0.94 : 0.96);
         ctx.fill();
         ctx.strokeStyle = colores.acc; ctx.lineWidth = Math.max(1, L * 0.016);
         ctx.stroke();
@@ -371,7 +378,16 @@
             badgeFrag[t.id] = (badgeFrag[t.id] || 0) + 1;
           }
         });
-        sel = null; pintarInspector(null);
+        // reset del estado de interacción: todo lo que referencia ids/objetos
+        // del payload ANTERIOR (resalte, whatif, camino, multiSel, hover,
+        // funnel) queda obsoleto al recargar; dejarlo pintaba el grafo nuevo
+        // atenuado o con cables a nodos muertos. Los filtros de leyenda (por
+        // kind) sí persisten — no dependen de ids.
+        sel = null; hover = null; resalte = null; whatif = null;
+        modoCamino = null; multiSel = {}; lasso = null;
+        canvas.style.cursor = 'grab';
+        replegarFunnel(false);
+        pintarInspector(null);
         colapsar();          // deriva nodos/enlaces visibles + estado
         reconstruirSim();
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
@@ -407,7 +423,8 @@
       });
 
       // meta-nodos ν×N para racimos grandes; los expandidos muestran las hojas
-      var metaDe = {}, metaNodos = [];
+      var metaDe = {}, metaNodos = [], metaPrevio = {};
+      (nodos || []).forEach(function (n) { if (n && n.meta) metaPrevio[n.id] = n; });
       Object.keys(racimo).forEach(function (pedId) {
         var vehs = racimo[pedId];
         if (vehs.length <= UMBRAL_COLAPSO) return;
@@ -432,15 +449,23 @@
           if (v.tipo) mTipos[v.tipo] = (mTipos[v.tipo] || 0) + 1;
         });
         var mTipo = Object.keys(mTipos).sort(function (a, b) { return mTipos[b] - mTipos[a]; })[0] || null;
-        metaNodos.push({
-          id: metaId, kind: 'vehiculo', meta: true, abierto: abierto,
-          conteo: vehs.length, glifo: 'ν', etiqueta: vehs.length + ' vehículos',
-          ped: pedId, comunidad: ped ? ped.comunidad : 0, centralidad: 0.35,
+        // reutiliza el meta previo (misma id) para PRESERVAR su posición: crear
+        // uno nuevo en ped.x en cada colapsar (repintar estado, cancelar modo,
+        // limpiar selección) lo teletransportaba sobre el pedimento y lo dejaba
+        // inerte — la sim tenía capturado el objeto anterior, no el recreado.
+        var meta = metaPrevio[metaId] || {
+          id: metaId, kind: 'vehiculo', meta: true, glifo: 'ν', ped: pedId,
           seed: (ped ? ped.seed : 0) || 0,
-          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined,
-          extra: { valor: mVal || null, precio_min: isFinite(mMin) ? mMin : null,
-                   precio_max: isFinite(mMax) ? mMax : null, tipo: mTipo }
-        });
+          x: ped ? ped.x : undefined, y: ped ? ped.y : undefined
+        };
+        meta.abierto = abierto;
+        meta.conteo = vehs.length;
+        meta.etiqueta = vehs.length + ' vehículos';
+        meta.comunidad = ped ? ped.comunidad : 0;
+        meta.centralidad = 0.35;
+        meta.extra = { valor: mVal || null, precio_min: isFinite(mMin) ? mMin : null,
+                       precio_max: isFinite(mMax) ? mMax : null, tipo: mTipo };
+        metaNodos.push(meta);
       });
 
       nodos = nodosRaw.filter(function (n) { return !oculto[n.id]; }).concat(metaNodos);
@@ -680,6 +705,17 @@
         var sx = w / 2 + vista.x + mx * vista.k, sy = h / 2 + vista.y + my * vista.k;
         return sx >= -m && sx <= w + m && sy >= -m && sy <= h + m;
       }
+      // outcode Cohen-Sutherland: un enlace se descarta SOLO si ambos extremos
+      // caen del MISMO lado del viewport (entonces no puede cruzarlo). Descartar
+      // por "ambos fuera" borraba aristas que sí lo atraviesan (extremos en
+      // lados opuestos), invisibles al hacer zoom sobre el centro de un vano.
+      function codigoFuera(mx, my) {
+        var sx = w / 2 + vista.x + mx * vista.k, sy = h / 2 + vista.y + my * vista.k;
+        var c = 0;
+        if (sx < 0) c |= 1; else if (sx > w) c |= 2;
+        if (sy < 0) c |= 4; else if (sy > h) c |= 8;
+        return c;
+      }
       // Limpieza a prueba de estado sucio: si un frame anterior murió a
       // media transformación, un clearRect relativo deja residuo (el
       // "glitch" de estelas). Reset absoluto y se vuelve a la base DPR.
@@ -706,7 +742,7 @@
       enlaces.forEach(function (e) {
         var a = porId[e.source], b = porId[e.target];
         if (!a || !b) return;
-        if (!dentro(a.x, a.y, 0) && !dentro(b.x, b.y, 0)) return;   // culling: ambos extremos fuera
+        if (codigoFuera(a.x, a.y) & codigoFuera(b.x, b.y)) return;   // culling: mismo lado (Cohen-Sutherland)
         // cable-estela: arista activa del funnel (centro ↔ órbita)
         if (despliegue && ((e.source === despliegue.centro.id && despliegue.ids[e.target]) ||
                            (e.target === despliegue.centro.id && despliegue.ids[e.source]))) {
@@ -721,7 +757,7 @@
         var apagado = leyOculta(a.kind) || leyOculta(b.kind) ||
           (resalte ? !resalte.enlaces[e.id] : (foco && !toca));
         if (resalte && resalte.enlaces[e.id]) { toca = true; }
-        var cae = whatif && resalte && resalte.enlaces[e.id];   // arista que muere en la simulación
+        var cae = resalte && resalte.origen === 'whatif' && resalte.enlaces[e.id];   // arista que muere en la simulación
         // alfa por peso (E3): la estructura pesa lo que pesa (cita 0.18–0.52)
         ctx.globalAlpha = apagado ? 0.07 : (cae ? 0.85
           : (e.kind === 'relacion' ? 0.8 : 0.18 + (e.peso || 0.5) * 0.34));
@@ -802,7 +838,7 @@
         // efectos DETRÁS del nodo: glow/burn de la alerta (no para lo cerrado)
         if (n.kind === 'anomalia' && n.severidad && !cerradaDisp) glowBurn(n, r, ts);
         // el nodo que se simula caer arde como alerta crítica (P3)
-        if (whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
+        if (resalte && resalte.origen === 'whatif' && whatif && n.id === whatif.id) glowBurn({ x: n.x, y: n.y, severidad: 'danger' }, r, ts);
 
         var detalle = r * vista.k >= 13;   // LOD: el detalle mecha se apaga de lejos
         if (n.kind === 'nucleo') {
@@ -1018,13 +1054,19 @@
     // marca/país ya son agregados, así que no suman al total de vehículos.
     function resumenMultiSel() {
       if (!estadoLinea) return;
+      // poda ids ya no visibles (colapso/recarga): la línea de estado y los
+      // anillos deben concordar con lo que está en el lienzo
+      Object.keys(multiSel).forEach(function (id) { if (!porId[id]) delete multiSel[id]; });
       var ids = Object.keys(multiSel);
       if (!ids.length) { colapsar(); return; }   // repinta la línea de estado normal
       var veh = 0, suma = 0;
       ids.forEach(function (id) {
         var n = porId[id]; if (!n) return;
-        if (n.meta) { veh += n.conteo || 0; suma += (n.extra ? +n.extra.valor : 0) || 0; }
-        else if (n.kind === 'vehiculo') { veh++; suma += (n.extra ? +n.extra.precio : 0) || 0; }
+        // un meta ABIERTO se representa por sus hojas visibles (contadas abajo):
+        // sumarlo también duplicaría vehículos y $. Solo el cerrado agrega.
+        if (n.meta) {
+          if (!n.abierto) { veh += n.conteo || 0; suma += (n.extra ? +n.extra.valor : 0) || 0; }
+        } else if (n.kind === 'vehiculo') { veh++; suma += (n.extra ? +n.extra.precio : 0) || 0; }
       });
       var txt = ids.length + ' SELECCIONADOS';
       if (veh) txt += ' · ' + veh + ' VEHÍCULOS';
@@ -1149,13 +1191,22 @@
     }
     canvas.addEventListener('pointerup', soltar);
     canvas.addEventListener('pointercancel', soltar);
+    // salir del lienzo apaga el hover: sin esto foco = sel || hover retenía un
+    // nodo del payload anterior (comparación por identidad) y el grafo recargado
+    // quedaba atenuado hasta re-entrar el puntero
+    canvas.addEventListener('pointerleave', function () {
+      if (hover) { hover = null; canvas.style.cursor = 'grab'; if (!animando) dibujar(0); }
+    });
     canvas.addEventListener('dblclick', function (ev) {
       var p = xy(ev);
       if (!nodoEn(p[0], p[1])) { encuadrar(); if (!animando) dibujar(0); }
     });
     canvas.addEventListener('wheel', function (ev) {
       ev.preventDefault();
-      var factor = Math.pow(1.0015, -ev.deltaY);
+      // normaliza el modo de rueda: Firefox entrega deltaY en líneas (≈±3) o
+      // páginas, no en px — sin esto el zoom queda casi inerte en ese navegador
+      var dy = ev.deltaY * (ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1);
+      var factor = Math.pow(1.0015, -dy);
       var p = xy(ev);
       var antes = aMundo(p[0], p[1]);
       vista.k = Math.min(6, Math.max(0.25, vista.k * factor));
@@ -1465,7 +1516,7 @@
       } else if (k === 'anomalia') {
         var sev = n.severidad === 'danger';
         sub = 'motor ' + (ex(n, 'motor') || '—');
-        cuerpo = '<span class="gr-chip ' + (sev ? 'crit' : 'warn') + '">● ' +
+        cuerpo = '<span class="gr-sev-chip ' + (sev ? 'crit' : 'warn') + '">● ' +
           (sev ? 'Crítico' : 'Revisar') + ' · ' + esc(n.severidad || 'warn') + '</span>';
         if (ex(n, 'detalle')) cuerpo += '<div class="gr-diag">' + esc(ex(n, 'detalle')) + '</div>';
         cuerpo += fila('motor', ex(n, 'motor')) + fila('regla', ex(n, 'regla_id')) +
@@ -1543,7 +1594,9 @@
         simularCaida(n);
       } else if (a === 'expandir' && n.ped) {
         expandidos[n.ped] = !expandidos[n.ped];   // despliega el racimo ν×N
-        colapsar(); if (!animando) dibujar(0);
+        // cambia el SET visible (aparecen/ocultan hojas): hay que reconstruir la
+        // sim como el camino del tap, o las hojas reveladas quedan congeladas
+        colapsar(); reconstruirSim();
       }
     }
     function abrirTarjeta(n) {
@@ -1633,7 +1686,10 @@
           enlaces.forEach(function (e) {
             if (e.source === n.id || e.target === n.id) re[e.id] = true;
           });
-          resalte = { nodos: rn, enlaces: re };
+          // origen:'whatif' marca ESTE resalte como la caída simulada: el estilo
+          // de "arista que muere" (magenta) se condiciona a él, así un resalte
+          // posterior (camino/vecindario) NO pinta sus aristas como caída
+          resalte = { nodos: rn, enlaces: re, origen: 'whatif' };
           pintarWhatif(n, d);
           if (estadoLinea) estadoLinea.textContent = 'SIMULACIÓN · CAÍDA DE ' +
             (n.etiqueta || n.id).toUpperCase().slice(0, 24);
@@ -2007,7 +2063,7 @@
       out.width = canvas.width;
       out.height = canvas.height + pie;
       var o = out.getContext('2d');
-      o.fillStyle = colores.bg || '#050505';
+      o.fillStyle = colores.bg;   // colores.bg ya trae fallback por tema
       o.fillRect(0, 0, out.width, out.height);
       o.drawImage(canvas, 0, 0);
       o.strokeStyle = colores.acc; o.globalAlpha = 0.5;
@@ -2098,11 +2154,11 @@
           } }
       ];
       if (sel && (sel.kind === 'marca' || sel.kind === 'pais' || sel.kind === 'pedimento')) {
-        cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'what-if',
+        cmds.push({ et: 'Simular caída de ' + sel.etiqueta, hint: 'simulación',
           run: (function (n) { return function () { simularCaida(n); }; })(sel) });
       }
       if (sel) cmds.push({ et: (vigilados[sel.id] ? 'Dejar de vigilar ' : 'Vigilar ') + sel.etiqueta,
-        hint: 'watchlist', run: (function (n) { return function () { alternarVigilado(n); }; })(sel) });
+        hint: 'vigilancia', run: (function (n) { return function () { alternarVigilado(n); }; })(sel) });
       // search-around tipado (P2): aísla los vecinos de un kind del nodo activo
       if (sel && vecinos[sel.id]) {
         var kindsVec = {};
@@ -2110,7 +2166,7 @@
           var v = porId[id]; if (v && v.kind !== 'fragmento') kindsVec[v.kind] = true;
         });
         Object.keys(kindsVec).sort().forEach(function (kk) {
-          cmds.push({ et: 'Vecinos ' + kk + ' de ' + sel.etiqueta, hint: 'search-around',
+          cmds.push({ et: 'Vecinos ' + kk + ' de ' + sel.etiqueta, hint: 'vecindario',
             run: (function (k, n) { return function () {
               var rn = {}, re = {}; rn[n.id] = true;
               Object.keys(vecinos[n.id] || {}).forEach(function (id) {
@@ -2126,8 +2182,8 @@
       }
       cmds.push({ et: 'Guardar investigación', hint: 'P1',
         run: function () { guardarInvestigacion(); } });
-      cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'export', run: exportarExhibit });
-      cmds.push({ et: 'Copiar enlace de esta vista', hint: 'export', run: copiarEnlaceVista });
+      cmds.push({ et: 'Exportar imagen (exhibit)', hint: 'exportar', run: exportarExhibit });
+      cmds.push({ et: 'Copiar enlace de esta vista', hint: 'exportar', run: copiarEnlaceVista });
       cmds.push({ et: (histoVisible ? 'Ocultar' : 'Mostrar') + ' histograma de precios', hint: 'facetas',
         run: function () {
           histoVisible = !histoVisible; histoCanvas.hidden = !histoVisible;

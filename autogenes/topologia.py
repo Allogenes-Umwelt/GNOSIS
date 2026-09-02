@@ -333,7 +333,10 @@ def persistencia_h0(red: Red) -> dict[str, Any]:
 
     barras: list[dict] = []
     edges = sorted(
-        (e for e in red["enlaces"] if e["origen"] != e["destino"]),
+        # una arista a un extremo no proyectado se ignora (como todos los demás
+        # motores), no se indexa a ciegas: source-agnostic, degrada sin crashear
+        (e for e in red["enlaces"] if e["origen"] != e["destino"]
+         and e["origen"] in parent and e["destino"] in parent),
         key=lambda e: (-e["peso"], e["origen"]),
     )
     for e in edges:

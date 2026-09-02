@@ -48,7 +48,16 @@ def _con_sesion(handler):
     """Patrón común de los endpoints: conexión + sesión activa verificada
     (una sesión inexistente es 404, no un 500 críptico)."""
     from database import get_connection
-    session_id = request.args.get('session_id', type=int) or _sesion_activa()
+    crudo = request.args.get('session_id')
+    if crudo not in (None, ''):
+        # session_id EXPLÍCITO: un valor inválido (0, negativo, no numérico) se
+        # declara, no cae en silencio a la última sesión (serviría otra sesión
+        # sin aviso — un id tecleado mal daría datos de la sesión equivocada)
+        session_id = request.args.get('session_id', type=int)
+        if not session_id or session_id <= 0:
+            return jsonify({'error': f'session_id inválido: {crudo}'}), 400
+    else:
+        session_id = _sesion_activa()
     if not session_id:
         return jsonify({'error': 'No hay sesiones procesadas'}), 404
     conn = get_connection()

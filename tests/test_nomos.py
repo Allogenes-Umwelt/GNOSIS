@@ -146,3 +146,33 @@ def test_backtest_corre_la_regla_sobre_toda_la_historia(conn):
     assert r["corridas"][1]["n_violaciones"] == 1
     assert r["corridas"][1]["pnl_mxn"] == 50000
     assert "error" in backtest_regla(conn, 1, "no-existe")
+
+
+def test_triaje_o1_excluye_reglas_inactivas_del_ciclo(conn):
+    # una regla que el operador APAGÓ es backtest ('qué pasaría'), no un
+    # hallazgo vivo: no debe anotarse, contar en estados ni contradecir una
+    # disposición. Solo las reglas ACTIVAS incumplidas entran al ciclo O1.
+    from autogenes.disposiciones import leer_disposiciones
+    from autogenes.nomos import triaje_o1
+    s = Sustrato(conn, 1)
+    act = s.crear_regla("BRA=N activa", [{"campo": "pais_code", "valor": "BRA"}],
+                        {"campo": "j_y_n", "valor": "N"})          # V1,V3 violan
+    ina = s.crear_regla("DEU=N inactiva", [{"campo": "pais_code", "valor": "DEU"}],
+                        {"campo": "j_y_n", "valor": "N"})          # V4 viola
+    s.alternar_regla(ina["id"], False)                            # apagada
+    s.disponer_hallazgo("nomos", act["id"], "resuelto", "sin corregir")
+    s.disponer_hallazgo("nomos", ina["id"], "resuelto", "apagada, no corregida")
+    r = triaje_o1(evaluar_reglas(conn, 1), leer_disposiciones(conn, 1, "nomos"))
+    por_id = {e["id"]: e for e in r["reglas"]}
+    # la activa incumplida marcada resuelta: contradicha (el motor no la cree)
+    assert por_id[act["id"]]["contradice"] is True
+    # la inactiva: fuera del ciclo — ni anotada ni contradictoria
+    assert "contradice" not in por_id[ina["id"]]
+    assert "estado" not in por_id[ina["id"]]
+    # estados cuenta solo la activa incumplida (una, resuelta y contradicha)
+    assert sum(r["estados"][k] for k in
+               ("nuevo", "en_gestion", "resuelto", "descartado")) == 1
+    assert r["estados"]["resuelto"] == 1 and r["estados"]["contradice"] == 1
+    # una inactiva dispuesta 'resuelto' NO es resolución verificada (se apagó,
+    # no se corrigió)
+    assert all(v["clave"] != ina["id"] for v in r["resoluciones_verificadas"])

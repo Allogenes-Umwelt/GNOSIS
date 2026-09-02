@@ -518,6 +518,10 @@ def api_autogenes_integrar():
              'relaciones': data.get('relaciones', [])})
     except Exception:
         return jsonify({'error': 'Propuesta malformada'}), 400
+    # una propuesta vacía es un no-op: no debe escribir una fila de bitácora
+    # WORM ("0 entidades, 0 relaciones") ni un snapshot de telemetría perpetuos
+    if not propuesta.entidades and not propuesta.relaciones:
+        return jsonify({'error': 'Propuesta vacía: nada que integrar'}), 400
 
     def handler(conn, session_id):
         resultado = Sustrato(conn, session_id).integrar_propuesta(propuesta)
@@ -992,24 +996,15 @@ def api_nomos():
     CON violaciones son 'hallazgos' con ciclo de vida (O1): se anotan con su
     disposición y el motor las contradice si dices resuelto lo que sigue
     incumpliéndose. La clave de disposición es el id de la regla."""
-    from autogenes.disposiciones import (anotar, leer_disposiciones,
-                                         resoluciones_verificadas,
-                                         resumen_estados)
-    from autogenes.nomos import evaluar_reglas
+    from autogenes.disposiciones import leer_disposiciones
+    from autogenes.nomos import evaluar_reglas, triaje_o1
 
     def handler(conn, session_id):
         r = evaluar_reglas(conn, session_id)
         disp = leer_disposiciones(conn, session_id, 'nomos')
-        for e in r['reglas']:
-            e['clave'] = e['id']
-        # 'vivo' para NOMOS = la regla SIGUE incumpliéndose (n_violaciones>0);
-        # una regla ya en paz sale del triaje y verifica su resolución
-        incumplidas = [e for e in r['reglas'] if e['n_violaciones'] > 0]
-        anotar(incumplidas, disp)
-        claves = {e['clave'] for e in incumplidas}
-        r['resoluciones_verificadas'] = resoluciones_verificadas(claves, disp)
-        r['estados'] = resumen_estados(incumplidas)
-        return jsonify(r)
+        # 'vivo' para NOMOS = regla ACTIVA que SIGUE incumpliéndose; una inactiva
+        # es backtest, no un hallazgo que contradiga o cuente en estados (O1)
+        return jsonify(triaje_o1(r, disp))
     try:
         return _con_sesion(handler)
     except Exception as e:
@@ -1428,6 +1423,15 @@ def api_autogenes_camino():
     via = request.args.get('via') or None
 
     def handler(conn, session_id):
+        # una restricción evitar/via sobre un nodo inexistente NO se ignora en
+        # silencio (devolvería caminos que no respetan lo pedido): se declara
+        if evitar or via:
+            from autogenes.red import red_de_sesion
+            red = red_de_sesion(conn, session_id)
+            for etq in (evitar, via):
+                if etq and etq not in red:
+                    return jsonify(
+                        {'error': f'Nodo desconocido para la restricción: {etq}'}), 404
         vols = volumenes_por_nodo(conn, session_id)
         if k <= 1 and not evitar and not via:
             cam = camino_mas_corto(conn, session_id, desde, hasta)
@@ -1629,20 +1633,16 @@ def api_autogenes_grafo():
 
     Query params: session_id (default: la sesion mas reciente),
     limite_vehiculos (opcional, acota los nodos vehiculo)."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.proyeccion import construir_grafo
-    try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            limite = request.args.get('limite_vehiculos', type=int)
-            grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
-        finally:
-            conn.close()
+    limite = request.args.get('limite_vehiculos', type=int)
+
+    def handler(conn, session_id):
+        # _con_sesion 404ea una sesión inexistente en vez de fabricar un 200
+        # "vacío" indistinguible de una sesión real sin datos
+        grafo = construir_grafo(conn, session_id, limite_vehiculos=limite)
         return jsonify({'session_id': session_id, **grafo})
+    try:
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1650,19 +1650,13 @@ def api_autogenes_grafo():
 @bp.route('/api/v1/autogenes/arbol', methods=['GET'])
 def api_autogenes_arbol():
     """La ontologia de una sesion como arbol jerarquico (mapa de ingesta)."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.proyeccion import arbol_ontologia
+
+    def handler(conn, session_id):
+        return jsonify({'session_id': session_id,
+                        'arbol': arbol_ontologia(conn, session_id)})
     try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            arbol = arbol_ontologia(conn, session_id)
-        finally:
-            conn.close()
-        return jsonify({'session_id': session_id, 'arbol': arbol})
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1671,19 +1665,12 @@ def api_autogenes_arbol():
 def api_autogenes_chord_ingesta():
     """El mapa de ingesta como chord bipartito: fuentes -> entidades, con las
     fuentes frias (que nadie cita) visibles como arcos sin cintas."""
-    from database import get_connection
-    from database.persistence import get_latest_session_id
     from autogenes.chord_ingesta import chord_ingesta
+
+    def handler(conn, session_id):
+        return jsonify(chord_ingesta(conn, session_id))
     try:
-        conn = get_connection()
-        try:
-            session_id = request.args.get('session_id', type=int) or get_latest_session_id()
-            if not session_id:
-                return jsonify({'error': 'No hay sesiones procesadas'}), 404
-            chord = chord_ingesta(conn, session_id)
-        finally:
-            conn.close()
-        return jsonify(chord)
+        return _con_sesion(handler)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

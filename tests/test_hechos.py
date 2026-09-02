@@ -70,11 +70,12 @@ def test_cada_hecho_carga_su_procedencia(conn):
             assert h["unidad"] == "MXN"
 
 
-def test_analisis_aporta_corte_critico(conn):
+def test_analisis_no_fabrica_hecho_de_corte_critico(conn):
     _sembrar_flujo(conn)
     ids = {h["id"] for h in hechos_medidos(conn, 1)}
-    # VW depende de DEU: un corte de rutas interrumpe parte del suministro
-    assert "hecho:analisis:corte-critico" in ids
+    # el hecho de corte-critico se retiró: su pct era 1.0 por construcción.
+    # el cuello honesto se expresa vía redundancia (punto-unico-falla).
+    assert "hecho:analisis:corte-critico" not in ids
 
 
 def test_regla_nomos_monetizada_va_primero(conn):

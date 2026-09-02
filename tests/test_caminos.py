@@ -222,3 +222,26 @@ def test_volumen_no_anota_extremos_sin_flujo():
            "hasta": {"id": "e2", "etiqueta": "Puerto", "kind": "entidad"}, "saltos": []}
     anotar_volumen_extremos([cam], {"pais": {}, "marca": {}})
     assert "volumen" not in cam["desde"] and "volumen" not in cam["hasta"]
+
+
+def test_cuerpo_guardado_preserva_direccion_de_relacion_al_reves(caso):
+    # 'opera en' es agencia->puerto; recorrerlo AL REVÉS (puerto->agencia por
+    # alcanzabilidad no-dirigida) no debe hacer que el Producto WORM afirme
+    # 'Puerto opera en Agencia' — la evidencia dice lo contrario
+    c, _, d = caso
+    cam = camino_mas_corto(c, 1, d["puerto"].id, d["agencia"].id)
+    assert cam["largo"] == 1
+    assert cam["saltos"][0]["de"]["etiqueta"] == "Puerto"   # marcha: puerto->agencia
+    salto = cuerpo_camino_guardado(cam)["saltos"][0]
+    assert salto["tipo"] == "opera en"
+    assert salto["de"] == "Agencia" and salto["a"] == "Puerto"   # sentido real
+
+
+def test_caminos_metodo_no_miente_con_evitar_inexistente(caso):
+    # evitar un nodo que no está en el grafo no quita nada: el método NO puede
+    # declarar 'evitando un nodo' (mentiría sobre el cómputo)
+    c, _, d = caso
+    lista = caminos(c, 1, d["fianza"].id, d["puerto"].id, k=2, evitar="id-fantasma")
+    assert lista
+    assert all("evitando un nodo" not in cam["metodo"] for cam in lista)
+    assert "topológico" in lista[0]["metodo"]

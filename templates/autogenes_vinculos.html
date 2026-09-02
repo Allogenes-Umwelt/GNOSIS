@@ -30,11 +30,16 @@
                   style="min-width:auto;padding:0 12px">limpiar</button>
           <button type="button" id="vn-reencuadrar" class="ag-plegar"
                   style="min-width:auto;padding:0 12px">reencuadrar</button>
+          <button type="button" id="vn-tabla-btn" class="ag-plegar"
+                  style="min-width:auto;padding:0 12px"
+                  aria-label="Ver los nodos como tabla accesible">tabla</button>
         </span>
         <span class="s">SESIÓN {{ sesion_etiqueta }}</span>
       </div>
-      <div class="gr-lienzo" data-inspector="#vn-detalle" data-estado="#gr-estado" data-reset="#vn-reencuadrar">
+      <div class="gr-lienzo" data-inspector="#vn-detalle" data-estado="#gr-estado"
+           data-reset="#vn-reencuadrar" data-tabla="#vn-tabla" data-tabla-btn="#vn-tabla-btn">
         <canvas aria-label="Lienzo de vínculos de la sesión" role="img"></canvas>
+        <div id="vn-tabla" class="gr-tabla" hidden aria-label="Nodos del caso, tabla accesible"></div>
       </div>
       <ul class="ag-leyenda" style="margin-top:8px">
         <li><span id="gr-estado" role="status">CARGANDO…</span></li>
@@ -74,7 +79,7 @@
       <div class="ag-msj" id="vn-msj" role="status"></div>
       <div class="ag-grupo">Los más conectados</div>
       <ul class="ag-nav" id="vn-hubs"></ul>
-      <div id="vn-detalle" class="gr-inspector" hidden></div>
+      <div id="vn-detalle" class="gr-inspector"></div>
       <a class="ag-volver" href="/autogenes" style="margin-top:auto">← Navegador del Sustrato</a>
     </aside>
   </div>

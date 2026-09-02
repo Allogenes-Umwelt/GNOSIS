@@ -108,12 +108,23 @@ CREATE TABLE IF NOT EXISTS ag_productos (
 );
 CREATE INDEX IF NOT EXISTS idx_ag_productos_session ON ag_productos(session_id);
 
+-- ag_bitacora es WORM (append-only). La propiedad write-once ya no es solo
+-- disciplina de los llamadores: cada fila lleva un sello encadenado
+-- (hash = sha256(prev_hash, id, session_id, ts, accion, detalle)) que
+-- Sustrato._registrar computa al insertar y verificar_bitacora re-deriva. Una
+-- edición o un borrado fuera de la puerta rompe la cadena y se DETECTA (el
+-- esquema no puede impedir el UPDATE sin vetar el sembrado histórico legítimo
+-- de cronos/qualia, pero sí lo vuelve manipulable-con-evidencia-cero).
+-- prev_hash/hash existen aquí para bases nuevas y en la migración 3 para las ya
+-- creadas; son NULL en filas previas al sello (historia sin sellar, declarada).
 CREATE TABLE IF NOT EXISTS ag_bitacora (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id  INTEGER NOT NULL,
     ts          TEXT DEFAULT (datetime('now')),
     accion      TEXT NOT NULL,
     detalle     TEXT NOT NULL,
+    prev_hash   TEXT,
+    hash        TEXT,
     FOREIGN KEY (session_id) REFERENCES processing_sessions(id)
 );
 CREATE INDEX IF NOT EXISTS idx_ag_bitacora_session ON ag_bitacora(session_id);

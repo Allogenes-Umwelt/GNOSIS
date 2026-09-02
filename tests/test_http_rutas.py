@@ -210,6 +210,47 @@ def test_api_405_responde_json(cliente):
     assert r.get_json()["status"] == 405
 
 
+@pytest.mark.parametrize("ruta", [
+    "/api/v1/autogenes/grafo", "/api/v1/autogenes/arbol",
+    "/api/v1/autogenes/chord_ingesta",
+])
+def test_grafo_sesion_inexistente_es_404_no_200_fabricado(cliente, ruta):
+    # un session_id explícito inexistente se declara 404, no se fabrica un 200
+    # "vacío" indistinguible de una sesión real sin datos
+    r = cliente.get(ruta + "?session_id=999999")
+    assert r.status_code == 404
+    assert "999999" in r.get_json()["error"]
+
+
+def test_integrar_propuesta_vacia_es_400_sin_ruido_worm(cliente):
+    # un POST vacío es un no-op: 400 declarado, sin escribir una fila WORM
+    # perpetua ('0 entidades, 0 relaciones')
+    antes = cliente.get("/api/v1/autogenes/bitacora").get_json()["total"]
+    r = cliente.post("/api/v1/autogenes/integrar", json={})
+    assert r.status_code == 400
+    assert "vac" in r.get_json()["error"].lower()
+    despues = cliente.get("/api/v1/autogenes/bitacora").get_json()["total"]
+    assert despues == antes                       # la bitácora NO creció
+
+
+@pytest.mark.parametrize("valor", ["0", "-3", "abc"])
+def test_session_id_invalido_es_400_no_fallback_silencioso(cliente, valor):
+    # un session_id explícito inválido se declara 400, no cae en silencio a la
+    # última sesión (serviría datos de la sesión equivocada sin aviso)
+    r = cliente.get("/api/v1/autogenes/grafo?session_id=" + valor)
+    assert r.status_code == 400
+    assert "inválido" in r.get_json()["error"]
+
+
+def test_camino_evitar_nodo_inexistente_es_404_declarado(cliente):
+    # una restricción evitar/via sobre un nodo que no existe se declara, no se
+    # ignora en silencio devolviendo caminos que no la respetan
+    r = cliente.get("/api/v1/autogenes/camino"
+                    "?desde=a&hasta=b&k=2&evitar=nodo-fantasma")
+    assert r.status_code == 404
+    assert "fantasma" in r.get_json()["error"]
+
+
 def test_api_sin_sesion_es_404_honesto(tmp_path):
     """Sin sesiones procesadas, _con_sesion devuelve 404 declarado (no un
     500 críptico). Base virgen, sin sembrar."""

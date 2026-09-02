@@ -94,6 +94,31 @@ def evaluar_reglas(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
     }
 
 
+def triaje_o1(evaluacion: dict[str, Any], disp: dict[str, dict]) -> dict[str, Any]:
+    """El ciclo de vida O1 sobre una evaluación NOMOS. Un hallazgo VIVO es una
+    regla que se APLICA (activa) y SIGUE incumpliéndose: una inactiva es solo
+    backtest ('qué pasaría') y jamás debe contar como hallazgo, contradecir una
+    disposición ni figurar en el resumen de estados. Anota disposición y
+    contradicción, resume estados y verifica resoluciones — todo sobre reglas
+    activas. Muta `evaluacion` en su lugar y la devuelve. Determinista."""
+    from autogenes.disposiciones import (anotar, resoluciones_verificadas,
+                                         resumen_estados)
+    for e in evaluacion["reglas"]:
+        e["clave"] = e["id"]                          # la clave O1 es el id
+    ids_activas = {e["clave"] for e in evaluacion["reglas"] if e["activa"]}
+    incumplidas = [e for e in evaluacion["reglas"]
+                   if e["n_violaciones"] > 0 and e["activa"]]
+    anotar(incumplidas, disp)
+    claves = {e["clave"] for e in incumplidas}
+    # solo disposiciones de reglas activas: una inactiva dispuesta 'resuelto' no
+    # es una resolución verificada (desapareció por apagado, no por corrección)
+    disp_activas = {k: v for k, v in disp.items() if k in ids_activas}
+    evaluacion["resoluciones_verificadas"] = resoluciones_verificadas(
+        claves, disp_activas)
+    evaluacion["estados"] = resumen_estados(incumplidas)
+    return evaluacion
+
+
 # ── ola 2: backtest contra la historia ───────────────────────────────
 
 

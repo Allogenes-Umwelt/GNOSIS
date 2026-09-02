@@ -22,6 +22,9 @@ CREATE TABLE ag_relaciones (
     hasta_id TEXT NOT NULL, tipo TEXT NOT NULL,
     peso REAL NOT NULL DEFAULT 0.5, evidencia TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (datetime('now')));
+CREATE TABLE ag_bitacora (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER NOT NULL,
+    ts TEXT DEFAULT (datetime('now')), accion TEXT NOT NULL, detalle TEXT NOT NULL);
 """
 
 

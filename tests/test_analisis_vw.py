@@ -85,13 +85,14 @@ def test_redundancia_es_el_numero_de_origenes_independientes(conn):
     assert a["marca"]["redundancia_rutas"] == 2
 
 
-def test_corte_critico_cubre_todo_el_suministro(conn):
-    # red en serie país→aduana→marca sin bypass: el cuello lleva el 100%
+def test_corte_critico_degenerado_retirado_queda_redundancia(conn):
+    # el corte_critico ponderado se retiró: su pct_suministro era 1.0 por
+    # construcción (max-flow/min-cut con capacidades = flujos observados). La
+    # redundancia unitaria (conectividad) es la cifra honesta del cuello.
     a = analisis_vw.analisis(conn, 1)
-    cc = a["marca"]["corte_critico"]
-    assert cc["pct_suministro"] == pytest.approx(1.0)
-    assert cc["n_rutas"] >= 1
-    assert cc["volumen"] == 10
+    assert "corte_critico" not in a["marca"]
+    assert isinstance(a["marca"]["redundancia_rutas"], int)
+    assert a["marca"]["redundancia_rutas"] >= 1
 
 
 def test_desglose_de_origenes_ordenado_por_volumen(conn):
@@ -224,3 +225,36 @@ def test_marcas_disponibles_lista_las_del_flujo(conn):
     """El panel ofrece cambiar de marca: la lista viene medida del flujo."""
     a = analisis_vw.analisis(conn, 1)
     assert a["marcas_disponibles"] == ["AUDI", "VOLKSWAGEN"]
+
+
+def test_comparten_estable_entre_hashseeds():
+    # 'comparten' alimenta una cita del panel (vinculos.js). Con features en
+    # empate de min-share, el orden de iteración del set depende de
+    # PYTHONHASHSEED: el mismo dato daría distinta cita entre reinicios de
+    # Flask. El test corre la función PURA en dos subprocesos con seed distinto
+    # (el doble-corrida en el mismo proceso comparte seed y no lo detectaría).
+    import json
+    import os
+    import subprocess
+    import sys
+    code = (
+        "import sys; sys.path.insert(0, %r)\n"
+        "from autogenes import analisis_vw\n"
+        "filas=[]\n"
+        "for p,a in [('DEU','AAA'),('BRA','BBB'),('ESP','CCC'),('USA','DDD')]:\n"
+        "    for m in ('VOLKSWAGEN','AUDI'):\n"
+        "        filas.append({'pais':p,'aduana':a,'marca':m,'unidades':10,'valor':0.0,'j':5,'n':5})\n"
+        "res=analisis_vw.similitud_conductual(filas,'VOLKSWAGEN')\n"
+        "import json; print(json.dumps([r['comparten'] for r in res]))\n"
+    ) % ("/home/user/GNOSIS",)
+
+    def corre(seed: str) -> list:
+        env = dict(os.environ, PYTHONHASHSEED=seed)
+        p = subprocess.run([sys.executable, "-c", code],
+                           capture_output=True, text=True, env=env)
+        assert p.returncode == 0, p.stderr
+        return json.loads(p.stdout)
+
+    a, b = corre("0"), corre("1")
+    assert a == b                                   # determinista entre seeds
+    assert a[0] == ["pref:J", "aduana:AAA"]         # desempate estable por nombre

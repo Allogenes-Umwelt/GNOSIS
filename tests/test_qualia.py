@@ -259,3 +259,17 @@ def test_anomalia_dispuesta_se_anota_en_el_hallazgo(conn):
     hall2 = qualia.anomalias_de_sesion(conn, SID)["hallazgos"]
     fuente2 = next(h for h in hall2 if h["detector"] == "fuente")
     assert fuente2["estado"] == "descartado" and fuente2["nota"] == "ruido"
+
+
+def test_red_preserva_peso_cero_sin_fabricar(conn):
+    # un 0.0 explícito NO debe reescribirse a 0.5: sería peso fabricado
+    # alimentando la huella de cohesión citada (zero snake oil)
+    frag = conn.execute("SELECT id FROM ag_fragmentos LIMIT 1").fetchone()["id"]
+    s = Sustrato(conn, SID)
+    a = s.upsert_entidad("NodoA", "concepto", "operador", evidencia=[frag])
+    b = s.upsert_entidad("NodoB", "concepto", "operador", evidencia=[frag])
+    rel = s.agregar_relacion(a.id, b.id, "sin confianza", 0.0, [frag])
+    red = qualia.red_de_sesion(conn, SID)
+    borde = next(e for e in red["enlaces"]
+                 if e["origen"] == rel.desde_id and e["destino"] == rel.hasta_id)
+    assert borde["peso"] == 0.0

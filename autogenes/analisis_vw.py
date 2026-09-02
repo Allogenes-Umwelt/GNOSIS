@@ -176,8 +176,13 @@ def similitud_conductual(filas: list[dict], marca_foco: str,
         vm, nm = _vector_marca(filas, m)
         if not vm or nm < minimo:
             continue
+        # clave secundaria por nombre de feature: sin ella los empates de
+        # min-share se rompen por el orden de iteración del set (dependiente de
+        # PYTHONHASHSEED), y el [:2] elegiría un subconjunto distinto entre
+        # reinicios de Flask — la cita del panel cambiaría con el mismo dato
         comp = sorted(((k, min(vfoco.get(k, 0.0), vm.get(k, 0.0)))
-                       for k in set(vfoco) & set(vm)), key=lambda kv: -kv[1])
+                       for k in sorted(set(vfoco) & set(vm))),
+                      key=lambda kv: (-kv[1], kv[0]))
         out.append({"marca": m, "similitud": round(_coseno(vfoco, vm), 4), "n": nm,
                     "comparten": [k for k, v in comp if v > 0.1][:2]})
     out.sort(key=lambda o: (-o["similitud"], -o["n"], o["marca"]))
@@ -328,8 +333,13 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             por_pais[f["pais"]] = por_pais.get(f["pais"], 0) + f["unidades"]
             por_aduana[f["aduana"]] = por_aduana.get(f["aduana"], 0) + f["unidades"]
 
-        # corte crítico y redundancia sobre la subred de la marca, con una
-        # super-fuente ORIGEN conectada a cada país (capacidad = su aporte).
+        # redundancia de suministro (conectividad de aristas) sobre la subred de
+        # la marca, con una super-fuente ORIGEN conectada a cada país. NO se
+        # reporta un "corte crítico" ponderado: con capacidades = flujos
+        # observados, por el teorema max-flow/min-cut TODO corte completo sesga el
+        # 100% del flujo entregado, así que su pct sería 1.0 por construcción
+        # (snake oil). La redundancia unitaria (mínimo de rutas para desconectar)
+        # sí es una cifra honesta y no degenerada.
         sub = _subred_marca(filas, foco)
         sub_nodos = list(sub["nodos"])
         sub_enlaces = list(sub["enlaces"])
@@ -338,9 +348,7 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             sub_enlaces.append({"origen": ORIGEN, "destino": _pais_id(pais), "peso": u})
         red_sub = {"nodos": sub_nodos, "enlaces": sub_enlaces}
         destino = _marca_id(foco)
-        corte = topologia.min_corte(red_sub, ORIGEN, destino)
         redun = topologia.min_corte(red_sub, ORIGEN, destino, capacidad_unitaria=True)
-        vol_corte = sum(c["peso"] for c in corte["corte"])
 
         def _desglose(d: dict[str, int]) -> list[dict]:
             return [{"nombre": k, "unidades": u,
@@ -360,16 +368,6 @@ def analisis(conn: sqlite3.Connection, session_id: int,
             "similitud_conductual": similitud_conductual(filas, foco),
             "brecha_jn": brecha_jn(filas, foco),
             "rutas_ausentes": rutas_ausentes_vs_pares(filas, foco),
-            "corte_critico": {
-                "n_rutas": len(corte["corte"]),
-                "volumen": vol_corte,
-                "pct_suministro": round(vol_corte / vol_total, 4) if vol_total else 0.0,
-                "rutas": [
-                    {"de": c["etiqueta_origen"], "a": c["etiqueta_destino"],
-                     "unidades": c["peso"]}
-                    for c in corte["corte"]
-                ],
-            },
         })
         if sesion_ref and sesion_ref != session_id:
             try:

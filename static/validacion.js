@@ -134,7 +134,7 @@
           (W - 24) + '" y2="' + yy + '"/>';
       }
       function subVal(tz) {
-        return corta(tz.norma, 24) + ' · <tspan class="ll-cap-' +
+        return esc(corta(tz.norma, 24)) + ' · <tspan class="ll-cap-' +
           (tz.cap === 'rechazado' ? 'r' : 'o') + '">|V| = ' + tz.n + '</tspan>';
       }
       function subNomos(tz) {

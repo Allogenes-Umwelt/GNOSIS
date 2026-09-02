@@ -245,15 +245,22 @@ def camino_entre(conn: sqlite3.Connection, session_id: int,
     def _punta(n: dict) -> dict:
         return {"etiqueta": n["etiqueta"], "kind": n["kind"]}
 
-    saltos = [
-        {
-            "de": _punta(s["de"]),
-            "a": _punta(s["a"]),
-            "tipo": s["arista"].get("tipo") or s["arista"].get("kind"),
+    def _salto(s: dict) -> dict:
+        # una relación tipada recorrida hacia atrás se lee en su sentido real
+        # (desde→hasta), no en el de la marcha: si no, el chat afirma el verbo
+        # invertido ('Puerto opera en Agencia' cuando la evidencia dice lo opuesto)
+        de, a = s["de"], s["a"]
+        ar = s["arista"]
+        if ar.get("kind") == "relacion" and ar.get("desde") and ar["desde"] != de["id"]:
+            de, a = a, de
+        return {
+            "de": _punta(de),
+            "a": _punta(a),
+            "tipo": ar.get("tipo") or ar.get("kind"),
             "citas": _citas(conn, session_id, s["evidencia"], maximo=3),
         }
-        for s in camino["saltos"]
-    ]
+
+    saltos = [_salto(s) for s in camino["saltos"]]
     return {
         "desde": _punta(camino["desde"]),
         "hasta": _punta(camino["hasta"]),

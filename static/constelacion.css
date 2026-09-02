@@ -190,7 +190,7 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .ag-nav a.activa { color: var(--acc-text); border-color: var(--acc-text); }
 .ag-nav .num { color: var(--acc-text); font-weight: 700; margin-right: 6px; }
 .ag-nav .dato { color: var(--t3); font-size: .72rem; }
-.ag-nav a.latente { opacity: .55; }
+.ag-nav a.latente { color: var(--t3); }   /* --t3 (muteado) mantiene AAA; opacity .55 lo rompía */
 .ag-grupo { font-family: var(--font-mono); font-size: .625rem; letter-spacing: 3px; text-transform: uppercase; color: var(--t3); margin: 12px 0 6px; }
 
 /* leyenda de operaciones de simetría */
@@ -209,9 +209,11 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
   cursor: pointer; display: inline-flex; align-items: baseline; gap: 5px; min-height: 30px;
 }
 .gr-chip:hover { border-color: var(--line); }
-.gr-chip[aria-pressed="false"] { opacity: .38; text-decoration: line-through; }
+/* estado 'off': el line-through lo señala; el opacity .38 rompía AAA en un
+   control que el operador debe seguir leyendo para re-activarlo */
+.gr-chip[aria-pressed="false"] { color: var(--t3); text-decoration: line-through; }
 .gr-chip.aislado { border-color: var(--acc-text); color: var(--t1); }
-.gr-chip-n { color: var(--t3); font-size: .64rem; opacity: .8; }
+.gr-chip-n { color: var(--t3); font-size: .64rem; }   /* --t3 solo pasa AAA; opacity .8 lo bajaba */
 .gr-aislado {
   display: inline-flex; align-items: center; gap: 10px; margin: 8px 0 0;
   font-family: var(--font-mono); font-size: .66rem; letter-spacing: 1.5px; text-transform: uppercase;
@@ -512,11 +514,12 @@ main:has(.ag-wrap) { min-height: 0; overflow: hidden; }
 .gr-jn i { display: block; height: 100%; }
 .gr-jn i.j { background: var(--acc-text); } .gr-jn i.n { background: var(--warn); }
 .gr-jnlab { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: .56rem; color: var(--t3); letter-spacing: .5px; }
-/* chip de severidad */
-.gr-chip { display: inline-block; font-family: var(--font-mono); font-size: .56rem; letter-spacing: 1.4px;
+/* chip de severidad (span en la ficha; NO es el chip-filtro .gr-chip de la
+   leyenda, que arrastraba cursor:pointer y min-height a este) */
+.gr-sev-chip { display: inline-block; font-family: var(--font-mono); font-size: .56rem; letter-spacing: 1.4px;
   text-transform: uppercase; padding: 3px 8px; border: 1px solid; margin: 3px 0 2px; }
-.gr-chip.crit { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); }
-.gr-chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+.gr-sev-chip.crit { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 55%, transparent); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.gr-sev-chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
 /* diagnóstico de la Δ: qué falló, en prosa */
 .gr-diag { font-size: .72rem; color: var(--t2); line-height: 1.4; margin: 8px 0 2px;
   border-left: 2px solid var(--card-acc); padding: 2px 0 2px 9px; background: color-mix(in srgb, var(--card-acc) 8%, transparent); }
@@ -618,6 +621,10 @@ button.tr-urg { align-items: baseline; }
   color: var(--acc-text); background: none; border: 1px solid var(--line-2);
   border-radius: 3px; padding: 2px 8px; cursor: pointer; }
 .ag-modo-tabla:hover, .ag-modo-tabla:focus-visible { border-color: var(--acc-text); }
+/* el chord NO es paneable (hover/clic, no arrastre): anula el cursor:grab y el
+   touch-action:none que hereda de .gr-lienzo canvas — ese bloqueaba el scroll de
+   página iniciado sobre el lienzo (móvil, una columna, el mapa va primero) */
+.ch-lienzo canvas { cursor: default; touch-action: auto; }
 .ch-tabla { max-height: 420px; overflow: auto; margin-top: 8px; }
 .ch-tabla table { width: 100%; border-collapse: collapse; font-family: var(--font-mono);
   font-size: .72rem; color: var(--t2); }

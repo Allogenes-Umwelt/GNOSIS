@@ -93,7 +93,17 @@
               m = nodos[j];
               dx = n.x - m.x; dy = n.y - m.y;
               d2 = dx * dx + dy * dy;
-              if (d2 > corte2 || d2 === 0) continue;
+              if (d2 === 0) {
+                // nodos coincidentes: sin esto la repulsión (÷d2) y el resorte
+                // (÷d) dan vector cero y quedan fundidos para siempre. Empuje
+                // mínimo DETERMINISTA por índice de par (jamás azar: el layout
+                // debe abrir idéntico) para romper la degeneración.
+                var ang = (i * 2 + j) * 0.7, e0 = repulsion * alfa * 1e-3;
+                n.vx += Math.cos(ang) * e0; n.vy += Math.sin(ang) * e0;
+                m.vx -= Math.cos(ang) * e0; m.vy -= Math.sin(ang) * e0;
+                continue;
+              }
+              if (d2 > corte2) continue;
               d = Math.sqrt(d2);
               f = (repulsion * alfa) / d2;
               dx = dx / d * f; dy = dy / d * f;
