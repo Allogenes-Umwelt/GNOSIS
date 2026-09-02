@@ -118,11 +118,11 @@ conjunto sigue siendo coherente.
   paga determinismo con código propio donde NetworkX bastaría. La campaña
   refuerza esa elección, no la revisa: [ADR-0010](adr/0010-metricas-citadas-evaluables-por-fecha.md)
   extiende la misma ley al tiempo.
-- **Compuertas × velocidad.** CI pasa de tres pasos a seis. `pip-audit`
-  resuelve `requirements.txt` completo y el validador de diagramas instala
-  `mermaid`+`jsdom`: minuto y medio largo añadido. Es el precio de que las
-  compuertas midan algo real; si molesta, la palanca correcta es cachear npm y
-  pip, no aflojar las compuertas.
+- **Compuertas × velocidad.** CI pasa de tres pasos a seis. Medido en la
+  corrida #232: `pip-audit` 12 s, `npm install mermaid jsdom` 7 s, los dos
+  validadores 1 s — **20 s añadidos** sobre una corrida total de 49 s. Barato
+  para lo que compra; si algún día molesta, la palanca es cachear npm y pip,
+  no aflojar las compuertas.
 
 ## Conflictos de atributos de calidad
 
@@ -130,7 +130,7 @@ conjunto sigue siendo coherente.
 |---|---|---|
 | Seguridad vs. estabilidad (Flask 2→3) | seguridad | verificación final del operador pendiente |
 | Determinismo vs. brevedad (NetworkX) | determinismo | topología reimplementada a mano |
-| Rigor de compuerta vs. tiempo de CI | rigor | ~90 s por corrida |
+| Rigor de compuerta vs. tiempo de CI | rigor | +20 s por corrida (medido, #232) |
 | Completitud del diagrama vs. regla de ~6 elementos | completitud, declarada | dos vistas exceden la guía |
 
 ## Coherencia arquitectónica — verificada, no supuesta
