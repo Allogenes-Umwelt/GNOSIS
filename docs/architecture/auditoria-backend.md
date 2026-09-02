@@ -94,3 +94,72 @@ radon cc autogenes rutas tableros database jarvis app.py -n C -s
 pip-audit -r requirements.txt
 node scripts/validate-mermaid.mjs docs/architecture
 ```
+
+---
+
+# Auditoría de fin de campaña (§14.4)
+
+Revisión del sistema **como un todo** tras integrar `main`, la rama
+`claude/gnosis-systematic-audit-447oih` (32 commits) y las tres olas de esta
+campaña. La pregunta no es si cada pieza pasó su compuerta, sino si el
+conjunto sigue siendo coherente.
+
+## Interacciones entre dominios
+
+- **Integración × pruebas.** Las 32 correcciones de la rama de auditoría no
+  tocan ninguno de los cinco archivos que esta campaña modificó: el cruce fue
+  limpio por construcción, no por suerte. 539 verdes tras el merge.
+- **Seguridad × fiabilidad.** Subir Flask/Werkzeug cierra 15 CVE y a la vez
+  introduce el único riesgo no medido de la campaña: ninguna prueba renderiza
+  la app real. Se resolvió a favor de la seguridad —13 vulnerabilidades de
+  Werkzeug pesan más que un riesgo de regresión acotado a una superficie que
+  el árbol apenas usa— y el riesgo residual queda escrito, no escondido.
+- **Determinismo × mantenibilidad.** [ADR-0005](adr/0005-networkx-confinado-a-lentes.md)
+  paga determinismo con código propio donde NetworkX bastaría. La campaña
+  refuerza esa elección, no la revisa: [ADR-0010](adr/0010-metricas-citadas-evaluables-por-fecha.md)
+  extiende la misma ley al tiempo.
+- **Compuertas × velocidad.** CI pasa de tres pasos a seis. `pip-audit`
+  resuelve `requirements.txt` completo y el validador de diagramas instala
+  `mermaid`+`jsdom`: minuto y medio largo añadido. Es el precio de que las
+  compuertas midan algo real; si molesta, la palanca correcta es cachear npm y
+  pip, no aflojar las compuertas.
+
+## Conflictos de atributos de calidad
+
+| Conflicto | Resolución | Coste aceptado |
+|---|---|---|
+| Seguridad vs. estabilidad (Flask 2→3) | seguridad | verificación final del operador pendiente |
+| Determinismo vs. brevedad (NetworkX) | determinismo | topología reimplementada a mano |
+| Rigor de compuerta vs. tiempo de CI | rigor | ~90 s por corrida |
+| Completitud del diagrama vs. regla de ~6 elementos | completitud, declarada | dos vistas exceden la guía |
+
+## Coherencia arquitectónica — verificada, no supuesta
+
+Se contrastaron las cifras que los diagramas afirman contra el árbol real:
+
+| Afirmación del diagrama | Real | |
+|---|---|---|
+| 121 rutas (81 + 11 + 29) | 81 + 11 + 29 = **121** | ✅ |
+| 26 tools de Gnosis·IA (18 + 8) | 18 + 8 = **26** | ✅ |
+| 31 módulos AUTOGENES | **31** archivos en `autogenes/` | ✅ |
+| 33 superficies JS | **34** | ❌ corregido |
+| pytest (506) | **539** | ❌ corregido |
+
+Dos cifras habían envejecido con el merge. **La compuerta de staleness no las
+habría atrapado**: `static/` está exento a propósito para que la compuerta no
+grite en cada retoque de frontend, y el número de superficies vive dentro de
+una vista, no en el nombre de un archivo. Es una **ceguera declarada** de la
+compuerta, no un fallo: se cubre con esta revisión de fin de campaña, que por
+eso existe.
+
+## Veredicto
+
+El sistema queda **más coherente que al empezar**: seis semanas de
+correcciones verificadas integradas, la CI mide lo que el operador ejecuta,
+las compuertas que `CLAUDE.md` prometía existen y se probaron contra casos
+que deben fallar, y la arquitectura está documentada vista por vista con sus
+decisiones trazables.
+
+Lo que queda abierto está nombrado con su medición en la tabla §13 y ordenado
+por valor. Encabeza la lista, muy por encima del resto, **rotar la llave
+DeepSeek**: es acción del operador y ninguna compuerta la sustituye.

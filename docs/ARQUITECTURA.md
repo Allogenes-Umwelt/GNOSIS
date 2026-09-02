@@ -59,9 +59,9 @@ registrada (§Decisiones), no por inercia.
 | Grafo | NetworkX — **confinado** | Solo lentes de sesión (camino/vecindario/hubs); JAMÁS cifras de panel ni layout | `autogenes/red.py`, `caminos.py` |
 | Ingesta | pandas / PyPDF2 / tabula | Bordes de ingesta y pipeline legado | `PDFs_*.py`, `concentrado*.py` |
 | LLM | DeepSeek (def.) / Anthropic / Ollama | Gnosis·IA — chat con 26 tools sobre el grafo | `jarvis/` |
-| Frontend | **JS vanilla** + Jinja2 — sin build step, sin framework, sin bundler | 33 superficies JS; canvas 2D para campos densos, SVG para diagramas | `static/`, `templates/` |
+| Frontend | **JS vanilla** + Jinja2 — sin build step, sin framework, sin bundler | 34 superficies JS; canvas 2D para campos densos, SVG para diagramas | `static/`, `templates/` |
 | Design system | GESTELL/PANOPTES — tokens CSS puros | AAA en ambos temas, magenta disciplinado, motion tokenizado | `static/styles.css` |
-| Calidad | pytest (506) + ruff + eslint + CI GitHub Actions | Doble corrida para métricas; gate en cada push/PR | `tests/`, `.github/workflows/ci.yml` |
+| Calidad | pytest (539) + ruff + eslint + CI GitHub Actions | Doble corrida para métricas; gate en cada push/PR | `tests/`, `.github/workflows/ci.yml` |
 
 ---
 
