@@ -497,7 +497,10 @@ def api_autogenes_extraer():
     def handler(conn, session_id):
         config = get_all_config(conn)
         r = extraer_de_artefacto(conn, session_id, artefacto_id, config=config,
-                                 con_quorum=bool(data.get('quorum')))
+                                 con_quorum=bool(data.get('quorum')),
+                                 # lectura completa: una llamada al proveedor
+                                 # por ventana, así que la pide el operador
+                                 ventanas=bool(data.get('completa')))
         if 'error' in r:
             return jsonify(r), 422
         return jsonify({'session_id': session_id, **r})

@@ -18,7 +18,7 @@ from typing import Any, Optional
 
 from pydantic import ValidationError
 
-from autogenes.tipos import PropuestaGrafo
+from autogenes.tipos import PropuestaEntidad, PropuestaGrafo
 
 MAX_FRAGMENTOS = 24
 MAX_CHARS_FRAGMENTO = 1800
@@ -119,13 +119,57 @@ def _diagnostico_sin_entidades(kind: str, n_fragmentos: int,
         "fragmentos leídos.")}
 
 
-def _bloque_fragmentos(fragmentos: list[sqlite3.Row]) -> tuple[str, set[str]]:
+#: Fragmentos que dos ventanas consecutivas comparten. Una entidad nombrada a
+#: caballo entre el final de una ventana y el principio de la siguiente se
+#: perdería sin solape; la fusión por nombre deduplica lo que aparezca dos veces.
+SOLAPE_VENTANA = 3
+
+
+def _bloque_fragmentos(fragmentos: list[sqlite3.Row],
+                       maximo: int = MAX_FRAGMENTOS) -> tuple[str, set[str]]:
     lineas, ids = [], set()
-    for f in fragmentos[:MAX_FRAGMENTOS]:
+    for f in fragmentos[:maximo]:
         ids.add(f["id"])
         pagina = f" (p. {f['pagina']})" if f["pagina"] else ""
         lineas.append(f"[{f['id']}]{pagina}\n{f['texto'][:MAX_CHARS_FRAGMENTO]}")
     return "\n\n".join(lineas), ids
+
+
+def _ventanas(fragmentos: list[sqlite3.Row]) -> list[list[sqlite3.Row]]:
+    """Parte el documento en ventanas de MAX_FRAGMENTOS con solape."""
+    if len(fragmentos) <= MAX_FRAGMENTOS:
+        return [fragmentos]
+    paso = MAX_FRAGMENTOS - SOLAPE_VENTANA
+    return [fragmentos[i:i + MAX_FRAGMENTOS]
+            for i in range(0, len(fragmentos), paso)
+            if fragmentos[i:i + MAX_FRAGMENTOS]]
+
+
+def _fusionar(propuestas: list[PropuestaGrafo]) -> PropuestaGrafo:
+    """Une las propuestas de varias ventanas: una entidad vista en dos
+    ventanas es UNA entidad con la evidencia de ambas. Orden estable."""
+    entidades: dict[str, PropuestaEntidad] = {}
+    for p in propuestas:
+        for e in p.entidades:
+            clave = e.nombre.strip().lower()
+            previa = entidades.get(clave)
+            if previa is None:
+                entidades[clave] = e.model_copy(deep=True)
+            else:
+                previa.evidencia = list(dict.fromkeys([*previa.evidencia, *e.evidencia]))
+                previa.resumen = previa.resumen or e.resumen
+    relaciones: dict[tuple, Any] = {}
+    for p in propuestas:
+        for r in p.relaciones:
+            triple = (r.desde.strip().lower(), r.hasta.strip().lower(),
+                      r.tipo.strip().lower())
+            previa = relaciones.get(triple)
+            if previa is None:
+                relaciones[triple] = r.model_copy(deep=True)
+            else:
+                previa.evidencia = list(dict.fromkeys([*previa.evidencia, *r.evidencia]))
+    return PropuestaGrafo(entidades=list(entidades.values()),
+                          relaciones=list(relaciones.values()))
 
 
 def _una_pasada(proveedor, bloque: str, ids_reales: set[str]) -> PropuestaGrafo:
@@ -138,10 +182,20 @@ def _una_pasada(proveedor, bloque: str, ids_reales: set[str]) -> PropuestaGrafo:
 
 def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
                          artefacto_id: str, config: Optional[dict] = None,
-                         con_quorum: bool = False) -> dict[str, Any]:
+                         con_quorum: bool = False,
+                         ventanas: bool = False) -> dict[str, Any]:
     """Propuesta de grafo para un artefacto (NO escribe). Con quórum, las
     entidades que ambos modelos vieron se marcan acuerdo=True; las de un
-    solo modelo, acuerdo=False (llegan igual — decide el operador)."""
+    solo modelo, acuerdo=False (llegan igual — decide el operador).
+
+    El resultado SIEMPRE declara su `cobertura`. Antes se leían los primeros
+    `MAX_FRAGMENTOS` y nada lo decía: un contrato de 60 páginas se extraía de
+    sus 24 primeras y la propuesta llegaba como si cubriera el documento
+    (`docs/DIAGNOSTICO_FABLE_v02.md` §1, S6).
+
+    `ventanas=True` lee el documento ENTERO en ventanas solapadas y fusiona
+    las propuestas. Cuesta una llamada al proveedor por ventana, así que es
+    decisión del operador y no el default."""
     from jarvis.llm_interface import proveedores_para_quorum, seleccionar_proveedor
     from jarvis.quorum import ejecutar_en_quorum
 
@@ -156,7 +210,8 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         "SELECT kind FROM ag_artefactos WHERE session_id = ? AND id = ?",
         (session_id, artefacto_id)).fetchone()
     kind = art["kind"] if art else ""
-    bloque, ids_reales = _bloque_fragmentos(fragmentos)
+    trozos = _ventanas(fragmentos) if ventanas else [fragmentos[:MAX_FRAGMENTOS]]
+    bloque, ids_reales = _bloque_fragmentos(trozos[0])
     config = config or {}
 
     if con_quorum:
@@ -197,7 +252,12 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         propuesta, quorum = base, resultado["quorum"]
     else:
         nombre_prov, proveedor = seleccionar_proveedor(config)
-        propuesta = _una_pasada(proveedor, bloque, ids_reales)
+        parciales = [_una_pasada(proveedor, bloque, ids_reales)]
+        for trozo in trozos[1:]:
+            b, ids_t = _bloque_fragmentos(trozo)
+            ids_reales |= ids_t
+            parciales.append(_una_pasada(proveedor, b, ids_t))
+        propuesta = _fusionar(parciales) if len(parciales) > 1 else parciales[0]
         acuerdo = {e.nombre.strip().lower(): None for e in propuesta.entidades}
         quorum = False
 
@@ -205,14 +265,17 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
     # existe (por nombre normalizado O alias) se marca YA EXISTE — integrarla
     # NO crea nodo, solo suma evidencia. Usa el MISMO _norm que la integración
     # para que el preview jamás la contradiga. Sin scores: coincide o no.
+    # Se consulta el ÍNDICE de resolución (ADR-0014), no todas las entidades:
+    # cargarlas para construir un set costaba O(E) por extracción, y el índice
+    # responde con una lectura indexada por nombre propuesto.
     from autogenes.sustrato import _norm
+    propuestos = {_norm(e.nombre) for e in propuesta.entidades}
     existentes: set[str] = set()
-    for r in conn.execute(
-        "SELECT nombre, alias FROM ag_entidades WHERE session_id = ?", (session_id,)
-    ):
-        existentes.add(_norm(r["nombre"]))
-        for a in json.loads(r["alias"] or "[]"):
-            existentes.add(_norm(a))
+    if propuestos:
+        marcadores = ",".join("?" * len(propuestos))
+        # `marcadores` solo interpola '?': los valores van ligados abajo.
+        consulta = f"SELECT alias_norm FROM ag_entidad_alias WHERE session_id = ? AND alias_norm IN ({marcadores})"  # noqa: S608,E501
+        existentes = {r[0] for r in conn.execute(consulta, (session_id, *propuestos))}
 
     resultado = {
         "artefacto_id": artefacto_id,
@@ -224,7 +287,17 @@ def extraer_de_artefacto(conn: sqlite3.Connection, session_id: int,
         ],
         "relaciones": [r.model_dump() for r in propuesta.relaciones],
         "fragmentos_leidos": len(ids_reales),
+        # Cobertura declarada SIEMPRE: qué parte del documento sostiene esta
+        # propuesta. Sin esto, una lectura parcial se presenta como completa.
+        "cobertura": {"fragmentos_leidos": len(ids_reales),
+                      "fragmentos_total": len(fragmentos)},
     }
+    sin_leer = len(fragmentos) - len(ids_reales)
+    if sin_leer > 0:
+        resultado["aviso"] = (
+            f"Lectura parcial: {len(ids_reales)} de {len(fragmentos)} fragmentos; "
+            f"{sin_leer} sin leer. Repite con lectura completa para cubrir el "
+            "documento entero (cuesta una llamada por ventana).")
     # Cero entidades no es un fallo silencioso: se declara POR QUÉ. Una fuente
     # tabular (dataset) no tiene entidades narrativas — decirlo evita que el
     # operador lo lea como «roto».
