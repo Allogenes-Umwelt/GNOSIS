@@ -4,8 +4,8 @@ Ofusca: factura, chasis (VIN), pedimento, patente (identificadores transaccional
 NO ofusca: marca, tipo, pais, precio, j_y_n, fechas, totales.
 """
 
+import hashlib
 import re
-import uuid
 
 # VIN ISO 3779: 17 caracteres, sin I/O/Q. Un valor con esta forma es un
 # chasis aunque venga bajo un alias o expresión (SELECT chasis AS x).
@@ -15,15 +15,29 @@ _VIN_RE = re.compile(r'^[A-HJ-NPR-Z0-9]{17}$')
 class ObfuscationLayer:
     """Mantiene mapeo bidireccional real <-> token para una conversacion."""
 
-    def __init__(self):
+    def __init__(self, semilla: str = ""):
         self._real_to_token = {}  # valor_real -> token
         self._token_to_real = {}  # token -> valor_real
-        self._counter = 0
+        # La semilla (el id del hilo de chat) hace el token DETERMINISTA: dos
+        # procesos distintos —gunicorn corre varios workers— derivan el mismo
+        # token para el mismo valor, asi que uno puede revertir la historia
+        # que escribio el otro. Con uuid4 y un contador de proceso, el segundo
+        # worker leia tokens que no sabia resolver.
+        self.semilla = semilla or ""
 
-    def _make_token(self, prefix):
-        self._counter += 1
-        short_id = uuid.uuid4().hex[:6].upper()
-        return f"[{prefix}-{self._counter:03d}-{short_id}]"
+    def _make_token(self, prefix, value):
+        corto = hashlib.sha256(
+            f"{self.semilla}|{value}".encode("utf-8")).hexdigest()[:8].upper()
+        return f"[{prefix}-{corto}]"
+
+    def precargar(self, identificadores: dict) -> None:
+        """Siembra el mapa con los identificadores conocidos de la sesion.
+
+        Necesario al RECONSTRUIR una conversacion desde SQLite: el texto
+        guardado lleva tokens, y sin este mapa `unmask_text` no sabria
+        devolverle al operador el valor real."""
+        for valor, tipo in identificadores.items():
+            self.mask_value(valor, tipo)
 
     def mask_value(self, value, field_type):
         """Ofusca un valor segun su tipo. Retorna el token."""
@@ -41,7 +55,7 @@ class ObfuscationLayer:
             'patente': 'PAT',
         }
         prefix = prefix_map.get(field_type, 'ID')
-        token = self._make_token(prefix)
+        token = self._make_token(prefix, value_str)
 
         self._real_to_token[value_str] = token
         self._token_to_real[token] = value_str

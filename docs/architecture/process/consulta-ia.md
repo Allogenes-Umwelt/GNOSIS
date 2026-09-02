@@ -3,7 +3,7 @@
 > **Nivel:** Interacción ordenada en el tiempo — **Notación:** Mermaid `sequenceDiagram`
 > **Pregunta que responde:** ¿Cómo atraviesa una pregunta del operador la capa LLM sin que un identificador salga en claro?
 > **Leyenda:** Participantes en columnas; el tiempo baja. Cada flecha es un mensaje etiquetado; **todo lo que cruza hacia `LLM` va enmascarado** — la entrada del operador, los resultados de tool y lo que se persiste.
-> **ADR:** [ADR-0007](../adr/0007-ofuscacion-antes-del-llm.md) · [ADR-0011](../adr/0011-ofuscacion-por-conjunto-y-sandbox.md)
+> **ADR:** [ADR-0007](../adr/0007-ofuscacion-antes-del-llm.md) · [ADR-0011](../adr/0011-ofuscacion-por-conjunto-y-sandbox.md) · [ADR-0012](../adr/0012-estado-conversacional-en-sqlite.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 Cómo una pregunta del operador atraviesa el LLM sin filtrar identificadores.

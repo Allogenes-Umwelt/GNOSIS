@@ -16,32 +16,83 @@ from .prompts import SYSTEM_PROMPT
 from database import get_connection
 
 
-MAX_TOOL_ROUNDS = 5  # Maximo de rondas de tool calling por mensaje
+MAX_TOOL_ROUNDS = 5      # Maximo de rondas de tool calling por mensaje
+MAX_TURNOS_HISTORIA = 12  # Turnos (usuario+asistente) que se reenvian al modelo
+
+
+def olvidar_conversacion(chat_session_id: str) -> None:
+    """Borra un hilo. Vive fuera de la clase a proposito: el reset tiene que
+    alcanzar a TODOS los procesos, y la unica cosa que todos comparten es la
+    base. Antes reiniciaba el objeto en memoria de un solo worker."""
+    conn = get_connection()
+    try:
+        conn.execute("DELETE FROM chat_conversations WHERE chat_session_id = ?",
+                     (chat_session_id,))
+        conn.commit()
+    finally:
+        conn.close()
 
 
 class ChatHandler:
     """Maneja una conversacion de chat con Gnosis AI."""
 
-    def __init__(self, llm_provider: LLMProvider, session_id=None):
+    def __init__(self, llm_provider: LLMProvider, session_id=None,
+                 chat_session_id=None):
         self.llm = llm_provider
         # El ambito lo fija quien atiende al operador, no el modelo: las
         # tools solo veran esta sesion (ver jarvis/ambito.py).
         self.session_id = session_id
-        self.obfuscation = ObfuscationLayer()
+        # El HILO identifica la conversacion, y viaja en una cookie firmada.
+        # No es estado de proceso: cualquier worker reconstruye el hilo desde
+        # SQLite (12-factor; antes vivia en un global de modulo y con dos
+        # workers el modelo veia la mitad de la historia).
+        self.chat_session_id = chat_session_id or str(uuid.uuid4())
+        self.obfuscation = ObfuscationLayer(semilla=self.chat_session_id)
         self.tool_executor = ToolExecutor(self.obfuscation)
-        self.messages = []
-        self.chat_session_id = str(uuid.uuid4())
         self.total_tokens_in = 0
         self.total_tokens_out = 0
+        self._ids_precargados = False
 
     def reset(self):
-        """Reinicia la conversacion."""
-        self.obfuscation = ObfuscationLayer()
-        self.tool_executor = ToolExecutor(self.obfuscation)
-        self.messages = []
+        """Olvida el hilo — en la base, para todos los procesos."""
+        olvidar_conversacion(self.chat_session_id)
         self.chat_session_id = str(uuid.uuid4())
+        self.obfuscation = ObfuscationLayer(semilla=self.chat_session_id)
+        self.tool_executor = ToolExecutor(self.obfuscation)
         self.total_tokens_in = 0
         self.total_tokens_out = 0
+        self._ids_precargados = False
+
+    def _precargar_tokens(self):
+        """Siembra el mapa de ofuscacion con los identificadores de la sesion.
+
+        La historia guardada esta ENMASCARADA (ADR-0011); sin este mapa, un
+        proceso que reconstruye el hilo no sabria revertir los tokens que
+        escribio otro."""
+        if self._ids_precargados:
+            return
+        self.obfuscation.precargar(self._identificadores())
+        self._ids_precargados = True
+
+    def _historia(self):
+        """Los ultimos turnos del hilo, desde SQLite.
+
+        Acotada a MAX_TURNOS_HISTORIA: la lista en memoria crecia sin cota, y
+        el coste por turno subia hasta que el proveedor rechazaba el contexto.
+        """
+        conn = get_connection()
+        try:
+            filas = conn.execute(
+                "SELECT role, content FROM chat_conversations"
+                " WHERE chat_session_id = ? ORDER BY id DESC LIMIT ?",
+                (self.chat_session_id, MAX_TURNOS_HISTORIA * 2),
+            ).fetchall()
+        except Exception:
+            return []
+        finally:
+            conn.close()
+        return [{'role': f['role'], 'content': f['content']}
+                for f in reversed(filas)]
 
     def _sesion(self):
         if self.session_id:
@@ -80,9 +131,14 @@ class ChatHandler:
             return self._handle_message(user_message)
 
     def _handle_message(self, user_message):
+        self._precargar_tokens()
         # El texto del OPERADOR se enmascara antes de salir: pegar un VIN
         # en el chat no debe filtrarlo (hallazgo H6 del diagnostico).
         mensaje_seguro = self._enmascarar(user_message)
+        # La historia se RECONSTRUYE por turno desde la base: es la unica
+        # verdad que todos los workers comparten. `self.messages` es papel
+        # de borrador del turno, no estado de la conversacion.
+        self.messages = self._historia()
         self.messages.append({
             'role': 'user',
             'content': mensaje_seguro

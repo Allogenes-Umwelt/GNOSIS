@@ -33,7 +33,7 @@ comando que la produce. Ninguna casilla se marca por impresión.
 | Entrega · DORA | despliegue semanal, restauración < 1h | N/A | no hay despliegue continuo: el operador reconstruye su contenedor. DORA no mide este perfil |
 | Dependencias · lockfile | sí | ⚠️ | `requirements.txt` pinea, `requirements2.txt` es un pin congelado alterno; **no hay lockfile con hashes**. CI y la imagen ya no divergen (pins de Flask/Werkzeug sincronizados) |
 | Dependencias · pip-audit limpio | sí | ✅ | limpio con 2 ignoradas y declaradas (PyPDF2, ver abajo). Compuerta HARD en CI |
-| 12-factor | config en entorno, procesos sin estado, logs a stream | ✅ | secretos solo por entorno (`docker/.env.example`), `.env` gitignoreado, un solo código base, sin estado en el proceso (la verdad vive en SQLite) |
+| 12-factor | config en entorno, procesos sin estado, logs a stream | ✅ | secretos solo por entorno, `.env` gitignoreado, un solo código base. **Corregido el 2026-09-02:** esta celda decía ✅ cuando el chat era estado de proceso (globales de módulo con `--workers 2`). El hallazgo H3 lo midió y [ADR-0012](adr/0012-estado-conversacional-en-sqlite.md) lo cerró; ahora la marca es cierta |
 | Atributos de calidad ISO 25010 | pasa | ⚠️ | seguridad y fiabilidad bien cubiertas por auditoría y pruebas; **mantenibilidad** penalizada por `app.py` (3 funciones ≥ E) y por la ausencia de tipos |
 
 ## Lo corregido en esta ola

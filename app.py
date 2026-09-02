@@ -1222,28 +1222,57 @@ def procesar_historico():
 # ============================================================
 
 # Instancia global del chat handler (una por proceso)
-_chat_handler = None
-_chat_proveedor = None
+COOKIE_HILO = 'gnosis_chat'
 
-def _get_chat_handler():
-    global _chat_handler, _chat_proveedor
-    if _chat_handler is None:
-        try:
-            from database import get_connection
-            from database.config import get_all_config
-            from jarvis.llm_interface import seleccionar_proveedor
-            from jarvis.chat_handler import ChatHandler
-            conn = get_connection()
-            config = get_all_config(conn)
-            conn.close()
-            nombre, provider = seleccionar_proveedor(config)
-            _chat_proveedor = nombre
-            print(f"[Gnosis AI] Proveedor LLM activo: {nombre}")
-            _chat_handler = ChatHandler(provider)
-        except Exception as e:
-            print(f"[Gnosis AI] Error inicializando chat: {e}")
-            raise
-    return _chat_handler
+
+def _proveedor_activo(config):
+    """Nombre del proveedor que serviría ahora, o None si no hay ninguno."""
+    from jarvis.llm_interface import seleccionar_proveedor
+    try:
+        return seleccionar_proveedor(config)[0]
+    except RuntimeError:
+        return None
+
+
+def _hilo_de_chat():
+    """El id del hilo de conversación, desde la cookie firmada.
+
+    No se guarda en el proceso: gunicorn corre varios workers y una petición
+    puede caer en cualquiera. La cookie la firma SECRET_KEY, así que el
+    cliente no puede inventarse el hilo de otro."""
+    import uuid
+
+    from flask import session as sesion_flask
+    hilo = sesion_flask.get(COOKIE_HILO)
+    if not hilo:
+        hilo = str(uuid.uuid4())
+        sesion_flask[COOKIE_HILO] = hilo
+    return hilo
+
+
+def _chat_handler_de(hilo):
+    """Un manejador POR PETICIÓN, atado al hilo de la cookie.
+
+    Construirlo cada vez es barato (la historia vive en SQLite) y elimina la
+    clase de errores que tenía el singleton: historia partida entre workers,
+    reset que solo alcanzaba a uno, y un proveedor 'activo' que alternaba
+    según a qué proceso cayera la lectura."""
+    from database import get_connection
+    from database.config import get_all_config
+    from jarvis.chat_handler import ChatHandler
+    from jarvis.llm_interface import seleccionar_proveedor
+    from database.persistence import get_latest_session_id
+
+    conn = get_connection()
+    try:
+        config = get_all_config(conn)
+    finally:
+        conn.close()
+    nombre, provider = seleccionar_proveedor(config)
+    handler = ChatHandler(provider, session_id=get_latest_session_id(),
+                          chat_session_id=hilo)
+    handler.proveedor = nombre
+    return handler
 
 
 @app.route('/api/v1/admin/llm', methods=['GET'])
@@ -1261,7 +1290,12 @@ def api_admin_llm_estado():
             'fallback_claude': config.get('llm_fallback_claude', 'off'),
             'ollama': config.get('llm_ollama', 'off'),
             'disponibles': proveedores_disponibles(config),
-            'activo': _chat_proveedor,
+            # 'activo' se DERIVA de la configuración persistida, no de un
+            # global de proceso: con dos workers, aquel valor alternaba según
+            # a quién cayera la lectura. Sin ningún proveedor configurado es
+            # None declarado — este endpoint REPORTA estado, no puede fallar
+            # por no haber estado que reportar.
+            'activo': _proveedor_activo(config),
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1272,7 +1306,6 @@ def api_admin_llm_configurar():
     """Configura el selector LLM. Claves permitidas: llm_default,
     llm_fallback_claude (on/off), llm_ollama (on/off), deepseek_model,
     claude_model. Reinicia el handler para aplicar de inmediato."""
-    global _chat_handler, _chat_proveedor
     from database import get_connection
     from database.config import set_config
     permitidas = {'llm_default', 'llm_fallback_claude', 'llm_ollama',
@@ -1291,8 +1324,9 @@ def api_admin_llm_configurar():
         for k, v in cambios.items():
             set_config(conn, k, v)
         conn.close()
-        _chat_handler = None
-        _chat_proveedor = None
+        # No hay handler que invalidar: se construye por petición y relee la
+        # configuración, así que el cambio aplica en TODOS los workers de
+        # inmediato — antes solo en el que atendió el POST.
         return jsonify({'status': 'ok', 'aplicado': cambios})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -1311,7 +1345,7 @@ def api_chat():
         return jsonify({'error': 'Se requiere el campo "message"'}), 400
 
     try:
-        handler = _get_chat_handler()
+        handler = _chat_handler_de(_hilo_de_chat())
         result = handler.handle_message(data['message'])
         return jsonify(result)
     except Exception as e:
@@ -1320,11 +1354,14 @@ def api_chat():
 
 @app.route('/api/v1/chat/reset', methods=['POST'])
 def api_chat_reset():
-    """Reinicia la conversacion de Gnosis AI."""
-    global _chat_handler
+    """Olvida la conversación — en la base, así que alcanza a todo worker."""
+    from flask import session as sesion_flask
+    from jarvis.chat_handler import olvidar_conversacion
     try:
-        if _chat_handler:
-            _chat_handler.reset()
+        hilo = sesion_flask.get(COOKIE_HILO)
+        if hilo:
+            olvidar_conversacion(hilo)
+            sesion_flask.pop(COOKIE_HILO, None)
         return jsonify({'status': 'ok'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
