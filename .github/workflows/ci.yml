@@ -53,4 +53,8 @@ jobs:
       - name: Diagramas (cabeceras + parseo Mermaid)
         run: node scripts/validate-mermaid.mjs docs/architecture
       - name: Staleness de diagramas
-        run: node scripts/check-diagram-staleness.mjs --base ${{ github.event.pull_request.base.sha || 'HEAD~1' }}
+        # En un PR: contra la base. En un push: contra el estado ANTERIOR del
+        # remoto, no contra HEAD~1 — un push de varios commits solo revisaria
+        # el ultimo. Rama nueva (before = ceros) o historial ausente: el script
+        # lo detecta y se omite en vez de romper.
+        run: node scripts/check-diagram-staleness.mjs --base ${{ github.event.pull_request.base.sha || github.event.before || 'HEAD~1' }}

@@ -25,7 +25,11 @@ const args = process.argv.slice(2);
 const i = args.indexOf('--base');
 const base = i !== -1 && args[i + 1] ? args[i + 1] : 'HEAD~1';
 
-const git = (...a) => execFileSync('git', a, { encoding: 'utf8' }).trim();
+// stderr silenciado: cuando la base no existe (rama nueva, sha de ceros,
+// clon superficial) git escupe un fatal: que no es un fallo nuestro — lo
+// tratamos abajo con un mensaje propio.
+const git = (...a) =>
+  execFileSync('git', a, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
 let diff;
 try {
