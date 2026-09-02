@@ -3,14 +3,14 @@
 > **Nivel:** C4 L3 · Componentes — **Notación:** C4 (Mermaid `C4Component`)
 > **Pregunta que responde:** ¿Qué hay dentro del sustrato: qué motores lo componen y cómo se encadenan en el flujo de investigación?
 > **Leyenda:** `Person` actor humano · `System`/`Container`/`Component` caja del sistema · `System_Ext` sistema externo (fuera de nuestro control) · `ContainerDb` almacén · `Rel` arista dirigida y etiquetada con protocolo.
-> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md)
+> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md) · [ADR-0015](../adr/0015-proyeccion-acotada-y-cacheada.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 **Nota de la vista.** Caja blanca de `Container(motores)` del L2. Excede las ~6 cajas que pide la doctrina: el sustrato ES el diferenciador del sistema y partirlo escondería el encadenamiento. Desviación declarada, no descuido.
 
 El diferenciador: un grafo de evidencia con procedencia **más el flujo de
 investigación**. `sustrato.py` es el **único escritor** de las tablas
-`ag_*`; todo lo demás lee o propone. Los 31 módulos se organizan en seis
+`ag_*`; todo lo demás lee o propone. Los 32 módulos se organizan en seis
 familias:
 
 ```mermaid
@@ -28,7 +28,7 @@ C4Component
     }
     Container_Boundary(grafo, "Proyección y grafo") {
         Component(proyeccion, "Proyección", "proyeccion.py, red.py", "Proyecta el dato aduanal al grafo en tiempo de lectura (sin dual-write). NetworkX solo como lente.")
-        Component(topo, "Topología", "topologia.py, caminos.py, consultas.py", "Métricas puras y deterministas; expediente/camino/vecindario con citas.")
+        Component(topo, "Topología", "topologia.py, caminos.py, consultas.py, busqueda.py", "Métricas puras y deterministas; expediente/camino/vecindario con citas; búsqueda FTS5 de texto con procedencia.")
         Component(atencion, "Atención", "estado.py, senales.py, metabolismo.py", "Figuras vivas del landing, señales del caso, Radar de urgencias.")
     }
     Container_Boundary(qua, "QUALIA (OODA)") {

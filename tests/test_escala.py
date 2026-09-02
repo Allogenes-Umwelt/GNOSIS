@@ -285,3 +285,62 @@ def test_el_lienzo_puede_acotar_los_documentos(conn):
     assert len(artefactos) <= 51, f"{len(artefactos)} artefactos pese al tope de 50"
     assert any(n.get("kind") == "agregado" for n in g["nodos"]), \
         "el recorte no se declaró con un nodo agregado"
+
+
+# ── la búsqueda de texto (G6 del diagnóstico v02) ────────────────────
+
+def test_buscar_no_se_degrada_con_el_tamano_del_corpus(conn):
+    """El índice existe justo para esto: encontrar no puede costar más
+    porque haya más documentos donde no está lo buscado.
+
+    Sin índice, `LIKE '%aguja%'` recorre la tabla entera y el coste sube
+    con el corpus. Con FTS5 la lista de aciertos de un término raro no
+    crece porque crezca lo demás."""
+    from autogenes.busqueda import buscar_fragmentos
+
+    _sembrar_documentos(conn, 200)
+    from autogenes.ingesta import ingestar_texto
+    ingestar_texto(conn, 1, "aguja.txt", "Documento con la aguja.\n\nla aguja aparece aqui")
+    buscar_fragmentos(conn, 1, "aguja")                      # calienta páginas
+
+    t1 = _cronometrar(lambda i: buscar_fragmentos(conn, 1, "aguja"), 20)
+    _sembrar_documentos(conn, 800)
+    t2 = _cronometrar(lambda i: buscar_fragmentos(conn, 1, "aguja"), 20)
+    assert t2 < t1 * 3, (
+        f"buscar se degrada con el corpus: {t1:.3f}s → {t2:.3f}s con 5× documentos")
+
+
+def test_el_total_no_recorre_todos_los_aciertos(conn):
+    """Contar exacto costaba 400-1 050 ms contra 17-24 ms de búsqueda a
+    24 000 fragmentos: el conteo dominaba la llamada que anotaba. El tope
+    corta el recorrido.
+
+    Aquí NO se mide el reloj: a los tamaños que un test puede sembrar la
+    diferencia en milisegundos es ruido, y una prueba que pasa igual con el
+    fallo dentro no prueba nada. Se cuenta el TRABAJO —pasos de la máquina
+    virtual de SQLite, vía `set_progress_handler`— que no depende de lo
+    rápida que sea la máquina. La propiedad es que el conteo acotado cuesta
+    lo mismo con el doble de corpus, y el exacto no."""
+    from autogenes.busqueda import TOPE_CONTEO, _CONTAR
+    from autogenes.ingesta import ingestar_texto
+
+    def pasos(limite: int) -> int:
+        n = [0]
+        conn.set_progress_handler(lambda: (n.__setitem__(0, n[0] + 1), 0)[1], 100)
+        try:
+            conn.execute(_CONTAR, ("texto", 1, limite)).fetchall()
+        finally:
+            conn.set_progress_handler(None, 0)
+        return n[0]
+
+    _sembrar_documentos(conn, 600)          # 'texto' sale en todos
+    acotado_1, exacto_1 = pasos(TOPE_CONTEO + 1), pasos(10 ** 9)
+    for i in range(600, 1800):
+        ingestar_texto(conn, 1, f"x{i}.txt", f"Documento {i}.\n\n" + "texto " * 30)
+    acotado_2, exacto_2 = pasos(TOPE_CONTEO + 1), pasos(10 ** 9)
+
+    assert acotado_2 <= acotado_1 * 1.2, (
+        f"el conteo acotado crece con el corpus: {acotado_1} → {acotado_2} pasos")
+    assert exacto_2 > exacto_1, (
+        "el conteo exacto no creció: el corpus no llegó a ser mayor, "
+        f"la prueba no está midiendo nada ({exacto_1} → {exacto_2} pasos)")

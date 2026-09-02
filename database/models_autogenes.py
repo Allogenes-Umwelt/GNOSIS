@@ -39,6 +39,34 @@ CREATE TABLE IF NOT EXISTS ag_fragmentos (
 CREATE INDEX IF NOT EXISTS idx_ag_fragmentos_session ON ag_fragmentos(session_id);
 CREATE INDEX IF NOT EXISTS idx_ag_fragmentos_artefacto ON ag_fragmentos(artefacto_id);
 
+-- BÚSQUEDA de texto sobre los fragmentos. FTS5 viene DENTRO de SQLite: cero
+-- dependencias, local, sin red — y `bm25` con parámetros fijos es
+-- determinista, así que cumple la ley de doble corrida.
+--
+-- `content=ag_fragmentos` = índice de contenido EXTERNO: no duplica el texto,
+-- lo lee de la tabla real. Por eso los triggers de abajo son obligatorios (el
+-- índice no se entera solo de un INSERT/DELETE) y por eso un `DELETE` manda
+-- primero la fila vieja con `'delete'`.
+CREATE VIRTUAL TABLE IF NOT EXISTS ag_fragmentos_fts USING fts5(
+    texto,
+    content='ag_fragmentos',
+    content_rowid='rowid',
+    tokenize="unicode61 remove_diacritics 2"
+);
+
+CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_ai AFTER INSERT ON ag_fragmentos BEGIN
+    INSERT INTO ag_fragmentos_fts(rowid, texto) VALUES (new.rowid, new.texto);
+END;
+CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_ad AFTER DELETE ON ag_fragmentos BEGIN
+    INSERT INTO ag_fragmentos_fts(ag_fragmentos_fts, rowid, texto)
+        VALUES ('delete', old.rowid, old.texto);
+END;
+CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_au AFTER UPDATE ON ag_fragmentos BEGIN
+    INSERT INTO ag_fragmentos_fts(ag_fragmentos_fts, rowid, texto)
+        VALUES ('delete', old.rowid, old.texto);
+    INSERT INTO ag_fragmentos_fts(rowid, texto) VALUES (new.rowid, new.texto);
+END;
+
 CREATE TABLE IF NOT EXISTS ag_entidades (
     id          TEXT PRIMARY KEY,
     session_id  INTEGER NOT NULL,

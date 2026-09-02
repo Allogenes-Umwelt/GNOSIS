@@ -2,11 +2,11 @@
 
 > **Nivel:** Suplementario · datos — **Notación:** Mermaid `erDiagram`
 > **Pregunta que responde:** ¿Qué tablas existen, cuáles son aduanales y cuáles del sustrato, y cómo se relacionan?
-> **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal. `ag_entidad_alias` es índice, no evidencia: se deriva de `ag_entidades` y se reconstruye desde ella.
-> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md)
+> **Leyenda:** `||--o{` = uno a muchos · `}o--o{` = muchos a muchos · prefijo `ag_` = tabla del sustrato AUTOGENES; el resto es aduanal. `ag_entidad_alias` y `ag_fragmentos_fts` son ÍNDICES, no evidencia: se derivan de `ag_entidades` y `ag_fragmentos` y se reconstruyen desde ellas.
+> **ADR:** [ADR-0003](adr/0003-sqlite-como-unica-verdad.md) · [ADR-0004](adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0006](adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0014](adr/0014-resolucion-de-entidad-por-indice.md) · [ADR-0016](adr/0016-busqueda-de-texto-con-fts5.md)
 > **Índice de vistas:** [docs/architecture/README.md](README.md)
 
-**Nota de la vista.** 26 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
+**Nota de la vista.** 27 entidades: muy por encima de las ~6 de una vista C4. Un modelo ER no es una vista C4 y su valor está en la completitud; desviación declarada.
 
 Dos mundos en la misma base: el **aduanal** (alimentado por el pipeline) y
 el **sustrato AUTOGENES** (`ag_*`, el grafo de evidencia + el flujo de
@@ -28,6 +28,7 @@ erDiagram
     paises ||--o{ importaciones : origen
 
     ag_artefactos ||--o{ ag_fragmentos : contiene
+    ag_fragmentos ||--|| ag_fragmentos_fts : "se busca por (FTS5, contenido externo)"
     ag_fragmentos ||--o{ ag_entidades : "cita (procedencia)"
     ag_entidades ||--o{ ag_entidad_alias : "se resuelve por (nombre+alias)"
     ag_entidades ||--o{ ag_relaciones : conecta
@@ -70,6 +71,13 @@ erDiagram
         string evidencia "JAMÁS fabricada"
     }
 ```
+
+**Los dos índices derivados.** `ag_entidad_alias` (una fila por nombre y
+por alias, `PRIMARY KEY (session_id, alias_norm)`) resuelve la identidad sin
+escanear; `ag_fragmentos_fts` (FTS5 de **contenido externo**, mantenido por
+tres triggers) busca texto sin duplicarlo. Ninguno es evidencia: los dos se
+reconstruyen desde su tabla real, así que quedan fuera de la ley de
+procedencia y su relleno corre en migración, sin bitácora.
 
 **Ley de procedencia:** una `ag_entidad` extraída de un documento **debe**
 citar fragmentos (`evidencia`); las entidades de operador/conversación

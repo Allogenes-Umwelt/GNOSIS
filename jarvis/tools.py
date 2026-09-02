@@ -457,6 +457,27 @@ def buscar_en_extraccion(campo, valor, session_id=None):
 # ============================================================
 # 18. consulta_sql
 # ============================================================
+def buscar_fragmentos(consulta, limite=None):
+    """Busqueda de texto en los documentos de la sesion EN AMBITO.
+
+    Va por `autogenes.busqueda`, no por el sandbox SQL: el indice FTS5 no es
+    una tabla que el modelo deba poder consultar libremente, y el resultado ya
+    llega acotado a la sesion y con su procedencia."""
+    from autogenes.busqueda import MAX_RESULTADOS, buscar_fragmentos as _buscar
+
+    try:
+        sid = _get_session(None)
+    except FueraDeAmbito as e:
+        return {'error': str(e)}
+    if not sid:
+        return {'error': 'No hay sesion activa que consultar.'}
+    conn = get_connection()
+    try:
+        return _buscar(conn, sid, consulta, limite or MAX_RESULTADOS)
+    finally:
+        conn.close()
+
+
 def consulta_sql(query):
     """Ejecuta un SELECT del modelo dentro del sandbox de solo lectura.
 
@@ -698,6 +719,25 @@ TOOL_DEFINITIONS = [
                 "query": {"type": "string", "description": "Consulta SQL SELECT a ejecutar. Debe ser exclusivamente un SELECT."}
             },
             "required": ["query"]
+        }
+    },
+    {
+        "name": "buscar_fragmentos",
+        "description": (
+            "Busca texto en los documentos dockeados de la sesion (contratos, "
+            "actas, facturas, notas). Devuelve el extracto CON su procedencia: "
+            "fragmento, pagina y documento. Usala cuando la pregunta sea sobre "
+            "lo que DICE un documento, no sobre las cifras aduanales."),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "consulta": {"type": "string",
+                             "description": "Palabras a buscar. Soporta sintaxis FTS5: "
+                                            "\"frase exacta\", palabra1 AND palabra2, prefijo*"},
+                "limite": {"type": "integer",
+                           "description": "Maximo de aciertos (por defecto 25)"}
+            },
+            "required": ["consulta"]
         }
     }
 ] + GRAFO_TOOL_DEFINITIONS  # F8: las tools de grafo del sustrato AUTOGENES

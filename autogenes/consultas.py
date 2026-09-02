@@ -132,21 +132,21 @@ def expediente_entidad(conn: sqlite3.Connection, session_id: int,
     if not buscado:
         return {"error": "Nombre vacío"}
 
+    # Nombre exacto O alias, por el índice de resolución (ADR-0014): una sola
+    # lectura indexada. La versión anterior cargaba TODAS las entidades de la
+    # sesión para abrir su JSON de alias y comparar en Python.
     filas = conn.execute(
-        "SELECT * FROM ag_entidades WHERE session_id = ? AND LOWER(nombre) = LOWER(?)",
-        (session_id, buscado),
+        "SELECT e.* FROM ag_entidad_alias x JOIN ag_entidades e ON e.id = x.entidad_id"
+        " WHERE x.session_id = ? AND x.alias_norm = ?",
+        (session_id, buscado.lower()),
     ).fetchall()
     if not filas:
-        filas = [
-            r for r in conn.execute(
-                "SELECT * FROM ag_entidades WHERE session_id = ?", (session_id,))
-            if buscado.lower() in [a.strip().lower()
-                                   for a in json.loads(r["alias"] or "[]")]
-        ]
-    if not filas:
+        # último recurso: coincidencia parcial. El comodín inicial impide usar
+        # el índice, así que se acota — una búsqueda parcial que devuelve
+        # cientos no ayuda a nadie y el ambiguo de abajo ya los recorta.
         filas = conn.execute(
             "SELECT * FROM ag_entidades WHERE session_id = ? AND nombre LIKE ?"
-            " ORDER BY nombre",
+            " ORDER BY nombre LIMIT 50",
             (session_id, f"%{buscado}%"),
         ).fetchall()
     if not filas:

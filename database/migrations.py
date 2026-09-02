@@ -113,7 +113,52 @@ MIGRATIONS: list[tuple[int, str, list[str]]] = [
         # legada puede no tener siquiera `ag_entidades`, y una migración que
         # explota sobre un esquema parcial bloquea el arranque entero.
     ]),
+    # Índice FTS5 de fragmentos. Como la migración 4, todo el trabajo va en el
+    # paso de Python: `CREATE VIRTUAL TABLE ... content='ag_fragmentos'` exige
+    # que la tabla de contenido EXISTA, y una base legada puede no tenerla.
+    # Una migración que explota sobre un esquema parcial bloquea el arranque.
+    (5, "ag_fragmentos_fts", []),
 ]
+
+
+#: El índice FTS y sus disparadores, idénticos a los del esquema. Se repiten
+#: aquí para que una base ANTERIOR los reciba, y se aplican desde Python
+#: porque dependen de que `ag_fragmentos` exista.
+_FTS_SQL = (
+    """CREATE VIRTUAL TABLE IF NOT EXISTS ag_fragmentos_fts USING fts5(
+        texto, content='ag_fragmentos', content_rowid='rowid',
+        tokenize="unicode61 remove_diacritics 2")""",
+    """CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_ai
+       AFTER INSERT ON ag_fragmentos BEGIN
+         INSERT INTO ag_fragmentos_fts(rowid, texto) VALUES (new.rowid, new.texto);
+       END""",
+    """CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_ad
+       AFTER DELETE ON ag_fragmentos BEGIN
+         INSERT INTO ag_fragmentos_fts(ag_fragmentos_fts, rowid, texto)
+           VALUES ('delete', old.rowid, old.texto);
+       END""",
+    """CREATE TRIGGER IF NOT EXISTS ag_fragmentos_fts_au
+       AFTER UPDATE ON ag_fragmentos BEGIN
+         INSERT INTO ag_fragmentos_fts(ag_fragmentos_fts, rowid, texto)
+           VALUES ('delete', old.rowid, old.texto);
+         INSERT INTO ag_fragmentos_fts(rowid, texto) VALUES (new.rowid, new.texto);
+       END""",
+    # y se puebla desde el texto ya dockeado ('rebuild' reconstruye desde cero,
+    # así que es idempotente)
+    "INSERT INTO ag_fragmentos_fts(ag_fragmentos_fts) VALUES ('rebuild')",
+)
+
+
+def _reconstruir_fts(conn: sqlite3.Connection) -> None:
+    """Crea el índice FTS y lo puebla desde los fragmentos que ya existan.
+
+    Sobre un esquema parcial (una base legada sin `ag_fragmentos`) no hay nada
+    que indexar y desde luego no hay que tumbar el arranque."""
+    for sentencia in _FTS_SQL:
+        try:
+            conn.execute(sentencia)
+        except sqlite3.OperationalError:
+            return
 
 
 def _rellenar_alias(conn: sqlite3.Connection) -> None:
@@ -175,3 +220,5 @@ def apply_migrations(conn: sqlite3.Connection) -> None:
         )
         if version == 4:
             _rellenar_alias(conn)
+        if version == 5:
+            _reconstruir_fts(conn)

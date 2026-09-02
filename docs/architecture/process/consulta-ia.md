@@ -3,7 +3,7 @@
 > **Nivel:** Interacción ordenada en el tiempo — **Notación:** Mermaid `sequenceDiagram`
 > **Pregunta que responde:** ¿Cómo atraviesa una pregunta del operador la capa LLM sin que un identificador salga en claro?
 > **Leyenda:** Participantes en columnas; el tiempo baja. Cada flecha es un mensaje etiquetado; **todo lo que cruza hacia `LLM` va enmascarado** — la entrada del operador, los resultados de tool y lo que se persiste.
-> **ADR:** [ADR-0007](../adr/0007-ofuscacion-antes-del-llm.md) · [ADR-0011](../adr/0011-ofuscacion-por-conjunto-y-sandbox.md) · [ADR-0012](../adr/0012-estado-conversacional-en-sqlite.md)
+> **ADR:** [ADR-0007](../adr/0007-ofuscacion-antes-del-llm.md) · [ADR-0011](../adr/0011-ofuscacion-por-conjunto-y-sandbox.md) · [ADR-0012](../adr/0012-estado-conversacional-en-sqlite.md) · [ADR-0016](../adr/0016-busqueda-de-texto-con-fts5.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 Cómo una pregunta del operador atraviesa el LLM sin filtrar identificadores.
@@ -26,12 +26,14 @@ sequenceDiagram
     CH->>OB: enmascarar la ENTRADA del operador
     CH->>AM: abrir ámbito = sesión activa
     CH->>LLM: system prompt + historia (tool_result = DATO, no instrucción)
-    LLM-->>CH: tool_call (p.ej. vecindario, consulta_sql)
-    CH->>TE: ejecutar tool (26 disponibles)
+    LLM-->>CH: tool_call (p.ej. vecindario, consulta_sql, buscar_fragmentos)
+    CH->>TE: ejecutar tool (27 disponibles)
     TE->>AM: ¿la sesión pedida está en ámbito?
     AM-->>TE: sí / error declarado
     TE->>SB: consulta_sql -> sandbox (ro + authorizer + vistas de sesión)
     SB-->>TE: filas de ESTA sesión, sin tablas prohibidas
+    TE->>GR: buscar_fragmentos -> FTS5 (NO por el sandbox: índice fuera del allowlist)
+    GR-->>TE: extractos con procedencia (fragmento, página, documento)
     TE->>GR: resto de tools sobre el grafo
     GR-->>TE: resultado con chasis/factura REALES
     TE->>OB: capa 1 — ofuscar por nombre de campo

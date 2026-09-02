@@ -13,7 +13,8 @@ from .tools_grafo import GRAFO_TOOL_FUNCTIONS
 
 
 # Tools que retornan datos individuales (necesitan ofuscacion)
-DETAIL_TOOLS = {'buscar_por_vin', 'buscar_por_factura', 'buscar_en_extraccion', 'detectar_datos_faltantes', 'consulta_sql'}
+DETAIL_TOOLS = {'buscar_por_vin', 'buscar_por_factura', 'buscar_en_extraccion',
+                'detectar_datos_faltantes', 'consulta_sql', 'buscar_fragmentos'}
 
 # Tools de grafo cuyos resultados pueden arrastrar chasis/facturas
 # (etiquetas de nodos vehiculo, campos anidados): ofuscacion recursiva.
@@ -44,6 +45,7 @@ TOOL_FUNCTIONS = {
     'resumen_extraccion': t.resumen_extraccion,
     'buscar_en_extraccion': t.buscar_en_extraccion,
     'consulta_sql': t.consulta_sql,
+    'buscar_fragmentos': t.buscar_fragmentos,
     **GRAFO_TOOL_FUNCTIONS,
 }
 
