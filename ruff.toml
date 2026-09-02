@@ -24,6 +24,18 @@ exclude = [
     "*.ipynb",
 ]
 
+[lint]
+# La selección se DECLARA aquí en vez de heredar el default de la versión de
+# ruff instalada. El default no es un contrato: una versión nueva lo amplía y
+# la CI se pone roja sin un solo cambio de código (pasó el 2026-08-23: el
+# commit de SOLO documentación `95c2c76` disparó 313 errores de reglas que
+# este árbol nunca seleccionó). El gate obedece la misma ley que el render:
+# mismo árbol, mismo veredicto, corra donde corra y con la ruff que sea.
+#
+# E4 (imports) · E7 (sentencias) · E9 (sintaxis/IO) · F (pyflakes) — el
+# conjunto que este repo ha linteado desde siempre, ahora explícito.
+select = ["E4", "E7", "E9", "F"]
+
 [lint.per-file-ignores]
 # app.py llama load_dotenv() ANTES de importar módulos que leen variables
 # de entorno al importarse (.env debe poblarse primero). Ese orden es
