@@ -221,8 +221,43 @@ def test_senales_del_radar(conn):
     assert r["negocio"]["faltantes"] == 1 and r["negocio"]["errores"] == 0
     assert r["total"] == 1 + 1 + 1 + 1     # vencimiento + fría + huérfana + faltantes
 
+    # la constelación debe contar lo MISMO que el Radar para el mismo día;
+    # sin pasar `hoy` esta comparación se apoyaba en el reloj y se volvía
+    # roja sola al pasar el 2026-07-20 (la fianza sembrada salía de ventana)
     from autogenes.estado import estado_de_sesion
-    assert estado_de_sesion(conn, 1)["senales"] == r["total"]
+    assert estado_de_sesion(conn, 1, hoy="2026-07-10")["senales"] == r["total"]
+
+
+def test_estado_con_hoy_no_depende_del_reloj(conn, monkeypatch):
+    """Ley de doble corrida aplicada al tiempo: fijado `hoy`, la cifra citada
+    `senales` es la misma corra el día que corra. Sin esto, una prueba que
+    siembra fechas envejece hasta ponerse roja sola (el vencimiento sembrado
+    sale de la ventana de 30 días y la constelación cuenta uno menos)."""
+    import datetime as _dt
+
+    from autogenes import senales as _senales
+    from autogenes.estado import estado_de_sesion
+
+    s = Sustrato(conn, 1)
+    art = s.crear_artefacto("pdf", "c.pdf")
+    fr = s.agregar_fragmentos(art.id, [(1, "x")])
+    s.agregar_eventos([
+        {"titulo": "Vence fianza", "fecha": "2026-07-20", "precision": "dia",
+         "evidencia": [fr[0].id], "origen": "synesis"},
+    ])
+    conn.commit()
+
+    def _con_reloj_en(anio, mes, dia):
+        class _Fecha(_dt.date):
+            @classmethod
+            def today(cls):
+                return cls(anio, mes, dia)
+        monkeypatch.setattr(_senales, "date", _Fecha)
+        return estado_de_sesion(conn, 1, hoy="2026-07-10")
+
+    # el mismo árbol, dos relojes separados por un año: veredicto idéntico
+    assert _con_reloj_en(2026, 7, 10) == _con_reloj_en(2027, 3, 1)
+    assert _con_reloj_en(2026, 7, 10)["senales"] >= 1
 
 
 def test_quorum_fusiona_relaciones_del_segundo_modelo(conn, monkeypatch):

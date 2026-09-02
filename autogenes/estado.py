@@ -24,7 +24,13 @@ def _tiene_base_qualia(conn: sqlite3.Connection, session_id: int) -> bool:
         return False   # esquema qualia aún no migrado en esta base
 
 
-def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+def estado_de_sesion(conn: sqlite3.Connection, session_id: int,
+                     hoy: Optional[str] = None) -> dict[str, Any]:
+    """`hoy` (ISO) fija el día de las señales del Radar. Sin él se toma el
+    reloj — correcto en producción, veneno en una prueba: `senales` es
+    una cifra citada y debe poder evaluarse para una fecha DADA, igual
+    que en metabolismo y consultas. Sin este parámetro, dos corridas del
+    mismo árbol en días distintos devuelven totales distintos."""
     ses = conn.execute(
         "SELECT id, month_processed, year_processed, status FROM processing_sessions"
         " WHERE id = ?", (session_id,),
@@ -49,7 +55,7 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
     ).fetchone()[0]
 
     from autogenes.senales import senales_de_sesion
-    sen = senales_de_sesion(conn, session_id)
+    sen = senales_de_sesion(conn, session_id, hoy)
 
     productos_informe = conn.execute(
         "SELECT COUNT(*) FROM ag_productos WHERE session_id = ? AND clase = 'informe'",
