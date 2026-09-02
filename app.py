@@ -76,8 +76,8 @@ def _preparar_divisiones(path):
 
 
 # Tope de expansión al descomprimir un ZIP subido. MAX_CONTENT_LENGTH
-# acota el ARCHIVO (50 MB) pero no lo DESCOMPRIMIDO: un zip bomba de 50 MB
-# puede expandir a gigabytes y llenar el disco.
+# acota el ARCHIVO (300 MB, ver app.config abajo) pero no lo DESCOMPRIMIDO:
+# un zip bomba dentro de ese tope puede expandir a gigabytes y llenar el disco.
 _MAX_UNZIPPED_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 
 

@@ -1,0 +1,44 @@
+================================================================================
+Ticket de Servicio - ADUANAS PROCESO 1 - 2026/09/02 17:04:59
+================================================================================
+Para ayudarle a corregir este error, le pedimos por favor seguir estos pasos:
+
+1. Envíe este Ticket de Servicio a los correos electrónicos que se indican a continuación.
+
+	- eruiz@gestell.co
+	- soporte@gestell.co
+	- drpgestell@outlook.com
+
+2. En el "subject" del correo, incluya la siguiente leyenda: Ticket de Servicio ADUANAS PROCESO 1 - 2026/09/02 17:04:59
+
+3. Adjunte los archivos insumo que intentó procesar, para que podamos revisar el caso correctamente.
+
+4. Su solicitud será atendida con gusto conforme a nuestra política vigente de Niveles de Servicio (SLA).
+
+Estamos a sus órdenes,
+
+Gestell
+--------------------------------------------------------------------------------
+TRACEBACK DEL ERROR
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/dist-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/dist-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/GNOSIS/app.py", line 1514, in reprocesar_pdfs
+    from PDFs_Final_v3 import PDFs_to_excel
+  File "/home/user/GNOSIS/PDFs_Final_v3.py", line 7, in <module>
+    from PDFs_v2 import PDFs_v1, PDFs_v2, PDFs_v3, PDFs_v4
+  File "/home/user/GNOSIS/PDFs_v2.py", line 1, in <module>
+    import tabula
+ModuleNotFoundError: No module named 'tabula'
+
+
+ERROR: ModuleNotFoundError
+Línea del código: No module named 'tabula'
+
+================================================================================
+

@@ -14,6 +14,10 @@ import os
 import json
 from abc import ABC, abstractmethod
 
+from registro import log
+
+_log = log("jarvis.llm")
+
 
 class LLMProvider(ABC):
     """Interfaz abstracta para proveedores LLM."""
@@ -26,14 +30,65 @@ class LLMProvider(ABC):
         pass
 
 
+#: Reintentos ante fallos TRANSITORIOS del proveedor. Un 429 o un 5xx puntual
+#: abortaba el turno entero y el operador perdía la pregunta; Anthropic ya
+#: reintenta dentro de su SDK, DeepSeek y Ollama no. La llamada de chat es
+#: idempotente para este uso (no muta nada), así que reintentarla es seguro.
+REINTENTOS = 2
+ESPERA_BASE = 1.5     # segundos; se dobla en cada intento
+_TRANSITORIOS = (429, 500, 502, 503, 504, 529)
+
+
+def _reintentar(llamada, quien):
+    """Ejecuta `llamada`, reintentando solo lo transitorio."""
+    import time
+
+    import requests as _rq
+
+    ultimo = None
+    for intento in range(REINTENTOS + 1):
+        try:
+            return llamada()
+        except _rq.HTTPError as e:
+            codigo = getattr(e.response, "status_code", None)
+            if codigo not in _TRANSITORIOS or intento == REINTENTOS:
+                raise
+            ultimo = e
+        except (_rq.ConnectionError, _rq.Timeout) as e:
+            if intento == REINTENTOS:
+                raise
+            ultimo = e
+        espera = ESPERA_BASE * (2 ** intento)
+        _log.warning("%s falló de forma transitoria (%s); reintento %s/%s en %.1fs",
+                     quien, ultimo, intento + 1, REINTENTOS, espera)
+        time.sleep(espera)
+    raise RuntimeError(f"{quien}: reintentos agotados")
+
+
 class AnthropicProvider(LLMProvider):
     """Proveedor de Anthropic Claude via API."""
 
-    def __init__(self, api_key=None, model="claude-sonnet-4-5-20250929"):
+    #: Último recurso si no hay ni configuración ni entorno. Cuál debe ser
+    #: el default es decisión del operador, no de este archivo.
+    MODELO_DE_RESERVA = 'claude-sonnet-4-5-20250929'
+
+    @classmethod
+    def modelo_por_defecto(cls):
+        """El id de modelo NO se codifica aquí: se declara por entorno
+        (`ANTHROPIC_MODEL`) o por configuración (`claude_model` en admin),
+        igual que ya hacía DeepSeek con `DEEPSEEK_MODEL`. Un id fijo en el
+        código envejece en silencio — este apuntaba a una generación anterior
+        y nadie se enteraba.
+
+        Se lee al CONSTRUIR, no al importar: leerlo en el cuerpo de la clase
+        lo congela en el primer import y lo vuelve intestable."""
+        return os.environ.get('ANTHROPIC_MODEL') or cls.MODELO_DE_RESERVA
+
+    def __init__(self, api_key=None, model=None):
         self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY no configurada")
-        self.model = model
+        self.model = model or self.modelo_por_defecto()
 
         import anthropic
         self.client = anthropic.Anthropic(api_key=self.api_key)
@@ -159,13 +214,17 @@ class DeepSeekProvider(LLMProvider):
         if tools:
             payload['tools'] = tools_a_openai(tools)
 
-        resp = requests.post(
-            self.BASE_URL,
-            json=payload,
-            headers={'Authorization': f'Bearer {self.api_key}'},
-            timeout=180,
-        )
-        resp.raise_for_status()
+        def pedir():
+            r = requests.post(
+                self.BASE_URL,
+                json=payload,
+                headers={'Authorization': f'Bearer {self.api_key}'},
+                timeout=180,
+            )
+            r.raise_for_status()
+            return r
+
+        resp = _reintentar(pedir, "DeepSeek")
         data = resp.json()
 
         # DeepSeek puede responder HTTP 200 con cuerpo de error o choices
@@ -233,8 +292,12 @@ class OllamaProvider(LLMProvider):
             'stream': False,
         }
 
-        resp = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
-        resp.raise_for_status()
+        def pedir():
+            r = requests.post(f"{self.base_url}/api/chat", json=payload, timeout=120)
+            r.raise_for_status()
+            return r
+
+        resp = _reintentar(pedir, "Ollama")
         data = resp.json()
 
         return {

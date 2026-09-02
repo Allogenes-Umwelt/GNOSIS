@@ -156,7 +156,11 @@ def _vector_marca(filas: list[dict], marca: str) -> tuple[dict[str, float], int]
 
 
 def _coseno(a: dict[str, float], b: dict[str, float]) -> float:
-    dot = sum(a.get(k, 0.0) * b.get(k, 0.0) for k in set(a) | set(b))
+    # sorted(): la suma en coma flotante NO es asociativa, así que el orden
+    # de iteración de un set —que depende de PYTHONHASHSEED— podía mover el
+    # último bit del resultado entre procesos. Ese score desempata órdenes de
+    # similitud, y un desempate que cambia rompe la ley de doble corrida.
+    dot = sum(a.get(k, 0.0) * b.get(k, 0.0) for k in sorted(set(a) | set(b)))
     na = math.sqrt(sum(x * x for x in a.values()))
     nb = math.sqrt(sum(x * x for x in b.values()))
     return dot / (na * nb) if na > 0 and nb > 0 else 0.0
