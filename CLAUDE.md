@@ -60,12 +60,15 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
 
 ## Documentación de arquitectura
 - C4 (Contexto → Contenedores → Componentes) + arc42, según
-  `~/architecture-standards.md` — doctrina común de cualquier repo del
-  ecosistema. Ejemplar propio: `docs/ARQUITECTURA.md`.
+  `docs/estandares/architecture-standards.md` — doctrina común de cualquier
+  repo del ecosistema (copia en-repo del master `~/architecture-standards.md`).
+  Ejemplar propio: `docs/ARQUITECTURA.md`.
 - Diagramas como Mermaid; un cambio estructural requiere ADR y actualizar el
   diagrama en el MISMO commit (regla de staleness).
-- Documentos de marca: `~/gestell-documentos-guia.md` (contrato GESTELL,
-  elevado de `docs/GUIA_DOCUMENTOS_GESTELL.md`).
+- Doctrina backend (Python/seguridad/testing/observabilidad):
+  `docs/estandares/backend-engineering.md` (copia en-repo del master
+  `~/backend-engineering.md`).
+- Documentos de marca: `docs/GUIA_DOCUMENTOS_GESTELL.md` (contrato GESTELL).
 - Playbook: skill `architecture-diagram`; validación headless:
   `node scripts/validate-mermaid.mjs` (del skill) — C4 parse limpio antes de merge.
 
