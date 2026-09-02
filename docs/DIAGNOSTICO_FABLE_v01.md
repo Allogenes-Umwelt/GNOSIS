@@ -17,7 +17,7 @@ Las debilidades se concentran en **tres fronteras**, no en los motores:
 |---|---|---|
 | **LLM** (`jarvis/`) | La ofuscación se evade con una expresión SQL trivial; la conversación se guarda **desofuscada**; el modelo lee cualquier sesión y su propio historial en claro | **crítica** |
 | **Red** (`app.py`) | Descargas de negocio con nombre fijo y tickets con traceback servidos **sin autenticación** en `0.0.0.0` | **alta** |
-| **Proceso** (gunicorn ×2) | Estado del chat en memoria de proceso: dos workers = dos conversaciones; el sello de bitácora tiene una carrera que produce **falsas alarmas de manipulación** | **alta** |
+| **Proceso** (gunicorn ×2) | Estado del chat en memoria de proceso: dos workers = dos conversaciones. (El sello de bitácora se creyó afectado por una carrera; el ejecutor midió que no era alcanzable — ver H5 y §8) | **alta** |
 
 Hallazgos: **2 críticos · 5 altos · 12 medios · 5 bajos**, más **una corrección a la auditoría previa** (§4). Plan en **8 olas + remates** (§5). Lo que no se toca y por qué, en §6.
 
@@ -113,7 +113,21 @@ Además, `'LIMIT' not in normalized.upper()` (`tools.py:483`) se satisface con u
 
 **Dónde.** `autogenes/sustrato.py:104-121` (`_registrar`): `SELECT hash … ORDER BY id DESC LIMIT 1` → `INSERT` → `SELECT ts` → `UPDATE hash`. Verificador en `:135-155`.
 
-**Mecánica.** Con `sqlite3` en modo legado, el `SELECT` del sello previo corre en autocommit y **no toma candado**; el `INSERT` abre la transacción después. Dos mutaciones concurrentes (dos workers, o una mutación y `_snapshot_telemetria`) leen el **mismo** `prev_hash`; el candado de escritura serializa los `INSERT` pero no las lecturas → dos filas con el mismo `prev_hash` → **bifurcación**. `verificar_bitacora` devuelve `{valido: False, motivo: "cadena"}` en la segunda: **una alarma de manipulación causada por uso normal**. Una alarma que miente una vez deja de creerse.
+**Mecánica.** *(Corregido por el ejecutor el 2026-09-02 — ver §8.)* La
+bifurcación es real como mecanismo: forzando a mano que dos escritores lean el
+mismo `prev_hash` antes de que ninguno inserte, `verificar_bitacora` devuelve
+`{valido: False, motivo: "cadena"}` — una alarma de manipulación por uso
+normal. **Pero no era alcanzable con este código**: todo método que llama a
+`_registrar` escribe ANTES, así que la transacción implícita de `sqlite3` ya
+tenía el candado de escritura cuando se leía el sello, y el segundo escritor
+se bloqueaba (`database is locked`) en vez de bifurcar. Medido: cero métodos
+de `Sustrato` registran sin escribir primero.
+
+Lo que sí era cierto es que la garantía estaba **prestada**: dependía de la
+transacción implícita de `sqlite3` y de que todo método futuro recordara
+escribir antes de registrar. `isolation_level=None`, el `autocommit` de Python
+3.12 o un método que solo registre la retiraban en silencio. Eso es el mismo
+hallazgo que **H10**, y el arreglo es el de H10.
 
 Segundo modo: un fallo entre el `INSERT` y el `UPDATE hash` (`:113-121`) deja una fila con `hash NULL`; el verificador la salta (`:142`) pero la siguiente fila lleva `prev_hash = ""` (`:110`) → "cadena" rota **para siempre**, indistinguible de una manipulación.
 
@@ -264,3 +278,32 @@ grep -c 'print(' app.py database/*.py jarvis/*.py rutas/*.py; grep -l 'import lo
 # H13: fetch sin guardas
 for f in static/metabolismo.js static/concilia.js static/vinculos.js; do echo "$f $(grep -c 'fetch(' $f) $(grep -c 'AbortController\|_seq\|stale' $f)"; done
 ```
+
+---
+
+## 8. Correcciones del ejecutor (Opus 5 · 2026-09-02)
+
+Este documento se escribió leyendo el código; al ejecutarlo, dos afirmaciones
+no sobrevivieron a la medición. Se corrigen aquí en vez de dejarlas en pie: un
+diagnóstico que no se corrige a sí mismo envejece igual que un diagrama.
+
+- **H5 · la carrera de la bitácora era LATENTE, no activa.** El mecanismo de
+  bifurcación existe y se reprodujo a mano, pero no era alcanzable: todo
+  método que registra escribe primero, de modo que la transacción implícita de
+  `sqlite3` ya tenía el candado. El segundo escritor se bloqueaba
+  (`database is locked`), no bifurcaba. La gravedad real era la de H10 —una
+  garantía prestada a un detalle del driver— y así se arregló: `_registrar`
+  abre `BEGIN IMMEDIATE` cuando no hay transacción, así que la invariante
+  ya no depende de quién llame ni de la versión de Python.
+  Lo que **sí** estaba roto en H5 y se confirmó con pruebas rojas: un `hash`
+  nulo (muerte entre el `INSERT` y el `UPDATE`) se reportaba como `cadena`
+  rota **para siempre**, indistinguible de una manipulación; y la verificación
+  no tenía superficie (404). Ambas cerradas.
+
+- **H4 · la entrada de `AUDITORIA.md` sobre `/processing` era inexacta**, como
+  el propio documento sospechaba. `app.py` limpia los directorios de *staging*
+  de subida, no `downloads`. Corregido en la fuente. Lo real y aún abierto es
+  que las salidas usan nombres fijos.
+
+Mantiene su veredicto todo lo demás que se ejecutó: H1, H2, H6, H7 (ola 1),
+H3 (ola 2), H4 y H12 (ola 3), H5-parcial y H10 (ola 4).

@@ -53,7 +53,7 @@ registrada (§Decisiones), no por inercia.
 | Capa | Tecnología | Papel | Dónde |
 |------|-----------|-------|-------|
 | Runtime | Python 3.11 | Todo el backend | — |
-| Web | Flask (factory + blueprints) | 121 rutas: 81 AUTOGENES + 11 tableros + 29 shell/pipeline | `app.py`, `rutas/` |
+| Web | Flask (factory + blueprints) | 123 rutas: 82 AUTOGENES + 11 tableros + 30 shell/pipeline | `app.py`, `rutas/` |
 | Datos | SQLite (WAL) — **única verdad** | 14 tablas aduanales + 12 tablas `ag_*` del sustrato | `database/` |
 | Tipos | pydantic | Contratos del sustrato (Entidad, Producto, …) | `autogenes/tipos.py` |
 | Grafo | NetworkX — **confinado** | Solo lentes de sesión (camino/vecindario/hubs); JAMÁS cifras de panel ni layout | `autogenes/red.py`, `caminos.py` |

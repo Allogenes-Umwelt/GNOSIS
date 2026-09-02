@@ -1406,6 +1406,30 @@ def _snapshot_telemetria(conn, session_id):
 
 
 
+@bp.route('/api/v1/autogenes/bitacora/verificar', methods=['GET'])
+def api_bitacora_verificar():
+    """Re-deriva la cadena de sellos de la bitácora WORM y declara el
+    veredicto.
+
+    La bitácora es la propiedad forense del sistema —un expediente de defensa
+    vale lo que vale su procedencia— y hasta ahora no tenía superficie:
+    `verificar_bitacora` existía y nadie podía pedirlo. Un sello que nadie
+    puede comprobar no defiende nada.
+
+    Veredictos: `valido` · `hash` (contenido reescrito) · `cadena` (filas
+    reordenadas o insertadas) · `hueco` (un sello que no llegó a escribirse:
+    defecto declarable, no manipulación).
+    """
+    from autogenes.sustrato import Sustrato
+
+    def handler(conn, session_id):
+        return jsonify(Sustrato(conn, session_id).verificar_bitacora())
+    try:
+        return _con_sesion(handler)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @bp.route('/api/v1/autogenes/camino', methods=['GET'])
 def api_autogenes_camino():
     """El camino citado entre dos nodos. Retrocompatible: sin k/evitar/via

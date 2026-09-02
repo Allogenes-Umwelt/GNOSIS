@@ -139,7 +139,7 @@ Se contrastaron las cifras que los diagramas afirman contra el árbol real:
 
 | Afirmación del diagrama | Real | |
 |---|---|---|
-| 121 rutas (81 + 11 + 29) | 81 + 11 + 29 = **121** | ✅ |
+| 121 rutas (81 + 11 + 29) | era **121**; hoy **123** (82 + 11 + 30) tras las olas 3 y 4 | ✅ actualizado |
 | 26 tools de Gnosis·IA (18 + 8) | 18 + 8 = **26** | ✅ |
 | 31 módulos AUTOGENES | **31** archivos en `autogenes/` | ✅ |
 | 33 superficies JS | **34** | ❌ corregido |

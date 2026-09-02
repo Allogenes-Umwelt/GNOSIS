@@ -19,7 +19,7 @@ C4Container
 
     System_Boundary(gnosis, "GNOSIS") {
         Container(spa, "Frontend (Jinja + JS vanilla)", "HTML/Jinja2 + Canvas 2D + SVG", "34 superficies: tableros deep-tech, studio QUALIA, flujo de descuadre, chat. Nocturne/Daylight.")
-        Container(flask, "Aplicación Flask", "Python 3.11 / Flask", "Factory + blueprints. 121 rutas, orquestación del pipeline, contrato de errores, candado de operador.")
+        Container(flask, "Aplicación Flask", "Python 3.11 / Flask", "Factory + blueprints. 123 rutas, orquestación del pipeline, contrato de errores, candado de operador.")
         Container(motores, "Motores del sustrato", "Python puro", "31 módulos AUTOGENES (grafo de evidencia + flujo de investigación) + 6 tableros de negocio. Deterministas, testeados, sin IO.")
         Container(jarvis, "Gnosis·IA", "Python", "Chat sobre el grafo: selección de proveedor LLM, 26 tools, ofuscación de identificadores, quorum.")
         Container(pipeline, "Pipeline legado (INTOCABLE)", "Python + pandas/tabula/PyPDF2", "Extracción de PDFs → concentrados → estadístico de cupos. Import perezoso; excluido de ruff a propósito.")

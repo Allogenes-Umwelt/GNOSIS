@@ -3,7 +3,7 @@
 > **Nivel:** C4 L3 · Componentes — **Notación:** C4 (Mermaid `C4Component`)
 > **Pregunta que responde:** ¿Qué hay dentro del sustrato: qué motores lo componen y cómo se encadenan en el flujo de investigación?
 > **Leyenda:** `Person` actor humano · `System`/`Container`/`Component` caja del sistema · `System_Ext` sistema externo (fuera de nuestro control) · `ContainerDb` almacén · `Rel` arista dirigida y etiquetada con protocolo.
-> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md)
+> **ADR:** [ADR-0004](../adr/0004-sustrato-unico-escritor-de-ag.md) · [ADR-0005](../adr/0005-networkx-confinado-a-lentes.md) · [ADR-0006](../adr/0006-proyeccion-en-tiempo-de-lectura.md) · [ADR-0013](../adr/0013-sello-bajo-candado.md)
 > **Índice de vistas:** [docs/architecture/README.md](../README.md)
 
 **Nota de la vista.** Caja blanca de `Container(motores)` del L2. Excede las ~6 cajas que pide la doctrina: el sustrato ES el diferenciador del sistema y partirlo escondería el encadenamiento. Desviación declarada, no descuido.

@@ -113,6 +113,17 @@ class Sustrato:
         # (cadena global, no por sesión) + su propio contenido. Una edición o un
         # borrado fuera de esta puerta rompe la cadena y verificar_bitacora lo
         # detecta — la propiedad write-once deja de ser solo disciplina.
+        #
+        # El candado de escritura se toma ANTES de leer el sello previo. Hoy
+        # eso ya ocurría de rebote —todo método que registra escribe primero,
+        # así que la transacción implícita de sqlite3 ya tenía el candado—,
+        # pero era una garantía prestada: bastaba `isolation_level=None`, el
+        # `autocommit` de Python 3.12, o un método futuro que solo registrase,
+        # para que dos escritores leyeran el MISMO prev_hash y la cadena se
+        # bifurcara. Una bifurcación se ve igual que una manipulación, y una
+        # alarma forense que miente una vez deja de creerse. Aquí es explícito.
+        if not self.conn.in_transaction:
+            self.conn.execute("BEGIN IMMEDIATE")
         prev = self.conn.execute(
             "SELECT hash FROM ag_bitacora ORDER BY id DESC LIMIT 1").fetchone()
         prev_hash = (prev[0] if prev else None) or ""
@@ -138,20 +149,33 @@ class Sustrato:
             " FROM ag_bitacora ORDER BY id").fetchall()
         prev = ""
         sellados = 0
+        sin_sellar = 0
         for r in filas:
-            if r["hash"] is None:                      # fila anterior al sello
-                continue
+            if r["hash"] is None:
+                if r["prev_hash"] is None:
+                    # historia anterior al sello: no se puede verificar, pero
+                    # tampoco está rota. Se declara y se sigue.
+                    sin_sellar += 1
+                    continue
+                # HUECO: la fila entró pero su sello no llegó a escribirse
+                # (muerte entre el INSERT y el UPDATE). Es un defecto de
+                # escritura declarable, no una manipulación — decir "cadena
+                # rota" sería acusar de fraude a un corte de luz.
+                return {"valido": False, "filas": len(filas),
+                        "sellados": sellados, "sin_sellar": sin_sellar,
+                        "roto_en": r["id"], "motivo": "hueco"}
             esperado = _sello_bitacora(prev, r["id"], r["session_id"], r["ts"],
                                        r["accion"], r["detalle"])
             if (r["prev_hash"] or "") != prev or r["hash"] != esperado:
                 return {"valido": False, "filas": len(filas),
+                        "sellados": sellados, "sin_sellar": sin_sellar,
                         "roto_en": r["id"],
                         "motivo": "cadena" if (r["prev_hash"] or "") != prev
                         else "hash"}
             prev = r["hash"]
             sellados += 1
         return {"valido": True, "filas": len(filas), "sellados": sellados,
-                "roto_en": None, "motivo": None}
+                "sin_sellar": sin_sellar, "roto_en": None, "motivo": None}
 
     def bitacora(self, limite: int = 100) -> list[dict]:
         rows = self.conn.execute(
