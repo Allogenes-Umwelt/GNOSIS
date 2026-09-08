@@ -29,3 +29,16 @@ exclude = [
 # de entorno al importarse (.env debe poblarse primero). Ese orden es
 # intencional, así que E402 (import no al inicio) no aplica aquí.
 "app.py" = ["E402"]
+
+[lint]
+# Ruff's defaults are not a stable contract. This config relied on them
+# implicitly, and when CI's unpinned `pip install ruff` picked up 0.16 --
+# which widened the default selection -- a docs-only commit went from a
+# clean gate to 313 findings. Nothing in the repository had changed.
+#
+# The selection below is the one the config always meant (E4/E7/E9/F:
+# correctness, not style, per the note at the top of this file). Stated
+# explicitly, the gate answers the same under any ruff version, and
+# widening it becomes a decision someone makes rather than one a release
+# makes for us.
+select = ["E4", "E7", "E9", "F"]
