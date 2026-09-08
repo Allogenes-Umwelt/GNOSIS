@@ -7,7 +7,7 @@ locales (`~/...`).
 | Archivo | Doctrina | Master local |
 | --- | --- | --- |
 | `architecture-standards.md` | C4 + arc42, diagrams-as-code, ADR, CI gates | `~/architecture-standards.md` |
-| `backend-engineering.md` | Backend/skills profesionales (Python): tipado, async, seguridad OWASP, testing, datos, observabilidad, DevOps, AI-era | `~/backend-engineering.md` |
+| `backend-engineering.md` | Backend/skills profesionales (Python): tipado, async, seguridad OWASP, testing, datos, observabilidad, DevOps, AI-era | `MD-FILES-SHOP/library/backend-engineering.md` — snapshot de **v1.5.0**, 2026-09-08 |
 
 ## Jerarquía (cómo se aplica)
 
@@ -15,9 +15,13 @@ locales (`~/...`).
    negociables tienen precedencia sobre cualquier doctrina genérica.
 2. **Estos archivos:** doctrina repo-agnóstica — se aplican donde el repo no
    especifica algo distinto.
-3. **Masters locales** (`~/...`): fuente canónica para actualizar estos
-   snapshots. Si editas la doctrina, actualiza el master y re-sincroniza aquí
-   en el MISMO commit (regla de staleness).
+3. **Master:** la fuente canónica de `backend-engineering.md` es el
+   repositorio `MD-FILES-SHOP` (`library/`), no un archivo en `~`. La tabla
+   anota qué versión es este snapshot; el front matter del propio archivo la
+   repite. Si editas la doctrina, edítala en el master y re-sincroniza aquí
+   con la versión anotada (regla de staleness). El snapshot anterior se quedó
+   ocho versiones atrás precisamente porque nada en el archivo decía cuál
+   era.
 
 ## Nota de stack (importante para agentes)
 
