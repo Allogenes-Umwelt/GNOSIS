@@ -4,10 +4,16 @@ Cada funcion recibe parametros y retorna lista de dicts.
 TOOL_DEFINITIONS contiene los schemas JSON para Anthropic tool_use.
 """
 
+import logging
 import re
-from database import get_connection
+import uuid
+
+from database import get_connection, get_readonly_connection
 from database.persistence import get_latest_session_id
 from .tools_grafo import GRAFO_TOOL_DEFINITIONS
+
+
+_log = logging.getLogger("jarvis.tools")
 
 
 def _get_session(session_id=None):
@@ -488,12 +494,17 @@ def consulta_sql(query):
     if 'LIMIT' not in normalized.upper():
         normalized += ' LIMIT 100'
 
-    conn = get_connection()
+    conn = get_readonly_connection()
     try:
         rows = conn.execute(normalized).fetchall()
         return [dict(r) for r in rows]
-    except Exception as e:
-        return {'error': f'Error SQL: {str(e)}'}
+    except Exception:
+        # The driver's message names tables, columns and file paths, and it
+        # was going straight to the model and on to the browser. It belongs
+        # in the log; the caller gets a reference to quote.
+        ref = uuid.uuid4().hex[:12]
+        _log.exception("consulta_sql ref=%s failed on: %s", ref, normalized)
+        return {'error': f'La consulta no se pudo ejecutar (ref {ref}).'}
     finally:
         conn.close()
 

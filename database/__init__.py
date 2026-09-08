@@ -29,6 +29,25 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def get_readonly_connection() -> sqlite3.Connection:
+    """A connection SQLite itself refuses to write through.
+
+    `jarvis.tools.consulta_sql` hands the model's own SQL to the database
+    behind a keyword filter, and a keyword filter is an allowlist with a
+    blind spot -- it has to be right about every way a statement can be
+    spelled. This is the boundary that does not depend on being right:
+    the engine rejects the write whatever the text said.
+
+    Read-only mode needs the file to exist, so this never creates it.
+    """
+    conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=30)
+    conn.row_factory = sqlite3.Row
+    # Wait rather than fail when a writer holds the lock (gunicorn runs
+    # several workers over the same file).
+    conn.execute("PRAGMA busy_timeout = 30000")
+    return conn
+
+
 def init_db() -> None:
     """Apply the idempotent schema, WAL mode, and pending migrations.
 
