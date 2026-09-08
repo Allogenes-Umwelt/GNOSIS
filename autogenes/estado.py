@@ -24,7 +24,13 @@ def _tiene_base_qualia(conn: sqlite3.Connection, session_id: int) -> bool:
         return False   # esquema qualia aún no migrado en esta base
 
 
-def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any]:
+def estado_de_sesion(conn: sqlite3.Connection, session_id: int,
+                     hoy: Optional[str] = None) -> dict[str, Any]:
+    """Live session state. `hoy` (ISO date) fixes the day the Radar's
+    expiries are measured from; today by default. It exists so a test can
+    pin it: without it, any test comparing this total against
+    `senales_de_sesion(..., hoy=...)` stops being reproducible the moment
+    the fixture's date falls into the past."""
     ses = conn.execute(
         "SELECT id, month_processed, year_processed, status FROM processing_sessions"
         " WHERE id = ?", (session_id,),
@@ -49,7 +55,7 @@ def estado_de_sesion(conn: sqlite3.Connection, session_id: int) -> dict[str, Any
     ).fetchone()[0]
 
     from autogenes.senales import senales_de_sesion
-    sen = senales_de_sesion(conn, session_id)
+    sen = senales_de_sesion(conn, session_id, hoy=hoy)
 
     productos_informe = conn.execute(
         "SELECT COUNT(*) FROM ag_productos WHERE session_id = ? AND clase = 'informe'",
