@@ -1,24 +1,48 @@
-pandas
-openpyxl
-numpy
-tabula-py
-PyPDF2==1.26.0
-Flask==2.0.3
-Werkzeug==2.0.3
-jpype1
-pdfplumber
-pytesseract
-pdf2image
-Pillow
-pdfminer.six
-camelot-py
-pywaffle
-bokeh
-plotly
-anthropic>=0.39.0
-python-dotenv
-pydantic>=2.7
-gunicorn>=22.0
-networkx>=3.2
-requests
-xlrd
+# Un solo conjunto resuelto. La imagen lo instala (docker/Dockerfile) y CI
+# lo usa como archivo de restricciones, así que la suite prueba las mismas
+# versiones que se despliegan. Antes no: la imagen instalaba de aquí con
+# Flask 2.0.3 y CI instalaba versiones actuales de una lista escrita a
+# mano, de modo que 511 pruebas en verde hablaban de un programa distinto
+# al que corre. `pip-audit` encontraba 17 vulnerabilidades conocidas en 3
+# paquetes; hoy encuentra cero, y CI lo verifica en cada push.
+#
+# Para subir una versión: cámbiala aquí, corre `pip-audit -r
+# requirements.txt` y la suite. Un solo archivo, un solo cambio.
+
+# ── núcleo web ──
+Flask==3.1.3
+Werkzeug==3.1.8
+gunicorn==26.2.0
+
+# ── datos y tipos ──
+pandas==3.0.5
+numpy==2.4.6
+networkx==3.6.1
+pydantic==2.13.5
+openpyxl==3.1.5
+xlrd==2.0.2
+
+# ── pipelegado: extracción de PDFs ──
+# PyPDF2 1.27.9 y no 2.x/3.x: `PDFs_v2.py` usa `PdfFileReader`, que
+# desaparece en 3.x, y el pipelegado no se toca (LEY). 1.27.9 es la última
+# 1.x y cierra PYSEC-2022-194 y PYSEC-2026-1837 sin cambiar una línea de
+# código. `PDFs_Final_v3.py:27` ya se adapta a ambas APIs por su cuenta.
+PyPDF2==1.27.9
+tabula-py==2.10.0
+jpype1==1.7.1
+pdfplumber==0.11.10
+pdfminer.six==20260107
+camelot-py==2.0.0
+pytesseract==0.3.13
+pdf2image==1.17.0
+Pillow==12.3.0
+
+# ── gráficos del pipelegado ──
+pywaffle==1.1.1
+bokeh==3.9.2
+plotly==7.0.0
+
+# ── LLM y entorno ──
+anthropic==1.4.0
+requests==2.34.2
+python-dotenv==1.2.3
