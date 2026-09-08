@@ -27,9 +27,11 @@ jobs:
           pip install -c requirements.txt \
             flask pydantic networkx python-dotenv requests \
             pandas numpy openpyxl xlrd anthropic \
-            'pytest==8.4.2' 'ruff==0.16.6' 'pip-audit==2.10.1'
+            'pytest==8.4.2' 'ruff==0.16.6' 'pip-audit==2.10.1' 'mypy==2.3.1'
       - name: Lint (el árbol vivo; ruff.toml define qué queda fuera)
         run: ruff check .
+      - name: Types (the list in mypy.ini only shrinks)
+        run: mypy
       - name: Dependencias sin vulnerabilidades conocidas
         run: pip-audit -r requirements.txt --strict
       - name: Suite
