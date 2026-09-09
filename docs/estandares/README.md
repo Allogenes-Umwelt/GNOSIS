@@ -7,7 +7,7 @@ locales (`~/...`).
 | Archivo | Doctrina | Master local |
 | --- | --- | --- |
 | `architecture-standards.md` | C4 + arc42, diagrams-as-code, ADR, CI gates | `~/architecture-standards.md` |
-| `backend-engineering.md` | Backend/skills profesionales (Python): tipado, async, seguridad OWASP, testing, datos, observabilidad, DevOps, AI-era | `MD-FILES-SHOP/library/backend-engineering.md` — snapshot de **v1.5.0**, 2026-09-08 |
+| `backend-engineering.md` | Backend/skills profesionales (Python): tipado, async, seguridad OWASP, testing, datos, observabilidad, DevOps, AI-era | `MD-FILES-SHOP/library/backend-engineering.md` — snapshot de **v1.6.1**, 2026-09-08 |
 
 ## Jerarquía (cómo se aplica)
 

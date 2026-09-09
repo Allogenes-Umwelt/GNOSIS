@@ -1,7 +1,7 @@
 ---
 id: backend-engineering
 title: Backend Engineering Skill Set
-version: 1.5.0
+version: 1.6.1
 status: active
 owner: CLARENT
 audience: ALLOGENES
@@ -20,11 +20,12 @@ requires: []
 see_also: [llm-engineering, application-security, frontend-engineering,
            api-design]
 manual_scores:
-  density: 12
+  density: 13.5
   editions: 5
   scored_by: Fable 5.1
   scored_at: 2026-09-08
-  defended_in: reports/audit-v5.md
+  defended_in: reports/audit-v7.md
+  fingerprint: 568910cbad78adfaff0a5f9826421352
 updated: 2026-09-08
 review_by: 2027-03-08
 ---
@@ -165,14 +166,13 @@ later the domain cannot be tested without a database.
   `application`, `infrastructure` or `api`; `application` imports nothing
   from `infrastructure` or `api`. Enforcer: an import-contract checker in
   CI (`import-linter`).
-- Deviations: every ADR trigger in a merged PR links an ADR; zero PRs
-  marked "ADR needed" without one. Enforcer: PR template + CODEOWNERS on
-  `docs/adr/`.
+- Deviations: every ADR trigger in a merged PR links an ADR. Enforcer:
+  PR template + CODEOWNERS on `docs/adr/`.
 - Complexity: cyclomatic <= 10 per function (floor); cognitive complexity
   held low by review (elite). Enforcer: Ruff `C901`, `PLR0912/0913/0915`.
-- Abstraction fit: judgement-based, no automated gate. Reviewers ask
-  whether a seam has three call sites or a real substitution before it
-  earns its place. Enforcer: review checklist.
+- Abstraction fit: judgement-based; no automated gate. A seam earns its
+  place with three call sites or a real substitution, never with one.
+  Enforcer: **ritual** -- the review checklist.
 
 ---
 ## 2. API Design & the Frontend Contract
@@ -207,12 +207,11 @@ without a deprecation story, and learns at the first breaking change that
 #### Audit Benchmarks
 - Inventory: 100% of routes present in the OpenAPI document; a test
   asserts `routes ⊆ spec`. Enforcer: CI test.
-- Breaking changes: zero unreviewed breaks; every break ships
-  `Deprecation` + `Sunset` >= 90 days before removal. Enforcer: `oasdiff`
-  in CI.
-- Coverage: every control in `api-design` has a gate there; zero
-  benchmarks in that file marked unenforced without a stated reason.
-  Enforcer: `mdshop validate` + review.
+- Breaking changes: zero unreviewed breaks. Enforcer: `oasdiff` in CI.
+- Deprecation window: every break ships `Deprecation` + `Sunset` >= 90
+  days before removal. Enforcer: `oasdiff` in CI.
+- Coverage: every control in `api-design` has a gate there, or a stated
+  reason why not. Enforcer: `mdshop validate` + review.
 
 ---
 ## 3. Core Python Mastery
@@ -423,18 +422,25 @@ table, queued behind one long-running transaction, holding an ACCESS
 EXCLUSIVE lock while every request piles up behind it.
 
 #### Audit Benchmarks
-- Migrations: zero lock-hazardous statements; `lock_timeout` and
-  `statement_timeout` set; forward-only; expand/contract for every breaking
-  change; run against a production-shaped snapshot in CI. Enforcer:
-  migration lint (`squawk` on Postgres) + human review of every migration.
+- Migrations: zero migrations that carry a lock-hazardous statement,
+  omit `lock_timeout`, or omit `statement_timeout`. Enforcer: migration
+  lint (`squawk` on Postgres).
+- Migration safety: forward-only, expand/contract for every breaking
+  change, rehearsed against a production-shaped snapshot in CI. Enforcer:
+  CI job + human review of every migration.
 - Query health: zero sequential scans on hot tables over 1M rows;
   `EXPLAIN ANALYZE` attached to any PR touching a hot query. Enforcer:
   weekly `pg_stat_statements` review + PR template.
 - N+1: zero, asserted by a max-query-count check on every list endpoint
   test. Enforcer: test helper in CI.
-- Schema hygiene: every FK indexed; every expressible invariant a
-  constraint; every timestamp `timestamptz`; PII columns tagged. Enforcer:
+- Schema hygiene: every foreign key is indexed. Enforcer: schema-lint
+  query in CI.
+- Timestamps: every timestamp column is `timestamptz`. Enforcer:
   schema-lint query in CI.
+- Invariants: every expressible invariant is a database constraint.
+  Enforcer: schema-lint query in CI.
+- PII tagging: every column holding personal data carries a tag.
+  Enforcer: schema-lint query in CI.
 - Recovery: restore drill quarterly; RTO and RPO documented per database
   and met, with evidence linked. Enforcer: runbook + calendar.
 ## 5. Resilience & Distributed Systems
@@ -537,8 +543,8 @@ budget, no jitter — a ten-second blip becomes a forty-minute outage, and
 the graphs show the recovery attempts, not the cause.
 
 #### Audit Benchmarks
-- Timeouts: 100% of outbound calls carry an explicit timeout; zero
-  unbounded retries. Enforcer: `semgrep` rule + client factory under test.
+- Timeouts: 100% of outbound calls carry an explicit timeout. Enforcer:
+  `semgrep` rule + client factory under test.
 - Retries: idempotent-only, backoff with jitter, budget <= 10% of request
   rate with an alert above it. Enforcer: metrics + alert rule.
 - Isolation: a breaker and a bulkhead on every critical-path downstream.
@@ -560,9 +566,10 @@ the graphs show the recovery attempts, not the cause.
   build at 5-10% single-thread overhead. Where it is available, threads
   become a real CPU-parallel option and this calculus changes. Measure on
   `3.14t` before assuming either way.
-- Sub-interpreters (PEP 734, 3.12+) are a third parallelism option:
-  isolated interpreters in one process, cheaper than processes, without
-  the shared-state hazards of threads.
+- Sub-interpreters are a third parallelism option: isolated interpreters
+  in one process, cheaper than processes, without the shared-state hazards
+  of threads. The per-interpreter GIL is 3.12's PEP 684; the standard
+  library module that reaches it, PEP 734, ships in 3.14.
 - Profile before optimizing: cProfile, py-spy (production, no restart),
   scalene, `memray` for memory; flamegraphs. Optimize the measured hot
   path, not the imagined one.
@@ -646,8 +653,8 @@ every route — and never opened the file that says how that is proven.
   authentication, session and cryptography chapters (elite). Enforcer:
   release checklist mapped to ASVS.
 - Coverage: every control in `application-security` has an owner and a
-  gate there; zero benchmarks in that file marked unenforced without a
-  stated reason. Enforcer: `mdshop validate` + security review.
+  gate there, or a stated reason why not. Enforcer: `mdshop validate` +
+  security review.
 - Routes: 100% of routes carry an explicit auth dependency or sit on a
   reviewed public allowlist. Enforcer: router-introspection test in CI.
 
@@ -713,21 +720,26 @@ CI happens to pick on Friday, because two tests share a row in the
 database and nobody randomised the order.
 
 #### Audit Benchmarks
-- Speed: PR gate suite < 10 min; E2E < 15 min nightly. Enforcer: CI
-  timing alert.
+- Speed: PR gate suite < 10 min. Enforcer: `timeout-minutes` on the job
+  -- an alert nobody has to read is not a gate.
+- Nightly speed: E2E suite < 15 min. Enforcer: `timeout-minutes` on the
+  nightly job.
 - Coverage: diff coverage >= 80% with branch coverage on (floor); >= 90%
   (elite). Enforcer: `diff-cover` in CI.
-- Strength: mutation score >= 70% on `domain/` (elite). Enforcer:
-  scheduled `mutmut`.
-- Trust: zero retries configured in CI; flaky tests fixed or deleted
-  within 7 days; random order and warnings-as-errors on. Enforcer: pytest
-  config in repo + flake dashboard.
+- Strength: mutation score >= 70% on the modules that encode business
+  rules (elite). Enforcer: scheduled `mutmut`.
+- Trust: zero retries configured in CI. Enforcer: CI config.
+- Flakes: every flaky test fixed or deleted within 7 days, with random
+  order and warnings-as-errors on so they surface. Enforcer: pytest config
+  in repo + a flake dashboard with an age column.
 - Properties: property-based tests on 100% of parsers, serializers and
   validators. Enforcer: review checklist.
 - Contracts: every documented response validates under generated input,
-  and every consumer contract holds, per release -- zero failures.
-  Enforcer: spec-driven fuzzing and a contract-test broker in CI
-  (`schemathesis` and Pact here).
+  per release. A surface with no contract at all fails this benchmark
+  rather than passing it vacuously (`api-design` §1). Enforcer:
+  spec-driven fuzzing in CI (`schemathesis` here).
+- Consumer contracts: every consumer contract holds, per release.
+  Enforcer: a contract-test broker in CI (Pact here).
 
 ---
 ## 9. Quality Gates: Linters, Formatters, Static Analysis
@@ -822,26 +834,27 @@ consistently since March.
 #### Audit Benchmarks
 - Lint: Ruff clean on the mandated families; zero unused `noqa`. Enforcer:
   CI.
-- Types: a checker runs in CI and the untyped-module list only shrinks
-  (floor); strict clean, zero blanket ignores, `warn_unused_ignores` on,
-  and <= 5 reasoned `type: ignore[code]` per kLOC (elite). Enforcer: CI,
-  on a checked-in exclusion list.
+- Types: a checker runs in CI over a checked-in list of untyped modules
+  that only shrinks (floor); strict clean under `warn_unused_ignores`,
+  with no blanket ignore and at most 5 reasoned `type: ignore[code]` per
+  kLOC (elite). Enforcer: CI.
 - Security lint: zero unresolved security-lint findings — every one fixed,
   or suppressed with a written reason. Enforcer: Ruff `S` and `semgrep` in
   CI for the count and `RUF100` for the suppression staying live; review
   for the reason, which no linter can read.
-- Dependencies: one resolved manifest, CI installs from it, and the
-  resolution is verifiable (floor); `deptry` zero, `uv lock --check`
-  passing and `exclude-newer` >= 7 days (elite). Enforcer: CI.
+- Dependencies: one resolved manifest that CI installs from and can
+  verify (floor); `deptry` clean under `uv lock --check` with
+  `exclude-newer` at 7 days or more (elite). Enforcer: CI.
 - Parity: zero checks in the contributor's documented gate that CI does not
   also run, over the same paths and from the same manifest (floor); the two
   are one command, so they cannot drift (elite). Enforcer: review of the
   two side by side at the floor -- CI cannot check that it matches a
   document -- and at elite the single entry point is itself the enforcer.
 - Pipeline: the pipeline definitions pass a security audit with zero high
-  findings and a syntax lint; every third-party step pinned by immutable
-  reference, never a moving tag. Enforcer: CI (`zizmor` and `actionlint`
-  on GitHub Actions; the equivalent audit on whatever runs your builds).
+  findings, and a syntax lint. Enforcer: CI (`zizmor` and `actionlint` on
+  GitHub Actions; the equivalent audit on whatever runs your builds).
+- Step pinning: every third-party step pinned by immutable reference,
+  never a moving tag. Enforcer: `zizmor` in CI.
 
 ---
 ## 10. Observability
@@ -898,13 +911,18 @@ connect to a user-visible symptom.
   dashboards as code. Enforcer: dashboard lint in CI + review.
 - Propagation: 100% of inbound and outbound requests carry `traceparent`,
   asserted by an integration test. Enforcer: CI.
-- SLOs: error budgets for every user-facing service; multi-window
-  burn-rate alerts; 100% of alerts carry a `runbook_url`. Enforcer:
+- SLOs: an error budget for every user-facing service. Enforcer:
   alert-rule lint in CI.
+- Burn rate: multi-window burn-rate alerts on every SLO. Enforcer:
+  alert-rule lint in CI.
+- Runbooks: 100% of alerts carry a `runbook_url`. Enforcer: alert-rule
+  lint in CI.
 - Hygiene: zero secrets or raw PII in logs and traces. Enforcer: redaction
   processor + log-scan test.
 - Answerability: a new engineer answers "is it healthy, and what broke" in
-  10 minutes, tested at every game day. Enforcer: quarterly game day.
+  10 minutes, with the result and the date written down. Enforcer:
+  **ritual** -- the dated game-day record is the artifact, and no tool can
+  produce it.
 - Cost: log volume and cardinality within budget, alert at 2x baseline.
   Enforcer: collector metrics + alert.
 
@@ -972,17 +990,23 @@ unpinned third-party action, which is a supply-chain compromise with a
 green tick (`application-security` §4.1).
 
 #### Audit Benchmarks
-- Images: non-root, read-only filesystem, no shell, base pinned by digest,
-  zero known critical vulnerabilities in the shipped image, signed, SBOM
-  attached. Enforcer: container scanner in CI + admission controller.
+- Images: every image runs non-root on a read-only filesystem with no
+  shell, from a base pinned by digest. Enforcer: container scanner in CI.
+- Image provenance: zero images admitted unsigned, without an SBOM, or
+  carrying a known critical vulnerability. Enforcer: admission
+  controller.
 - Kubernetes: 100% of pods carry requests, limits and three probes; PDBs
   present; restricted PSS; default-deny network policies. Enforcer:
   `kube-linter` + Kyverno in CI.
-- IaC: 100% of infrastructure in code; policy checks zero high; drift
-  checked weekly. Enforcer: CI + scheduled job.
-- Pipeline: OIDC only, zero static cloud credentials; least-privilege
-  `permissions:` in every workflow; actions SHA-pinned. Enforcer: CI +
-  `zizmor`.
+- IaC: 100% of infrastructure in code, with policy checks at zero high.
+  Enforcer: CI.
+- Drift: infrastructure drift checked weekly. Enforcer: scheduled job.
+- Pipeline credentials: OIDC only, with zero static cloud credentials.
+  Enforcer: `zizmor` in CI.
+- Workflow hardening: least-privilege `permissions:` declared in every
+  workflow. Enforcer: `zizmor` in CI.
+- Step pinning: every action pinned by SHA, never a moving tag. Enforcer:
+  `zizmor` in CI.
 - Rollback: under 5 minutes, exercised monthly. Enforcer: game day +
   deploy tooling.
 - Recovery: RTO and RPO documented per service; multi-AZ by default.
@@ -1051,14 +1075,15 @@ week.
 - Currency: C4 L1 and L2 exist per system and change in the same PR as any
   topology change; reviewed quarterly. Enforcer: PR template, CODEOWNERS
   and a calendar reminder.
-- Decisions: ADRs in MADR format; zero "proposed" older than 30 days;
-  every §0 trigger in a merged PR has one. Enforcer: ADR lint + review.
+- Decisions: ADRs in MADR format, with zero "proposed" older than 30
+  days. Enforcer: ADR lint + review.
 - Onboarding: the README five-minute test passes at every onboarding;
   failures become issues. Enforcer: onboarding checklist.
 - Diagrams: as code only; zero orphan images under `docs/`. Enforcer: CI
   check.
-- Process models: BPMN validates, gateways named, no deadlocks, matches
-  the state model. Enforcer: modeler validation + review.
+- Process models: zero BPMN models that fail validation, leave a gateway
+  unnamed, deadlock, or diverge from the state model. Enforcer: modeler
+  validation + review.
 - Prose: docs lint clean. Enforcer: CI.
 
 ---
@@ -1165,17 +1190,20 @@ this" cheaper than saying "LGTM".
 - Latency: first review within 24h (floor); within 4h (elite). Enforcer:
   review metrics.
 - Commits: 100% Conventional Commits on main. Enforcer: `commitlint`.
-- Protection: required review, required checks, linear history, signed
-  commits, no force-push — configured as code. Enforcer: settings-as-code
-  and a quarterly audit.
+- Protection: every protected branch requires review, requires checks,
+  keeps linear history, demands signed commits and refuses a force-push --
+  configured as code. Enforcer: settings-as-code and a quarterly audit.
 - Delivery: all five DORA metrics tracked and trending the right way over
   two quarters (floor); on-demand deploys, change lead time under a day,
   change fail rate 0-2%, failed deployment recovery under an hour (elite,
   and these are the most recently published top-cluster figures, not a
   permanent bar). Enforcer: DORA dashboard.
-- Learning: postmortem within 5 business days for SEV1/2; 100% of action
-  items owned and dated; >= 90% closed within 30 days. Enforcer: incident
-  tracker.
+- Learning: a postmortem within 5 business days for every SEV1 and SEV2.
+  Enforcer: incident tracker.
+- Action items: 100% of postmortem action items owned and dated.
+  Enforcer: incident tracker.
+- Follow-through: >= 90% of action items closed within 30 days. Enforcer:
+  incident tracker.
 
 ---
 ## 14. AI/LLM-Era Engineering
@@ -1220,9 +1248,8 @@ nothing stops it, because nothing was counting steps.
   eval job.
 - Pinning: zero floating model aliases in any configuration. Enforcer:
   config lint in CI.
-- Coverage: every control in `llm-engineering` has a gate there; zero
-  benchmarks in that file marked unenforced without a stated reason.
-  Enforcer: `mdshop validate` + review.
+- Coverage: every control in `llm-engineering` has a gate there, or a
+  stated reason why not. Enforcer: `mdshop validate` + review.
 
 ---
 ## 15. Canon
@@ -1283,21 +1310,21 @@ what checks it; §N is where the floor and the elite condition live.
 
 | Domain | Measures | Enforcers | Block |
 |---|---|---|---|
-| Engineering Fundamentals | Dependency rule; Deviations; Complexity; Abstraction fit | an import-contract checker in CI (`import-linter`); PR template + CODEOWNERS on `docs/adr/`; Ruff `C901`, `PLR0912/0913/0915`; review checklist | §1 |
-| API Design & the Frontend Contract | Inventory; Breaking changes; Coverage | CI test; `oasdiff` in CI; `mdshop validate` + review | `api-design` |
+| Engineering Fundamentals | Dependency rule; Deviations; Complexity; Abstraction fit | an import-contract checker in CI (`import-linter`); PR template + CODEOWNERS on `docs/adr/`; Ruff `C901`, `PLR0912/0913/0915`; **ritual** -- the review checklist | §1 |
+| API Design & the Frontend Contract | Inventory; Breaking changes; Deprecation window; Coverage | CI test; `oasdiff` in CI; `mdshop validate` + review | `api-design` |
 | Core Python Mastery | Versions; Async hygiene; Datetimes; Layout | CI matrix; Ruff `ASYNC` + `TID251` banning `requests` and `time.sleep` in async packages; Ruff `DTZ`; CI (`uv sync`, then test from a clean checkout) | §3 |
-| Data & Storage | Migrations; Query health; N+1; Schema hygiene; Recovery | migration lint (`squawk` on Postgres) + human review of every migration; weekly `pg_stat_statements` review + PR template; test helper in CI; schema-lint query in CI; runbook + calendar | §4 |
+| Data & Storage | Migrations; Migration safety; Query health; N+1; Schema hygiene; Timestamps; Invariants; PII tagging; Recovery | migration lint (`squawk` on Postgres); CI job + human review of every migration; weekly `pg_stat_statements` review + PR template; test helper in CI; schema-lint query in CI; runbook + calendar | §4 |
 | Resilience & Distributed Systems | Timeouts; Retries; Isolation; Consumers; Overload; Chaos | `semgrep` rule + client factory under test; metrics + alert rule; dependency inventory + review checklist; CI; load-test job; calendar + linked evidence | §5 |
 | Concurrency & Performance | Latency; Evidence; Deploys; Capacity | k6/locust thresholds; PR template; canary metrics; USE metrics + alert rules | §6 |
 | Cybersecurity | Verification; Coverage; Routes | release checklist mapped to ASVS; `mdshop validate` + security review; router-introspection test in CI | `application-security` |
-| Testing | Speed; Coverage; Strength; Trust; Properties; Contracts | CI timing alert; `diff-cover` in CI; scheduled `mutmut`; pytest config in repo + flake dashboard; review checklist; spec-driven fuzzing and a contract-test broker in CI (`schemathesis` and Pact here) | §8 |
-| Quality Gates: Linters, Formatters, Static Analysis | Lint; Types; Security lint; Dependencies; Parity; Pipeline | CI; CI, on a checked-in exclusion list; Ruff `S` and `semgrep` in CI for the count and `RUF100` for the suppression staying live; review for the reason, which no linter can read; review of the two side by side at the floor -- CI cannot check that it matches a document -- and at elite the single entry point is itself the enforcer; CI (`zizmor` and `actionlint` on GitHub Actions; the equivalent audit on whatever runs your builds) | §9 |
-| Observability | Coverage; Propagation; SLOs; Hygiene; Answerability; Cost | dashboard lint in CI + review; CI; alert-rule lint in CI; redaction processor + log-scan test; quarterly game day; collector metrics + alert | §10 |
-| DevOps & Infrastructure | Images; Kubernetes; IaC; Pipeline; Rollback; Recovery | container scanner in CI + admission controller; `kube-linter` + Kyverno in CI; CI + scheduled job; CI + `zizmor`; game day + deploy tooling; architecture review | §11 |
+| Testing | Speed; Nightly speed; Coverage; Strength; Trust; Flakes; Properties; Contracts; Consumer contracts | `timeout-minutes` on the job -- an alert nobody has to read is not a gate; `timeout-minutes` on the nightly job; `diff-cover` in CI; scheduled `mutmut`; CI config; pytest config in repo + a flake dashboard with an age column; review checklist; spec-driven fuzzing in CI (`schemathesis` here); a contract-test broker in CI (Pact here) | §8 |
+| Quality Gates: Linters, Formatters, Static Analysis | Lint; Types; Security lint; Dependencies; Parity; Pipeline; Step pinning | CI; Ruff `S` and `semgrep` in CI for the count and `RUF100` for the suppression staying live; review for the reason, which no linter can read; review of the two side by side at the floor -- CI cannot check that it matches a document -- and at elite the single entry point is itself the enforcer; CI (`zizmor` and `actionlint` on GitHub Actions; the equivalent audit on whatever runs your builds); `zizmor` in CI | §9 |
+| Observability | Coverage; Propagation; SLOs; Burn rate; Runbooks; Hygiene; Answerability; Cost | dashboard lint in CI + review; CI; alert-rule lint in CI; redaction processor + log-scan test; **ritual** -- the dated game-day record is the artifact, and no tool can produce it; collector metrics + alert | §10 |
+| DevOps & Infrastructure | Images; Image provenance; Kubernetes; IaC; Drift; Pipeline credentials; Workflow hardening; Step pinning; Rollback; Recovery | container scanner in CI; admission controller; `kube-linter` + Kyverno in CI; CI; scheduled job; `zizmor` in CI; game day + deploy tooling; architecture review | §11 |
 | Architecture & Design Documentation | Currency; Decisions; Onboarding; Diagrams; Process models; Prose | PR template, CODEOWNERS and a calendar reminder; ADR lint + review; onboarding checklist; CI check; modeler validation + review; CI | §12 |
-| Methodologies & Process | Size; Latency; Commits; Protection; Delivery; Learning | PR-size bot; review metrics; `commitlint`; settings-as-code and a quarterly audit; DORA dashboard; incident tracker | §13 |
+| Methodologies & Process | Size; Latency; Commits; Protection; Delivery; Learning; Action items; Follow-through | PR-size bot; review metrics; `commitlint`; settings-as-code and a quarterly audit; DORA dashboard; incident tracker | §13 |
 | AI/LLM-Era Engineering | Evals; Pinning; Coverage | CI eval job; config lint in CI; `mdshop validate` + review | `llm-engineering` |
-| Caches, Queues & Pipelines | Cache; Jobs; Data quality | key-audit script + review; CI test + alert rule; pipeline test step | §18 |
+| Caches, Queues & Pipelines | Cache; Stampede; Cached authorization; Jobs; Row counts; Nulls; Referential integrity; Pipeline alerts | key-audit script; load test on the hot paths; key-audit script + review; CI test + alert rule; pipeline test step; alert rule on the pipeline test step | §18 |
 
 Two standards sit above the table and are audited at campaign end, not per
 wave: **12-factor** plus the runtime contract in §11.1, and **ISO/IEC
@@ -1401,14 +1428,21 @@ noticed in June, because every alert was about jobs that failed and none
 about a job that never started.
 
 #### Audit Benchmarks
-- Cache: 100% of keys carry a TTL; stampede protection on hot keys; zero
-  cached authorization decisions. Enforcer: key-audit script + review.
+- Cache: 100% of keys carry a TTL. Enforcer: key-audit script.
+- Stampede: stampede protection on every hot key. Enforcer: load test on
+  the hot paths.
+- Cached authorization: zero cached authorization decisions. Enforcer:
+  key-audit script + review.
 - Jobs: 100% of scheduled jobs are idempotent with a re-run test over the
   same window, and alert on *not running* within their interval — not
   only on failing. Enforcer: CI test + alert rule.
-- Data quality: every pipeline asserts row counts within a stated band,
-  zero unexpected nulls in required columns, and referential integrity
-  across its joins; a failure pages an owner. Enforcer: pipeline test
-  step.
+- Row counts: every pipeline asserts its row count within a stated band.
+  Enforcer: pipeline test step.
+- Nulls: every pipeline asserts that required columns hold no unexpected
+  null. Enforcer: pipeline test step.
+- Referential integrity: every pipeline asserts referential integrity
+  across its joins. Enforcer: pipeline test step.
+- Pipeline alerts: 100% of failed assertions page an owner rather than
+  logging. Enforcer: alert rule on the pipeline test step.
 
 ---
