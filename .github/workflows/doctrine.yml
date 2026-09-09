@@ -1,0 +1,19 @@
+name: doctrine
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  canon-drift:
+    name: Doctrine drift vs canon pin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Hash comparison only — no git history needed, shallow is fine.
+      - name: Doctrine drift gate
+        run: python3 scripts/doctrine-check.py

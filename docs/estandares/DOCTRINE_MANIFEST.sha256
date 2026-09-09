@@ -1,0 +1,10 @@
+# Canon pin for docs/estandares/ — sha256  filename
+# Source of truth: MD-FILES-SHOP library (private, Allogenes-Umwelt).
+# Refreshed ONLY by the canon-sync procedure: copy the five files from the
+# library, run `python3 scripts/doctrine-check.py --update`, commit.
+# Hand-editing a canon file without re-pinning fails CI and pre-commit.
+3fccad1b60a366e180838de6b6a51034ff4ab3bcaedbcd46e0bea3dcc980b061  api-design.md
+8200f2d2d7ee9142784cb8dc2344e0dea3c5f2ad4d562122f6dd463cf6a56ee8  application-security.md
+1d08928d79d699cbf8adfcd918cd940fbfd1329fb3515e6b1bc36b3fe43dfb0a  backend-engineering.md
+1d649ca9ad21a863984042546c860ebb53992f7d6f175f6cadef68c8f36c4188  frontend-engineering.md
+18fd5915fe7c0af2705214354b446d90c97b4da77c0ee075d5f8fd83720af2a1  llm-engineering.md

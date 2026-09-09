@@ -1,0 +1,31 @@
+# Local enforcement hooks. Mirrors the doctrine's own rule (backend-engineering
+# §9.1): fast feedback on the laptop, and CI re-runs the same hook so the
+# machines that matter are always the others.
+#
+# Hook versions are pinned. `pre-commit autoupdate` is a reviewed change,
+# not a background one.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+        exclude: \.md$          # trailing spaces are a line break in markdown
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  # The doctrine drift gate. Local because the script lives in this repo.
+  - repo: local
+    hooks:
+      - id: doctrine-drift
+        name: doctrine drift vs canon pin
+        entry: python3 scripts/doctrine-check.py
+        language: system
+        files: ^(docs/estandares/.*|scripts/doctrine-check\.py)$
+        pass_filenames: false
