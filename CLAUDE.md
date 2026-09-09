@@ -60,14 +60,18 @@ tokens CSS. El frontend NO usa React/TS/Vite/Tailwind ni bundler.
 
 ## Documentación de arquitectura
 - C4 (Contexto → Contenedores → Componentes) + arc42, según
-  `docs/estandares/architecture-standards.md` — doctrina común de cualquier
-  repo del ecosistema (copia en-repo del master `~/architecture-standards.md`).
-  Ejemplar propio: `docs/ARQUITECTURA.md`.
+  `docs/estandares/architecture-standards.md` (master `~/architecture-standards.md`,
+  fuera del canon de cinco archivos). Ejemplar propio: `docs/ARQUITECTURA.md`.
 - Diagramas como Mermaid; un cambio estructural requiere ADR y actualizar el
   diagrama en el MISMO commit (regla de staleness).
-- Doctrina backend (Python/seguridad/testing/observabilidad):
-  `docs/estandares/backend-engineering.md` (copia en-repo del master
-  `~/backend-engineering.md`).
+- Doctrina compartida del ecosistema: los CINCO archivos de `docs/estandares/`
+  (`backend-engineering`, `api-design`, `application-security`,
+  `frontend-engineering`, `llm-engineering`). Se instalan **como conjunto** y se
+  citan entre sí por `id`; `backend-engineering.md` es la espina. Canon en
+  `MD-FILES-SHOP/library/` (versión en el front matter y en la tabla del README);
+  `~/` es espejo. Aplican donde este archivo no diga algo distinto; matices de
+  stack en `docs/estandares/README.md` (layout real del repo, frontend vanilla
+  sin build step, API sin clientes externos versionados).
 - Documentos de marca: `docs/GUIA_DOCUMENTOS_GESTELL.md` (contrato GESTELL).
 - Playbook: skill `architecture-diagram`; validación headless:
   `node scripts/validate-mermaid.mjs` (del skill) — C4 parse limpio antes de merge.
