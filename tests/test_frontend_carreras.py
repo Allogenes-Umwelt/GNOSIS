@@ -206,3 +206,51 @@ def test_un_error_de_verdad_SI_se_propaga(pagina):
     """)
     pagina.wait_for_function("window.error !== null", timeout=5000)
     assert "500" in pagina.evaluate("window.error")
+
+
+def test_cuerpoEnError_entrega_el_cuerpo_de_un_4xx(pagina):
+    """Varias rutas del sustrato responden 4xx con `{error: "…"}` escrito para
+    el operador. Sin esta opción, la guarda cambiaba un mensaje útil por uno
+    genérico — y eso es lo que impedía adoptarla en el dossier de ingesta."""
+    pagina.route("**/api/dossier*", lambda route: route.fulfill(
+        status=404, content_type="application/json",
+        body=json.dumps({"error": "Ese artefacto no tiene dossier"})))
+    pagina.evaluate("""
+      window.res = null;
+      GestellComun.fetchUltimo('d', '/api/dossier', { cuerpoEnError: true })
+        .then(function (r) { window.res = r; });
+    """)
+    pagina.wait_for_function("window.res !== null", timeout=5000)
+    assert pagina.evaluate("window.res") == {
+        "ok": False, "datos": {"error": "Ese artefacto no tiene dossier"}}
+
+
+def test_sin_la_opcion_un_4xx_sigue_rechazando(pagina):
+    """El default no cambia: quien solo espera 200 se sigue enterando."""
+    pagina.route("**/api/dossier*", lambda route: route.fulfill(
+        status=404, content_type="application/json", body='{"error":"no"}'))
+    pagina.evaluate("""
+      window.error = null;
+      GestellComun.fetchUltimo('d', '/api/dossier')
+        .catch(function (e) { window.error = String(e); });
+    """)
+    pagina.wait_for_function("window.error !== null", timeout=5000)
+    assert "404" in pagina.evaluate("window.error")
+
+
+def test_la_opcion_no_viaja_a_fetch_como_cabecera(pagina):
+    """`cuerpoEnError` es nuestra, no de fetch: se retira antes de llamar."""
+    vistas = []
+    pagina.route("**/api/x*", lambda route: (
+        vistas.append(dict(route.request.headers)),
+        route.fulfill(status=200, content_type="application/json",
+                      body='{"sesion":"uno"}')))
+    pagina.evaluate("""
+      window.listo = false;
+      GestellComun.fetchUltimo('k', '/api/x?s=1',
+                               { cuerpoEnError: true, headers: { 'X-Prueba': 'si' } })
+        .then(function () { window.listo = true; });
+    """)
+    pagina.wait_for_function("window.listo === true", timeout=5000)
+    assert vistas and vistas[0].get("x-prueba") == "si"
+    assert not any(k.lower().startswith("cuerpo") for k in vistas[0])

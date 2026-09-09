@@ -82,10 +82,39 @@ quién usa `GestellComun` lo carga, y lo carga ANTES.
 
 ## Alcance, dicho con precisión
 
-Se adoptó `fetchUltimo` en las **lecturas que repintan un panel** de seis
-superficies (concilia, validación, qualia, qualia_maquina, vínculos,
-metabolismo). **No** en las mutaciones: cancelar un POST a media escritura
-sería peor que la carrera que evita.
+Se adoptó `fetchUltimo` en las **lecturas que repintan un panel**. **No** en
+las mutaciones: cancelar un POST a media escritura sería peor que la carrera
+que evita.
+
+**Ampliado el 2026-09-09 — un solo mecanismo, once superficies.** La primera
+pasada cubrió seis (concilia, validación, qualia, qualia_maquina, vínculos,
+metabolismo) y dejó fuera las que YA tenían guarda propia: `ingesta.js`,
+`grafo.js`, `nomos.js`, `chord.js`, `qualia_cascada.js` y `qualia_terreno.js`
+llevaban un token de secuencia a mano desde julio (rama `systematic-audit`).
+
+Funcionaba, y aun así había que unificarlo por dos razones. La primera es que
+el token resuelve **la mitad** del problema —descarta la respuesta vieja— y
+deja la otra: la petición sigue bajando y sigue ocupando un worker. La
+segunda es la deriva: quien toque el siguiente archivo copiará el patrón que
+tenga delante, y con dos patrones delante copiará el más pobre.
+
+`qualia.js` merece mención aparte: había quedado con las dos cosas a la vez
+—`fetchUltimo` y su viejo contador— desde la primera pasada. Peso muerto que
+la unificación retiró.
+
+**La compuerta lo fija**: `test_no_quedan_guardas_de_carrera_a_mano` falla si
+vuelve a aparecer un contador de secuencia local. Fue esa prueba la que
+encontró que no eran tres archivos sino ocho — el recuento a ojo se había
+quedado corto.
+
+### Una opción que la unificación obligó a añadir
+
+`pintarDossier` de ingesta necesitaba el CUERPO de una respuesta 4xx: la ruta
+contesta `{error: "…"}` con una frase escrita para el operador, y rechazar
+sin leerla la cambiaba por un «Sin dossier» genérico. De ahí
+`fetchUltimo(clave, url, { cuerpoEnError: true })`, que resuelve con
+`{ok, datos}`. No es el default a propósito: quien solo espera 200 se sigue
+enterando de un 500.
 
 Las copias de `esc` bajaron de 19 a 16, retirando las de las cuatro
 superficies que ya cargan la casa común. Las doce restantes viven en

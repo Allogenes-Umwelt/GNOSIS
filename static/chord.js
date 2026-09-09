@@ -409,13 +409,9 @@
       }
     }
 
-    var reqSeq = 0;   // token de secuencia: una respuesta vieja nunca pisa a la nueva
     function cargar() {
-      var mia = ++reqSeq;
-      fetch('/api/v1/autogenes/chord_ingesta')
-        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      GestellComun.fetchUltimo('chord_ingesta', '/api/v1/autogenes/chord_ingesta')
         .then(function (j) {
-          if (mia !== reqSeq) return;
           if (!j || j.error) { if (info) info.textContent = (j && j.error) || 'SIN DATOS'; return; }
           datos = j;
           calcularLayout();
@@ -434,8 +430,8 @@
           animar();
         })
         .catch(function (e) {
-          if (mia !== reqSeq) return;
-          if (info) info.textContent = (e && e.message === 'http')
+          // la guarda común rechaza un HTTP no-2xx como `HTTP <código>`
+          if (info) info.textContent = (e && /^HTTP /.test(e.message || ''))
             ? 'NO SE PUDO LEER EL MAPA' : 'SIN CONEXIÓN';
         });
     }

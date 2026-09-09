@@ -230,15 +230,14 @@
     }
 
     // backtest: la misma regla contra toda la historia procesada.
-    // Guard de secuencia: al cambiar de regla rápido, la respuesta lenta de
-    // la regla anterior NO debe adjuntar su P&L bajo las refs de la nueva.
-    var backtestId = null;
+    // Al cambiar de regla rápido, la respuesta lenta de la regla anterior NO
+    // debe adjuntar su P&L bajo las refs de la nueva. Antes lo cuidaba un
+    // token propio; ahora es la guarda común, que además aborta la vieja.
     function cargarBacktest(rg) {
-      backtestId = rg.id;
-      fetch('/api/v1/autogenes/nomos/backtest?id=' + encodeURIComponent(rg.id))
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo(
+        'nomos_backtest',
+        '/api/v1/autogenes/nomos/backtest?id=' + encodeURIComponent(rg.id))
         .then(function (j) {
-          if (backtestId !== rg.id) return;          // llegó tarde: descartar
           if (!j || j.error || !j.corridas) return;
           var html = '<div class="qa-sec">Backtest · toda la historia</div>' +
             '<div class="qa-lista">';
@@ -256,8 +255,7 @@
     }
 
     function cargar() {
-      fetch('/api/v1/autogenes/nomos')
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('nomos', '/api/v1/autogenes/nomos')
         .then(function (j) {
           if (!j || j.error) {
             elReglas.innerHTML = '<p class="qa-base-hint">' +

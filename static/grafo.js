@@ -356,13 +356,10 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
 
-    var reqSeq = 0;   // token de secuencia: una respuesta vieja nunca pisa a la nueva
     function cargar(limite) {
       var url = '/api/v1/autogenes/grafo' + (limite ? '?limite_vehiculos=' + limite : '');
-      var mia = ++reqSeq;
       if (estadoLinea) estadoLinea.textContent = 'CARGANDO EL CASO…';
-      fetch(url).then(function (r) { return r.json(); }).then(function (g) {
-        if (mia !== reqSeq) return;
+      GestellComun.fetchUltimo('grafo', url).then(function (g) {
         if (!g || g.error) {
           if (estadoLinea) estadoLinea.textContent = g && g.error ? g.error.toUpperCase() : 'SIN DATOS';
           return;
@@ -393,7 +390,6 @@
         cont.dispatchEvent(new CustomEvent('grafo:listo', { detail: { nodos: nodos } }));
         if (primeraCarga) { primeraCarga = false; cargarVigilados(); aplicarEstadoPendiente(); }
       }).catch(function () {
-        if (mia !== reqSeq) return;
         if (estadoLinea) estadoLinea.textContent = 'SIN CONEXIÓN CON EL SUSTRATO';
       });
     }
@@ -2029,7 +2025,8 @@
     }
     function cargarInvestigaciones() {
       if (!invLista) return;
-      fetch('/api/v1/autogenes/investigaciones').then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('grafo_investigaciones',
+                               '/api/v1/autogenes/investigaciones')
         .then(function (j) {
           var invs = (j && j.investigaciones) || [];
           invLista.innerHTML = '<option value="">investigaciones… (' + invs.length + ')</option>' +

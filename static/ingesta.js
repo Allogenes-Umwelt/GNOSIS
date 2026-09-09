@@ -42,14 +42,10 @@
 
     // ── panel derecho: resumen por defecto (mata la pantalla muerta) ──
     // Gramática de tarjeta: cifra+unidad+periodo → so-what → now-what → fuente.
-    var seqResumen = 0;
     function pintarResumen() {
       propTitulo.hidden = true; integrarBtn.hidden = true;
-      var mia = ++seqResumen;
-      fetch('/api/v1/autogenes/chord_ingesta')
-        .then(function (r) { if (!r.ok) throw new Error('http'); return r.json(); })
+      GestellComun.fetchUltimo('ingesta_resumen', '/api/v1/autogenes/chord_ingesta')
         .then(function (j) {
-          if (mia !== seqResumen) return;   // una respuesta vieja no pisa a la nueva
           if (!j || j.error) {
             // NO borrar el panel (pantalla muerta): declarar el error
             propCont.innerHTML = '<p class="gr-vacio">' +
@@ -72,7 +68,6 @@
             '<p class="gr-vacio" style="margin-top:10px">' + esc(ahora) +
             ' · clic en un arco para su dossier.</p>';
         }).catch(function () {
-          if (mia !== seqResumen) return;
           if (!propCont.innerHTML) {
             propCont.innerHTML = '<p class="gr-vacio">Sin conexión con el sustrato.</p>';
           }
@@ -80,24 +75,24 @@
     }
 
     // ── dossier de un arco (artefacto o entidad) ──
-    var seqDossier = 0;
     function pintarDossier(nodo) {
       if (!nodo) { pintarResumen(); return; }
       propTitulo.hidden = true; integrarBtn.hidden = true;
       propCont.innerHTML = '<p class="gr-vacio">Cargando dossier…</p>';
-      var mia = ++seqDossier;
-      fetch('/api/v1/autogenes/detalle_ingesta?id=' + encodeURIComponent(nodo.id))
-        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      // `cuerpoEnError`: la ruta responde 4xx con su propia explicación, y
+      // esa frase es mejor que un "Sin dossier" genérico.
+      GestellComun.fetchUltimo(
+        'ingesta_dossier',
+        '/api/v1/autogenes/detalle_ingesta?id=' + encodeURIComponent(nodo.id),
+        { cuerpoEnError: true })
         .then(function (res) {
-          if (mia !== seqDossier) return;   // una respuesta vieja no pisa a la nueva
           if (!res.ok) { propCont.innerHTML = '<p class="gr-vacio">' +
-            esc(res.j.error || 'Sin dossier') + '</p>'; return; }
-          var d = res.j;
+            esc(res.datos.error || 'Sin dossier') + '</p>'; return; }
+          var d = res.datos;
           if (d.tipo === 'artefacto') { dossierArtefacto(d); }
           else if (d.tipo === 'agregado') { dossierAgregado(d); }
           else { dossierEntidad(d); }
         }).catch(function () {
-          if (mia !== seqDossier) return;
           propCont.innerHTML = '<p class="gr-vacio">Sin conexión</p>';
         });
     }
@@ -199,8 +194,8 @@
     if (soloFrias) soloFrias.addEventListener('change', pintarLista);
 
     function pintarArtefactos() {
-      return fetch('/api/v1/autogenes/artefactos')
-        .then(function (r) { return r.json(); })
+      return GestellComun.fetchUltimo('ingesta_artefactos',
+                                      '/api/v1/autogenes/artefactos')
         .then(function (j) {
           artefactosCache = j.artefactos || [];
           pintarLista();

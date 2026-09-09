@@ -61,7 +61,11 @@ def test_las_lecturas_que_repintan_van_por_fetchUltimo():
     encima de la nueva. Esta lista es la que ya se adoptó; añadir una lectura
     nueva a una de estas superficies exige adoptarla también."""
     adoptadas = {"concilia.js", "validacion.js", "qualia.js", "qualia_maquina.js",
-                 "vinculos.js", "metabolismo.js"}
+                 "vinculos.js", "metabolismo.js",
+                 # unificadas después: traían su propio token de secuencia,
+                 # que resolvía la mitad del problema (descartaba la respuesta
+                 # vieja) y dejaba la otra (seguía bajándola)
+                 "ingesta.js", "grafo.js", "nomos.js"}
     sin_guarda = []
     for nombre in sorted(adoptadas):
         texto = (ESTATICO / nombre).read_text()
@@ -96,3 +100,27 @@ def test_el_escape_compartido_cubre_la_comilla_simple():
     assert "&#39;" in fuente
     for caracter in ("&amp;", "&lt;", "&gt;", "&quot;"):
         assert caracter in fuente
+
+
+def test_no_quedan_guardas_de_carrera_a_mano():
+    """Un solo mecanismo para un solo problema.
+
+    `ingesta.js`, `grafo.js` y `nomos.js` llevaban su propio token de
+    secuencia desde julio (rama `systematic-audit`). Funcionaba, pero dos
+    mecanismos para el mismo defecto es la deriva que `gestell_comun.js`
+    existe para acabar: quien toque el archivo siguiente copiará el patrón
+    que tenga delante, y el de a mano no aborta la petición vieja."""
+    import re as _re
+
+    caseros = []
+    for js in ESTATICO.glob("*.js"):
+        if js.name == "gestell_comun.js":
+            continue
+        texto = js.read_text()
+        # un contador de secuencia comparado contra una copia local
+        if _re.search(r"\bvar\s+seq[A-Za-z]*\s*=\s*0\b", texto) or \
+           _re.search(r"\bmia\s*!==\s*\w+", texto):
+            caseros.append(js.name)
+    assert not caseros, (
+        "guardas de carrera a mano, en vez de GestellComun.fetchUltimo: "
+        f"{sorted(caseros)}")

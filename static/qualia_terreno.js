@@ -329,11 +329,9 @@
       }
     }
 
-    var reqSeq = 0;
     function cargar() {
-      var mia = ++reqSeq;
-      fetch('/api/v1/autogenes/qualia/estado').then(function (r) { return r.json(); }).then(function (j) {
-        if (mia !== reqSeq) return;
+      GestellComun.fetchUltimo('qualia_estado', '/api/v1/autogenes/qualia/estado')
+        .then(function (j) {
         if (!j || j.error) { elInfo.textContent = (j && j.error ? j.error : 'SIN DATOS').toUpperCase(); return; }
         estado = j;
         sembrarMembrana();

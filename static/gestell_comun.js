@@ -46,6 +46,16 @@ window.GestellComun = (function () {
      el `.then()` de quien pinta no llegue a ejecutarse. Los rechazos por
      aborto tampoco se propagan — no son errores, son la guarda funcionando. */
   function fetchUltimo(clave, url, opciones) {
+    // `cuerpoEnError`: resolver con el CUERPO aunque el HTTP no sea 2xx.
+    // Varias rutas del sustrato responden 4xx con `{error: "…"}` escrito para
+    // el operador, y rechazar sin leerlo cambia un mensaje útil («ese
+    // artefacto no tiene dossier») por uno genérico. No es el default: quien
+    // lo quiere lo pide, y así las superficies que solo esperan 200 siguen
+    // enterándose de un 500.
+    var config = Object.assign({}, opciones || {});
+    var cuerpoEnError = config.cuerpoEnError === true;
+    delete config.cuerpoEnError;      // no es una opción de fetch
+
     var previa = vivas[clave];
     if (previa && previa.ctrl) {
       try { previa.ctrl.abort(); } catch (_) { /* navegador sin abort */ }
@@ -54,14 +64,15 @@ window.GestellComun = (function () {
     var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
     vivas[clave] = { seq: seq, ctrl: ctrl };
 
-    var config = Object.assign({}, opciones || {});
     if (ctrl) config.signal = ctrl.signal;
 
     return new Promise(function (resolver, rechazar) {
       fetch(url, config).then(function (r) {
         if (!vigente(clave, seq)) return;      // llegó tarde: no se pinta
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
+        if (!r.ok && !cuerpoEnError) throw new Error('HTTP ' + r.status);
+        return r.json().then(function (datos) {
+          return cuerpoEnError ? { ok: r.ok, datos: datos } : datos;
+        });
       }).then(function (datos) {
         if (!vigente(clave, seq)) return;
         resolver(datos);

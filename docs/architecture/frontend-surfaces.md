@@ -10,7 +10,8 @@
 
 **La casa común (ADR-0020).** `static/gestell_comun.js` guarda `esc` y
 `fetchUltimo`. Toda lectura que repinta un panel va por `fetchUltimo(clave,
-url)`: la última petición de la clave gana, siempre — sin eso, cambiar de
+url)` —en las ONCE superficies, sin excepciones ni guardas a mano—: la última
+petición de la clave gana, siempre — sin eso, cambiar de
 sesión dos veces hace que la respuesta lenta de la primera pinte encima de la
 segunda, y la pantalla miente sin fallar. Las mutaciones NO van por ahí:
 cancelar un POST a media escritura sería peor que la carrera. El orden de los

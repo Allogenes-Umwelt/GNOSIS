@@ -45,7 +45,6 @@
     var inicio = 0, animando = false;
     var vista = { x: 0, y: 0, k: 1 };
     var posPantalla = [];
-    var reqSeq = 0;
 
     // radio normalizado por anillo: el 0 al centro, el 1 empujado afuera
     // para que el primer anillo respire (evita el racimo interior).
@@ -319,14 +318,12 @@
       return mejor;
     }
     function simular() {
-      var mia = ++reqSeq;
       var url = modo === 'caida'
         ? '/api/v1/autogenes/qualia/cascada?caida=' + encodeURIComponent(seleccion[0])
         : '/api/v1/autogenes/qualia/cascada?enlaza=' +
           encodeURIComponent(seleccion[0]) + ',' + encodeURIComponent(seleccion[1]);
       elInfo.textContent = 'SIMULANDO…';
-      fetch(url).then(function (r) { return r.json(); }).then(function (j) {
-        if (mia !== reqSeq) return;
+      GestellComun.fetchUltimo('qualia_cascada', url).then(function (j) {
         if (!j || j.error) { elInfo.textContent = (j && j.error ? j.error : 'SIN DATOS').toUpperCase(); return; }
         huerfanos = {};
         if (modo === 'caida') {
@@ -345,7 +342,7 @@
         }
         btnLimpiar.disabled = false;
         animar();
-      }).catch(function () { if (mia === reqSeq) elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
+      }).catch(function () { elInfo.textContent = 'SIN CONEXIÓN CON EL SUSTRATO'; });
     }
     function reposo(mensajeInfo) {
       seleccion = []; caido = null; huerfanos = {};

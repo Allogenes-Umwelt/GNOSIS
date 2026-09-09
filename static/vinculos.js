@@ -22,7 +22,6 @@
 
     var porEtiqueta = {};
     var caminoActual = null;
-    var reqSeq = 0;   // una respuesta vieja nunca fija caminoActual
 
     // Etiquetas de origen documental: SIEMPRE escapadas antes del DOM.
     // `esc` vive en gestell_comun.js (H14): una sola casa, y esa sí
@@ -161,14 +160,12 @@
       msj.className = 'ag-msj';
       if (!a || !b) { msj.textContent = 'Elige ambos extremos de la lista.'; return; }
       msj.textContent = 'Trazando…';
-      var mia = ++reqSeq;
       // k=3: pide alternativas para mostrar si el vínculo es robusto (varias
       // rutas) o frágil (una sola). El dockeo sigue anclando la más corta.
-      fetch('/api/v1/autogenes/camino?k=3&desde=' + encodeURIComponent(a) +
-            '&hasta=' + encodeURIComponent(b))
-        .then(function (r) { return r.json(); })
+      GestellComun.fetchUltimo('vinculos_camino',
+                               '/api/v1/autogenes/camino?k=3&desde=' + encodeURIComponent(a) +
+                               '&hasta=' + encodeURIComponent(b))
         .then(function (j) {
-          if (mia !== reqSeq) return;
           var lista = j.caminos || (j.camino ? [j.camino] : []);
           if (!lista.length) {
             msj.textContent = j.mensaje || j.error || 'Sin camino.';
@@ -183,7 +180,6 @@
           pintarCaminos(lista);
         })
         .catch(function () {
-          if (mia !== reqSeq) return;
           msj.textContent = 'Sin conexión con el sustrato.';
         });
     }

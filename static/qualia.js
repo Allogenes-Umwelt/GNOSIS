@@ -38,7 +38,6 @@
     var niveles = null;         // conteo de nodos por peldaño
     var cache = {};             // nivel -> respuesta de /qualia/red
     var nivel = 0;
-    var reqSeq = 0;
     var insetBox = null;        // caja del inset (promoción por clic)
     var hubsHit = [];           // [{x, y, r, com}] para hover/clic
     var comSel = null;          // comunidad bajo el cursor
@@ -314,10 +313,8 @@
     // ── datos ─────────────────────────────────────────────────────────
     function cargarNivel(n, alTerminar) {
       if (cache[n]) { if (alTerminar) alTerminar(); return; }
-      var mia = ++reqSeq;
       GestellComun.fetchUltimo('qualia_red', '/api/v1/autogenes/qualia/red?nivel=' + n)
         .then(function (j) {
-          if (mia !== reqSeq && cache[n]) return;
           if (!j || j.error) {
             elInfo.textContent = (j && j.error ? j.error : 'SIN DATOS').toUpperCase();
             return;
