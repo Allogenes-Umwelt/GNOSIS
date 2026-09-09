@@ -296,6 +296,25 @@ def test_candado_operador_cubre_post_no_api(cliente, monkeypatch):
     monkeypatch.delenv("GNOSIS_TOKEN")
 
 
+def test_candado_operador_registra_la_denegacion(cliente, monkeypatch, caplog):
+    """`application-security` §3 Decisions logged: una denegación que nadie
+    registra es una denegación que nadie puede contar, y es la única señal
+    de que alguien está probando el candado."""
+    import logging
+
+    monkeypatch.setenv("GNOSIS_TOKEN", "secreto-operador")
+    with caplog.at_level(logging.WARNING, logger="gnosis.seguridad"):
+        r = cliente.post("/errores/delete", json={"sid": 1, "filename": "x.pdf"})
+    assert r.status_code == 401
+    registros = [x for x in caplog.records if x.name == "gnosis.seguridad"]
+    assert len(registros) == 1
+    mensaje = registros[0].getMessage()
+    assert "denegado" in mensaje
+    assert "/errores/delete" in mensaje
+    assert "secreto-operador" not in mensaje, "el token esperado no se registra"
+    monkeypatch.delenv("GNOSIS_TOKEN")
+
+
 def test_secret_key_no_es_el_default_conocido(cliente):
     import app as gnosis
     assert gnosis.app.config['SECRET_KEY'] != 'Gestel2025'

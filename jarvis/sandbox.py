@@ -124,7 +124,14 @@ def ejecutar_select(ruta_db: str, session_id: int, query: str) -> Any:
                     "Consulta rechazada: esa tabla no está disponible para el "
                     "asistente. Consultables: "
                     f"{', '.join(sorted(TABLAS_VISIBLES + CATALOGOS))}.") from e
-            raise ConsultaRechazada(f"Error SQL: {e}") from e
+            # Cualquier otro error es del DRIVER, y su mensaje nombra columnas,
+            # tablas y rutas: «no such column: no_existe». Aquí se envolvía en
+            # un ConsultaRechazada, que el llamador devuelve TAL CUAL al
+            # modelo — el sandbox cerraba la puerta de las tablas y dejaba
+            # abierta la del mensaje de error. Se propaga sin tocar para que
+            # `consulta_sql` le ponga una referencia y lo mande al registro.
+            # (Lo destapó una prueba que venía de main al integrar.)
+            raise
         return [dict(f) for f in filas]
     finally:
         conn.close()

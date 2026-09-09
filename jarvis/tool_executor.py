@@ -4,12 +4,25 @@ aplica ofuscacion cuando es necesario, y retorna resultados.
 """
 
 import json
+import logging
+import time
 
 from . import tools as t
 from .ambito import FueraDeAmbito, sesion_en_ambito
 from .identidades import enmascarar, identificadores_de_sesion
 from .ofuscation import ObfuscationLayer
 from .tools_grafo import GRAFO_TOOL_FUNCTIONS
+
+# Audit log for the agent's tool calls. Every call the model makes is
+# recorded here with its arguments, its outcome and how long it took --
+# without an audit trail there is no way to answer "what did the agent do"
+# after the fact, and the answer is the whole point of giving it tools.
+#
+# Results are recorded by shape (rows, keys, error) and not by content:
+# the detail tools return VINs and invoice numbers, and the obfuscation
+# layer exists precisely so those do not travel. A log that undoes it
+# would be a second copy of the data with none of the controls.
+audit = logging.getLogger("jarvis.audit")
 
 
 # Tools que retornan datos individuales (necesitan ofuscacion)
@@ -48,6 +61,27 @@ TOOL_FUNCTIONS = {
     'buscar_fragmentos': t.buscar_fragmentos,
     **GRAFO_TOOL_FUNCTIONS,
 }
+
+
+def _args(tool_input) -> str:
+    """Tool arguments, bounded. They are the model's own words, so they are
+    logged whole -- truncated only so one long SQL string cannot dominate."""
+    try:
+        rendered = json.dumps(tool_input, ensure_ascii=False, sort_keys=True, default=str)
+    except (TypeError, ValueError):
+        rendered = repr(tool_input)
+    return rendered if len(rendered) <= 500 else rendered[:500] + '…'
+
+
+def _shape(result) -> str:
+    """What came back, by shape and never by content."""
+    if isinstance(result, list):
+        return f"rows={len(result)}"
+    if isinstance(result, dict):
+        if 'error' in result:
+            return "error"
+        return f"keys={len(result)}"
+    return type(result).__name__
 
 
 class ToolExecutor:
@@ -92,15 +126,27 @@ class ToolExecutor:
         """
         func = TOOL_FUNCTIONS.get(tool_name)
         if not func:
+            audit.warning("tool=%s unknown args=%s", tool_name, _args(tool_input))
             return json.dumps({'error': f'Tool no encontrada: {tool_name}'}), None
 
+        started = time.monotonic()
         try:
             result = func(**tool_input)
         except FueraDeAmbito as e:
             # el modelo pidio una sesion que el operador no puso sobre la mesa
             return json.dumps({'error': str(e)}, ensure_ascii=False), None
         except Exception as e:
+            audit.exception(
+                "tool=%s args=%s outcome=raised ms=%d",
+                tool_name, _args(tool_input), (time.monotonic() - started) * 1000,
+            )
             return json.dumps({'error': f'Error ejecutando {tool_name}: {str(e)}'}), None
+
+        audit.info(
+            "tool=%s args=%s outcome=%s ms=%d",
+            tool_name, _args(tool_input), _shape(result),
+            (time.monotonic() - started) * 1000,
+        )
 
         # Ofuscacion por NOMBRE de campo: primera capa, barata y con
         # semantica (sabe que 'patente' es una patente aunque sea corta).

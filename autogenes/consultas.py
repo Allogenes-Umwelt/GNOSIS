@@ -47,7 +47,7 @@ def _citas(conn: sqlite3.Connection, session_id: int, frag_ids: list[str],
         for r in conn.execute(
             f"SELECT f.id, f.pagina, f.texto, a.nombre AS fuente, a.kind"  # noqa: S608 — solo interpola '?' — los valores van ligados
             f" FROM ag_fragmentos f JOIN ag_artefactos a ON f.artefacto_id = a.id"
-            f" WHERE f.id IN ({marcadores}) AND f.session_id = ?",  # noqa: S608
+            f" WHERE f.id IN ({marcadores}) AND f.session_id = ?",
             (*unicos, session_id),
         )
     }

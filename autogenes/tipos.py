@@ -10,7 +10,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
-from autogenes.predicados import PREDICADOS
+from autogenes.predicados import Predicado
 
 KindArtefacto = Literal["pdf", "imagen", "nota", "estructurado"]
 
@@ -32,10 +32,9 @@ PrecisionFecha = Literal["dia", "mes", "anio"]
 
 ClaseProducto = Literal["informe", "camino", "investigacion"]
 
-#: El vocabulario cerrado de relaciones (G2). La lista vive en
-#: `autogenes/predicados.py` porque es del dominio, no del tipo: quien
-#: conoce la aduana la edita ahí sin tocar los contratos.
-Predicado = Literal[PREDICADOS]
+# `Predicado` (el vocabulario cerrado de relaciones, G2) se importa de
+# `autogenes/predicados.py`: la lista es del dominio, no del tipo, y quien
+# conoce la aduana la edita ahí sin tocar estos contratos.
 
 FECHA_ISO = r"^\d{4}-\d{2}-\d{2}$"
 

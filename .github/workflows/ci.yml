@@ -5,15 +5,20 @@ on:
     branches: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   pruebas:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          # el gate de staleness compara contra el commit anterior
+          persist-credentials: false
+          # la compuerta de staleness compara contra el commit anterior
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.11'
       # Flask/Werkzeug van PINEADOS a lo que instala requirements.txt: sin el
@@ -21,16 +26,23 @@ jobs:
       # 2.0.3, asi que la compuerta verde no decia nada sobre lo que el operador
       # ejecuta. El resto queda flotante a proposito (son deps de prueba).
       - name: Dependencias
+        # `-c requirements.txt` es el punto: CI instala el subconjunto que
+        # necesita, en las versiones que instala la imagen. Sin esto la
+        # suite pasa contra un programa que no es el desplegado.
         run: |
-          pip install 'flask==3.1.3' 'werkzeug==3.1.8' \
-            pydantic networkx python-dotenv requests \
-            pandas numpy pytest ruff pip-audit \
-            openpyxl 'xlrd>=2.0.1' anthropic
+          pip install -c requirements.txt \
+            flask pydantic networkx python-dotenv requests \
+            pandas numpy openpyxl xlrd anthropic \
+            'pytest==8.4.2' 'ruff==0.16.6' 'pip-audit==2.10.1' 'mypy==2.3.1'
       # El alcance lo declara ruff.toml (exclude = pipelegado + scripts
-      # legados), no esta lista: la anterior olvidaba database/, que la
-      # config sí considera árbol vivo.
-      - name: Lint
+      # legados), no la lista de arriba: una lista escrita a mano olvidaba
+      # database/, que la config sí considera árbol vivo.
+      - name: Lint (el árbol vivo; ruff.toml define qué queda fuera)
         run: ruff check .
+      - name: Types (the list in mypy.ini only shrinks)
+        run: mypy
+      - name: Dependencias sin vulnerabilidades conocidas
+        run: pip-audit -r requirements.txt --strict
       - name: Suite
         run: python -m pytest -q
 

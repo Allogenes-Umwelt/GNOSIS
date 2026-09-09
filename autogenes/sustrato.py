@@ -197,6 +197,8 @@ class Sustrato:
                 (self.session_id, accion, detalle, prev_hash or None),
             )
         rid = cur.lastrowid
+        if rid is None:                   # sin fila no hay nada que sellar
+            return
         ts = self.conn.execute(
             "SELECT ts FROM ag_bitacora WHERE id = ?", (rid,)).fetchone()[0]
         sello = _sello_bitacora(prev_hash, rid, self.session_id, ts, accion,

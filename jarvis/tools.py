@@ -4,9 +4,15 @@ Cada funcion recibe parametros y retorna lista de dicts.
 TOOL_DEFINITIONS contiene los schemas JSON para Anthropic tool_use.
 """
 
+import logging
+import uuid
+
 from database import get_connection
 from .ambito import FueraDeAmbito, sesion_en_ambito
 from .tools_grafo import GRAFO_TOOL_DEFINITIONS
+
+
+_log = logging.getLogger("jarvis.tools")
 
 
 def _get_session(session_id=None):
@@ -499,7 +505,17 @@ def consulta_sql(query):
     try:
         return ejecutar_select(database.DB_PATH, sid, query)
     except ConsultaRechazada as e:
+        # rechazo del sandbox: su mensaje esta escrito PARA el modelo
         return {'error': str(e)}
+    except Exception:
+        # Cualquier otra cosa es del driver, y su mensaje nombra tablas,
+        # columnas y rutas de archivo. Iba derecho al modelo y de ahi al
+        # navegador. Va al registro; quien llama recibe una referencia que
+        # citar. (Lo trajo main; el sandbox no lo tenia.)
+        ref = uuid.uuid4().hex[:12]
+        _log.exception("consulta_sql ref=%s fallo con: %s", ref, query)
+        return {'error': f'La consulta no se pudo ejecutar (ref {ref}).'}
+
 
 
 # ============================================================

@@ -16,8 +16,8 @@ class ObfuscationLayer:
     """Mantiene mapeo bidireccional real <-> token para una conversacion."""
 
     def __init__(self, semilla: str = ""):
-        self._real_to_token = {}  # valor_real -> token
-        self._token_to_real = {}  # token -> valor_real
+        self._real_to_token: dict[str, str] = {}  # valor_real -> token
+        self._token_to_real: dict[str, str] = {}  # token -> valor_real
         # La semilla (el id del hilo de chat) hace el token DETERMINISTA: dos
         # procesos distintos —gunicorn corre varios workers— derivan el mismo
         # token para el mismo valor, asi que uno puede revertir la historia

@@ -604,3 +604,29 @@ cargan Bootstrap y pdf.js desde CDN, contra la ley local-first de
 **Del ejecutor, pendiente:** las mutaciones que aún registran solo prosa en la
 bitácora (geo, productos, eventos, reglas de fila) — aditivo, sin re-sellar;
 y las doce copias de `esc()` en superficies que la ola 9 no tocó.
+
+### Cerrado por `main` mientras esta rama trabajaba (integrado el 2026-09-09)
+
+- **PyPDF2 ya no es decisión pendiente.** `main` lo subió a **1.27.9** —la
+  última 1.x, que conserva `PdfFileReader` y por tanto no toca el
+  pipelegado— y con eso `PYSEC-2022-194` y `PYSEC-2026-1837` se cierran sin
+  cambiar una línea de código. `pip-audit -r requirements.txt --strict` sale
+  limpio, sin ignoradas.
+- **`requirements.txt` es un conjunto resuelto**, y CI lo usa como
+  restricciones: la suite prueba las versiones que instala la imagen.
+- **Compuertas nuevas heredadas:** `mypy` sobre una lista que solo mengua,
+  auditoría de cada llamada de tool, y acciones de CI pineadas por SHA.
+
+### Lo que la integración destapó
+
+Una prueba que vino de `main` encontró una fuga que el sandbox de ADR-0011
+tenía abierta: `ejecutar_select` envolvía el error del driver en
+`ConsultaRechazada` («no such column: no_existe»), y `consulta_sql` devuelve
+ese texto TAL CUAL al modelo. El sandbox cerraba la puerta de las tablas y
+dejaba abierta la del mensaje de error. Ahora el error del driver se propaga
+sin tocar, y el llamador le pone una referencia y lo manda al registro — el
+mecanismo que `main` había escrito para su propia versión.
+
+También se cerró una prueba de escala que parpadeaba bajo carga (el
+enmascarado, umbral de reloj): ahora afirma la propiedad CONTANDO ventanas,
+que es de lo que el coste depende de verdad.

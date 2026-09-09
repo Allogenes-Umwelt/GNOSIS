@@ -88,6 +88,23 @@ def _plano(texto: str) -> tuple[str, list[int]]:
     return "".join(limpio), indices
 
 
+def indexar_por_longitud(
+        identificadores: dict[str, str]) -> dict[int, dict[str, tuple[str, str]]]:
+    """Las formas reconocibles, agrupadas por LONGITUD.
+
+    Es el índice del que depende todo el coste: `enmascarar` desliza una
+    ventana por cada longitud presente, así que el trabajo es
+    `nº de longitudes × longitud del texto` — y el número de longitudes es un
+    puñado, haya diez identificadores o cien mil. Está fuera de `enmascarar`
+    para que esa propiedad se pueda AFIRMAR contando, sin cronómetro."""
+    por_longitud: dict[int, dict[str, tuple[str, str]]] = {}
+    for valor, tipo in identificadores.items():
+        for forma in _formas_normalizadas(valor):
+            if len(forma) >= MIN_LONGITUD:
+                por_longitud.setdefault(len(forma), {}).setdefault(forma, (valor, tipo))
+    return por_longitud
+
+
 def enmascarar(texto: Optional[str], identificadores: dict[str, str],
                capa) -> Optional[str]:
     """Sustituye por su token toda aparición de un identificador real.
@@ -114,11 +131,7 @@ def enmascarar(texto: Optional[str], identificadores: dict[str, str],
     if not texto or not identificadores:
         return texto
 
-    por_longitud: dict[int, dict[str, tuple[str, str]]] = {}
-    for valor, tipo in identificadores.items():
-        for forma in _formas_normalizadas(valor):
-            if len(forma) >= MIN_LONGITUD:
-                por_longitud.setdefault(len(forma), {}).setdefault(forma, (valor, tipo))
+    por_longitud = indexar_por_longitud(identificadores)
     if not por_longitud:
         return texto
 

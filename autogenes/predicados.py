@@ -17,10 +17,18 @@ Nada se pierde al normalizar: lo que el modelo dijo se conserva en
 `tipo_crudo` siempre que no case con un predicado, así que una redacción
 nueva se puede leer luego y decidir si merece entrar al vocabulario.
 """
+from typing import Literal, get_args
 
-#: Los predicados canónicos. `otro` es el cajón declarado: no es un fallo,
-#: es una relación real cuyo verbo todavía no tiene nombre en el dominio.
-PREDICADOS: tuple[str, ...] = (
+#: Los predicados canónicos, como TIPO. `otro` es el cajón declarado: no es
+#: un fallo, es una relación real cuyo verbo todavía no tiene nombre en el
+#: dominio.
+#:
+#: Se escribe como `Literal` y no como tupla porque un verificador de tipos
+#: no puede leer una tupla: `Literal[UNA_TUPLA]` es inválido para mypy, y sin
+#: el tipo, `Relacion.tipo` vuelve a ser `str` libre — exactamente el hallazgo
+#: G2. La tupla se DERIVA de aquí, así que sigue habiendo un solo sitio que
+#: editar: esta lista.
+Predicado = Literal[
     "emite_factura",
     "importa_por",
     "ampara",
@@ -31,7 +39,10 @@ PREDICADOS: tuple[str, ...] = (
     "ubicado_en",
     "vigente_en",
     "otro",
-)
+]
+
+#: La misma lista, en tiempo de ejecución. Derivada, nunca escrita a mano.
+PREDICADOS: tuple[str, ...] = get_args(Predicado)
 
 #: Lo que el modelo escribe → el predicado que significa. Las claves están
 #: normalizadas (minúsculas, sin acentos, con `_` por separador): la tabla

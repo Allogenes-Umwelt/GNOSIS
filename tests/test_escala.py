@@ -183,9 +183,24 @@ def test_el_enmascarado_no_depende_del_numero_de_identificadores():
         enmascarar(texto, ids, capa)
         return time.perf_counter() - t0
 
+    # Se cuenta el TRABAJO, no el reloj. El coste es `nº de longitudes ×
+    # longitud del texto`: si el número de ventanas no crece con el conjunto,
+    # el enmascarado no puede crecer con él. Un umbral de milisegundos aquí
+    # falla bajo carga —esta prueba lo hizo, corriendo con toda la suite— y
+    # una prueba que parpadea es peor que ninguna.
+    from jarvis.identidades import indexar_por_longitud
+
+    ventanas_chico = len(indexar_por_longitud(_identificadores(150)))
+    ventanas_grande = len(indexar_por_longitud(_identificadores(15000)))
+    assert ventanas_chico == ventanas_grande, (
+        f"el nº de ventanas crece con el conjunto: {ventanas_chico} con 225 "
+        f"formas → {ventanas_grande} con 22 500")
+
+    # y una cota de reloj holgada, solo para que una regresión de ORDEN de
+    # magnitud (volver a la regex por identificador: 2,33 s) no pase muda
     chico = coste(150)
     grande = coste(15000)
-    assert grande < max(chico, 0.02) * 8, (
+    assert grande < max(chico, 0.05) * 20, (
         f"el enmascarado escala con el nº de identificadores: {chico:.3f}s con 225 "
         f"→ {grande:.3f}s con 22 500 ({grande / max(chico, 1e-9):.0f}×)")
 

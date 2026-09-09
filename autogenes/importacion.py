@@ -22,6 +22,8 @@ dato del bundle, no una orden: se informa de lo que entró, contado aquí.
 import sqlite3
 from typing import Any, Optional
 
+from autogenes.tipos import Origen
+
 #: Topes de cordura. Un bundle no es una carga por lotes (para eso está
 #: `autogenes/lotes.py`): es la restauración de un caso.
 MAX_ARTEFACTOS = 5_000
@@ -98,7 +100,8 @@ def importar_bundle(conn: sqlite3.Connection, session_id: int,
             # la evidencia se remapea; la que no encontró fragmento se cae
             evidencia = [frag_nuevo[x] for x in (e.get("evidencia") or [])
                          if x in frag_nuevo]
-            origen = e.get("origen") if e.get("origen") in ("operador", "synesis") else "synesis"
+            origen: Origen = ("operador" if e.get("origen") == "operador"
+                              else "synesis")
             if origen == "synesis" and not evidencia:
                 continue              # ley de procedencia: sin cita real no entra
             creada = s.upsert_entidad(
@@ -115,11 +118,10 @@ def importar_bundle(conn: sqlite3.Connection, session_id: int,
                          if x in frag_nuevo]
             if not desde or not hasta or desde == hasta or not evidencia:
                 continue
+            origen_rel = "operador" if r.get("origen") == "operador" else "synesis"
             s.agregar_relacion(
                 desde, hasta, str(r.get("tipo") or r.get("tipo_crudo") or "otro"),
-                _peso(r), evidencia,
-                origen=r.get("origen") if r.get("origen") in ("operador", "synesis")
-                else "synesis")
+                _peso(r), evidencia, origen=origen_rel)
             contadores["relaciones"] += 1
 
         eventos = _lista(grafo, "eventos", MAX_ENTIDADES)
