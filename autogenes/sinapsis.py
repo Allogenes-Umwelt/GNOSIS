@@ -250,7 +250,7 @@ def _sugerir_regla(conn: sqlite3.Connection, session_id: int,
     marcadores = ",".join("?" * len(chasis))
     filas = conn.execute(
         f"SELECT pais_code AS p, COUNT(*) AS n FROM importaciones"
-        f" WHERE session_id = ? AND chasis IN ({marcadores})"  # noqa: S608
+        f" WHERE session_id = ? AND chasis IN ({marcadores})"
         f" AND pais_code IS NOT NULL GROUP BY pais_code"
         f" ORDER BY n DESC, pais_code",
         (session_id, *chasis)).fetchall()
@@ -372,7 +372,7 @@ def dockear_insight(conn: sqlite3.Connection, session_id: int,
         marcadores = ",".join("?" * len(nombres))
         ent_ids = [row["id"] for row in conn.execute(
             f"SELECT id FROM ag_entidades WHERE session_id = ? AND nombre IN"
-            f" ({marcadores}) ORDER BY created_at",  # noqa: S608
+            f" ({marcadores}) ORDER BY created_at",
             (session_id, *sorted(nombres)))]
 
     producto = Sustrato(conn, session_id).dockear_producto(

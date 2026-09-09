@@ -221,8 +221,11 @@ def test_senales_del_radar(conn):
     assert r["negocio"]["faltantes"] == 1 and r["negocio"]["errores"] == 0
     assert r["total"] == 1 + 1 + 1 + 1     # vencimiento + fría + huérfana + faltantes
 
+    # The same date on both sides. `estado_de_sesion` used to measure from
+    # today while `r` measured from 2026-07-10: this passed until the
+    # fixture's expiry fell into the past, then failed every day after.
     from autogenes.estado import estado_de_sesion
-    assert estado_de_sesion(conn, 1)["senales"] == r["total"]
+    assert estado_de_sesion(conn, 1, hoy="2026-07-10")["senales"] == r["total"]
 
 
 def test_quorum_fusiona_relaciones_del_segundo_modelo(conn, monkeypatch):

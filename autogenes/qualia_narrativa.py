@@ -340,7 +340,7 @@ def dockear_parte(conn: sqlite3.Connection, session_id: int,
     marcadores = ",".join("?" * len(claves_citadas))
     ent_ids = [r["id"] for r in conn.execute(
         f"SELECT id FROM ag_entidades WHERE session_id = ? AND id IN"
-        f" ({marcadores}) ORDER BY created_at",  # noqa: S608
+        f" ({marcadores}) ORDER BY created_at",
         (session_id, *claves_citadas),
     )]
 

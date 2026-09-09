@@ -5,20 +5,34 @@ on:
     branches: ['**']
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   pruebas:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.11'
       - name: Dependencias
+        # `-c requirements.txt` es el punto: CI instala el subconjunto que
+        # necesita, en las versiones que instala la imagen. Sin esto la
+        # suite pasa contra un programa que no es el desplegado.
         run: |
-          pip install flask pydantic networkx python-dotenv requests \
-            pandas numpy pytest ruff \
-            openpyxl 'xlrd>=2.0.1' anthropic
-      - name: Lint (app + rutas, autogenes, tableros, tests, jarvis)
-        run: ruff check app.py rutas autogenes tableros tests jarvis
+          pip install -c requirements.txt \
+            flask pydantic networkx python-dotenv requests \
+            pandas numpy openpyxl xlrd anthropic \
+            'pytest==8.4.2' 'ruff==0.16.6' 'pip-audit==2.10.1' 'mypy==2.3.1'
+      - name: Lint (el árbol vivo; ruff.toml define qué queda fuera)
+        run: ruff check .
+      - name: Types (the list in mypy.ini only shrinks)
+        run: mypy
+      - name: Dependencias sin vulnerabilidades conocidas
+        run: pip-audit -r requirements.txt --strict
       - name: Suite
         run: python -m pytest -q

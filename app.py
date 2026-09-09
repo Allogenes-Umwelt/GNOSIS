@@ -1,3 +1,4 @@
+import logging
 import os
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
@@ -111,6 +112,12 @@ app.config['DOWNLOAD_FOLDER'] = DOWNLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024
 
 
+# Authorization decisions go here. Everything else in this file still
+# prints; this logger exists because a denial is the one event that has to
+# outlive the request that caused it.
+seguridad = logging.getLogger("gnosis.seguridad")
+
+
 # ── candado de operador (opcional): con GNOSIS_TOKEN en el entorno,
 # toda mutación via API exige el header X-Gnosis-Token. Sin la variable
 # el candado no existe — el uso local de un solo operador no cambia.
@@ -124,6 +131,12 @@ def _candado_operador():
     # /errores/delete no viven bajo /api/ y antes quedaban libres.
     if request.method in ('POST', 'PUT', 'DELETE', 'PATCH'):
         if request.headers.get('X-Gnosis-Token') != esperado:
+            # A denial nobody records is a denial nobody can count: this is
+            # the only signal that someone is trying the lock.
+            seguridad.warning(
+                "denegado method=%s path=%s remoto=%s motivo=token",
+                request.method, request.path, request.remote_addr,
+            )
             return jsonify({'error': 'Token de operador requerido'}), 401
     return None
 
